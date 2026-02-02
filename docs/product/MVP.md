@@ -72,3 +72,4 @@
 - Backtest job processing
 - Persistent storage (users, strategies, results)
 - Basic error handling & logging
+- Single-region deployment / hosting (API, DB, scheduled jobs)

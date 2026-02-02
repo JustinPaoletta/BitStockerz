@@ -270,6 +270,18 @@ Assumptions:
 
 ---
 
+### Sprint 7.2 – Deployment & Hosting
+
+**Stories**
+- #8.7.1 – Deployment pipeline (CI build and deploy to target environment)
+- #8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
+
+**Exit**
+- Application deployable to a single-region hosting environment
+- CI builds and deploys the API (and optionally frontend) to the chosen target
+
+---
+
 ## Final Notes
 
 - This mapping is intentionally explicit

@@ -9,6 +9,7 @@ Scope:
 - Logging, metrics, and basic observability
 - Environment configuration and feature flags
 - Minimal background job & health infrastructure
+- Deployment & hosting (single region)
 
 This is a **cross-cutting** technical foundation used by features #2–#7.
 
@@ -62,6 +63,13 @@ Dependencies:
 
 ### Story 8.6.1 – Scheduling for market-data and maintenance jobs
 ### Story 8.6.2 – Health and readiness endpoints for core services
+
+---
+
+## Epic 8.7 – Deployment & Hosting
+
+### Story 8.7.1 – Deployment pipeline (CI build and deploy to target environment)
+### Story 8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
 
 ---
 
