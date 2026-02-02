@@ -1,5 +1,7 @@
 # BitStockerz Knowledge Base
 
+**Proprietary — portfolio use only.** See [LICENSE](LICENSE). All rights reserved.
+
 All documentation now lives under `docs/` with consistent, predictable paths.
 
 ## Directory Overview

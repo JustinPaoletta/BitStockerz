@@ -1,6 +1,7 @@
 {
   "name": "bitstockerz",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "description": "BitStockerz monorepo",
   "scripts": {
