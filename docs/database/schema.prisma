@@ -1,0 +1,373 @@
+// BitStockerz – Complete Prisma Schema
+// Generated from ERD, DDL skeletons, and lifecycle policy
+// Database: MySQL (can be adapted to Postgres)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+////////////////////////////
+// Core
+////////////////////////////
+
+model User {
+  id           String    @id @db.Char(36)
+  email        String    @unique
+  createdAt    DateTime  @map("created_at")
+  updatedAt    DateTime  @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  webauthnCredentials WebAuthnCredential[]
+  paperAccount        PaperAccount?
+  strategies          Strategy[]
+  backtests           BacktestRun[]
+  jobs                Job[]
+  aiUsage             AiUsage[]
+  auditEvents         AuditEvent[]
+
+  @@map("users")
+}
+
+model WebAuthnCredential {
+  credentialId String   @id @map("credential_id")
+  userId       String   @map("user_id") @db.Char(36)
+  publicKey    String   @map("public_key")
+  signCount    BigInt   @map("sign_count")
+  transports   String?  @map("transports")
+  aaguid       String?  @map("aaguid")
+  createdAt    DateTime @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+////////////////////////////
+// Market Data
+////////////////////////////
+
+model Symbol {
+  id          Int      @id @default(autoincrement())
+  symbol      String   @unique
+  name        String
+  assetType   String   @map("asset_type")
+  exchange    String?
+  currency    String
+  baseAsset   String?  @map("base_asset")
+  quoteAsset  String?  @map("quote_asset")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @map("created_at")
+  updatedAt   DateTime @map("updated_at")
+
+  equityDailyBars  EquityDailyBar[]
+  cryptoDailyBars  CryptoDailyBar[]
+  cryptoHourlyBars CryptoHourlyBar[]
+
+  orders     Order[]
+  executions Execution[]
+  positions  Position[]
+  backtests  BacktestRun[]
+
+  @@map("symbols")
+}
+
+model EquityDailyBar {
+  id        Int      @id @default(autoincrement())
+  symbolId  Int      @map("symbol_id")
+  date      DateTime @db.Date
+  open      Decimal
+  high      Decimal
+  low       Decimal
+  close     Decimal
+  volume    BigInt
+  provider  String
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, date])
+  @@map("equity_daily_bars")
+}
+
+model CryptoDailyBar {
+  id        Int      @id @default(autoincrement())
+  symbolId  Int      @map("symbol_id")
+  date      DateTime @db.Date
+  open      Decimal
+  high      Decimal
+  low       Decimal
+  close     Decimal
+  volume    Decimal
+  provider  String
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, date])
+  @@map("crypto_daily_bars")
+}
+
+model CryptoHourlyBar {
+  id        Int      @id @default(autoincrement())
+  symbolId  Int      @map("symbol_id")
+  timestamp DateTime @map("ts")
+  open      Decimal
+  high      Decimal
+  low       Decimal
+  close     Decimal
+  volume    Decimal
+  provider  String
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, timestamp])
+  @@map("crypto_hourly_bars")
+}
+
+////////////////////////////
+// Strategy Lab
+////////////////////////////
+
+model Strategy {
+  id          String   @id @db.Char(36)
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  assetType   String   @map("asset_type")
+  symbolScope String   @map("symbol_scope")
+  timeframe   String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @map("created_at")
+  updatedAt   DateTime @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id])
+  versions  StrategyVersion[]
+  backtests BacktestRun[]
+
+  @@unique([userId, name])
+  @@map("strategies")
+}
+
+model StrategyVersion {
+  id            Int      @id @default(autoincrement())
+  strategyId    String   @map("strategy_id")
+  versionNumber Int      @map("version_number")
+  definition    Json     @map("definition_json")
+  createdAt     DateTime @map("created_at")
+
+  strategy Strategy      @relation(fields: [strategyId], references: [id])
+  backtests BacktestRun[]
+
+  @@unique([strategyId, versionNumber])
+  @@map("strategy_versions")
+}
+
+////////////////////////////
+// Backtesting
+////////////////////////////
+
+model BacktestRun {
+  id                String   @id @db.Char(36)
+  userId            String   @map("user_id")
+  strategyId        String   @map("strategy_id")
+  strategyVersionId Int      @map("strategy_version_id")
+  symbolId          Int      @map("symbol_id")
+  timeframe         String
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  initialEquity     Decimal  @map("initial_equity")
+  status            String
+  jobId             String?  @map("job_id")
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @map("created_at")
+  updatedAt         DateTime @map("updated_at")
+  startedAt         DateTime? @map("started_at")
+  finishedAt        DateTime? @map("finished_at")
+
+  user            User            @relation(fields: [userId], references: [id])
+  strategy        Strategy        @relation(fields: [strategyId], references: [id])
+  strategyVersion StrategyVersion @relation(fields: [strategyVersionId], references: [id])
+  symbol          Symbol          @relation(fields: [symbolId], references: [id])
+  job             Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  result       BacktestResult?
+  trades       BacktestTrade[]
+  equityPoints BacktestEquityPoint[]
+
+  @@map("backtest_runs")
+}
+
+model BacktestResult {
+  id              Int     @id @default(autoincrement())
+  backtestRunId   String  @unique @map("backtest_run_id")
+  finalEquity     Decimal
+  totalReturnPct  Decimal @map("total_return_pct")
+  maxDrawdownPct  Decimal @map("max_drawdown_pct")
+  winRatePct      Decimal @map("win_rate_pct")
+  numTrades       Int     @map("num_trades")
+  avgWinPct       Decimal @map("avg_win_pct")
+  avgLossPct      Decimal @map("avg_loss_pct")
+  sharpeRatio     Decimal? @map("sharpe_ratio")
+
+  run BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade)
+
+  @@map("backtest_results")
+}
+
+model BacktestTrade {
+  id            Int      @id @default(autoincrement())
+  backtestRunId String   @map("backtest_run_id")
+  symbolId      Int      @map("symbol_id")
+  entryTime     DateTime @map("entry_time")
+  exitTime      DateTime @map("exit_time")
+  side          String
+  entryPrice    Decimal  @map("entry_price")
+  exitPrice     Decimal  @map("exit_price")
+  quantity      Decimal
+  pnlAbs        Decimal  @map("pnl_abs")
+  pnlPct        Decimal  @map("pnl_pct")
+
+  run    BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade)
+  symbol Symbol      @relation(fields: [symbolId], references: [id])
+
+  @@map("backtest_trades")
+}
+
+model BacktestEquityPoint {
+  id            Int      @id @default(autoincrement())
+  backtestRunId String   @map("backtest_run_id")
+  timestamp     DateTime @map("ts")
+  equity        Decimal
+
+  run BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade)
+
+  @@map("backtest_equity_points")
+}
+
+////////////////////////////
+// Paper Trading
+////////////////////////////
+
+model PaperAccount {
+  id              Int     @id @default(autoincrement())
+  userId          String  @unique @map("user_id")
+  name            String
+  baseCurrency    String  @map("base_currency")
+  startingBalance Decimal @map("starting_balance")
+  cashBalance     Decimal @map("cash_balance")
+  isActive        Boolean @default(true) @map("is_active")
+  createdAt       DateTime @map("created_at")
+  updatedAt       DateTime @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id])
+  orders     Order[]
+  executions Execution[]
+  positions  Position[]
+
+  @@map("paper_accounts")
+}
+
+model Order {
+  id             String   @id @db.Char(36)
+  paperAccountId Int      @map("paper_account_id")
+  symbolId       Int      @map("symbol_id")
+  side           String
+  quantity       Decimal
+  orderType      String   @map("order_type")
+  status         String
+  avgFillPrice   Decimal? @map("avg_fill_price")
+  rejectReason   String?  @map("reject_reason")
+  clientOrderId  String?  @map("client_order_id")
+  requestedAt    DateTime @map("requested_at")
+  filledAt       DateTime? @map("filled_at")
+
+  account   PaperAccount @relation(fields: [paperAccountId], references: [id])
+  symbol    Symbol       @relation(fields: [symbolId], references: [id])
+  executions Execution[]
+
+  @@map("orders")
+}
+
+model Execution {
+  id             String   @id @db.Char(36)
+  orderId        String   @map("order_id")
+  paperAccountId Int      @map("paper_account_id")
+  symbolId       Int      @map("symbol_id")
+  side           String
+  quantity       Decimal
+  price          Decimal
+  executedAt     DateTime @map("executed_at")
+
+  order   Order        @relation(fields: [orderId], references: [id])
+  account PaperAccount @relation(fields: [paperAccountId], references: [id])
+  symbol  Symbol       @relation(fields: [symbolId], references: [id])
+
+  @@map("executions")
+}
+
+model Position {
+  id             Int     @id @default(autoincrement())
+  paperAccountId Int     @map("paper_account_id")
+  symbolId       Int     @map("symbol_id")
+  quantity       Decimal
+  avgCost        Decimal @map("avg_cost")
+  updatedAt      DateTime @map("updated_at")
+
+  account PaperAccount @relation(fields: [paperAccountId], references: [id])
+  symbol  Symbol       @relation(fields: [symbolId], references: [id])
+
+  @@unique([paperAccountId, symbolId])
+  @@map("positions")
+}
+
+////////////////////////////
+// AI & Infra
+////////////////////////////
+
+model Job {
+  id           String   @id @db.Char(36)
+  jobType      String   @map("job_type")
+  userId       String   @map("user_id")
+  payload      Json     @map("payload_json")
+  status       String
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @map("created_at")
+  startedAt    DateTime? @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+
+  user      User          @relation(fields: [userId], references: [id])
+  backtests BacktestRun[]
+
+  @@map("jobs")
+}
+
+model AiUsage {
+  id     Int      @id @default(autoincrement())
+  userId String   @map("user_id")
+  date   DateTime @db.Date
+  calls  Int
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@map("ai_usage")
+}
+
+model AuditEvent {
+  id        Int      @id @default(autoincrement())
+  userId    String?  @map("user_id")
+  eventType String   @map("event_type")
+  payload   Json     @map("payload_json")
+  createdAt DateTime @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_events")
+}

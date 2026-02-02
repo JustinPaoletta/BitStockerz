@@ -1,0 +1,9 @@
+# BitStockerz
+
+## Commit messages
+
+Use Conventional Commits so messages pass commitlint: `type: subject` with subject in lower-case, max 72 chars.
+
+Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore.
+
+Examples: `feat: add login endpoint`, `fix: resolve null in health check`, `chore: bump deps`.

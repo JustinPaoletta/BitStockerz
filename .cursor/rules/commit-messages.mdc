@@ -1,0 +1,42 @@
+---
+description: Conventional commit message format (enforced by commitlint)
+alwaysApply: true
+---
+
+# Commit Messages
+
+When generating or suggesting commit messages, use **Conventional Commits** so they pass commitlint in this repo.
+
+## Format
+
+```
+<type>: <subject>
+```
+
+- **Subject**: lower-case, imperative, max 72 characters. No period at the end.
+- **Body/footer**: optional; add after a blank line if needed.
+
+## Allowed types
+
+| Type       | Use for |
+|-----------|--------|
+| `feat`    | New feature |
+| `fix`     | Bug fix |
+| `docs`    | Documentation only |
+| `style`   | Formatting, no code change |
+| `refactor`| Code change, not fix or feature |
+| `perf`    | Performance improvement |
+| `test`    | Adding or updating tests |
+| `build`   | Build system or deps |
+| `ci`      | CI configuration |
+| `chore`   | Other (tooling, config, etc.) |
+
+## Examples
+
+- `feat: add user login endpoint`
+- `fix: resolve null in health check response`
+- `docs: update api readme`
+- `refactor: simplify error filter`
+- `chore: add commitlint and husky`
+
+Do **not** use capital letters in the subject (e.g. use `add` not `Add`). Keep the subject short and descriptive.
