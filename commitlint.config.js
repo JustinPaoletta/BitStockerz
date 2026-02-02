@@ -18,7 +18,6 @@ export default {
         'chore',    // Other changes that don't modify src or test files
       ],
     ],
-    'header-max-length': [2, 'always', 72],
-    'subject-case': [2, 'always', 'lower-case'],
+    'header-max-length': [2, 'always', 72]
   },
 };
