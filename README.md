@@ -7,7 +7,8 @@ All documentation now lives under `docs/` with consistent, predictable paths.
 ## Directory Overview
 - `docs/product` – product definition and planning artifacts such as the MVP outline, UX flows, roadmap, and story packs.
   - `docs/product/stories` – individual story maps for each MVP epic.
-- `docs/requirements` – cross-cutting qualities: NFRs, security, observability, and testing strategy.
+- `docs/product/requirements` – cross-cutting qualities: NFRs, security, observability, and testing strategy.
+- `docs/plans` – implementation plans and execution notes.
 - `docs/database` – schema assets, including Prisma schema, DDL, ERDs, lifecycle policies, and migration plans.
   - `docs/database/DDL` – canonical SQL per domain (referenced by `docs/database/Migrations_Plan.md`).
   - `docs/database/ERD` – visual/text ERDs that link to `../Data_Lifecycle_and_Deletion_Policy.md`.
@@ -23,7 +24,7 @@ Use this section as a fast lookup table for automated agents. Paths are relative
 - `docs/product/UX_Flows.md` – strategy/backtest, trading, empty/error flows.
 - `docs/product/ROADMAP.md` – sprint-by-sprint schedule.
 - `docs/product/stories/BitStockerz_MVP_0x_*.md` – story packs per epic (01–08).
-- `docs/requirements/` – contains `Non_Functional_Requirements.md`, `Security.md`, `Observability.md`, `Testing_Strategy.md`.
+- `docs/product/requirements/` – contains `Non_Functional_Requirements.md`, `Security.md`, `Observability.md`, `Testing_Strategy.md`.
 - `docs/database/schema.prisma` – Prisma ORM schema reference.
 - `docs/database/Migrations_Plan.md` – sprint-to-DDL mapping; SQL lives under `docs/database/DDL/` (`00_core.sql` … `06_infra.sql`).
 - `docs/database/Data_Lifecycle_and_Deletion_Policy.md` – retention + deletion guarantees referenced by ERDs.
