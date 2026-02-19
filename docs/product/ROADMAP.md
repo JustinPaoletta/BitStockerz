@@ -19,6 +19,7 @@ Assumptions:
 - #8.4.1 – Structured logging & correlation IDs
 - #8.5.1 – Central configuration service
 - #8.6.2 – Health & readiness endpoints
+- Status: Completed (verified February 19, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
 - #1.1.x – User registration & authentication (minimal)
 - #1.2.x – User profile access
 
@@ -291,4 +292,4 @@ Assumptions:
 
 ---
 
-**File:** docs/planning/ROADMAP.md
+**File:** docs/product/ROADMAP.md

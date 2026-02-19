@@ -4,9 +4,11 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { GlobalHttpExceptionFilter } from '../src/common/errors/http-exception.filter';
+import { AppLogger } from '../src/common/logging/app-logger';
 
 function createApp(module: TestingModule): INestApplication {
   const app = module.createNestApplication();
+  app.useLogger(app.get(AppLogger));
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -16,7 +18,7 @@ function createApp(module: TestingModule): INestApplication {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-  app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  app.useGlobalFilters(app.get(GlobalHttpExceptionFilter));
   return app;
 }
 
@@ -46,6 +48,73 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body).toEqual({ status: 'ok' });
+      });
+  });
+});
+
+describe('Health readiness (e2e)', () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalMarketDataHealthUrl = process.env.MARKET_DATA_HEALTH_URL;
+  let app: INestApplication<App>;
+
+  async function initApp() {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture);
+    await app.init();
+  }
+
+  afterEach(async () => {
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+
+    if (originalMarketDataHealthUrl === undefined) {
+      delete process.env.MARKET_DATA_HEALTH_URL;
+    } else {
+      process.env.MARKET_DATA_HEALTH_URL = originalMarketDataHealthUrl;
+    }
+
+    if (app) {
+      await app.close();
+    }
+  });
+
+  it('GET /api/health/ready returns ready when checks are not configured', async () => {
+    delete process.env.DATABASE_URL;
+    delete process.env.MARKET_DATA_HEALTH_URL;
+
+    await initApp();
+
+    return request(app.getHttpServer())
+      .get('/api/health/ready')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.ready).toBe(true);
+        expect(res.body.status).toBe('ok');
+        expect(res.body).toHaveProperty('timestamp');
+        expect(res.body.checks.database.status).toBe('not_configured');
+        expect(res.body.checks.marketData.status).toBe('not_configured');
+      });
+  });
+
+  it('GET /api/health/ready returns 503 when database dependency is configured but down', async () => {
+    process.env.DATABASE_URL = 'postgres://127.0.0.1:1/bitstockerz';
+    delete process.env.MARKET_DATA_HEALTH_URL;
+
+    await initApp();
+
+    return request(app.getHttpServer())
+      .get('/api/health/ready')
+      .expect(503)
+      .expect((res) => {
+        expect(res.body.ready).toBe(false);
+        expect(res.body.status).toBe('degraded');
+        expect(res.body.checks.database.status).toBe('down');
       });
   });
 });

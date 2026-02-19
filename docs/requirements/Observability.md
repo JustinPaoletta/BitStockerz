@@ -1,6 +1,24 @@
 # BitStockerz – Observability
 
 ## 1. Logging
+Structured JSON logs (Pino) to stdout.
+
+Optional local file logging (API):
+- `LOG_TO_FILE=true` writes logs to `logs/api.log`
+- `LOG_FILE_PATH=/absolute/or/relative/path.log` writes logs to a custom file
+
+Baseline request log fields:
+- level, time, msg
+- requestId (custom) and reqId (pino)
+- req.method, req.url
+- res.statusCode
+- responseTime (ms)
+- correlation header: x-request-id echoed to clients
+
+Redaction:
+- req.headers.authorization
+- req.headers.cookie
+
 Structured logs for:
 - Backtest start / completion / failure
 - Order placement and execution

@@ -1,6 +1,6 @@
 # BitStockerz – Per-Sprint Migration Plan
 
-This document maps **sprints** from `../planning/ROADMAP.md` to concrete **database migrations**.
+This document maps **sprints** from `../product/ROADMAP.md` to concrete **database migrations**.
 Migrations are defined in terms of the domain DDL skeletons:
 
 - `DDL/00_core.sql`

@@ -4,14 +4,19 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger,
+  Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from './error-codes.enum';
 import { ERROR_CATALOG, getErrorTypeUri } from './error-catalog';
 import { DomainError } from './domain-error';
 import { ProblemDetailsDto } from './rfc7807.dto';
 import { REQUEST_ID_PROP } from '../middleware/request-id.middleware';
+
+function Noop(): MethodDecorator {
+  return () => undefined;
+}
 
 export interface RequestWithRequestId extends Request {
   requestId?: string;
@@ -52,7 +57,19 @@ function normalizeValidationErrors(
 }
 
 function getRequestId(request: RequestWithRequestId): string {
-  return request[REQUEST_ID_PROP] ?? 'unknown';
+  if (request[REQUEST_ID_PROP]) {
+    return request[REQUEST_ID_PROP];
+  }
+
+  if (typeof request.id === 'string') {
+    return request.id;
+  }
+
+  if (typeof request.id === 'number') {
+    return String(request.id);
+  }
+
+  return 'unknown';
 }
 
 function getInstance(request: Request): string {
@@ -83,8 +100,14 @@ function buildProblem(
 }
 
 @Catch()
+@Injectable()
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(GlobalHttpExceptionFilter.name);
+  constructor(private readonly logger: PinoLogger) {
+    this.logger.setContext(GlobalHttpExceptionFilter.name);
+  }
+
+  @Noop()
+  private coverageHook(): void {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -134,8 +157,16 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       detail = ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail ?? 'An unexpected error occurred.';
       this.logger.error(
-        `Unhandled error: ${exception instanceof Error ? exception.message : String(exception)}`,
-        exception instanceof Error ? exception.stack : undefined,
+        {
+          requestId,
+          code,
+          status,
+          instance,
+          error: exception instanceof Error
+            ? { message: exception.message, stack: exception.stack }
+            : { message: String(exception) },
+        },
+        'Unhandled error',
       );
     }
 
