@@ -55,3 +55,6 @@ temp/
 
 # Misc
 *.local
+
+# Codex
+.codex/environments/environment.toml
