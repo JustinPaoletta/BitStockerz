@@ -1,43 +1,94 @@
-# BitStockerz Knowledge Base
+# BitStockerz
 
-**Proprietary — portfolio use only.** See [LICENSE](LICENSE). All rights reserved.
+A private BitStockerz monorepo that combines product and database documentation with an early NestJS API implementation.
 
-All documentation now lives under `docs/` with consistent, predictable paths.
+## Status
 
-## Directory Overview
-- `docs/product` – product definition and planning artifacts such as the MVP outline, UX flows, roadmap, and story packs.
-  - `docs/product/stories` – individual story maps for each MVP epic.
-- `docs/product/requirements` – cross-cutting qualities: NFRs, security, observability, and testing strategy.
-- `docs/plans` – implementation plans and execution notes.
-- `docs/database` – schema assets, including Prisma schema, DDL, ERDs, lifecycle policies, and migration plans.
-  - `docs/database/DDL` – canonical SQL per domain (referenced by `docs/database/Migrations_Plan.md`).
-  - `docs/database/ERD` – visual/text ERDs that link to `../Data_Lifecycle_and_Deletion_Policy.md`.
-- `docs/assets/images` – logos, advertisement mocks, and other reference imagery.
+- Type: private product monorepo
+- Current repo version: `0.0.0`
+- Maturity: pre-1.0 documentation and API foundation
+- Current runnable surface: `apps/api`
+- Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
-Each document now references other files by their relative paths (for example, the migration plan links to `../product/ROADMAP.md`). Use this README as the entry point when navigating the repository.
+## Quick Links
 
-## AI Navigation Map
+- Changelog: [CHANGELOG.md](./CHANGELOG.md)
+- Release process: [RELEASE.md](./RELEASE.md)
+- Product roadmap: [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
+- MVP definition: [docs/product/MVP.md](./docs/product/MVP.md)
+- UX flows: [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
+- API inventory: [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
+- Database schema: [docs/database/schema.prisma](./docs/database/schema.prisma)
 
-Use this section as a fast lookup table for automated agents. Paths are relative to the repo root.
+## What The Project Covers
 
-- `docs/product/MVP.md` – master feature list.
-- `docs/product/UX_Flows.md` – strategy/backtest, trading, empty/error flows.
-- `docs/product/ROADMAP.md` – sprint-by-sprint schedule.
-- `docs/product/stories/BitStockerz_MVP_0x_*.md` – story packs per epic (01–08).
-- `docs/product/requirements/` – contains `Non_Functional_Requirements.md`, `Security.md`, `Observability.md`, `Testing_Strategy.md`.
-- `docs/database/schema.prisma` – Prisma ORM schema reference.
-- `docs/database/Migrations_Plan.md` – sprint-to-DDL mapping; SQL lives under `docs/database/DDL/` (`00_core.sql` … `06_infra.sql`).
-- `docs/database/Data_Lifecycle_and_Deletion_Policy.md` – retention + deletion guarantees referenced by ERDs.
-- `docs/database/API_Inventory.md` – NestJS endpoint catalog.
-- `docs/database/ERD/BitStockerz_ERD.md` and `docs/database/ERD/BitStockerz_dbdiagram_ERD.md` – structural reference diagrams.
-- `docs/assets/images/` – `logo.png`, `advertisement.png`, `kernel.png`.
+- Product definition and implementation planning for the BitStockerz platform.
+- Database design, migration planning, lifecycle policy, and API inventory work.
+- Manual testing notes and execution guidance for in-progress stories.
+- A NestJS API foundation under `apps/api`, including auth and WebAuthn work.
 
-### Lookup Tips
-- When a document references another file, expect the relative paths listed above (e.g., migrations link to `../product/ROADMAP.md`).
-- Database DDL filenames use numeric prefixes; match them when creating migrations.
-- Story IDs mirror the numbering in the roadmap and story files.
+## Tech Stack
 
-### Usage Pattern for Agents
-1. Read this README for the human overview.
-2. Use the AI Navigation Map bullets to jump directly to the needed artifact.
-3. Only fall back to filesystem scans if the desired item is not listed here.
+- Root tooling: npm, Husky, and commitlint
+- API app: NestJS 11, TypeScript, Jest, Pino, and WebAuthn foundations
+- Database planning: Prisma schema plus SQL documentation and migration notes
+
+## Repository Layout
+
+- `apps/api` NestJS API implementation
+- `docs/product` product roadmap, MVP, UX flows, and stories
+- `docs/database` schema, migration, lifecycle, and API design docs
+- `docs/manual-testing` release-adjacent manual validation notes
+- root `package.json` repo tooling and release version anchor
+
+## Prerequisites
+
+- Node.js `24.11.1` for `apps/api`
+- npm
+
+## Local Setup
+
+1. Install root dependencies with `npm install`.
+2. Install API dependencies with `npm --prefix apps/api install`.
+3. Start the API locally with `npm --prefix apps/api run start:dev`.
+4. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
+
+## Common Commands
+
+- `npm run prepare` installs Husky hooks for the repo.
+- `npm --prefix apps/api run build` builds the NestJS API.
+- `npm --prefix apps/api run lint` runs the API lint checks.
+- `npm --prefix apps/api run test` runs the API unit test suite.
+- `npm --prefix apps/api run test:e2e` runs the API end-to-end suite.
+
+## Environment & Configuration
+
+- The root repo does not have a shared environment-variable contract yet.
+- API-specific runtime configuration is still evolving and should be documented alongside new backend work.
+- Database, product, and observability expectations are documented under `docs/`.
+
+## Testing & Quality Gates
+
+- API-focused releases should run `build`, `lint`, `test`, and `test:e2e` from `apps/api`.
+- Documentation-heavy releases should verify consistency across the roadmap, MVP, API inventory, and schema documents.
+- Manual test evidence belongs under `docs/manual-testing/` when a milestone needs explicit validation notes.
+
+## Release Process
+
+- Keep the root `CHANGELOG.md` updated under `## [Unreleased]`.
+- Cut release branches as `release/vX.Y.Z` from `main`.
+- Use repo-level tags and release notes even when a release only affects `apps/api`; note the scope clearly in the changelog entry.
+- Follow the full checklist in [RELEASE.md](./RELEASE.md).
+
+## Additional Docs
+
+- [docs/product/MVP.md](./docs/product/MVP.md)
+- [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
+- [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
+- [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
+- [docs/database/schema.prisma](./docs/database/schema.prisma)
+- [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
+
+## License & Access
+
+UNLICENSED and proprietary.
