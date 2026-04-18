@@ -12,6 +12,24 @@ describe('loadAppConfig', () => {
     expect(config.readiness.timeoutMs).toBe(1500);
     expect(config.dependencies.databaseUrl).toBeUndefined();
     expect(config.dependencies.marketDataHealthUrl).toBeUndefined();
+    expect(config.auth).toEqual({
+      sessionTtlSeconds: 43200,
+      challengeTtlSeconds: 300,
+      oauthStateTtlSeconds: 300,
+      rateLimitWindowMs: 60000,
+      rateLimitMaxRequests: 30,
+      webauthnRpId: 'localhost',
+      webauthnRpName: 'BitStockerz',
+      webauthnAllowedOrigins: [],
+      googleClientId: undefined,
+      googleClientSecret: undefined,
+      googleRedirectUri: undefined,
+      appleClientId: undefined,
+      appleTeamId: undefined,
+      appleKeyId: undefined,
+      applePrivateKey: undefined,
+      appleRedirectUri: undefined,
+    });
   });
 
   it('parses valid overrides from environment', () => {
@@ -24,6 +42,22 @@ describe('loadAppConfig', () => {
       READINESS_TIMEOUT_MS: '2500',
       DATABASE_URL: 'postgres://localhost:5432/bitstockerz',
       MARKET_DATA_HEALTH_URL: 'https://market-data.example.com/health',
+      AUTH_SESSION_TTL_SECONDS: '7200',
+      AUTH_CHALLENGE_TTL_SECONDS: '180',
+      AUTH_OAUTH_STATE_TTL_SECONDS: '240',
+      AUTH_RATE_LIMIT_WINDOW_MS: '45000',
+      AUTH_RATE_LIMIT_MAX_REQUESTS: '15',
+      WEBAUTHN_RP_ID: 'api.bitstockerz.test',
+      WEBAUTHN_RP_NAME: 'BitStockerz Test',
+      WEBAUTHN_ALLOWED_ORIGINS: 'https://app.bitstockerz.test,http://localhost:4200',
+      GOOGLE_OAUTH_CLIENT_ID: 'google-client-id',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_OAUTH_REDIRECT_URI: 'https://api.bitstockerz.test/api/auth/oauth/google/callback',
+      APPLE_OAUTH_CLIENT_ID: 'apple-client-id',
+      APPLE_OAUTH_TEAM_ID: 'APPLETEAM',
+      APPLE_OAUTH_KEY_ID: 'APPLEKEY',
+      APPLE_OAUTH_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+      APPLE_OAUTH_REDIRECT_URI: 'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
     });
 
     expect(config.server).toEqual({
@@ -40,6 +74,30 @@ describe('loadAppConfig', () => {
     expect(config.dependencies).toEqual({
       databaseUrl: 'postgres://localhost:5432/bitstockerz',
       marketDataHealthUrl: 'https://market-data.example.com/health',
+    });
+    expect(config.auth).toEqual({
+      sessionTtlSeconds: 7200,
+      challengeTtlSeconds: 180,
+      oauthStateTtlSeconds: 240,
+      rateLimitWindowMs: 45000,
+      rateLimitMaxRequests: 15,
+      webauthnRpId: 'api.bitstockerz.test',
+      webauthnRpName: 'BitStockerz Test',
+      webauthnAllowedOrigins: [
+        'https://app.bitstockerz.test',
+        'http://localhost:4200',
+      ],
+      googleClientId: 'google-client-id',
+      googleClientSecret: 'google-client-secret',
+      googleRedirectUri:
+        'https://api.bitstockerz.test/api/auth/oauth/google/callback',
+      appleClientId: 'apple-client-id',
+      appleTeamId: 'APPLETEAM',
+      appleKeyId: 'APPLEKEY',
+      applePrivateKey:
+        '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+      appleRedirectUri:
+        'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
     });
   });
 
@@ -62,6 +120,13 @@ describe('loadAppConfig', () => {
         READINESS_TIMEOUT_MS: '99',
         DATABASE_URL: 'not-a-url',
         MARKET_DATA_HEALTH_URL: 'ftp://example.com/health',
+        AUTH_SESSION_TTL_SECONDS: '0',
+        AUTH_CHALLENGE_TTL_SECONDS: '9999',
+        AUTH_OAUTH_STATE_TTL_SECONDS: '0',
+        AUTH_RATE_LIMIT_WINDOW_MS: '10',
+        AUTH_RATE_LIMIT_MAX_REQUESTS: '0',
+        WEBAUTHN_ALLOWED_ORIGINS: 'notaurl',
+        GOOGLE_OAUTH_CLIENT_ID: 'google-only-client',
       });
     }).toThrow(/Invalid configuration/);
   });
@@ -87,6 +152,25 @@ describe('AppConfigService', () => {
     process.env.READINESS_TIMEOUT_MS = '2100';
     process.env.DATABASE_URL = 'postgres://localhost:5432/bitstockerz';
     process.env.MARKET_DATA_HEALTH_URL = 'https://market-data.example.com/health';
+    process.env.AUTH_SESSION_TTL_SECONDS = '5400';
+    process.env.AUTH_CHALLENGE_TTL_SECONDS = '150';
+    process.env.AUTH_OAUTH_STATE_TTL_SECONDS = '180';
+    process.env.AUTH_RATE_LIMIT_WINDOW_MS = '30000';
+    process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = '12';
+    process.env.WEBAUTHN_RP_ID = 'localhost';
+    process.env.WEBAUTHN_RP_NAME = 'BitStockerz Local';
+    process.env.WEBAUTHN_ALLOWED_ORIGINS = 'http://localhost:4200';
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'google-client-id';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'google-client-secret';
+    process.env.GOOGLE_OAUTH_REDIRECT_URI =
+      'http://localhost:3000/api/auth/oauth/google/callback';
+    process.env.APPLE_OAUTH_CLIENT_ID = 'apple-client-id';
+    process.env.APPLE_OAUTH_TEAM_ID = 'APPLETEAM';
+    process.env.APPLE_OAUTH_KEY_ID = 'APPLEKEY';
+    process.env.APPLE_OAUTH_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----';
+    process.env.APPLE_OAUTH_REDIRECT_URI =
+      'http://localhost:3000/api/auth/oauth/apple/callback';
 
     const service = new AppConfigService();
 
@@ -106,6 +190,25 @@ describe('AppConfigService', () => {
     expect(service.dependencies).toEqual({
       databaseUrl: 'postgres://localhost:5432/bitstockerz',
       marketDataHealthUrl: 'https://market-data.example.com/health',
+    });
+    expect(service.auth).toEqual({
+      sessionTtlSeconds: 5400,
+      challengeTtlSeconds: 150,
+      oauthStateTtlSeconds: 180,
+      rateLimitWindowMs: 30000,
+      rateLimitMaxRequests: 12,
+      webauthnRpId: 'localhost',
+      webauthnRpName: 'BitStockerz Local',
+      webauthnAllowedOrigins: ['http://localhost:4200'],
+      googleClientId: 'google-client-id',
+      googleClientSecret: 'google-client-secret',
+      googleRedirectUri: 'http://localhost:3000/api/auth/oauth/google/callback',
+      appleClientId: 'apple-client-id',
+      appleTeamId: 'APPLETEAM',
+      appleKeyId: 'APPLEKEY',
+      applePrivateKey:
+        '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+      appleRedirectUri: 'http://localhost:3000/api/auth/oauth/apple/callback',
     });
   });
 

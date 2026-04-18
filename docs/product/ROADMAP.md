@@ -12,7 +12,7 @@ Assumptions:
 
 ## Milestone 0 – Platform Foundation
 
-### Sprint 0.1 – Core Infra + Auth Skeleton
+### Sprint 0.1 – Core Infra Baseline
 
 **Stories**
 - #8.3.1 – Standardized API error response format
@@ -20,12 +20,25 @@ Assumptions:
 - #8.5.1 – Central configuration service
 - #8.6.2 – Health & readiness endpoints
 - Status: Completed (verified February 19, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
-- #1.1.x – User registration & authentication (minimal)
-- #1.2.x – User profile access
+
+---
+
+### Sprint 0.2 – Authentication & Profile MVP
+
+**Stories**
+- #1.1.1 – User can create an account with a passkey
+- #1.1.2 – User can sign in with a passkey
+- #1.1.3 – User can connect/sign in with Google OAuth
+- #1.1.4 – User can connect/sign in with Apple OAuth
+- #1.1.5 – User can manage sessions (logout / token expiry)
+- #1.1.6 – Account recovery & lost-device path
+- #1.2.1 – User can view basic profile
+- #1.2.2 – User can update display preferences
+- #1.4.1 – Rate limit auth endpoints
 
 **Exit**
 - Authenticated API requests
-- Global error/logging pattern enforced
+- Core auth, session, and profile loops are functional
 
 ---
 
@@ -36,6 +49,7 @@ Assumptions:
 **Stories**
 - #2.1.1 – Equity symbol directory
 - #2.1.2 – Crypto symbol directory
+- #2.1.3 – Symbol lookup API
 - #2.2.1 – Equity daily OHLCV schema
 - #2.3.1 – Crypto daily/hourly OHLCV schema
 
@@ -100,6 +114,8 @@ Assumptions:
 - #4.3.1 – Condition schema
 - #4.3.2 – Entry rules (AND-only)
 - #4.3.3 – Exit rules (AND-only)
+- #4.4.1 – Stop loss configuration
+- #4.4.2 – Take profit configuration
 
 ---
 
@@ -112,6 +128,7 @@ Assumptions:
 - #4.5.4 – Get strategy details
 - #4.5.5 – Delete strategy
 - #4.6.1 – Strategy validation endpoint
+- #4.6.2 – Human-readable strategy summary
 
 **Exit**
 - Users can create and manage valid strategies
@@ -129,6 +146,7 @@ Assumptions:
 - #5.2.4 – Trade simulation logic
 - #5.2.5 – Stop loss / take profit handling
 - #8.2.1 – Execution sandbox boundaries
+- #8.2.2 – Runtime & memory limits per backtest
 
 ---
 
@@ -138,6 +156,7 @@ Assumptions:
 - #5.1.1 – Backtest run schema
 - #5.1.2 – Backtest result storage
 - #5.1.3 – Trades & equity curve storage
+- #5.6.1 – Strategy version pinning
 
 ---
 
@@ -148,6 +167,7 @@ Assumptions:
 - #5.3.2 – List backtest runs
 - #5.3.3 – Backtest details API
 - #5.5.1 – Bar count limits
+- #5.5.2 – Logging & diagnostics
 
 ---
 
@@ -167,6 +187,7 @@ Assumptions:
 ### Sprint 4.1 – Accounts & Positions
 
 **Stories**
+- #1.3.1 – Default paper account creation on first signup
 - #3.1.1 – Paper trading account
 - #3.3.2 – Positions table & logic
 - #3.3.3 – Cash balance updates
@@ -180,6 +201,7 @@ Assumptions:
 - #3.2.2 – Place market order
 - #3.3.1 – Execution records
 - #3.6.1 – Risk limits
+- #3.6.2 – Idempotent order submission
 
 ---
 
@@ -190,6 +212,7 @@ Assumptions:
 - #3.4.2 – Portfolio summary
 - #3.5.1 – Recent orders
 - #3.5.2 – Trade history
+- #8.3.2 – Domain error types for trading, strategies, and backtests
 
 **Exit**
 - Users can simulate trades with correct P&L
@@ -203,6 +226,7 @@ Assumptions:
 **Stories**
 - #7.1.1 – Authenticated app shell
 - #7.1.2 – Dashboard landing route
+- #2.4.2 – Reusable symbol search UI component
 
 ---
 
@@ -234,6 +258,7 @@ Assumptions:
 - #6.1.2 – AI usage limits & guardrails
 - #6.5.2 – Prompt & response logging
 - #6.5.1 – AI disclaimers
+- #8.5.2 – Feature flags for AI, limits, and experimental paths
 
 ---
 
@@ -251,6 +276,7 @@ Assumptions:
 - #6.3.1 – Explain backtest
 - #6.3.2 – Identify failure modes
 - #6.4.1 – Suggest improvements
+- #6.4.2 – Diff-style explanation (optional MVP+)
 
 **Exit**
 - AI adds insight without touching execution
