@@ -120,6 +120,29 @@ describe('Health readiness (e2e)', () => {
         expect(res.body.checks.database.status).toBe('down');
       });
   });
+
+  it('starts when mysql DATABASE_URL is configured but unreachable', async () => {
+    process.env.DATABASE_URL = 'mysql://127.0.0.1:1/bitstockerz';
+    delete process.env.MARKET_DATA_HEALTH_URL;
+
+    await initApp();
+
+    await request(app.getHttpServer())
+      .get('/api/health/live')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual({ status: 'ok' });
+      });
+
+    return request(app.getHttpServer())
+      .get('/api/health/ready')
+      .expect(503)
+      .expect((res) => {
+        expect(res.body.ready).toBe(false);
+        expect(res.body.status).toBe('degraded');
+        expect(res.body.checks.database.status).toBe('down');
+      });
+  });
 });
 
 describe('Error contract (e2e)', () => {

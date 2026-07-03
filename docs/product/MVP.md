@@ -60,6 +60,7 @@
 ---
 
 ## 7. Dashboard / UI
+- Angular application frontend
 - Portfolio summary
 - Active strategies list
 - Recent trades

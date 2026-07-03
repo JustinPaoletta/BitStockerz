@@ -1,5 +1,7 @@
 # BitStockerz – UX Flows
 
+These flows describe the user-facing behavior of the Angular application.
+
 ## 1. Strategy → Backtest Flow
 1. Create strategy
 2. Save strategy

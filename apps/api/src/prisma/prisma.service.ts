@@ -1,10 +1,10 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '@prisma/client';
 import { AppConfigService } from '../config/app-config.service';
 
 @Injectable()
-export class PrismaService implements OnModuleInit, OnModuleDestroy {
+export class PrismaService implements OnModuleDestroy {
   readonly isEnabled: boolean;
   private readonly client?: PrismaClient;
 
@@ -25,12 +25,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   get symbol() {
     return this.requireClient().symbol;
-  }
-
-  async onModuleInit(): Promise<void> {
-    if (this.client) {
-      await this.client.$connect();
-    }
   }
 
   async onModuleDestroy(): Promise<void> {
