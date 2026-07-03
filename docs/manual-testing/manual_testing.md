@@ -1,29 +1,25 @@
 # Manual Testing Checklist
 
-Current backend scope only.
+Run this entire file before merging backend PRs that touch completed scope.
 
-Test now:
-- Sprint `0.1`: `#8.3.1`, `#8.4.1`, `#8.5.1`, `#8.6.2`
-- Sprint `0.2`: `#1.1.1` to `#1.1.6`, `#1.2.1`, `#1.2.2`, `#1.4.1`
-- Sprint `1.1`: `#2.1.1`, `#2.1.2`, `#2.1.3`, `#2.2.1`, `#2.3.1`, `#2.4.1`
-
-Do not test yet:
-- `#1.3.1` paper account creation
-- candle read APIs (`#2.2.3`, `#2.3.3`)
-- paper trading
-- backtesting
-- dashboard/frontend
-- AI/kernel
+**Covers:** Sprint 0.1 (infra), 0.2 (auth), 1.1 (symbols)  
+**Skip for now:** paper accounts, candle APIs, trading, backtesting, dashboard, AI  
+**Needs:** Node `24.11.1`, `curl`, `jq`  
+**Note:** Auth state is in-memory. Restarting the API clears users, sessions, and OAuth state.
 
 Last updated: 2026-07-02
 
-## Start
+---
+
+## Setup
 
 ```bash
 cd /Users/justinpaoletta/Desktop/PROJECTS/JP/BitStockerz/apps/api
 npm install
 npm run start:dev
 ```
+
+In a second terminal:
 
 ```bash
 export BASE_URL="http://localhost:3000/api"
@@ -33,555 +29,222 @@ export RECOVERY_EMAIL="recovery.manual@example.com"
 export REQUEST_ID="manual-regression-001"
 ```
 
-## Test Now
+**Restart rule:** After any step that starts the API with custom env vars, stop it and run plain `npm run start:dev` before the next section.
 
-### 1. Foundation
+---
 
-Health live:
+## 1. Foundation (Sprint 0.1)
 
 ```bash
+# 1.1 live → 200 {"status":"ok"}
 curl -i "$BASE_URL/health/live"
-```
 
-Expected:
-- HTTP `200`
-- `{"status":"ok"}`
-
-Readiness without optional dependencies:
-
-```bash
+# 1.2 ready (no DATABASE_URL) → 200, ready:true, status:"ok"
 curl -i "$BASE_URL/health/ready"
-```
 
-Expected:
-- HTTP `200`
-- `ready: true`
-- `status: "ok"`
-
-Invalid config fails fast:
-
-```bash
+# 1.3 invalid config → startup fails with "Invalid configuration"
+# Stop API first, then:
 PORT=abc npm run start:dev
-```
 
-Expected:
-- startup fails
-- error contains `Invalid configuration`
-
-Readiness degraded when dependency is down:
-
-```bash
+# 1.4 ready when DB unreachable → 503, ready:false, checks.database.status:"down"
+# Stop API first, then:
 DATABASE_URL=postgres://127.0.0.1:1/bitstockerz READINESS_TIMEOUT_MS=300 npm run start:dev
-```
-
-```bash
 curl -i "$BASE_URL/health/ready"
-```
 
-Expected:
-- HTTP `503`
-- `ready: false`
-- `status: "degraded"`
+# 1.5 API boots with MySQL URL even if DB is down → live 200, ready 503
+# Stop API first, then:
+DATABASE_URL=mysql://127.0.0.1:1/bitstockerz npm run start:dev
+curl -i "$BASE_URL/health/live"
+curl -i "$BASE_URL/health/ready"
 
-Restart normally before continuing.
+# Restart normally before continuing.
 
-Request ID echo:
-
-```bash
+# 1.6 request ID echoed in header and error body
 curl -i -H "x-request-id: $REQUEST_ID" "$BASE_URL/health/live"
 curl -i -H "x-request-id: $REQUEST_ID" "$BASE_URL/error-test/unauthorized"
-```
 
-Expected:
-- response header contains `x-request-id`
-- error body contains matching `requestId`
-
-Error contract routes:
-
-```bash
+# 1.7 error contract → RFC7807 + code + requestId (no stack on /internal)
 curl -i "$BASE_URL/error-test/unauthorized"
 curl -i "$BASE_URL/error-test/forbidden"
 curl -i "$BASE_URL/error-test/conflict"
 curl -i "$BASE_URL/error-test/rate-limited"
 curl -i "$BASE_URL/error-test/internal"
+
+# 1.8 log redaction → request succeeds; logs must not show raw Authorization/Cookie
+curl -i -H "Authorization: Bearer secret-value" -H "Cookie: session=abc" "$BASE_URL/health/live"
+
+# 1.9 validation errors → 400 VALIDATION_ERROR + fieldErrors
+curl -i -X POST "$BASE_URL/strategies" -H "Content-Type: application/json" -d '{"name":"Test Strat","asset_type":"EQUITY","timeframe":"1d"}'
+curl -i -X POST "$BASE_URL/strategies" -H "Content-Type: application/json" -d '{"name":123}'
 ```
 
-Expected for each:
-- RFC7807 body
-- includes `type`, `title`, `status`, `detail`, `instance`, `code`, `requestId`
-- internal error does not leak stack trace
+---
 
-Log redaction:
+## 2. Passkey auth (Sprint 0.2)
 
 ```bash
-curl -i \
-  -H "Authorization: Bearer secret-value" \
-  -H "Cookie: session=abc" \
-  "$BASE_URL/health/live"
-```
-
-Expected:
-- request succeeds
-- logs do not show raw auth or cookie values
-
-Optional file logging:
-
-```bash
-LOG_TO_FILE=true LOG_FILE_PATH=./logs/api-manual-test.log npm run start:dev
-```
-
-```bash
-curl -i "$BASE_URL/health/live"
-```
-
-Expected:
-- log file is written
-
-Restart normally before continuing.
-
-Strategy endpoint canary:
-
-```bash
-curl -i -X POST "$BASE_URL/strategies" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test Strat","asset_type":"EQUITY","timeframe":"1d"}'
-```
-
-Expected:
-- HTTP `200` or `201`
-- response includes `id`, `name`, `asset_type`, `timeframe`
-
-```bash
-curl -i -X POST "$BASE_URL/strategies" \
-  -H "Content-Type: application/json" \
-  -d '{"name":123}'
-```
-
-Expected:
-- HTTP `400`
-- `code: "VALIDATION_ERROR"`
-- `fieldErrors` present
-
-### 2. Passkey Auth
-
-Register options:
-
-```bash
+# 2.1 register
 REG_OPTIONS_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/register/options" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$PASSKEY_EMAIL\"}")
-
-echo "$REG_OPTIONS_JSON" | jq
+  -H "Content-Type: application/json" -d "{\"email\":\"$PASSKEY_EMAIL\"}")
 export REG_CHALLENGE_ID=$(echo "$REG_OPTIONS_JSON" | jq -r '.challenge_id')
 export REG_CHALLENGE=$(echo "$REG_OPTIONS_JSON" | jq -r '.challenge')
-```
+# → 201, challenge_id + challenge present
 
-Expected:
-- HTTP `201`
-- `challenge_id` and `challenge` present
-
-Register verify, local fallback payload:
-
-```bash
 REGISTER_VERIFY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/register/verify" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"email\":\"$PASSKEY_EMAIL\",
-    \"challenge_id\":\"$REG_CHALLENGE_ID\",
-    \"challenge\":\"$REG_CHALLENGE\",
-    \"credential_id\":\"manual-cred-1\",
-    \"public_key\":\"manual-public-key-1\",
-    \"sign_count\":1,
-    \"transports\":[\"internal\"]
-  }")
-
-echo "$REGISTER_VERIFY_JSON" | jq
+  -d "{\"email\":\"$PASSKEY_EMAIL\",\"challenge_id\":\"$REG_CHALLENGE_ID\",\"challenge\":\"$REG_CHALLENGE\",\"credential_id\":\"manual-cred-1\",\"public_key\":\"manual-public-key-1\",\"sign_count\":1,\"transports\":[\"internal\"]}")
 export PASSKEY_TOKEN=$(echo "$REGISTER_VERIFY_JSON" | jq -r '.access_token')
-```
+# → 201, bearer token, linked_auth_methods.passkeys:true
 
-Expected:
-- HTTP `201`
-- bearer token returned
-- `linked_auth_methods.passkeys == true`
-
-Login options:
-
-```bash
+# 2.2 login
 LOGIN_OPTIONS_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/options" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$PASSKEY_EMAIL\"}")
-
-echo "$LOGIN_OPTIONS_JSON" | jq
+  -H "Content-Type: application/json" -d "{\"email\":\"$PASSKEY_EMAIL\"}")
 export LOGIN_CHALLENGE_ID=$(echo "$LOGIN_OPTIONS_JSON" | jq -r '.challenge_id')
 export LOGIN_CHALLENGE=$(echo "$LOGIN_OPTIONS_JSON" | jq -r '.challenge')
-```
+# → 201, allow_credentials includes manual-cred-1
 
-Expected:
-- HTTP `201`
-- `allow_credentials` includes `manual-cred-1`
-
-Login verify:
-
-```bash
-LOGIN_VERIFY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/verify" \
+curl -sS -X POST "$BASE_URL/auth/webauthn/login/verify" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"email\":\"$PASSKEY_EMAIL\",
-    \"challenge_id\":\"$LOGIN_CHALLENGE_ID\",
-    \"challenge\":\"$LOGIN_CHALLENGE\",
-    \"credential_id\":\"manual-cred-1\",
-    \"sign_count\":2
-  }")
+  -d "{\"email\":\"$PASSKEY_EMAIL\",\"challenge_id\":\"$LOGIN_CHALLENGE_ID\",\"challenge\":\"$LOGIN_CHALLENGE\",\"credential_id\":\"manual-cred-1\",\"sign_count\":2}"
+# → 201, bearer token
 
-echo "$LOGIN_VERIFY_JSON" | jq
-export LOGIN_TOKEN=$(echo "$LOGIN_VERIFY_JSON" | jq -r '.access_token')
-```
-
-Expected:
-- HTTP `201`
-- bearer token returned
-
-Negative stale counter:
-
-```bash
+# 2.3 stale sign counter → 401 UNAUTHORIZED
 LOGIN_OPTIONS_REPLAY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/options" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$PASSKEY_EMAIL\"}")
-
-LOGIN_REPLAY_CHALLENGE_ID=$(echo "$LOGIN_OPTIONS_REPLAY_JSON" | jq -r '.challenge_id')
-LOGIN_REPLAY_CHALLENGE=$(echo "$LOGIN_OPTIONS_REPLAY_JSON" | jq -r '.challenge')
-
+  -H "Content-Type: application/json" -d "{\"email\":\"$PASSKEY_EMAIL\"}")
 curl -i -X POST "$BASE_URL/auth/webauthn/login/verify" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"email\":\"$PASSKEY_EMAIL\",
-    \"challenge_id\":\"$LOGIN_REPLAY_CHALLENGE_ID\",
-    \"challenge\":\"$LOGIN_REPLAY_CHALLENGE\",
-    \"credential_id\":\"manual-cred-1\",
-    \"sign_count\":2
-  }"
+  -d "{\"email\":\"$PASSKEY_EMAIL\",\"challenge_id\":\"$(echo "$LOGIN_OPTIONS_REPLAY_JSON" | jq -r '.challenge_id')\",\"challenge\":\"$(echo "$LOGIN_OPTIONS_REPLAY_JSON" | jq -r '.challenge')\",\"credential_id\":\"manual-cred-1\",\"sign_count\":2}"
 ```
 
-Expected:
-- HTTP `401`
-- `code: "UNAUTHORIZED"`
+---
 
-### 3. OAuth
-
-Google start and callback:
+## 3. OAuth (Sprint 0.2)
 
 ```bash
+# 3.1 Google start + callback → 200, linked_auth_methods.google:true
 GOOGLE_START_JSON=$(curl -sS "$BASE_URL/auth/oauth/google/start")
-echo "$GOOGLE_START_JSON" | jq
 export GOOGLE_STATE=$(echo "$GOOGLE_START_JSON" | jq -r '.state')
-
 GOOGLE_CALLBACK_JSON=$(curl -sS -G "$BASE_URL/auth/oauth/google/callback" \
   --data-urlencode "state=$GOOGLE_STATE" \
   --data-urlencode "code=google-manual-code-1" \
   --data-urlencode "email=$OAUTH_EMAIL" \
   --data-urlencode "sub=google-subject-1")
-
-echo "$GOOGLE_CALLBACK_JSON" | jq
 export GOOGLE_USER_ID=$(echo "$GOOGLE_CALLBACK_JSON" | jq -r '.user.id')
-```
 
-Expected:
-- start returns HTTP `200`
-- callback returns HTTP `200`
-- `linked_auth_methods.google == true`
-
-Google subject re-link:
-
-```bash
+# 3.2 Google re-link same sub → same user.id (no duplicate account)
 GOOGLE_START_JSON_2=$(curl -sS "$BASE_URL/auth/oauth/google/start")
-GOOGLE_STATE_2=$(echo "$GOOGLE_START_JSON_2" | jq -r '.state')
-
-GOOGLE_CALLBACK_JSON_2=$(curl -sS -G "$BASE_URL/auth/oauth/google/callback" \
-  --data-urlencode "state=$GOOGLE_STATE_2" \
+curl -sS -G "$BASE_URL/auth/oauth/google/callback" \
+  --data-urlencode "state=$(echo "$GOOGLE_START_JSON_2" | jq -r '.state')" \
   --data-urlencode "code=google-manual-code-2" \
   --data-urlencode "email=different@example.com" \
-  --data-urlencode "sub=google-subject-1")
+  --data-urlencode "sub=google-subject-1" | jq -r '.user.id'
+# → must equal $GOOGLE_USER_ID
 
-echo "$GOOGLE_CALLBACK_JSON_2" | jq
-```
-
-Expected:
-- callback returns same `user.id` as `$GOOGLE_USER_ID`
-
-Apple start and callback:
-
-```bash
+# 3.3 Apple GET callback → 200, linked_auth_methods.apple:true
 APPLE_START_JSON=$(curl -sS "$BASE_URL/auth/oauth/apple/start")
-echo "$APPLE_START_JSON" | jq
-export APPLE_STATE=$(echo "$APPLE_START_JSON" | jq -r '.state')
-
-APPLE_CALLBACK_JSON=$(curl -sS -G "$BASE_URL/auth/oauth/apple/callback" \
-  --data-urlencode "state=$APPLE_STATE" \
+curl -sS -G "$BASE_URL/auth/oauth/apple/callback" \
+  --data-urlencode "state=$(echo "$APPLE_START_JSON" | jq -r '.state')" \
   --data-urlencode "code=apple-manual-code-1" \
-  --data-urlencode "sub=apple-subject-1")
+  --data-urlencode "sub=apple-subject-1"
 
-echo "$APPLE_CALLBACK_JSON" | jq
-```
-
-Expected:
-- start returns HTTP `200`
-- callback returns HTTP `200`
-- `linked_auth_methods.apple == true`
-
-Apple POST callback shape:
-
-```bash
+# 3.4 Apple POST callback → 201
 APPLE_START_JSON_POST=$(curl -sS "$BASE_URL/auth/oauth/apple/start")
-APPLE_STATE_POST=$(echo "$APPLE_START_JSON_POST" | jq -r '.state')
-
 curl -i -X POST "$BASE_URL/auth/oauth/apple/callback" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"state\":\"$APPLE_STATE_POST\",
-    \"code\":\"apple-manual-code-post\",
-    \"sub\":\"apple-subject-post-1\",
-    \"user\":\"{\\\"email\\\":\\\"apple-post@example.com\\\"}\"
-  }"
+  -d "{\"state\":\"$(echo "$APPLE_START_JSON_POST" | jq -r '.state')\",\"code\":\"apple-manual-code-post\",\"sub\":\"apple-subject-post-1\",\"user\":\"{\\\"email\\\":\\\"apple-post@example.com\\\"}\"}"
 ```
 
-Expected:
-- HTTP `201`
+---
 
-### 4. Session and Profile
-
-Register a session user:
+## 4. Session and profile (Sprint 0.2)
 
 ```bash
 SESSION_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"session.manual@example.com"}')
-
-echo "$SESSION_REGISTER_JSON" | jq
+  -H "Content-Type: application/json" -d '{"email":"session.manual@example.com"}')
 export SESSION_TOKEN=$(echo "$SESSION_REGISTER_JSON" | jq -r '.access_token')
-```
 
-Profile read:
-
-```bash
+# 4.1 profile read → both /me routes return 200
 curl -i "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN"
 curl -i "$BASE_URL/auth/me" -H "Authorization: Bearer $SESSION_TOKEN"
-```
 
-Expected:
-- both return HTTP `200`
+# 4.2 profile update → 200, display_name updated
+curl -i -X PATCH "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN" \
+  -H "Content-Type: application/json" -d '{"display_name":"Manual Trader","base_currency":"USD"}'
 
-Profile update:
+# 4.3 blank display_name → cleared
+curl -i -X PATCH "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN" \
+  -H "Content-Type: application/json" -d '{"display_name":"   "}'
 
-```bash
-curl -i -X PATCH "$BASE_URL/me" \
-  -H "Authorization: Bearer $SESSION_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name":"Manual Trader","base_currency":"USD"}'
-```
-
-Expected:
-- HTTP `200`
-- updated `display_name`
-
-Blank display name normalization:
-
-```bash
-curl -i -X PATCH "$BASE_URL/me" \
-  -H "Authorization: Bearer $SESSION_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name":"   "}'
-```
-
-Expected:
-- HTTP `200`
-- `display_name` is cleared
-
-Unauthenticated profile:
-
-```bash
+# 4.4 unauthenticated → 401
 curl -i "$BASE_URL/me"
-```
 
-Expected:
-- HTTP `401`
-
-Logout:
-
-```bash
-curl -i -X POST "$BASE_URL/auth/logout" \
-  -H "Authorization: Bearer $SESSION_TOKEN"
-```
-
-Expected:
-- HTTP `201`
-- `{ "status": "ok" }`
-
-Old token rejected:
-
-```bash
+# 4.5 logout → 201; old token → 401
+curl -i -X POST "$BASE_URL/auth/logout" -H "Authorization: Bearer $SESSION_TOKEN"
 curl -i "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN"
-```
 
-Expected:
-- HTTP `401`
-
-Session TTL:
-
-```bash
-AUTH_SESSION_TTL_SECONDS=1 npm run start:dev
-```
-
-```bash
+# 4.6 session expiry
+# Stop API, then: AUTH_SESSION_TTL_SECONDS=1 npm run start:dev
 TTL_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ttl.manual@example.com"}')
-
-TTL_TOKEN=$(echo "$TTL_REGISTER_JSON" | jq -r '.access_token')
+  -H "Content-Type: application/json" -d '{"email":"ttl.manual@example.com"}')
 sleep 2
-curl -i "$BASE_URL/me" -H "Authorization: Bearer $TTL_TOKEN"
+curl -i "$BASE_URL/me" -H "Authorization: Bearer $(echo "$TTL_REGISTER_JSON" | jq -r '.access_token')"
+# → 401
+
+# Restart normally before continuing.
 ```
 
-Expected:
-- HTTP `401`
+---
 
-Restart normally before continuing.
-
-### 5. Recovery and Rate Limits
-
-Recovery via OAuth linking:
+## 5. Recovery and rate limits (Sprint 0.2)
 
 ```bash
+# 5.1 OAuth recovery links to existing user (same user.id)
 REC_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$RECOVERY_EMAIL\"}")
-
-echo "$REC_REGISTER_JSON" | jq
+  -H "Content-Type: application/json" -d "{\"email\":\"$RECOVERY_EMAIL\"}")
 REC_USER_ID=$(echo "$REC_REGISTER_JSON" | jq -r '.user.id')
-
 REC_GOOGLE_START=$(curl -sS "$BASE_URL/auth/oauth/google/start")
-REC_GOOGLE_STATE=$(echo "$REC_GOOGLE_START" | jq -r '.state')
-
 REC_GOOGLE_CALLBACK_JSON=$(curl -sS -G "$BASE_URL/auth/oauth/google/callback" \
-  --data-urlencode "state=$REC_GOOGLE_STATE" \
+  --data-urlencode "state=$(echo "$REC_GOOGLE_START" | jq -r '.state')" \
   --data-urlencode "code=google-recovery-code" \
   --data-urlencode "email=$RECOVERY_EMAIL" \
   --data-urlencode "sub=google-recovery-subject")
+echo "$REC_USER_ID"
+echo "$REC_GOOGLE_CALLBACK_JSON" | jq -r '.user.id'
+# → IDs must match
 
-echo "$REC_GOOGLE_CALLBACK_JSON" | jq
-REC_GOOGLE_USER_ID=$(echo "$REC_GOOGLE_CALLBACK_JSON" | jq -r '.user.id')
-```
-
-Expected:
-- `REC_GOOGLE_USER_ID` matches `REC_USER_ID`
-
-Rate limiting:
-
-```bash
-AUTH_RATE_LIMIT_MAX_REQUESTS=1 AUTH_RATE_LIMIT_WINDOW_MS=60000 npm run start:dev
-```
-
-```bash
+# 5.2 auth rate limit
+# Stop API, then: AUTH_RATE_LIMIT_MAX_REQUESTS=1 AUTH_RATE_LIMIT_WINDOW_MS=60000 npm run start:dev
 curl -i "$BASE_URL/auth/oauth/google/start"
 curl -i "$BASE_URL/auth/oauth/google/start"
+# → first 200, second 429 RATE_LIMITED
+
+# Restart normally before continuing.
 ```
 
-Expected:
-- first request HTTP `200`
-- second request HTTP `429`
-- `code: "RATE_LIMITED"`
+---
 
-Restart normally after this check.
+## 6. Market data symbols (Sprint 1.1)
 
-### 6. Market Data Symbols (Sprint 1.1)
-
-Without `DATABASE_URL`, symbol endpoints use in-memory seed data. With `DATABASE_URL` set, run migrations first:
+No `DATABASE_URL` → in-memory seed data. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` first.
 
 ```bash
-npm run db:migrate
-```
-
-Symbol lookup (case-insensitive):
-
-```bash
+# 6.1 lookup (case-insensitive) → 200, symbol AAPL, asset_type EQUITY
 curl -i "$BASE_URL/symbols/aapl"
-```
 
-Expected:
-- HTTP `200`
-- `symbol: "AAPL"`
-- `asset_type: "EQUITY"`
-- `name`, `exchange`, `currency`, and `is_active` present
-
-Symbol search with filters:
-
-```bash
+# 6.2 search with filters → 200, one result BTC-USD
 curl -i "$BASE_URL/symbols/search?q=usd&asset_type=CRYPTO&limit=1"
-```
 
-Expected:
-- HTTP `200`
-- JSON array with one result
-- first item has `symbol: "BTC-USD"`, `asset_type: "CRYPTO"`, `base_asset: "BTC"`, `quote_asset: "USD"`
-
-Unknown symbol:
-
-```bash
+# 6.3 unknown symbol → 404 NOT_FOUND
 curl -i "$BASE_URL/symbols/NOPE"
-```
 
-Expected:
-- HTTP `404`
-- RFC7807 body with `code: "NOT_FOUND"`
-
-Invalid search query:
-
-```bash
+# 6.4 invalid asset_type → 400 VALIDATION_ERROR + fieldErrors
 curl -i "$BASE_URL/symbols/search?asset_type=INVALID"
 ```
 
-Expected:
-- HTTP `400`
-- `code: "VALIDATION_ERROR"`
-- `fieldErrors` present
+---
 
-## Advanced
+## If something fails
 
-Only run these when credentials and RP domain exist.
+Log: step number, request, response status/body, expected vs actual, and `requestId` from the response.
 
-Test:
-- real Google code exchange and token verification
-- real Apple code exchange and token verification
-- real cryptographic WebAuthn registration and login
-
-Required env:
-
-```bash
-NODE_ENV=production \
-WEBAUTHN_RP_ID="<your-rp-domain>" \
-WEBAUTHN_RP_NAME="BitStockerz" \
-WEBAUTHN_ALLOWED_ORIGINS="https://<your-rp-domain>,https://www.<your-rp-domain>" \
-GOOGLE_OAUTH_CLIENT_ID="<google-client-id>" \
-GOOGLE_OAUTH_CLIENT_SECRET="<google-client-secret>" \
-GOOGLE_OAUTH_REDIRECT_URI="https://<your-rp-domain>/api/auth/oauth/google/callback" \
-APPLE_OAUTH_CLIENT_ID="<apple-client-id>" \
-APPLE_OAUTH_TEAM_ID="<apple-team-id>" \
-APPLE_OAUTH_KEY_ID="<apple-key-id>" \
-APPLE_OAUTH_PRIVATE_KEY="<apple-private-key-with-\\n-escapes>" \
-APPLE_OAUTH_REDIRECT_URI="https://<your-rp-domain>/api/auth/oauth/apple/callback" \
-npm run start:dev
-```
-
-Expected:
-- provider callbacks succeed with real credentials
-- WebAuthn verification succeeds against real allowed origins
-- missing production config fails fast or errors clearly
-
-## Defect Logging
-
-Capture:
-
-1. Step name
-2. Request payload
-3. Response status and body
-4. Expected vs actual
-5. `requestId`
+Real Google/Apple token exchange and browser WebAuthn are not required for local MVP testing.
