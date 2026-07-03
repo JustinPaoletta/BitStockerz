@@ -522,3 +522,64 @@ describe('Auth limits and TTL (e2e)', () => {
       });
   });
 });
+
+describe('Market data symbols (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('GET /api/symbols/:symbol returns a canonical symbol', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/aapl')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body).toMatchObject({
+          symbol: 'AAPL',
+          name: 'Apple Inc.',
+          asset_type: 'EQUITY',
+          exchange: 'NASDAQ',
+          currency: 'USD',
+          is_active: true,
+        });
+      });
+  });
+
+  it('GET /api/symbols/search supports typeahead filters', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/search')
+      .query({ q: 'usd', asset_type: 'CRYPTO', limit: 1 })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body).toHaveLength(1);
+        expect(body[0]).toMatchObject({
+          symbol: 'BTC-USD',
+          asset_type: 'CRYPTO',
+          base_asset: 'BTC',
+          quote_asset: 'USD',
+        });
+      });
+  });
+
+  it('GET /api/symbols/:symbol returns RFC 7807 NOT_FOUND for unknown symbols', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/NOPE')
+      .expect(404)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body.code).toBe('NOT_FOUND');
+      });
+  });
+});

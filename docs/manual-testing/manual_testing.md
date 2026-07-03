@@ -1,59 +1,170 @@
-# Sprint 0.2 Manual Testing Guide (Auth, Profile, Sessions, OAuth, Rate Limits)
+# Manual Testing Checklist
 
-This guide covers manual verification for Sprint 0.2 roadmap stories in chronological order:
+Current backend scope only.
 
-- #1.1.1 User can create an account with a passkey
-- #1.1.2 User can sign in with a passkey
-- #1.1.3 User can connect/sign in with Google OAuth
-- #1.1.4 User can connect/sign in with Apple OAuth
-- #1.1.5 User can manage sessions (logout/token expiry)
-- #1.1.6 Account recovery/lost-device path (MVP minimum)
-- #1.2.1 User can view basic profile
-- #1.2.2 User can update display preferences
-- #1.4.1 Rate limit auth endpoints
+Test now:
+- Sprint `0.1`: `#8.3.1`, `#8.4.1`, `#8.5.1`, `#8.6.2`
+- Sprint `0.2`: `#1.1.1` to `#1.1.6`, `#1.2.1`, `#1.2.2`, `#1.4.1`
+- Sprint `1.1`: `#2.1.1`, `#2.1.2`, `#2.1.3`, `#2.2.1`, `#2.3.1`, `#2.4.1`
 
-Date authored: 2026-02-20
+Do not test yet:
+- `#1.3.1` paper account creation
+- candle read APIs (`#2.2.3`, `#2.3.3`)
+- paper trading
+- backtesting
+- dashboard/frontend
+- AI/kernel
 
-## Scope Notes
+Last updated: 2026-07-02
 
-- This backend currently supports two practical test modes:
-  - Local fallback mode (no provider credentials, no external RP domain): fully testable via `curl` + optional browser.
-  - Real verification mode (Google/Apple token exchange + cryptographic WebAuthn): testable once provider credentials are available.
-- Account data is in-memory in this service. Restarting the API resets test users/sessions/challenges.
-
-## Prerequisites
-
-1. Node `24.11.1` and npm installed.
-2. A terminal with `curl`. `jq` is strongly recommended for command snippets.
-3. For cryptographic WebAuthn checks, use Chrome/Safari on `localhost`.
-
-## Start API
+## Start
 
 ```bash
-cd /Users/justinpaoletta/Desktop/PROJECTS/APPS/BitStockerz/apps/api
+cd /Users/justinpaoletta/Desktop/PROJECTS/JP/BitStockerz/apps/api
 npm install
 npm run start:dev
 ```
 
-API base URL for this guide:
-
 ```bash
 export BASE_URL="http://localhost:3000/api"
-```
-
-## Shared Test Variables
-
-```bash
 export PASSKEY_EMAIL="passkey.manual@example.com"
 export OAUTH_EMAIL="oauth.manual@example.com"
 export RECOVERY_EMAIL="recovery.manual@example.com"
+export REQUEST_ID="manual-regression-001"
 ```
 
-## Step 1 - #1.1.1 Passkey Registration
+## Test Now
 
-### 1A. API fallback registration smoke test (works now without WebAuthn browser payload)
+### 1. Foundation
 
-1. Create registration options:
+Health live:
+
+```bash
+curl -i "$BASE_URL/health/live"
+```
+
+Expected:
+- HTTP `200`
+- `{"status":"ok"}`
+
+Readiness without optional dependencies:
+
+```bash
+curl -i "$BASE_URL/health/ready"
+```
+
+Expected:
+- HTTP `200`
+- `ready: true`
+- `status: "ok"`
+
+Invalid config fails fast:
+
+```bash
+PORT=abc npm run start:dev
+```
+
+Expected:
+- startup fails
+- error contains `Invalid configuration`
+
+Readiness degraded when dependency is down:
+
+```bash
+DATABASE_URL=postgres://127.0.0.1:1/bitstockerz READINESS_TIMEOUT_MS=300 npm run start:dev
+```
+
+```bash
+curl -i "$BASE_URL/health/ready"
+```
+
+Expected:
+- HTTP `503`
+- `ready: false`
+- `status: "degraded"`
+
+Restart normally before continuing.
+
+Request ID echo:
+
+```bash
+curl -i -H "x-request-id: $REQUEST_ID" "$BASE_URL/health/live"
+curl -i -H "x-request-id: $REQUEST_ID" "$BASE_URL/error-test/unauthorized"
+```
+
+Expected:
+- response header contains `x-request-id`
+- error body contains matching `requestId`
+
+Error contract routes:
+
+```bash
+curl -i "$BASE_URL/error-test/unauthorized"
+curl -i "$BASE_URL/error-test/forbidden"
+curl -i "$BASE_URL/error-test/conflict"
+curl -i "$BASE_URL/error-test/rate-limited"
+curl -i "$BASE_URL/error-test/internal"
+```
+
+Expected for each:
+- RFC7807 body
+- includes `type`, `title`, `status`, `detail`, `instance`, `code`, `requestId`
+- internal error does not leak stack trace
+
+Log redaction:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer secret-value" \
+  -H "Cookie: session=abc" \
+  "$BASE_URL/health/live"
+```
+
+Expected:
+- request succeeds
+- logs do not show raw auth or cookie values
+
+Optional file logging:
+
+```bash
+LOG_TO_FILE=true LOG_FILE_PATH=./logs/api-manual-test.log npm run start:dev
+```
+
+```bash
+curl -i "$BASE_URL/health/live"
+```
+
+Expected:
+- log file is written
+
+Restart normally before continuing.
+
+Strategy endpoint canary:
+
+```bash
+curl -i -X POST "$BASE_URL/strategies" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test Strat","asset_type":"EQUITY","timeframe":"1d"}'
+```
+
+Expected:
+- HTTP `200` or `201`
+- response includes `id`, `name`, `asset_type`, `timeframe`
+
+```bash
+curl -i -X POST "$BASE_URL/strategies" \
+  -H "Content-Type: application/json" \
+  -d '{"name":123}'
+```
+
+Expected:
+- HTTP `400`
+- `code: "VALIDATION_ERROR"`
+- `fieldErrors` present
+
+### 2. Passkey Auth
+
+Register options:
 
 ```bash
 REG_OPTIONS_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/register/options" \
@@ -67,10 +178,9 @@ export REG_CHALLENGE=$(echo "$REG_OPTIONS_JSON" | jq -r '.challenge')
 
 Expected:
 - HTTP `201`
-- `challenge_id` and `challenge` present.
-- `rp_id` present (default `localhost` unless overridden).
+- `challenge_id` and `challenge` present
 
-2. Verify registration using fallback payload:
+Register verify, local fallback payload:
 
 ```bash
 REGISTER_VERIFY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/register/verify" \
@@ -87,95 +197,14 @@ REGISTER_VERIFY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/register/verify
 
 echo "$REGISTER_VERIFY_JSON" | jq
 export PASSKEY_TOKEN=$(echo "$REGISTER_VERIFY_JSON" | jq -r '.access_token')
-export PASSKEY_USER_ID=$(echo "$REGISTER_VERIFY_JSON" | jq -r '.user.id')
 ```
 
 Expected:
 - HTTP `201`
-- `token_type: "Bearer"`
-- `user.email == $PASSKEY_EMAIL`
-- `user.linked_auth_methods.passkeys == true`
+- bearer token returned
+- `linked_auth_methods.passkeys == true`
 
-### 1B. Cryptographic WebAuthn registration (real attestation/assertion payload)
-
-Use this after loading `http://localhost:3000` in a browser.
-
-Open browser devtools console and run:
-
-```js
-const baseUrl = 'http://localhost:3000/api';
-const email = 'passkey.crypto@example.com';
-
-const b64urlToBuf = (value) => {
-  const b64 = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
-  const raw = atob(padded);
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0)).buffer;
-};
-
-const bufToB64url = (buffer) => {
-  const bytes = new Uint8Array(buffer);
-  let raw = '';
-  for (const b of bytes) raw += String.fromCharCode(b);
-  return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-};
-
-const register = async () => {
-  const optionsRes = await fetch(`${baseUrl}/auth/webauthn/register/options`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-  const optionsJson = await optionsRes.json();
-
-  const publicKey = structuredClone(optionsJson.options);
-  publicKey.challenge = b64urlToBuf(publicKey.challenge);
-  publicKey.user.id = b64urlToBuf(publicKey.user.id);
-  if (publicKey.excludeCredentials) {
-    publicKey.excludeCredentials = publicKey.excludeCredentials.map((c) => ({
-      ...c,
-      id: b64urlToBuf(c.id),
-    }));
-  }
-
-  const credential = await navigator.credentials.create({ publicKey });
-  const response = {
-    id: credential.id,
-    rawId: bufToB64url(credential.rawId),
-    type: credential.type,
-    clientExtensionResults: credential.getClientExtensionResults(),
-    response: {
-      attestationObject: bufToB64url(credential.response.attestationObject),
-      clientDataJSON: bufToB64url(credential.response.clientDataJSON),
-      transports: credential.response.getTransports?.(),
-    },
-  };
-
-  const verifyRes = await fetch(`${baseUrl}/auth/webauthn/register/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email,
-      challenge_id: optionsJson.challenge_id,
-      response,
-    }),
-  });
-
-  return await verifyRes.json();
-};
-
-register();
-```
-
-Expected:
-- Browser passkey prompt appears.
-- Verify endpoint returns HTTP `201` with bearer token and linked passkeys set to `true`.
-
-## Step 2 - #1.1.2 Passkey Login
-
-### 2A. API fallback login flow
-
-1. Request login options:
+Login options:
 
 ```bash
 LOGIN_OPTIONS_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/options" \
@@ -189,9 +218,9 @@ export LOGIN_CHALLENGE=$(echo "$LOGIN_OPTIONS_JSON" | jq -r '.challenge')
 
 Expected:
 - HTTP `201`
-- `allow_credentials` includes `manual-cred-1`.
+- `allow_credentials` includes `manual-cred-1`
 
-2. Verify login (counter must advance):
+Login verify:
 
 ```bash
 LOGIN_VERIFY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/verify" \
@@ -210,9 +239,9 @@ export LOGIN_TOKEN=$(echo "$LOGIN_VERIFY_JSON" | jq -r '.access_token')
 
 Expected:
 - HTTP `201`
-- bearer token returned.
+- bearer token returned
 
-### 2B. Negative check: sign counter replay should fail
+Negative stale counter:
 
 ```bash
 LOGIN_OPTIONS_REPLAY_JSON=$(curl -sS -X POST "$BASE_URL/auth/webauthn/login/options" \
@@ -237,21 +266,15 @@ Expected:
 - HTTP `401`
 - `code: "UNAUTHORIZED"`
 
-## Step 3 - #1.1.3 Google OAuth
+### 3. OAuth
 
-### 3A. Local fallback mode (no Google credentials configured)
-
-1. Start OAuth:
+Google start and callback:
 
 ```bash
 GOOGLE_START_JSON=$(curl -sS "$BASE_URL/auth/oauth/google/start")
 echo "$GOOGLE_START_JSON" | jq
 export GOOGLE_STATE=$(echo "$GOOGLE_START_JSON" | jq -r '.state')
-```
 
-2. Callback with fallback identity:
-
-```bash
 GOOGLE_CALLBACK_JSON=$(curl -sS -G "$BASE_URL/auth/oauth/google/callback" \
   --data-urlencode "state=$GOOGLE_STATE" \
   --data-urlencode "code=google-manual-code-1" \
@@ -263,11 +286,11 @@ export GOOGLE_USER_ID=$(echo "$GOOGLE_CALLBACK_JSON" | jq -r '.user.id')
 ```
 
 Expected:
-- HTTP `200`
-- `user.linked_auth_methods.google == true`
-- user email resolves to `oauth.manual@example.com`.
+- start returns HTTP `200`
+- callback returns HTTP `200`
+- `linked_auth_methods.google == true`
 
-3. Subject-linking regression check (same subject, different email):
+Google subject re-link:
 
 ```bash
 GOOGLE_START_JSON_2=$(curl -sS "$BASE_URL/auth/oauth/google/start")
@@ -283,38 +306,15 @@ echo "$GOOGLE_CALLBACK_JSON_2" | jq
 ```
 
 Expected:
-- HTTP `200`
-- `user.id` is the same as `$GOOGLE_USER_ID`.
+- callback returns same `user.id` as `$GOOGLE_USER_ID`
 
-### 3B. Real provider mode (when credentials exist)
-
-Set env vars before starting API:
-
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET`
-- `GOOGLE_OAUTH_REDIRECT_URI`
-
-Then:
-1. `GET /auth/oauth/google/start`
-2. Open returned `authorization_url` in browser.
-3. Complete Google sign-in.
-4. Verify callback returns `200` and links/creates account using verified token claims.
-
-## Step 4 - #1.1.4 Apple OAuth
-
-### 4A. Local fallback mode (no Apple credentials configured)
-
-1. Start OAuth:
+Apple start and callback:
 
 ```bash
 APPLE_START_JSON=$(curl -sS "$BASE_URL/auth/oauth/apple/start")
 echo "$APPLE_START_JSON" | jq
 export APPLE_STATE=$(echo "$APPLE_START_JSON" | jq -r '.state')
-```
 
-2. Callback:
-
-```bash
 APPLE_CALLBACK_JSON=$(curl -sS -G "$BASE_URL/auth/oauth/apple/callback" \
   --data-urlencode "state=$APPLE_STATE" \
   --data-urlencode "code=apple-manual-code-1" \
@@ -324,10 +324,11 @@ echo "$APPLE_CALLBACK_JSON" | jq
 ```
 
 Expected:
-- HTTP `200`
-- `user.linked_auth_methods.apple == true`
+- start returns HTTP `200`
+- callback returns HTTP `200`
+- `linked_auth_methods.apple == true`
 
-3. Optional POST callback shape test (`response_mode=form_post` compatibility):
+Apple POST callback shape:
 
 ```bash
 APPLE_START_JSON_POST=$(curl -sS "$BASE_URL/auth/oauth/apple/start")
@@ -345,106 +346,118 @@ curl -i -X POST "$BASE_URL/auth/oauth/apple/callback" \
 
 Expected:
 - HTTP `201`
-- user is created or linked successfully.
 
-### 4B. Real provider mode (when credentials exist)
+### 4. Session and Profile
 
-Set env vars before starting API:
-
-- `APPLE_OAUTH_CLIENT_ID`
-- `APPLE_OAUTH_TEAM_ID`
-- `APPLE_OAUTH_KEY_ID`
-- `APPLE_OAUTH_PRIVATE_KEY`
-- `APPLE_OAUTH_REDIRECT_URI`
-
-Then:
-1. `GET /auth/oauth/apple/start`
-2. Open returned `authorization_url`.
-3. Complete Apple sign-in.
-4. Confirm callback (GET or POST form post) returns valid auth payload.
-
-## Step 5 - #1.1.5 Sessions (logout and expiry)
-
-### 5A. Logout invalidates session token
-
-1. Register a new user:
+Register a session user:
 
 ```bash
 SESSION_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"session.manual@example.com"}')
-export SESSION_TOKEN=$(echo "$SESSION_REGISTER_JSON" | jq -r '.access_token')
+
 echo "$SESSION_REGISTER_JSON" | jq
+export SESSION_TOKEN=$(echo "$SESSION_REGISTER_JSON" | jq -r '.access_token')
 ```
 
-2. Read profile with token:
+Profile read:
 
 ```bash
 curl -i "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN"
+curl -i "$BASE_URL/auth/me" -H "Authorization: Bearer $SESSION_TOKEN"
 ```
 
-Expected: HTTP `200`.
+Expected:
+- both return HTTP `200`
 
-3. Logout:
+Profile update:
+
+```bash
+curl -i -X PATCH "$BASE_URL/me" \
+  -H "Authorization: Bearer $SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"display_name":"Manual Trader","base_currency":"USD"}'
+```
+
+Expected:
+- HTTP `200`
+- updated `display_name`
+
+Blank display name normalization:
+
+```bash
+curl -i -X PATCH "$BASE_URL/me" \
+  -H "Authorization: Bearer $SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"display_name":"   "}'
+```
+
+Expected:
+- HTTP `200`
+- `display_name` is cleared
+
+Unauthenticated profile:
+
+```bash
+curl -i "$BASE_URL/me"
+```
+
+Expected:
+- HTTP `401`
+
+Logout:
 
 ```bash
 curl -i -X POST "$BASE_URL/auth/logout" \
   -H "Authorization: Bearer $SESSION_TOKEN"
 ```
 
-Expected: HTTP `201`, body `{ "status": "ok" }`.
+Expected:
+- HTTP `201`
+- `{ "status": "ok" }`
 
-4. Reuse old token:
+Old token rejected:
 
 ```bash
 curl -i "$BASE_URL/me" -H "Authorization: Bearer $SESSION_TOKEN"
 ```
 
-Expected: HTTP `401`, `code: "UNAUTHORIZED"`.
+Expected:
+- HTTP `401`
 
-### 5B. Session TTL expiry
-
-Restart API with short TTL:
+Session TTL:
 
 ```bash
-cd /Users/justinpaoletta/Desktop/PROJECTS/APPS/BitStockerz/apps/api
 AUTH_SESSION_TTL_SECONDS=1 npm run start:dev
 ```
-
-Then:
 
 ```bash
 TTL_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"ttl.manual@example.com"}')
+
 TTL_TOKEN=$(echo "$TTL_REGISTER_JSON" | jq -r '.access_token')
 sleep 2
 curl -i "$BASE_URL/me" -H "Authorization: Bearer $TTL_TOKEN"
 ```
 
 Expected:
-- HTTP `401` after TTL window.
+- HTTP `401`
 
-## Step 6 - #1.1.6 Account Recovery/Lost Device Path (minimum)
+Restart normally before continuing.
 
-Current backend interpretation of this MVP path:
-- Recovery is via OAuth login/linking when passkey device is unavailable.
+### 5. Recovery and Rate Limits
 
-Manual check:
-
-1. Create a base account and capture the user ID:
+Recovery via OAuth linking:
 
 ```bash
 REC_REGISTER_JSON=$(curl -sS -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$RECOVERY_EMAIL\"}")
+
 echo "$REC_REGISTER_JSON" | jq
 REC_USER_ID=$(echo "$REC_REGISTER_JSON" | jq -r '.user.id')
-```
 
-2. Execute Google fallback callback with the same `email`:
-
-```bash
 REC_GOOGLE_START=$(curl -sS "$BASE_URL/auth/oauth/google/start")
 REC_GOOGLE_STATE=$(echo "$REC_GOOGLE_START" | jq -r '.state')
 
@@ -458,88 +471,89 @@ echo "$REC_GOOGLE_CALLBACK_JSON" | jq
 REC_GOOGLE_USER_ID=$(echo "$REC_GOOGLE_CALLBACK_JSON" | jq -r '.user.id')
 ```
 
-3. Compare callback `user.id` to `REC_USER_ID`:
-
-```bash
-echo "$REC_USER_ID"
-echo "$REC_GOOGLE_USER_ID"
-```
-
 Expected:
-- Existing user is linked to Google instead of creating a duplicate.
+- `REC_GOOGLE_USER_ID` matches `REC_USER_ID`
 
-## Step 7 - #1.2.1 View Profile
-
-With any valid bearer token:
+Rate limiting:
 
 ```bash
-curl -i "$BASE_URL/me" -H "Authorization: Bearer $PASSKEY_TOKEN"
-curl -i "$BASE_URL/auth/me" -H "Authorization: Bearer $PASSKEY_TOKEN"
-```
-
-Expected:
-- HTTP `200`
-- Both routes return same profile shape.
-
-Negative:
-
-```bash
-curl -i "$BASE_URL/me"
-```
-
-Expected:
-- HTTP `401`
-
-## Step 8 - #1.2.2 Update Profile Preferences
-
-```bash
-curl -i -X PATCH "$BASE_URL/me" \
-  -H "Authorization: Bearer $PASSKEY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name":"Manual Trader","base_currency":"USD"}'
-```
-
-Expected:
-- HTTP `200`
-- `display_name` reflects update.
-- `base_currency` remains `USD`.
-
-Blank-name normalization check:
-
-```bash
-curl -i -X PATCH "$BASE_URL/me" \
-  -H "Authorization: Bearer $PASSKEY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"display_name":"   "}'
-```
-
-Expected:
-- HTTP `200`
-- `display_name` becomes `null`/missing (trimmed away server-side).
-
-## Step 9 - #1.4.1 Auth Rate Limiting
-
-Restart API with strict limits:
-
-```bash
-cd /Users/justinpaoletta/Desktop/PROJECTS/APPS/BitStockerz/apps/api
 AUTH_RATE_LIMIT_MAX_REQUESTS=1 AUTH_RATE_LIMIT_WINDOW_MS=60000 npm run start:dev
 ```
 
-Then:
-
 ```bash
 curl -i "$BASE_URL/auth/oauth/google/start"
 curl -i "$BASE_URL/auth/oauth/google/start"
 ```
 
 Expected:
-- First request HTTP `200`
-- Second request HTTP `429` with `code: "RATE_LIMITED"`
+- first request HTTP `200`
+- second request HTTP `429`
+- `code: "RATE_LIMITED"`
 
-## Real Verification Mode Setup Checklist (when credentials are available)
+Restart normally after this check.
 
-Use this env set for full provider + cryptographic verification:
+### 6. Market Data Symbols (Sprint 1.1)
+
+Without `DATABASE_URL`, symbol endpoints use in-memory seed data. With `DATABASE_URL` set, run migrations first:
+
+```bash
+npm run db:migrate
+```
+
+Symbol lookup (case-insensitive):
+
+```bash
+curl -i "$BASE_URL/symbols/aapl"
+```
+
+Expected:
+- HTTP `200`
+- `symbol: "AAPL"`
+- `asset_type: "EQUITY"`
+- `name`, `exchange`, `currency`, and `is_active` present
+
+Symbol search with filters:
+
+```bash
+curl -i "$BASE_URL/symbols/search?q=usd&asset_type=CRYPTO&limit=1"
+```
+
+Expected:
+- HTTP `200`
+- JSON array with one result
+- first item has `symbol: "BTC-USD"`, `asset_type: "CRYPTO"`, `base_asset: "BTC"`, `quote_asset: "USD"`
+
+Unknown symbol:
+
+```bash
+curl -i "$BASE_URL/symbols/NOPE"
+```
+
+Expected:
+- HTTP `404`
+- RFC7807 body with `code: "NOT_FOUND"`
+
+Invalid search query:
+
+```bash
+curl -i "$BASE_URL/symbols/search?asset_type=INVALID"
+```
+
+Expected:
+- HTTP `400`
+- `code: "VALIDATION_ERROR"`
+- `fieldErrors` present
+
+## Advanced
+
+Only run these when credentials and RP domain exist.
+
+Test:
+- real Google code exchange and token verification
+- real Apple code exchange and token verification
+- real cryptographic WebAuthn registration and login
+
+Required env:
 
 ```bash
 NODE_ENV=production \
@@ -557,16 +571,17 @@ APPLE_OAUTH_REDIRECT_URI="https://<your-rp-domain>/api/auth/oauth/apple/callback
 npm run start:dev
 ```
 
-Expected in production mode:
-- Missing provider settings should fail fast on startup (config validation).
-- Missing `WEBAUTHN_ALLOWED_ORIGINS` should fail WebAuthn verification paths with a clear internal error.
+Expected:
+- provider callbacks succeed with real credentials
+- WebAuthn verification succeeds against real allowed origins
+- missing production config fails fast or errors clearly
 
-## Defect Logging Template
+## Defect Logging
 
-For any failure, capture:
+Capture:
 
-1. Story ID and step number from this guide.
-2. Exact request payload.
-3. Response status and body.
-4. Expected result vs actual result.
-5. API logs for the same `requestId`.
+1. Step name
+2. Request payload
+3. Response status and body
+4. Expected vs actual
+5. `requestId`

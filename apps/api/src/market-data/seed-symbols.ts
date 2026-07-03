@@ -1,0 +1,51 @@
+import type { SymbolRecord } from './market-data.types';
+
+export const SEED_SYMBOLS: SymbolRecord[] = [
+  {
+    id: 1,
+    symbol: 'AAPL',
+    name: 'Apple Inc.',
+    assetType: 'EQUITY',
+    exchange: 'NASDAQ',
+    currency: 'USD',
+    isActive: true,
+  },
+  {
+    id: 2,
+    symbol: 'MSFT',
+    name: 'Microsoft Corporation',
+    assetType: 'EQUITY',
+    exchange: 'NASDAQ',
+    currency: 'USD',
+    isActive: true,
+  },
+  {
+    id: 3,
+    symbol: 'SPY',
+    name: 'SPDR S&P 500 ETF Trust',
+    assetType: 'EQUITY',
+    exchange: 'NYSEARCA',
+    currency: 'USD',
+    isActive: true,
+  },
+  {
+    id: 4,
+    symbol: 'BTC-USD',
+    name: 'Bitcoin / US Dollar',
+    assetType: 'CRYPTO',
+    currency: 'USD',
+    baseAsset: 'BTC',
+    quoteAsset: 'USD',
+    isActive: true,
+  },
+  {
+    id: 5,
+    symbol: 'ETH-USD',
+    name: 'Ethereum / US Dollar',
+    assetType: 'CRYPTO',
+    currency: 'USD',
+    baseAsset: 'ETH',
+    quoteAsset: 'USD',
+    isActive: true,
+  },
+];
