@@ -13,6 +13,13 @@
 
 ---
 
+## Status
+
+- Completed in Sprint 0.2 (July 3, 2026): #1.1.1–#1.1.6, #1.2.1–#1.2.2, #1.4.1
+- Deferred to Sprint 4.1: #1.3.1 (paper account creation on signup)
+
+---
+
 ## Epic 1.1 – Authentication (Passkeys + OAuth)
 
 ### Story 1.1.1 – User can create an account with a passkey

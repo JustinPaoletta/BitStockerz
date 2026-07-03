@@ -15,7 +15,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - API development default port is `4000` (override with `PORT`).
 - Removed the temporary manual testing checklist now that Sprint 0.1–1.1 scope is covered by automated e2e tests.
-- Updated roadmap, README, and API inventory to reflect completed sprint status and public symbol endpoints.
+- Updated roadmap, README, API inventory, migration plan, and story status docs to reflect completed sprint scope.
 
 ### Documentation
 

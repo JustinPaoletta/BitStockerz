@@ -52,4 +52,5 @@ Failure paths:
 
 ## 3. CI Enforcement
 - Unit + integration tests required before merge
-- E2E optional for MVP, mandatory before public release
+- E2E required before merging backend PRs that touch completed API scope (health, auth, symbols)
+- Broader E2E user flows remain optional for MVP, mandatory before public release

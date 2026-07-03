@@ -20,7 +20,7 @@ Assumptions:
 - #8.4.1 – Structured logging & correlation IDs
 - #8.5.1 – Central configuration service
 - #8.6.2 – Health & readiness endpoints
-- Status: Completed (verified February 19, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
+- Status: Completed (verified February 19, 2026; covered by e2e suite as of July 3, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
 
 ---
 

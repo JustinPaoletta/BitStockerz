@@ -9,6 +9,20 @@ It describes:
 
 It’s organized by domain, not by story number.
 
+### Backend implementation status
+
+The runnable API in `apps/api` currently ships through **Sprint 1.1**:
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Health & readiness | Shipped (0.1) | `/health/live`, `/health/ready` |
+| Auth, sessions, profile | Shipped (0.2) | Passkeys, Google/Apple OAuth, bearer sessions |
+| Symbol lookup & search | Shipped (1.1) | Public endpoints; in-memory seed data without `DATABASE_URL` |
+| Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
+| Candle read APIs, ingestion, trading, strategies | Planned | Described below; not implemented yet |
+
+Without `DATABASE_URL`, auth state and symbol data are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data.
+
 ---
 
 ## 0. Conventions
@@ -33,7 +47,7 @@ It’s organized by domain, not by story number.
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health checks).
+- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search).
 
 ### 0.1 Error code catalog
 
@@ -95,19 +109,52 @@ The API never returns stack traces. `detail` is a generic message; use `requestI
 
 ## 1. Auth & User / Account APIs (#1)
 
-### 1.1 Auth
+### 1.1 Auth (implemented through Sprint 0.2)
 
 **POST `/auth/register`**  
-Create a new user account.
+Create a user and issue a bearer session (dev/testing shortcut; production flow uses passkeys or OAuth).
 
 **POST `/auth/login`**  
-Authenticate and return token/session.
+Issue a bearer session for an existing user by email (dev/testing shortcut).
+
+**POST `/auth/webauthn/register/options`**  
+Start passkey registration; returns challenge metadata.
+
+**POST `/auth/webauthn/register/verify`**  
+Complete passkey registration and issue a session.
+
+**POST `/auth/webauthn/login/options`**  
+Start passkey authentication; returns challenge metadata.
+
+**POST `/auth/webauthn/login/verify`**  
+Complete passkey authentication and issue a session.
+
+**GET `/auth/oauth/google/start`**  
+Start Google OAuth; returns state for the callback.
+
+**GET `/auth/oauth/google/callback`**  
+Complete Google OAuth and issue a session.
+
+**GET `/auth/oauth/apple/start`**  
+Start Apple OAuth; returns state for the callback.
+
+**GET `/auth/oauth/apple/callback`**  
+Complete Apple OAuth via GET callback.
+
+**POST `/auth/oauth/apple/callback`**  
+Complete Apple OAuth via POST callback (form-post flow).
 
 **POST `/auth/logout`**  
-Invalidate current session/token.
+Invalidate the current bearer session.
 
 **GET `/auth/me`**  
-Return current user profile.
+Return the authenticated user's profile.
+
+**GET `/me`**  
+Alias for profile read (same response as `/auth/me`).
+
+**PATCH `/me`**  
+Update display preferences (`display_name`, `base_currency`, etc.).
 
 ---
 
@@ -124,7 +171,7 @@ Return the current user’s paper trading account.
 
 ## 2. Market Data APIs (#2)
 
-### 2.1 Symbols
+### 2.1 Symbols (implemented through Sprint 1.1)
 
 Public endpoints (no authentication required).
 
@@ -421,7 +468,7 @@ If you want to keep the backend simpler, skip this and let the Angular app call 
 
 ## 8. Health, Jobs, and Infra APIs (#8)
 
-### 8.1 Health & Readiness
+### 8.1 Health & Readiness (implemented through Sprint 0.1)
 
 **GET `/health/live`**
 

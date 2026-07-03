@@ -63,6 +63,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - The root repo does not have a shared environment-variable contract yet.
 - The API listens on port `4000` by default in development (`PORT` overrides it).
+- Optional MySQL/MariaDB: set `DATABASE_URL`, then run `npm --prefix apps/api run db:migrate`.
 - API-specific runtime configuration is still evolving and should be documented alongside new backend work.
 - Database, product, and observability expectations are documented under `docs/`.
 

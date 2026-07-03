@@ -1,6 +1,9 @@
 // BitStockerz – Complete Prisma Schema
 // Generated from ERD, DDL skeletons, and lifecycle policy
 // Database: MySQL (can be adapted to Postgres)
+//
+// Note: apps/api/prisma/schema.prisma is the runnable subset for the current API
+// (auth + market-data tables through Sprint 1.1). This file remains the full MVP target schema.
 
 generator client {
   provider = "prisma-client-js"
