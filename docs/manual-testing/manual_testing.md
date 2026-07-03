@@ -248,3 +248,17 @@ curl -i "$BASE_URL/symbols/search?asset_type=INVALID"
 Log: step number, request, response status/body, expected vs actual, and `requestId` from the response.
 
 Real Google/Apple token exchange and browser WebAuthn are not required for local MVP testing.
+
+---
+
+## Next step (after all sections pass)
+
+1. **Merge** the Sprint 1.1 PR (`feat/sprint-1-1-symbols-and-schemas`).
+2. **Start Sprint 1.2** — Market Data Read APIs (`docs/product/ROADMAP.md`):
+   - `#2.2.3` — equity daily candles API
+   - `#2.3.3` — crypto daily/hourly candles API
+   - `#2.4.1` — symbol search polish (lookup/search already shipped in 1.1)
+3. **Goal:** fetch historical OHLCV by symbol and date range for stocks and crypto.
+4. **When 1.2 ships:** add Section 7 to this file and run it before the next merge.
+
+Sprint 1.3 (data ingestion and scheduled jobs) comes after 1.2.
