@@ -583,7 +583,7 @@ export class AuthService {
       );
     }
 
-    return ['http://localhost:3000', 'http://localhost:4200'];
+    return ['http://localhost:4200'];
   }
 
   private isGoogleConfigured(): boolean {

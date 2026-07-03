@@ -33,15 +33,17 @@ Rules:
 - Deterministic fixtures for OHLCV data
 
 ### 1.3 End-to-End (E2E)
-Focus: user-visible flows.
+Focus: user-visible flows and completed API surface.
 
 Happy paths:
 - Register → create strategy → run backtest → view results
 - Place paper trade → view position & P&L
+- Symbol lookup and search (public market-data endpoints)
 
 Failure paths:
 - Invalid strategy definition
 - Backtest failure due to missing data
+- Unknown symbol lookup returns `NOT_FOUND`
 
 ## 2. Test Data
 - Small OHLCV fixtures (10–100 candles)

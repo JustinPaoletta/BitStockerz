@@ -126,6 +126,8 @@ Return the current user’s paper trading account.
 
 ### 2.1 Symbols
 
+Public endpoints (no authentication required).
+
 **GET `/symbols/:symbol`**  
 Lookup single symbol (equity or crypto) by ticker.
 

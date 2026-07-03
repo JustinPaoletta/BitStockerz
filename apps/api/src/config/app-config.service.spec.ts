@@ -4,7 +4,7 @@ describe('loadAppConfig', () => {
   it('uses safe defaults when optional env vars are not set', () => {
     const config = loadAppConfig({});
 
-    expect(config.server.port).toBe(3000);
+    expect(config.server.port).toBe(4000);
     expect(config.server.nodeEnv).toBe('development');
     expect(config.logging.level).toBe('info');
     expect(config.logging.writeToFile).toBe(false);
@@ -163,14 +163,14 @@ describe('AppConfigService', () => {
     process.env.GOOGLE_OAUTH_CLIENT_ID = 'google-client-id';
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'google-client-secret';
     process.env.GOOGLE_OAUTH_REDIRECT_URI =
-      'http://localhost:3000/api/auth/oauth/google/callback';
+      'http://localhost:4000/api/auth/oauth/google/callback';
     process.env.APPLE_OAUTH_CLIENT_ID = 'apple-client-id';
     process.env.APPLE_OAUTH_TEAM_ID = 'APPLETEAM';
     process.env.APPLE_OAUTH_KEY_ID = 'APPLEKEY';
     process.env.APPLE_OAUTH_PRIVATE_KEY =
       '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----';
     process.env.APPLE_OAUTH_REDIRECT_URI =
-      'http://localhost:3000/api/auth/oauth/apple/callback';
+      'http://localhost:4000/api/auth/oauth/apple/callback';
 
     const service = new AppConfigService();
 
@@ -202,13 +202,13 @@ describe('AppConfigService', () => {
       webauthnAllowedOrigins: ['http://localhost:4200'],
       googleClientId: 'google-client-id',
       googleClientSecret: 'google-client-secret',
-      googleRedirectUri: 'http://localhost:3000/api/auth/oauth/google/callback',
+      googleRedirectUri: 'http://localhost:4000/api/auth/oauth/google/callback',
       appleClientId: 'apple-client-id',
       appleTeamId: 'APPLETEAM',
       appleKeyId: 'APPLEKEY',
       applePrivateKey:
         '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
-      appleRedirectUri: 'http://localhost:3000/api/auth/oauth/apple/callback',
+      appleRedirectUri: 'http://localhost:4000/api/auth/oauth/apple/callback',
     });
   });
 

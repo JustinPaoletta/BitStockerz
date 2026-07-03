@@ -7,10 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Documentation
+### Added
 
-- Standardize the repository around a shared README structure, a manual changelog, and a root `RELEASE.md` guide.
+- Sprint 1.1 symbol lookup and search APIs with in-memory seed data and optional MySQL/MariaDB backing via Prisma.
 
 ### Changed
 
-- No tagged releases exist yet. The first formal release should create the initial dated section, most likely as `0.1.0`.
+- API development default port is `4000` (override with `PORT`).
+- Removed the temporary manual testing checklist now that Sprint 0.1–1.1 scope is covered by automated e2e tests.
+- Updated roadmap, README, and API inventory to reflect completed sprint status and public symbol endpoints.
+
+### Documentation
+
+- Standardize the repository around a shared README structure, a manual changelog, and a root `RELEASE.md` guide.

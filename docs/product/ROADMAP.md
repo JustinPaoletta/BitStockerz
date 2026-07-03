@@ -36,7 +36,7 @@ Assumptions:
 - #1.2.1 – User can view basic profile
 - #1.2.2 – User can update display preferences
 - #1.4.1 – Rate limit auth endpoints
-- Status: Implemented in the backend and covered by the current manual regression guide as of April 25, 2026
+- Status: Completed (verified July 3, 2026)
 - Note: #1.3.1 remains correctly scheduled in Sprint 4.1 because paper-account creation depends on the paper-trading milestone
 
 **Exit**
@@ -55,7 +55,8 @@ Assumptions:
 - #2.1.3 – Symbol lookup API
 - #2.2.1 – Equity daily OHLCV schema
 - #2.3.1 – Crypto daily/hourly OHLCV schema
-- Status: Implemented in the backend and covered by the manual regression guide as of July 2, 2026
+- #2.4.1 – Symbol search API
+- Status: Completed (verified July 3, 2026)
 
 ---
 
@@ -64,11 +65,9 @@ Assumptions:
 **Stories**
 - #2.2.3 – Equity daily candles API
 - #2.3.3 – Crypto candles API
-- #2.4.1 – Symbol search API
 
 **Exit**
 - Candles retrievable for stocks and crypto
-- Symbol search working
 
 ---
 
