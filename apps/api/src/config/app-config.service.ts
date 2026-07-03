@@ -7,7 +7,7 @@ const FALSE_VALUES = new Set(['0', 'false', 'no', 'off']);
 const NODE_ENVIRONMENTS = new Set<NodeEnvironment>(['development', 'test', 'production']);
 const LOG_LEVELS = new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']);
 
-const DEFAULT_PORT = 3000;
+const DEFAULT_PORT = 4000;
 const DEFAULT_LOG_LEVEL = 'info';
 const DEFAULT_LOG_FILE_PATH = 'logs/api.log';
 const DEFAULT_READINESS_TIMEOUT_MS = 1500;

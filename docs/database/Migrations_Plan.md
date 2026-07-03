@@ -11,6 +11,15 @@ Migrations are defined in terms of the domain DDL skeletons:
 - `DDL/05_ai_kernel.sql`
 - `DDL/06_infra.sql`
 
+**Runnable API migrations:** The NestJS app applies Prisma migrations from `apps/api/prisma/migrations/`:
+
+| Sprint scope | Prisma migration folder |
+| --- | --- |
+| Core auth tables (0.1–0.2) | `20260421100000_core_auth_tables` |
+| Symbols + OHLCV schemas (1.1) | `20260421110000_sprint_1_1_symbols_and_market_data` |
+
+The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
+
 Each sprint lists:
 - Migration file name (suggested)
 - Tables created/modified

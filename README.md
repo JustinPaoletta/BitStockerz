@@ -24,8 +24,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - Product definition and implementation planning for the BitStockerz platform.
 - Database design, migration planning, lifecycle policy, and API inventory work.
-- Manual testing notes and execution guidance for in-progress stories.
-- A NestJS API foundation under `apps/api`, including auth and WebAuthn work.
+- A NestJS API foundation under `apps/api`, including auth, WebAuthn, and market-data symbols.
 
 ## Tech Stack
 
@@ -38,7 +37,6 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `apps/api` NestJS API implementation
 - `docs/product` product roadmap, MVP, UX flows, and stories
 - `docs/database` schema, migration, lifecycle, and API design docs
-- `docs/manual-testing` release-adjacent manual validation notes
 - root `package.json` repo tooling and release version anchor
 
 ## Prerequisites
@@ -50,7 +48,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 1. Install root dependencies with `npm install`.
 2. Install API dependencies with `npm --prefix apps/api install`.
-3. Start the API locally with `npm --prefix apps/api run start:dev`.
+3. Start the API locally with `npm --prefix apps/api run start:dev` (defaults to `http://localhost:4000/api`).
 4. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
 
 ## Common Commands
@@ -64,14 +62,16 @@ A private BitStockerz monorepo that combines product and database documentation 
 ## Environment & Configuration
 
 - The root repo does not have a shared environment-variable contract yet.
+- The API listens on port `4000` by default in development (`PORT` overrides it).
+- Optional MySQL/MariaDB: set `DATABASE_URL`, then run `npm --prefix apps/api run db:migrate`.
 - API-specific runtime configuration is still evolving and should be documented alongside new backend work.
 - Database, product, and observability expectations are documented under `docs/`.
 
 ## Testing & Quality Gates
 
 - API-focused releases should run `build`, `lint`, `test`, and `test:e2e` from `apps/api`.
+- The e2e suite covers health checks, auth flows, and symbol lookup/search for completed backend scope.
 - Documentation-heavy releases should verify consistency across the roadmap, MVP, API inventory, and schema documents.
-- Manual test evidence belongs under `docs/manual-testing/` when a milestone needs explicit validation notes.
 
 ## Release Process
 
@@ -87,7 +87,6 @@ A private BitStockerz monorepo that combines product and database documentation 
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma)
-- [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## License & Access
 

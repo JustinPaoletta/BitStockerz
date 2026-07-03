@@ -120,6 +120,29 @@ describe('Health readiness (e2e)', () => {
         expect(res.body.checks.database.status).toBe('down');
       });
   });
+
+  it('starts when mysql DATABASE_URL is configured but unreachable', async () => {
+    process.env.DATABASE_URL = 'mysql://127.0.0.1:1/bitstockerz';
+    delete process.env.MARKET_DATA_HEALTH_URL;
+
+    await initApp();
+
+    await request(app.getHttpServer())
+      .get('/api/health/live')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual({ status: 'ok' });
+      });
+
+    return request(app.getHttpServer())
+      .get('/api/health/ready')
+      .expect(503)
+      .expect((res) => {
+        expect(res.body.ready).toBe(false);
+        expect(res.body.status).toBe('degraded');
+        expect(res.body.checks.database.status).toBe('down');
+      });
+  });
 });
 
 describe('Error contract (e2e)', () => {
@@ -519,6 +542,67 @@ describe('Auth limits and TTL (e2e)', () => {
       .expect(401)
       .expect((res) => {
         expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+  });
+});
+
+describe('Market data symbols (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('GET /api/symbols/:symbol returns a canonical symbol', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/aapl')
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body).toMatchObject({
+          symbol: 'AAPL',
+          name: 'Apple Inc.',
+          asset_type: 'EQUITY',
+          exchange: 'NASDAQ',
+          currency: 'USD',
+          is_active: true,
+        });
+      });
+  });
+
+  it('GET /api/symbols/search supports typeahead filters', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/search')
+      .query({ q: 'usd', asset_type: 'CRYPTO', limit: 1 })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body).toHaveLength(1);
+        expect(body[0]).toMatchObject({
+          symbol: 'BTC-USD',
+          asset_type: 'CRYPTO',
+          base_asset: 'BTC',
+          quote_asset: 'USD',
+        });
+      });
+  });
+
+  it('GET /api/symbols/:symbol returns RFC 7807 NOT_FOUND for unknown symbols', () => {
+    return request(app.getHttpServer())
+      .get('/api/symbols/NOPE')
+      .expect(404)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body.code).toBe('NOT_FOUND');
       });
   });
 });

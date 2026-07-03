@@ -22,10 +22,12 @@ import { MeController } from './auth/me.controller';
 import { AuthService } from './auth/auth.service';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthRateLimitGuard } from './auth/auth-rate-limit.guard';
+import { MarketDataModule } from './market-data/market-data.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    MarketDataModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],

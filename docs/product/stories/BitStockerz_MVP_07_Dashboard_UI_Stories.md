@@ -2,6 +2,10 @@
 
 This document defines the epics and user stories for the **Dashboard / UI** layer of the BitStockerz MVP.
 
+Framework note:
+- All stories in this epic assume an Angular frontend implementation
+- Shared UI work means Angular components, routes, guards, and services unless stated otherwise
+
 Scope:
 - Central landing dashboard after login
 - Portfolio and paper account summary
@@ -230,4 +234,3 @@ Dependencies:
 - Drag-and-drop widgets
 - Real-time streaming updates
 - Advanced analytics panels
-

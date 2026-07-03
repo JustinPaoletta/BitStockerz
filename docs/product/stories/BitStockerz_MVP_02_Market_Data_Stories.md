@@ -10,6 +10,17 @@ Scope includes:
 
 ---
 
+## Status
+
+- Completed in Sprint 1.1 (July 3, 2026): #2.1.1–#2.1.3, #2.2.1, #2.3.1, #2.4.1
+- Planned for Sprint 1.2+: #2.2.3, #2.3.3 (candle read APIs)
+- Planned for Sprint 1.3+: #2.2.2, #2.3.2 (data ingestion)
+- Planned for Sprint 1.4+: #2.6.1–#2.6.2 (data quality and health endpoint)
+- Planned for Sprint 5.1: #2.4.2 (symbol search UI component)
+- Planned for Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
+
+---
+
 ## Epic 2.1 – Canonical Symbol Directory
 
 ### Story 2.1.1 – Basic equity symbol directory

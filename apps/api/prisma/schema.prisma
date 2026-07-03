@@ -1,0 +1,115 @@
+// BitStockerz API Prisma schema
+// Sprint 1.1 wires the runnable API to the core auth and market-data tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        String    @id @db.Char(36)
+  email     String    @unique
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  webauthnCredentials WebAuthnCredential[]
+
+  @@map("users")
+}
+
+model WebAuthnCredential {
+  credentialId String   @id @map("credential_id") @db.VarChar(255)
+  userId       String   @map("user_id") @db.Char(36)
+  publicKey    String   @map("public_key") @db.Text
+  signCount    BigInt   @map("sign_count")
+  transports   String?  @map("transports")
+  aaguid       String?  @map("aaguid")
+  createdAt    DateTime @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+model Symbol {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  symbol     String   @unique @db.VarChar(32)
+  name       String   @db.VarChar(255)
+  assetType  String   @map("asset_type") @db.VarChar(16)
+  exchange   String?  @db.VarChar(64)
+  currency   String   @db.VarChar(16)
+  baseAsset  String?  @map("base_asset") @db.VarChar(32)
+  quoteAsset String?  @map("quote_asset") @db.VarChar(32)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @map("created_at")
+  updatedAt  DateTime @map("updated_at")
+
+  equityDailyBars  EquityDailyBar[]
+  cryptoDailyBars  CryptoDailyBar[]
+  cryptoHourlyBars CryptoHourlyBar[]
+
+  @@index([assetType])
+  @@map("symbols")
+}
+
+model EquityDailyBar {
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  symbolId  Int      @map("symbol_id") @db.UnsignedInt
+  date      DateTime @db.Date
+  open      Decimal  @db.Decimal(18, 6)
+  high      Decimal  @db.Decimal(18, 6)
+  low       Decimal  @db.Decimal(18, 6)
+  close     Decimal  @db.Decimal(18, 6)
+  volume    BigInt
+  provider  String   @db.VarChar(64)
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, date])
+  @@index([symbolId, date])
+  @@map("equity_daily_bars")
+}
+
+model CryptoDailyBar {
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  symbolId  Int      @map("symbol_id") @db.UnsignedInt
+  date      DateTime @db.Date
+  open      Decimal  @db.Decimal(18, 6)
+  high      Decimal  @db.Decimal(18, 6)
+  low       Decimal  @db.Decimal(18, 6)
+  close     Decimal  @db.Decimal(18, 6)
+  volume    Decimal  @db.Decimal(24, 8)
+  provider  String   @db.VarChar(64)
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, date])
+  @@index([symbolId, date])
+  @@map("crypto_daily_bars")
+}
+
+model CryptoHourlyBar {
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  symbolId  Int      @map("symbol_id") @db.UnsignedInt
+  timestamp DateTime @map("ts")
+  open      Decimal  @db.Decimal(18, 6)
+  high      Decimal  @db.Decimal(18, 6)
+  low       Decimal  @db.Decimal(18, 6)
+  close     Decimal  @db.Decimal(18, 6)
+  volume    Decimal  @db.Decimal(24, 8)
+  provider  String   @db.VarChar(64)
+  createdAt DateTime @map("created_at")
+
+  symbol Symbol @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, timestamp])
+  @@index([symbolId, timestamp])
+  @@map("crypto_hourly_bars")
+}

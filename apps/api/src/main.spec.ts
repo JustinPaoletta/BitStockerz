@@ -4,7 +4,7 @@ import { AppLogger } from './common/logging/app-logger';
 import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
 import { AppConfigService } from './config/app-config.service';
 
-const createMockApp = (port = 3000) => ({
+const createMockApp = (port = 4000) => ({
   useLogger: jest.fn(),
   setGlobalPrefix: jest.fn(),
   useGlobalPipes: jest.fn(),
@@ -71,6 +71,6 @@ describe('bootstrap', () => {
     });
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(mockApp.listen).toHaveBeenCalledWith(3000);
+    expect(mockApp.listen).toHaveBeenCalledWith(4000);
   });
 });

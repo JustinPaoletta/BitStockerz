@@ -7,6 +7,7 @@ Assumptions:
 - 1–2 week sprints
 - Small team (1–3 engineers)
 - Stories referenced exactly as numbered in the MVP docs
+- Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
 ---
 
@@ -19,7 +20,7 @@ Assumptions:
 - #8.4.1 – Structured logging & correlation IDs
 - #8.5.1 – Central configuration service
 - #8.6.2 – Health & readiness endpoints
-- Status: Completed (verified February 19, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
+- Status: Completed (verified February 19, 2026; covered by e2e suite as of July 3, 2026) for #8.3.1, #8.4.1, #8.5.1, and #8.6.2
 
 ---
 
@@ -35,6 +36,8 @@ Assumptions:
 - #1.2.1 – User can view basic profile
 - #1.2.2 – User can update display preferences
 - #1.4.1 – Rate limit auth endpoints
+- Status: Completed (verified July 3, 2026)
+- Note: #1.3.1 remains correctly scheduled in Sprint 4.1 because paper-account creation depends on the paper-trading milestone
 
 **Exit**
 - Authenticated API requests
@@ -52,6 +55,8 @@ Assumptions:
 - #2.1.3 – Symbol lookup API
 - #2.2.1 – Equity daily OHLCV schema
 - #2.3.1 – Crypto daily/hourly OHLCV schema
+- #2.4.1 – Symbol search API
+- Status: Completed (verified July 3, 2026)
 
 ---
 
@@ -60,11 +65,9 @@ Assumptions:
 **Stories**
 - #2.2.3 – Equity daily candles API
 - #2.3.3 – Crypto candles API
-- #2.4.1 – Symbol search API
 
 **Exit**
 - Candles retrievable for stocks and crypto
-- Symbol search working
 
 ---
 
@@ -219,9 +222,17 @@ Assumptions:
 
 ---
 
-## Milestone 5 – Dashboard
+## Milestone 5 – Dashboard (Angular Frontend)
+
+Frontend note:
+- Milestone 5 UI work should be implemented in the Angular application shell
+- Any reusable client-side UI components referenced below are Angular components, not React components
 
 ### Sprint 5.1 – Shell & Navigation
+
+**Implementation prerequisite**
+- Scaffold the Angular web application in `apps/web` at the start of this sprint
+- Establish Angular routing, auth gating, shared layout shell, and client-side API service patterns before widget work begins
 
 **Stories**
 - #7.1.1 – Authenticated app shell
@@ -305,7 +316,7 @@ Assumptions:
 
 **Exit**
 - Application deployable to a single-region hosting environment
-- CI builds and deploys the API (and optionally frontend) to the chosen target
+- CI builds and deploys the API and Angular frontend to the chosen target
 
 ---
 
