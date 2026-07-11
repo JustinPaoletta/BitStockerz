@@ -26,14 +26,27 @@ Dependencies:
 - Completed in Sprint 0.1 (February 19, 2026): #8.4.1 – Structured logging baseline and correlation IDs
 - Completed in Sprint 0.1 (February 19, 2026): #8.5.1 – Central configuration service
 - Completed in Sprint 0.1 (February 19, 2026): #8.6.2 – Health and readiness endpoints for core services
+- Completed in Sprint 1.3 (July 11, 2026): #8.1.1 – Job model & lifecycle, #8.1.2 – Synchronous executor, #8.1.3 – Job timeout handling, #8.6.1 – Scheduled jobs
 
 ---
 
 ## Epic 8.1 – Backtest Job Execution & Orchestration
 
 ### Story 8.1.1 – Backtest job model & status lifecycle
+Acceptance criteria:
+- `jobs` table stores `job_type`, `user_id`, `payload_json`, `status`, timestamps, and optional `error_message`.
+- Lifecycle statuses: `pending` → `running` → `completed` | `failed` | `timed_out`.
+- In-memory job store mirrors Prisma behavior when `DATABASE_URL` is unset.
+
 ### Story 8.1.2 – Synchronous executor (async-ready design)
+Acceptance criteria:
+- `JobExecutorService` runs registered handlers inline in the API process.
+- `POST /api/jobs` creates a job and executes it before returning the final status.
+
 ### Story 8.1.3 – Job timeout & cancellation rules
+Acceptance criteria:
+- Jobs exceeding `JOB_TIMEOUT_MS` (default 30000) are marked `timed_out`.
+- Handler failures persist `error_message` and `failed` status.
 
 ---
 
@@ -76,6 +89,10 @@ Acceptance criteria:
 ## Epic 8.6 – Background Jobs & Health
 
 ### Story 8.6.1 – Scheduling for market-data and maintenance jobs
+Acceptance criteria:
+- Hourly cron (`0 * * * *`) runs `market_data_scheduled` jobs when `INGESTION_SCHEDULER_ENABLED=true` (default in development, disabled in test).
+- Scheduled jobs use `JOBS_SYSTEM_USER_ID` (default system user seeded by migration).
+
 ### Story 8.6.2 – Health and readiness endpoints for core services
 Acceptance criteria:
 - `GET /api/health/live` returns `200` with `{ "status": "ok" }` when the process is alive.

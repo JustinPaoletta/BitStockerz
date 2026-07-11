@@ -72,7 +72,7 @@ Assumptions:
 
 ---
 
-### Sprint 1.3 – Data Ingestion & Jobs (START HERE JULY 10 2026)
+### Sprint 1.3 – Data Ingestion & Jobs
 
 **Stories**
 - #2.2.2 – Equity history import
@@ -81,6 +81,7 @@ Assumptions:
 - #8.1.2 – Synchronous executor
 - #8.1.3 – Job timeout handling
 - #8.6.1 – Scheduled jobs
+- Status: Completed (verified July 11, 2026)
 
 **Exit**
 - Market data ingestion runnable on a schedule
@@ -88,7 +89,7 @@ Assumptions:
 
 ---
 
-### Sprint 1.4 – Data Health & Observability
+### Sprint 1.4 – Data Health & Observability (START HERE JULY 11 2026)
 
 **Stories**
 - #2.6.1 – Market data sanity checks

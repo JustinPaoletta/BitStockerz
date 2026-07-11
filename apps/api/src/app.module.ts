@@ -17,17 +17,16 @@ import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter
 import { AppLogger } from './common/logging/app-logger';
 import { AppConfigModule } from './config/app-config.module';
 import { AppConfigService } from './config/app-config.service';
-import { AuthController } from './auth/auth.controller';
-import { MeController } from './auth/me.controller';
-import { AuthService } from './auth/auth.service';
-import { AuthGuard } from './auth/auth.guard';
-import { AuthRateLimitGuard } from './auth/auth-rate-limit.guard';
+import { AuthModule } from './auth/auth.module';
+import { JobsModule } from './jobs/jobs.module';
 import { MarketDataModule } from './market-data/market-data.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    AuthModule,
     MarketDataModule,
+    JobsModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
@@ -40,18 +39,8 @@ import { MarketDataModule } from './market-data/market-data.module';
     HealthController,
     StrategiesController,
     ErrorTestController,
-    AuthController,
-    MeController,
   ],
-  providers: [
-    AppService,
-    HealthService,
-    GlobalHttpExceptionFilter,
-    AppLogger,
-    AuthService,
-    AuthGuard,
-    AuthRateLimitGuard,
-  ],
+  providers: [AppService, HealthService, GlobalHttpExceptionFilter, AppLogger],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

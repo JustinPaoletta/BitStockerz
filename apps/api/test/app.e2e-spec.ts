@@ -898,3 +898,99 @@ describe('Market data candles (e2e)', () => {
       });
   });
 });
+
+describe('Jobs and ingestion (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function registerAndGetToken(): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'ingestion@example.com', display_name: 'Ingestion User' })
+      .expect(201);
+
+    return response.body.access_token as string;
+  }
+
+  it('runs equity ingestion and returns a completed job', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
+      .post('/api/market-data/ingestion/equity')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ symbol: 'AAPL' })
+      .expect(201)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body.job_type).toBe('equity_daily_import');
+        expect(body.status).toBe('completed');
+        expect(body.payload).toMatchObject({
+          symbol: 'AAPL',
+          imported_equity_bars: 40,
+        });
+      });
+  });
+
+  it('runs crypto ingestion for daily and hourly intervals', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
+      .post('/api/market-data/ingestion/crypto')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ symbol: 'BTC-USD', intervals: ['1d', '1h'] })
+      .expect(201)
+      .expect((res) => {
+        const body = res.body as Record<string, unknown>;
+        expect(body.job_type).toBe('crypto_import');
+        expect(body.status).toBe('completed');
+        expect(body.payload).toMatchObject({
+          symbol: 'BTC-USD',
+          imported_crypto_daily_bars: 30,
+          imported_crypto_hourly_bars: 48,
+        });
+      });
+  });
+
+  it('GET /api/jobs/:id returns the job for the authenticated owner', async () => {
+    const token = await registerAndGetToken();
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/jobs')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ job_type: 'equity_daily_import' })
+      .expect(201);
+
+    const jobId = createResponse.body.id as string;
+
+    await request(app.getHttpServer())
+      .get(`/api/jobs/${jobId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.id).toBe(jobId);
+        expect(res.body.status).toBe('completed');
+      });
+  });
+
+  it('rejects unauthenticated job requests', async () => {
+    await request(app.getHttpServer())
+      .post('/api/jobs')
+      .send({ job_type: 'equity_daily_import' })
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+  });
+});

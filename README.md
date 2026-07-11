@@ -24,7 +24,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - Product definition and implementation planning for the BitStockerz platform.
 - Database design, migration planning, lifecycle policy, and API inventory work.
-- A NestJS API foundation under `apps/api`, including auth, WebAuthn, market-data symbols, and candle read APIs.
+- A NestJS API foundation under `apps/api`, including auth, WebAuthn, market-data symbols, candle read APIs, jobs, and ingestion.
 
 ## Tech Stack
 
@@ -70,7 +70,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 ## Testing & Quality Gates
 
 - API-focused releases should run `build`, `lint`, `test`, and `test:e2e` from `apps/api`.
-- The e2e suite covers health checks, auth flows, symbol lookup/search, and candle read APIs for completed backend scope.
+- The e2e suite covers health checks, auth flows, symbols, candles, jobs, and ingestion for completed backend scope.
 - Documentation-heavy releases should verify consistency across the roadmap, MVP, API inventory, and schema documents.
 
 ## Release Process
