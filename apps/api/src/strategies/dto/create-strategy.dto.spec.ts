@@ -24,7 +24,12 @@ describe('CreateStrategyDto', () => {
     const errors = await validate(dto);
     const fields = errors.map((error) => error.property);
     expect(fields).toEqual(
-      expect.arrayContaining(['name', 'description', 'asset_type', 'timeframe']),
+      expect.arrayContaining([
+        'name',
+        'description',
+        'asset_type',
+        'timeframe',
+      ]),
     );
   });
 

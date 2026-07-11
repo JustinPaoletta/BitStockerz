@@ -1,7 +1,11 @@
 import { Injectable, LoggerService } from '@nestjs/common';
 import { Logger as PinoNestLogger } from 'nestjs-pino';
 
-const SUPPRESSED_CONTEXTS = new Set(['RoutesResolver', 'RouterExplorer', 'NestApplication']);
+const SUPPRESSED_CONTEXTS = new Set([
+  'RoutesResolver',
+  'RouterExplorer',
+  'NestApplication',
+]);
 const SUPPRESSED_MESSAGES = new Set(['Nest application successfully started']);
 
 function extractContext(optionalParams: unknown[]): string | undefined {

@@ -22,7 +22,10 @@ describe('HealthController', () => {
         timestamp: '2026-02-19T00:00:00.000Z',
         checks: {
           database: { status: 'down', details: 'connection refused' },
-          marketData: { status: 'not_configured', details: 'MARKET_DATA_HEALTH_URL is not configured' },
+          marketData: {
+            status: 'not_configured',
+            details: 'MARKET_DATA_HEALTH_URL is not configured',
+          },
         },
       })),
     } as unknown as HealthService;

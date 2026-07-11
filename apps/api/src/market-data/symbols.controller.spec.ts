@@ -16,6 +16,24 @@ describe('SymbolsController', () => {
     expect(lookupSymbol).toHaveBeenCalledWith('aapl');
   });
 
+  it('searches without an asset type filter', async () => {
+    const searchSymbols = jest.fn().mockResolvedValue([{ symbol: 'AAPL' }]);
+    const marketDataService = {
+      searchSymbols,
+    } as unknown as MarketDataService;
+
+    const controller = new SymbolsController(marketDataService);
+
+    await expect(controller.search({ q: 'aap' })).resolves.toEqual([
+      { symbol: 'AAPL' },
+    ]);
+    expect(searchSymbols).toHaveBeenCalledWith({
+      q: 'aap',
+      assetType: undefined,
+      limit: undefined,
+    });
+  });
+
   it('maps search query parameters to service input', async () => {
     const searchSymbols = jest.fn().mockResolvedValue([{ symbol: 'BTC-USD' }]);
     const marketDataService = {

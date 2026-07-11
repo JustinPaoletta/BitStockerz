@@ -48,7 +48,9 @@ describe('GlobalHttpExceptionFilter', () => {
       setContext: jest.fn(),
     } as unknown as PinoLogger;
     new GlobalHttpExceptionFilter(ctxLogger);
-    expect(ctxLogger.setContext).toHaveBeenCalledWith(GlobalHttpExceptionFilter.name);
+    expect(ctxLogger.setContext).toHaveBeenCalledWith(
+      GlobalHttpExceptionFilter.name,
+    );
   });
 
   it('maps DomainError to RFC 7807 with correct code and status', () => {
@@ -79,11 +81,34 @@ describe('GlobalHttpExceptionFilter', () => {
     expect(body.detail).toBe('Authentication is required.');
   });
 
+  it('preserves field errors from a DomainError validation failure', () => {
+    const host = mockArgumentsHost({ requestId: 'req-domain-fields' });
+    const exception = new DomainError(
+      ErrorCode.VALIDATION_ERROR,
+      'The symbol is for the wrong asset type.',
+      undefined,
+      [{ field: 'asset_type', reason: 'expected EQUITY' }],
+    );
+
+    filter.catch(exception, host);
+
+    const res = (host as any).switchToHttp().getResponse();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: ErrorCode.VALIDATION_ERROR,
+        fieldErrors: [{ field: 'asset_type', reason: 'expected EQUITY' }],
+      }),
+    );
+  });
+
   it('uses empty detail for DomainError when catalog default is missing', () => {
-    const originalDetail = (require('./error-catalog') as typeof import('./error-catalog'))
-      .ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail;
-    (require('./error-catalog') as typeof import('./error-catalog'))
-      .ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail = undefined;
+    const originalDetail = (
+      require('./error-catalog') as typeof import('./error-catalog')
+    ).ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail;
+    (
+      require('./error-catalog') as typeof import('./error-catalog')
+    ).ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail = undefined;
     try {
       const host = mockArgumentsHost({ requestId: 'req-domain-empty' });
       class CustomDomainError extends DomainError {
@@ -97,8 +122,9 @@ describe('GlobalHttpExceptionFilter', () => {
       const body = res.json.mock.calls[0][0];
       expect(body.detail).toBe('');
     } finally {
-      (require('./error-catalog') as typeof import('./error-catalog'))
-        .ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail = originalDetail;
+      (
+        require('./error-catalog') as typeof import('./error-catalog')
+      ).ERROR_CATALOG[ErrorCode.FORBIDDEN].defaultDetail = originalDetail;
     }
   });
 
@@ -165,7 +191,10 @@ describe('GlobalHttpExceptionFilter', () => {
 
   it('maps HttpException 429 to RATE_LIMITED and uses exception message when no response message', () => {
     const host = mockArgumentsHost({ requestId: 'req-429' });
-    const exception = new HttpException('Too many requests', HttpStatus.TOO_MANY_REQUESTS);
+    const exception = new HttpException(
+      'Too many requests',
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
     filter.catch(exception, host);
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
@@ -187,7 +216,10 @@ describe('GlobalHttpExceptionFilter', () => {
     const exception = new HttpException(
       {
         errors: [
-          { property: 'name', constraints: { isString: 'name must be a string' } },
+          {
+            property: 'name',
+            constraints: { isString: 'name must be a string' },
+          },
         ],
       },
       HttpStatus.BAD_REQUEST,
@@ -196,7 +228,9 @@ describe('GlobalHttpExceptionFilter', () => {
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
     expect(body.code).toBe('VALIDATION_ERROR');
-    expect(body.fieldErrors).toEqual([{ field: 'name', reason: 'name must be a string' }]);
+    expect(body.fieldErrors).toEqual([
+      { field: 'name', reason: 'name must be a string' },
+    ]);
   });
 
   it('normalizes validation errors from string response', () => {
@@ -206,7 +240,9 @@ describe('GlobalHttpExceptionFilter', () => {
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
     expect(body.code).toBe('VALIDATION_ERROR');
-    expect(body.fieldErrors).toEqual([{ field: 'body', reason: 'single error' }]);
+    expect(body.fieldErrors).toEqual([
+      { field: 'body', reason: 'single error' },
+    ]);
   });
 
   it('normalizes validation errors from message array with non-string entries', () => {
@@ -238,11 +274,16 @@ describe('GlobalHttpExceptionFilter', () => {
 
   it('normalizes validation errors when response has message string', () => {
     const host = mockArgumentsHost({ requestId: 'req-msg' });
-    const exception = new HttpException({ message: 'bad payload' }, HttpStatus.BAD_REQUEST);
+    const exception = new HttpException(
+      { message: 'bad payload' },
+      HttpStatus.BAD_REQUEST,
+    );
     filter.catch(exception, host);
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
-    expect(body.fieldErrors).toEqual([{ field: 'body', reason: 'bad payload' }]);
+    expect(body.fieldErrors).toEqual([
+      { field: 'body', reason: 'bad payload' },
+    ]);
   });
 
   it('uses body as field when error property is missing', () => {
@@ -254,7 +295,9 @@ describe('GlobalHttpExceptionFilter', () => {
     filter.catch(exception, host);
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
-    expect(body.fieldErrors).toEqual([{ field: 'body', reason: 'name must be a string' }]);
+    expect(body.fieldErrors).toEqual([
+      { field: 'body', reason: 'name must be a string' },
+    ]);
   });
 
   it('uses generic invalid reason when constraints are missing', () => {
@@ -275,7 +318,9 @@ describe('GlobalHttpExceptionFilter', () => {
     filter.catch(exception, host);
     const res = (host as any).switchToHttp().getResponse();
     const body = res.json.mock.calls[0][0];
-    expect(body.fieldErrors).toEqual([{ field: 'body', reason: 'Validation failed' }]);
+    expect(body.fieldErrors).toEqual([
+      { field: 'body', reason: 'Validation failed' },
+    ]);
   });
 
   it('uses exception message when non-validation response has no message field', () => {
@@ -301,18 +346,24 @@ describe('GlobalHttpExceptionFilter', () => {
   });
 
   it('uses empty detail when validation default detail is missing', () => {
-    const catalog = require('./error-catalog') as typeof import('./error-catalog');
-    const originalDetail = catalog.ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail;
+    const catalog =
+      require('./error-catalog') as typeof import('./error-catalog');
+    const originalDetail =
+      catalog.ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail;
     catalog.ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail = undefined;
     try {
       const host = mockArgumentsHost({ requestId: 'req-default-empty' });
-      const exception = new HttpException({ errors: [] }, HttpStatus.BAD_REQUEST);
+      const exception = new HttpException(
+        { errors: [] },
+        HttpStatus.BAD_REQUEST,
+      );
       filter.catch(exception, host);
       const res = (host as any).switchToHttp().getResponse();
       const body = res.json.mock.calls[0][0];
       expect(body.detail).toBe('');
     } finally {
-      catalog.ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail = originalDetail;
+      catalog.ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail =
+        originalDetail;
     }
   });
 
@@ -326,7 +377,11 @@ describe('GlobalHttpExceptionFilter', () => {
   });
 
   it('falls back to unknown request id when neither id nor requestId exist', () => {
-    const host = mockArgumentsHost({ requestId: undefined, id: undefined, path: '/api/strategies' });
+    const host = mockArgumentsHost({
+      requestId: undefined,
+      id: undefined,
+      path: '/api/strategies',
+    });
     const exception = new DomainError(ErrorCode.FORBIDDEN, 'No access');
     filter.catch(exception, host);
     const res = (host as any).switchToHttp().getResponse();
@@ -334,15 +389,35 @@ describe('GlobalHttpExceptionFilter', () => {
     expect(body.requestId).toBe('unknown');
   });
 
+  it('stringifies numeric request ids when no correlation id is present', () => {
+    const host = mockArgumentsHost({
+      requestId: undefined,
+      id: 42 as unknown as string,
+    });
+    const exception = new DomainError(ErrorCode.FORBIDDEN, 'No access');
+    filter.catch(exception, host);
+    const res = (host as any).switchToHttp().getResponse();
+    const body = res.json.mock.calls[0][0];
+    expect(body.requestId).toBe('42');
+  });
+
   it('uses url when path is missing and falls back to "/" when both are missing', () => {
-    const hostUrl = mockArgumentsHost({ requestId: 'req-url', path: undefined, url: '/api/url-only' });
+    const hostUrl = mockArgumentsHost({
+      requestId: 'req-url',
+      path: undefined,
+      url: '/api/url-only',
+    });
     const exception = new DomainError(ErrorCode.FORBIDDEN, 'No access');
     filter.catch(exception, hostUrl);
     const resUrl = (hostUrl as any).switchToHttp().getResponse();
     const bodyUrl = resUrl.json.mock.calls[0][0];
     expect(bodyUrl.instance).toBe('/api/url-only');
 
-    const hostRoot = mockArgumentsHost({ requestId: 'req-root', path: undefined, url: undefined });
+    const hostRoot = mockArgumentsHost({
+      requestId: 'req-root',
+      path: undefined,
+      url: undefined,
+    });
     filter.catch(exception, hostRoot);
     const resRoot = (hostRoot as any).switchToHttp().getResponse();
     const bodyRoot = resRoot.json.mock.calls[0][0];
@@ -362,8 +437,10 @@ describe('GlobalHttpExceptionFilter', () => {
   });
 
   it('uses fallback internal detail when catalog default is missing', () => {
-    const catalog = require('./error-catalog') as typeof import('./error-catalog');
-    const originalDetail = catalog.ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail;
+    const catalog =
+      require('./error-catalog') as typeof import('./error-catalog');
+    const originalDetail =
+      catalog.ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail;
     catalog.ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail = undefined;
     try {
       const host = mockArgumentsHost({ requestId: 'req-internal-fallback' });
@@ -373,7 +450,8 @@ describe('GlobalHttpExceptionFilter', () => {
       const body = res.json.mock.calls[0][0];
       expect(body.detail).toBe('An unexpected error occurred.');
     } finally {
-      catalog.ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail = originalDetail;
+      catalog.ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail =
+        originalDetail;
     }
   });
 
@@ -397,5 +475,4 @@ describe('GlobalHttpExceptionFilter', () => {
     });
     jest.dontMock('nestjs-pino');
   });
-
 });

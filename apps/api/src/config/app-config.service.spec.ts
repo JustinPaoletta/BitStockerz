@@ -49,15 +49,19 @@ describe('loadAppConfig', () => {
       AUTH_RATE_LIMIT_MAX_REQUESTS: '15',
       WEBAUTHN_RP_ID: 'api.bitstockerz.test',
       WEBAUTHN_RP_NAME: 'BitStockerz Test',
-      WEBAUTHN_ALLOWED_ORIGINS: 'https://app.bitstockerz.test,http://localhost:4200',
+      WEBAUTHN_ALLOWED_ORIGINS:
+        'https://app.bitstockerz.test,http://localhost:4200',
       GOOGLE_OAUTH_CLIENT_ID: 'google-client-id',
       GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
-      GOOGLE_OAUTH_REDIRECT_URI: 'https://api.bitstockerz.test/api/auth/oauth/google/callback',
+      GOOGLE_OAUTH_REDIRECT_URI:
+        'https://api.bitstockerz.test/api/auth/oauth/google/callback',
       APPLE_OAUTH_CLIENT_ID: 'apple-client-id',
       APPLE_OAUTH_TEAM_ID: 'APPLETEAM',
       APPLE_OAUTH_KEY_ID: 'APPLEKEY',
-      APPLE_OAUTH_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
-      APPLE_OAUTH_REDIRECT_URI: 'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
+      APPLE_OAUTH_PRIVATE_KEY:
+        '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+      APPLE_OAUTH_REDIRECT_URI:
+        'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
     });
 
     expect(config.server).toEqual({
@@ -130,6 +134,27 @@ describe('loadAppConfig', () => {
       });
     }).toThrow(/Invalid configuration/);
   });
+
+  it('reports invalid optional url shapes', () => {
+    expect(() => {
+      loadAppConfig({
+        MARKET_DATA_HEALTH_URL: 'http://',
+        GOOGLE_OAUTH_REDIRECT_URI: 'not-a-url',
+        WEBAUTHN_ALLOWED_ORIGINS: 'ftp://bad.example.com',
+      });
+    }).toThrow(/Invalid configuration/);
+  });
+
+  it('accepts comma-separated webauthn origins', () => {
+    const config = loadAppConfig({
+      WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com,http://localhost:4200',
+    });
+
+    expect(config.auth.webauthnAllowedOrigins).toEqual([
+      'https://app.example.com',
+      'http://localhost:4200',
+    ]);
+  });
 });
 
 describe('AppConfigService', () => {
@@ -151,7 +176,8 @@ describe('AppConfigService', () => {
     process.env.LOG_FILE_PATH = '/tmp/config-service.log';
     process.env.READINESS_TIMEOUT_MS = '2100';
     process.env.DATABASE_URL = 'postgres://localhost:5432/bitstockerz';
-    process.env.MARKET_DATA_HEALTH_URL = 'https://market-data.example.com/health';
+    process.env.MARKET_DATA_HEALTH_URL =
+      'https://market-data.example.com/health';
     process.env.AUTH_SESSION_TTL_SECONDS = '5400';
     process.env.AUTH_CHALLENGE_TTL_SECONDS = '150';
     process.env.AUTH_OAUTH_STATE_TTL_SECONDS = '180';

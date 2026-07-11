@@ -46,7 +46,10 @@ export class HealthService {
   }
 
   async readiness(): Promise<ReadinessResponse> {
-    const [database, marketData] = await Promise.all([this.checkDatabase(), this.checkMarketData()]);
+    const [database, marketData] = await Promise.all([
+      this.checkDatabase(),
+      this.checkMarketData(),
+    ]);
     const ready = database.status !== 'down' && marketData.status !== 'down';
 
     return {
@@ -63,7 +66,10 @@ export class HealthService {
   private async checkDatabase(): Promise<DependencyCheck> {
     const databaseUrl = this.config.dependencies.databaseUrl;
     if (!databaseUrl) {
-      return { status: 'not_configured', details: 'DATABASE_URL is not configured' };
+      return {
+        status: 'not_configured',
+        details: 'DATABASE_URL is not configured',
+      };
     }
 
     let parsedUrl: URL;
@@ -75,7 +81,10 @@ export class HealthService {
 
     const host = parsedUrl.hostname;
     if (!host) {
-      return { status: 'down', details: 'DATABASE_URL must include a hostname' };
+      return {
+        status: 'down',
+        details: 'DATABASE_URL must include a hostname',
+      };
     }
 
     const protocol = parsedUrl.protocol.replace(':', '').toLowerCase();
@@ -90,7 +99,10 @@ export class HealthService {
     return this.checkTcpDependency(host, port);
   }
 
-  private resolveDatabasePort(protocol: string, rawPort: string): number | undefined {
+  private resolveDatabasePort(
+    protocol: string,
+    rawPort: string,
+  ): number | undefined {
     if (rawPort) {
       const parsed = Number.parseInt(rawPort, 10);
       if (!Number.isNaN(parsed) && parsed > 0 && parsed <= 65535) {
@@ -102,7 +114,10 @@ export class HealthService {
     return DATABASE_PROTOCOL_PORTS[protocol];
   }
 
-  private async checkTcpDependency(host: string, port: number): Promise<DependencyCheck> {
+  private async checkTcpDependency(
+    host: string,
+    port: number,
+  ): Promise<DependencyCheck> {
     const timeoutMs = this.config.readiness.timeoutMs;
     const startTime = Date.now();
 
@@ -146,7 +161,10 @@ export class HealthService {
   private async checkMarketData(): Promise<DependencyCheck> {
     const marketDataHealthUrl = this.config.dependencies.marketDataHealthUrl;
     if (!marketDataHealthUrl) {
-      return { status: 'not_configured', details: 'MARKET_DATA_HEALTH_URL is not configured' };
+      return {
+        status: 'not_configured',
+        details: 'MARKET_DATA_HEALTH_URL is not configured',
+      };
     }
 
     const timeoutMs = this.config.readiness.timeoutMs;
@@ -174,9 +192,10 @@ export class HealthService {
         latencyMs,
       };
     } catch (error) {
-      const detail = error instanceof Error && error.name === 'AbortError'
-        ? `Request timed out after ${timeoutMs}ms`
-        : toErrorMessage(error);
+      const detail =
+        error instanceof Error && error.name === 'AbortError'
+          ? `Request timed out after ${timeoutMs}ms`
+          : toErrorMessage(error);
 
       return {
         status: 'down',

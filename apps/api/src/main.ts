@@ -21,4 +21,4 @@ async function bootstrap() {
   app.useGlobalFilters(app.get(GlobalHttpExceptionFilter));
   await app.listen(config.server.port);
 }
-bootstrap();
+void bootstrap();

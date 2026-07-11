@@ -65,13 +65,14 @@ Assumptions:
 **Stories**
 - #2.2.3 – Equity daily candles API
 - #2.3.3 – Crypto candles API
+- Status: Completed (verified July 10, 2026)
 
 **Exit**
 - Candles retrievable for stocks and crypto
 
 ---
 
-### Sprint 1.3 – Data Ingestion & Jobs
+### Sprint 1.3 – Data Ingestion & Jobs (START HERE JULY 10 2026)
 
 **Stories**
 - #2.2.2 – Equity history import

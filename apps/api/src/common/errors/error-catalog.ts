@@ -38,7 +38,8 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     httpStatus: 409,
     typeSuffix: 'conflict',
     title: 'Conflict',
-    defaultDetail: 'The request conflicts with the current state of the resource.',
+    defaultDetail:
+      'The request conflicts with the current state of the resource.',
   },
   [ErrorCode.RATE_LIMITED]: {
     httpStatus: 429,

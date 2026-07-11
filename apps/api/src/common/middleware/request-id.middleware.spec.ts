@@ -1,4 +1,7 @@
-import { RequestIdMiddleware, REQUEST_ID_HEADER } from './request-id.middleware';
+import {
+  RequestIdMiddleware,
+  REQUEST_ID_HEADER,
+} from './request-id.middleware';
 
 jest.mock('crypto', () => ({
   randomUUID: jest.fn(() => 'uuid-123'),
@@ -45,7 +48,10 @@ describe('RequestIdMiddleware', () => {
 
     expect(req.requestId).toBe('existing-id');
     expect(req.id).toBe('existing-id');
-    expect(res.setHeader).toHaveBeenCalledWith(REQUEST_ID_HEADER, 'existing-id');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      REQUEST_ID_HEADER,
+      'existing-id',
+    );
   });
 
   it('generates a new request id when none exists', () => {
