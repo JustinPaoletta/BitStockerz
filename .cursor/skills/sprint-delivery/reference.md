@@ -21,6 +21,81 @@ gh pr list --state merged --limit 10
 
 ---
 
+## Dev input checklist
+
+Use during Phase 1 planning and re-check in Phase 2 when touching integrations. Not every row applies every sprint — include only relevant items in the plan's **Dev input required** table.
+
+| Signal in story/docs | Likely dev action | Agent default if stubbing |
+|----------------------|-------------------|---------------------------|
+| Real market data vendor (Polygon, Alpha Vantage, CoinGecko paid, etc.) | API key + plan choice | Seed/in-memory bars (`seed-candles.ts` pattern) |
+| Custom domain / CORS / OAuth redirect URLs | Buy/configure domain; register redirect URIs | `localhost` only; document production URLs needed |
+| Email / SMS / push notifications | Provider account + API key | Log-only or no-op sender; document env vars |
+| Payments / subscriptions | Stripe/etc. account, webhooks, test keys | Out of scope unless story requires; pause |
+| Hosted database / Redis / blob storage | Provision Neon, Upstash, Vercel Blob; paste `DATABASE_URL` | In-memory / Prisma disabled mode |
+| JWT / session secrets for deployed env | Generate and set in hosting dashboard | Local dev defaults only; list vars for deploy |
+| Scheduled jobs in production | Enable cron on host; confirm `INGESTION_SCHEDULER_ENABLED` | Document flag; default off in production |
+| Third-party OAuth (Google, GitHub login) | Create OAuth app; client ID/secret | Defer social login or pause |
+| Rate limits / API quotas | Vendor dashboard + billing | Conservative local limits; mock responses |
+| Legal copy / disclaimers ("not financial advice") | Product owner wording | Placeholder text; flag for review |
+| Angular UI design | Figma or screenshot reference | Backend-only sprint: no UI unless story requires |
+| Prior sprint branch not merged | Merge/rebase decision | Stack on prior branch per [branch map](#branch-map) |
+| Coverage exclusion for new files | Dev agrees thin wiring stays untested | Add tests first; exclude only after failing 90% gate |
+
+**Pause template** (use in chat when blocked):
+
+```markdown
+### ⏸ Dev input needed — <short title>
+
+**Blocks:** <what you cannot implement>
+**Story / criterion:** <ID or quote>
+**Options:** A) … B) … C) stub with …
+**What I need from you:** <one concrete ask>
+```
+
+---
+
+## Sprint retrospectives (dev-input examples)
+
+Real sprints where gates should have been surfaced explicitly. Use as calibration for future plans — not as blame, but so the **Dev input required** table is never skipped.
+
+### Sprint 1.2 — Market Data Read APIs (July 2026)
+
+**Stories:** #2.2.3, #2.3.3 | **PR:** [#5](https://github.com/JustinPaoletta/BitStockerz/pull/5) → `main`
+
+| # | Gate | Ideal status | What happened |
+|---|------|--------------|---------------|
+| 1 | Seed fixtures until 1.3 ingestion | ⏭ stubbed | Correctly noted in plan risks; no pause needed |
+| 2 | Candle API acceptance criteria (`limit` 5000, public routes) | ⏸ confirm AC | AC written during sprint; dev approved implicitly via "ship" |
+| 3 | Seed symbol list (`AAPL`/`MSFT`/`SPY`, `BTC-USD`/`ETH-USD`) | ⏭ inherited | Reused `seed-symbols.ts`; fine unless wider fixtures wanted |
+| 4 | `DATABASE_URL` for DB-mode smoke test | Info only | With DB on, candles return `[]` until 1.3 — should warn in manual test notes |
+| 5 | Live market data vendor | N/A | Correctly deferred (Sprint 7.1) |
+
+**Lesson:** Low blocker count, but still worth a one-row **Dev input required** table so seed-vs-DB testing is explicit before merge.
+
+### Sprint 1.3 — Data Ingestion & Jobs (July 2026)
+
+**Stories:** #2.2.2, #2.3.2, #8.1.1–#8.1.3, #8.6.1 | **PR:** [#6](https://github.com/JustinPaoletta/BitStockerz/pull/6) → stacked on 1.2 branch
+
+| # | Gate | Ideal status | What happened |
+|---|------|--------------|---------------|
+| 1 | **Real provider vs seed import** | ⏭ stub with dev OK | Six stories had **no AC**; agent shipped seed-only ingestion without confirming. API inventory §9 says "don't pick provider yet" — aligned with roadmap, but dev never got an explicit choice |
+| 2 | **Missing acceptance criteria** (all 6 stories) | ⏸ draft AC for approval | AC invented during/after implementation |
+| 3 | **Ingestion auth** (any user vs admin-only) | ⏭ or ⏸ | Any authenticated user can trigger import — reasonable default, undocumented choice |
+| 4 | **Scheduler cadence** (hourly cron) | ⏭ note in plan | `0 * * * *` chosen without asking |
+| 5 | **System user** (`system@bitstockerz.local` + fixed UUID) | ⏭ note in plan | Migration seeds synthetic user for scheduled jobs |
+| 6 | **Coverage exclusions** (6 new files in `coveragePathIgnorePatterns`) | ⏸ dev approves | Gate passed only after excluding thin wiring files |
+| 7 | **`DATABASE_URL` for persisted ingestion test** | Info for dev | In-memory path works; upsert verification needs local MySQL |
+
+**Lesson:** Empty story AC + "import" wording in titles = mandatory pause. Minimum ask: *"Sprint 1.3 is seed pipeline only; live provider deferred to Sprint 7.1 — OK?"*
+
+### Template row for seed-only ingestion sprints
+
+```markdown
+| 1 | Market data provider | Stories say "import"; no vendor in scope | ⏭ Seed upsert via `seed-candles.ts`; document in API inventory + ROADMAP deferral to Sprint 7.1 | ⏭ stubbed |
+```
+
+---
+
 ## Story file index
 
 | Domain | File |

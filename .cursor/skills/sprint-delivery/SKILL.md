@@ -3,9 +3,10 @@ name: sprint-delivery
 description: >-
   Delivers the next BitStockerz roadmap sprint end-to-end: branch from the
   previous sprint branch, plan, implement, test to coverage gates, sync docs,
-  add manual testing guide, and open a stacked PR. Use when the user asks to
-  start, implement, or ship the next sprint, knock out a sprint, or run sprint
-  delivery.
+  add manual testing guide, and open a stacked PR. Surfaces dev-input gates
+  during planning and coding when secrets, purchases, product decisions, or
+  missing context block progress. Use when the user asks to start, implement,
+  or ship the next sprint, knock out a sprint, or run sprint delivery.
 disable-model-invocation: true
 ---
 
@@ -21,6 +22,63 @@ End-to-end workflow for shipping one roadmap sprint. Read [reference.md](referen
 4. Confirm with the user which sprint to ship if ROADMAP is ambiguous or multiple sprints are in flight.
 
 Do **not** expand scope beyond the target sprint's stories and exit criteria.
+
+---
+
+## Dev input gates
+
+Some work **cannot** be inferred from the repo or docs. Flag these explicitly during **Phase 1 (plan)** and again during **Phase 2 (implement)** if they appear mid-sprint. Use [reference.md § Dev input checklist](reference.md#dev-input-checklist) for the full catalog.
+
+### When to pause (blocking)
+
+Stop and ask the dev before proceeding when any of these apply:
+
+| Category | Examples | What to ask for |
+|----------|----------|-----------------|
+| **Secrets & credentials** | Third-party API keys, OAuth client IDs, `DATABASE_URL`, JWT signing keys, webhook secrets | Exact env var names, values (or `.env` entries the dev will add locally), which environments need them |
+| **Paid / external accounts** | Market data vendor, domain purchase, DNS, Vercel/Neon/Upstash provisioning, email/SMS provider | Which vendor/plan, who creates the account, whether to stub until credentials exist |
+| **Product / UX decisions** | Story acceptance criteria silent on behavior, conflicting stories, "nice default" that affects users | Concrete choice: default values, error copy, auth rules, pagination limits |
+| **Architecture forks** | Multiple valid designs with different cost/complexity (queue vs sync, provider A vs B) | Preferred approach or explicit "use stub X for this sprint" |
+| **Missing context** | Story references external spec, Figma, or business rule not in repo | File, link, or written rule to implement against |
+| **Scope ambiguity** | ROADMAP `START HERE` unclear, overlapping in-flight branches, story spans multiple sprints | Confirm target sprint and what to defer |
+| **Production / compliance** | Real money, PII retention, rate limits with legal exposure, breaking API changes | Explicit approval or deferral to a later sprint |
+| **Human-only actions** | DNS records, GitHub org settings, marketplace app install, Apple/Google developer enrollment | Step-by-step checklist for the dev; do not pretend these are done |
+
+### How to surface gates in the plan (Phase 1)
+
+Add a required subsection to every sprint plan:
+
+```markdown
+## Dev input required
+
+| # | Blocker | Why it blocks | Default if unanswered | Status |
+|---|---------|---------------|----------------------|--------|
+| 1 | … | … | … | ⏸ needs input / ✅ resolved / ⏭ stubbed for sprint |
+```
+
+- **⏸ needs input** — do not implement the dependent slice until the dev responds.
+- **⏭ stubbed for sprint** — ship seed/mock/in-memory behavior; document the follow-up in Risks and ROADMAP if needed.
+- **✅ resolved** — note what the dev provided (no secrets in git; reference env var names only).
+
+If the plan has any **⏸ needs input** rows, **pause after Phase 1** even when the user said "ship" — unless they explicitly approve proceeding with stubs only.
+
+### During implementation (Phase 2)
+
+Re-check gates when you:
+
+- Add a new env var or external HTTP client
+- Touch auth, billing, email, or real market data feeds
+- Discover acceptance criteria that contradict existing code or docs
+
+If a new blocker appears:
+
+1. Stop the affected slice (do not guess API keys or purchase services).
+2. Tell the dev what is blocked, what you already shipped, and the smallest question that unblocks you.
+3. Prefer **stub + doc** over **wrong integration** when the sprint allows seed/in-memory fallback.
+
+### What you can decide without asking
+
+Use repo conventions and prior sprint patterns for: NestJS module layout, RFC 7807 errors, DTO validation, in-memory seed fallback, test structure, doc locations, branch naming, and Conventional Commits — unless the sprint explicitly requires a different choice.
 
 ---
 
@@ -67,6 +125,7 @@ The plan must include:
 5. **Test strategy** — unit targets, e2e scenarios, seed/fixture data if ingestion is not yet available
 6. **Doc touch list** — files from [reference.md § Documentation](reference.md#documentation-sync)
 7. **Risks** — empty DB, lint/coverage pitfalls, dependencies on unmerged branches
+8. **Dev input required** — table per [Dev input gates](#dev-input-gates); mark each item ⏸ / ⏭ / ✅
 
 Use existing conventions:
 
@@ -77,16 +136,18 @@ Use existing conventions:
 - Conventional Commits: `type: subject` (lower-case subject, max 72 chars)
 - Angular is the frontend target; backend-only sprints do not scaffold UI unless the sprint explicitly requires it
 
-**Pause for user approval** if they invoked planning only. If they said "knock out" or "ship" the sprint, proceed through all phases without waiting.
+**Pause for user approval** if they invoked planning only, or if the plan has any **⏸ needs input** dev gates (see [Dev input gates](#dev-input-gates)). If they said "knock out" or "ship" and all gates are **✅ resolved** or **⏭ stubbed**, proceed through remaining phases without waiting.
 
 ---
 
 ## Phase 2 — Implement
 
+Before coding each slice, confirm its dev gates are **✅** or **⏭ stubbed**. If you hit a new blocker, stop and surface it (do not commit secrets or wire paid APIs without credentials).
+
 1. **Schema/migrations** — only if the sprint requires new tables. Follow [docs/database/Migrations_Plan.md](../../docs/database/Migrations_Plan.md). Update `apps/api/prisma/schema.prisma` and run `npm --prefix apps/api run db:migrate` when applicable.
 2. **Code** — minimal diff; match surrounding module style. Extend existing modules before creating parallel ones.
 3. **Seed/fixtures** — when read APIs or jobs need data before ingestion exists, add deterministic seeds (see `seed-symbols.ts`, `seed-candles.ts` patterns).
-4. **Config** — new env vars go through `AppConfigService` / `loadAppConfig`, not raw `process.env` in services.
+4. **Config** — new env vars go through `AppConfigService` / `loadAppConfig`, not raw `process.env` in services. Document new vars in plan/manual testing; never commit values.
 
 ---
 
@@ -187,13 +248,14 @@ Return the **PR URL** and **branch name** to the user.
 ## Definition of done
 
 - [ ] Branched from correct prior-sprint branch
+- [ ] Dev input gates surfaced in plan; blockers resolved or explicitly stubbed with docs
 - [ ] All sprint stories and exit criteria implemented
 - [ ] build, lint, test, test:cov (90%+), test:e2e pass
 - [ ] Documentation synced per reference checklist
-- [ ] Manual testing section added
+- [ ] Manual testing section added (includes env vars and stub vs live behavior)
 - [ ] Stacked PR opened against prior-sprint branch (or `main` if merged)
-- [ ] User told what to smoke-test manually and what to expect
+- [ ] User told what to smoke-test manually, what to expect, and any **⏸** follow-ups only they can do (domains, keys, DNS, purchases)
 
 ## Additional resources
 
-- [reference.md](reference.md) — branch map, doc checklist, story file index, patterns
+- [reference.md](reference.md) — branch map, doc checklist, story file index, dev-input checklist, sprint retrospectives
