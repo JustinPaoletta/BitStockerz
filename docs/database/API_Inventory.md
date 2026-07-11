@@ -11,7 +11,7 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.2**:
+The runnable API in `apps/api` currently ships through **Sprint 1.3**:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -20,9 +20,10 @@ The runnable API in `apps/api` currently ships through **Sprint 1.2**:
 | Symbol lookup & search | Shipped (1.1) | Public endpoints; in-memory seed data without `DATABASE_URL` |
 | Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
-| Ingestion, trading, strategies | Planned | Described below; not implemented yet |
+| Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
+| Trading, strategies | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth state, symbol data, and candle fixtures are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data. Until Sprint 1.3 ingestion ships, an enabled database may validly return an empty candle array when its bar tables contain no rows.
+Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data. Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
 
 ---
 
@@ -224,7 +225,30 @@ Public endpoint (no authentication required). When Prisma is disabled, reads use
 
 ---
 
-### 2.4 Market Data Health
+### 2.5 Market Data Ingestion (implemented in Sprint 1.3)
+
+Authenticated endpoints (bearer token required). Jobs run synchronously and return the completed job record.
+
+**POST `/market-data/ingestion/equity`**
+
+- Body:
+  - `symbol?` – limit import to one equity ticker
+- Behavior:
+  - Creates and runs `equity_daily_import` job.
+  - Upserts seed OHLCV bars into `equity_daily_bars` when `DATABASE_URL` is configured.
+
+**POST `/market-data/ingestion/crypto`**
+
+- Body:
+  - `symbol?`
+  - `intervals?` – `1d` | `1h` (default both)
+- Behavior:
+  - Creates and runs `crypto_import` job.
+  - Upserts seed OHLCV bars into daily/hourly crypto tables when `DATABASE_URL` is configured.
+
+---
+
+### 2.6 Market Data Health
 
 **GET `/market-data/health`** (admin/internal)
 
@@ -488,20 +512,29 @@ If you want to keep the backend simpler, skip this and let the Angular app call 
 
 ---
 
-### 8.2 Jobs (Backtest)
+### 8.2 Jobs (implemented in Sprint 1.3)
 
-Jobs are mostly internal, but you may expose read-only endpoints.
+**POST `/jobs`**
 
-**GET `/jobs/:id`** (optional MVP)
+- Body:
+  - `job_type` – `equity_daily_import` | `crypto_import` | `market_data_scheduled`
+  - `symbol?`
+  - `intervals?` – for `crypto_import`
+- Behavior:
+  - Creates and synchronously executes the job; returns final status.
 
+**GET `/jobs/:id`**
+
+- Returns job status for the authenticated owner.
 - Response:
   - `id`
   - `job_type`
   - `status`
+  - `payload`
   - `created_at`, `started_at`, `finished_at`
   - `error_message?`
 
-In MVP, because backtests are synchronous, this is nice-to-have rather than critical.
+Scheduled `market_data_scheduled` jobs also run hourly when `INGESTION_SCHEDULER_ENABLED=true`.
 
 ---
 

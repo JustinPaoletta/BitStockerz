@@ -30,6 +30,8 @@ const DEFAULT_AUTH_RATE_LIMIT_WINDOW_MS = 60000;
 const DEFAULT_AUTH_RATE_LIMIT_MAX_REQUESTS = 30;
 const DEFAULT_WEBAUTHN_RP_ID = 'localhost';
 const DEFAULT_WEBAUTHN_RP_NAME = 'BitStockerz';
+const DEFAULT_JOB_TIMEOUT_MS = 30000;
+const DEFAULT_JOBS_SYSTEM_USER_ID = '00000000-0000-4000-8000-000000000001';
 
 export interface ServerConfig {
   port: number;
@@ -71,12 +73,19 @@ export interface AuthConfig {
   appleRedirectUri?: string;
 }
 
+export interface JobsConfig {
+  timeoutMs: number;
+  schedulerEnabled: boolean;
+  systemUserId: string;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
   readiness: ReadinessConfig;
   dependencies: DependencyConfig;
   auth: AuthConfig;
+  jobs: JobsConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -405,6 +414,23 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     );
   }
 
+  const jobTimeoutMs = parseInteger(
+    'JOB_TIMEOUT_MS',
+    env.JOB_TIMEOUT_MS,
+    DEFAULT_JOB_TIMEOUT_MS,
+    1000,
+    300000,
+    errors,
+  );
+  const schedulerEnabled = parseBoolean(
+    'INGESTION_SCHEDULER_ENABLED',
+    env.INGESTION_SCHEDULER_ENABLED,
+    nodeEnv === 'development',
+    errors,
+  );
+  const systemUserId =
+    normalizeOptional(env.JOBS_SYSTEM_USER_ID) ?? DEFAULT_JOBS_SYSTEM_USER_ID;
+
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -445,6 +471,11 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       applePrivateKey,
       appleRedirectUri,
     },
+    jobs: {
+      timeoutMs: jobTimeoutMs,
+      schedulerEnabled: nodeEnv === 'test' ? false : schedulerEnabled,
+      systemUserId,
+    },
   };
 }
 
@@ -474,5 +505,9 @@ export class AppConfigService {
 
   get auth(): AuthConfig {
     return this.config.auth;
+  }
+
+  get jobs(): JobsConfig {
+    return this.config.jobs;
   }
 }

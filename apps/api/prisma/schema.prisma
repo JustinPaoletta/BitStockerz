@@ -1,5 +1,5 @@
 // BitStockerz API Prisma schema
-// Sprint 1.2 wires the runnable API to the core auth and market-data tables.
+// Sprint 1.3 wires jobs plus market-data ingestion on top of auth and OHLCV tables.
 
 generator client {
   provider = "prisma-client-js"
@@ -17,8 +17,27 @@ model User {
   deletedAt DateTime? @map("deleted_at")
 
   webauthnCredentials WebAuthnCredential[]
+  jobs                Job[]
 
   @@map("users")
+}
+
+model Job {
+  id           String    @id @db.Char(36)
+  jobType      String    @map("job_type") @db.VarChar(32)
+  userId       String    @map("user_id") @db.Char(36)
+  payloadJson  Json      @map("payload_json")
+  status       String    @db.VarChar(16)
+  errorMessage String?   @map("error_message") @db.Text
+  createdAt    DateTime  @map("created_at")
+  startedAt    DateTime? @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([jobType, status])
+  @@map("jobs")
 }
 
 model WebAuthnCredential {

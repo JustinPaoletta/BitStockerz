@@ -39,6 +39,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().cryptoHourlyBar;
   }
 
+  get job() {
+    return this.requireClient().job;
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.client) {
       await this.client.$disconnect();

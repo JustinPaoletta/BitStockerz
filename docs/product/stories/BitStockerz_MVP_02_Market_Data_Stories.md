@@ -14,7 +14,7 @@ Scope includes:
 
 - Completed in Sprint 1.1 (July 3, 2026): #2.1.1–#2.1.3, #2.2.1, #2.3.1, #2.4.1
 - Completed in Sprint 1.2 (July 10, 2026): #2.2.3, #2.3.3 (candle read APIs)
-- Planned for Sprint 1.3+: #2.2.2, #2.3.2 (data ingestion)
+- Completed in Sprint 1.3 (July 11, 2026): #2.2.2, #2.3.2 (data ingestion)
 - Planned for Sprint 1.4+: #2.6.1–#2.6.2 (data quality and health endpoint)
 - Planned for Sprint 5.1: #2.4.2 (symbol search UI component)
 - Planned for Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
@@ -38,6 +38,11 @@ Scope includes:
 
 ### Story 2.2.1 – Equity daily OHLCV schema
 ### Story 2.2.2 – Equity daily history import (initial backfill)
+Acceptance criteria:
+- Authenticated `POST /api/market-data/ingestion/equity` creates and runs an `equity_daily_import` job synchronously.
+- Imports deterministic seed OHLCV bars into `equity_daily_bars` when `DATABASE_URL` is configured; counts imported bars in job payload without `DATABASE_URL`.
+- Optional body `symbol` limits import to one active equity ticker; unknown symbols return `404 NOT_FOUND`.
+
 ### Story 2.2.3 – Equity daily candles API
 
 **Acceptance criteria**
@@ -56,6 +61,11 @@ Scope includes:
 
 ### Story 2.3.1 – Crypto OHLCV schema
 ### Story 2.3.2 – Crypto daily/hourly import
+Acceptance criteria:
+- Authenticated `POST /api/market-data/ingestion/crypto` creates and runs a `crypto_import` job synchronously.
+- Supports optional `symbol` and `intervals` (`1d`, `1h`); defaults to both intervals for all active crypto symbols.
+- Upserts seed bars into `crypto_daily_bars` and `crypto_hourly_bars` when Prisma is enabled.
+
 ### Story 2.3.3 – Crypto candles API
 
 **Acceptance criteria**

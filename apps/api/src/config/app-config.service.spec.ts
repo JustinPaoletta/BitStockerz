@@ -103,6 +103,35 @@ describe('loadAppConfig', () => {
       appleRedirectUri:
         'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
     });
+    expect(config.jobs).toEqual({
+      timeoutMs: 30000,
+      schedulerEnabled: false,
+      systemUserId: '00000000-0000-4000-8000-000000000001',
+    });
+  });
+
+  it('parses job runtime configuration', () => {
+    const config = loadAppConfig({
+      NODE_ENV: 'development',
+      JOB_TIMEOUT_MS: '45000',
+      INGESTION_SCHEDULER_ENABLED: 'false',
+      JOBS_SYSTEM_USER_ID: 'custom-system-user',
+    });
+
+    expect(config.jobs).toEqual({
+      timeoutMs: 45000,
+      schedulerEnabled: false,
+      systemUserId: 'custom-system-user',
+    });
+  });
+
+  it('disables the ingestion scheduler in test env', () => {
+    const config = loadAppConfig({
+      NODE_ENV: 'test',
+      INGESTION_SCHEDULER_ENABLED: 'true',
+    });
+
+    expect(config.jobs.schedulerEnabled).toBe(false);
   });
 
   it('enables file logging when only LOG_FILE_PATH is provided', () => {

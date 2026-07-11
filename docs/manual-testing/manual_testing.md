@@ -8,9 +8,9 @@ Use this guide to smoke-test the runnable API in `apps/api` after local changes.
 2. Start the API: `npm --prefix apps/api run start:dev`
 3. **Database mode**
    - **No `DATABASE_URL` (default dev/test):** Auth, symbols, and candles use deterministic in-memory seed data.
-   - **With `DATABASE_URL` (MySQL/MariaDB):** Run `npm --prefix apps/api run db:migrate`, then restart the API. Symbol rows come from the database; candle endpoints return whatever is stored in the bar tables (often `[]` until Sprint 1.3 ingestion).
+   - **With `DATABASE_URL` (MySQL/MariaDB):** Run `npm --prefix apps/api run db:migrate`, then restart the API. Symbol rows and ingested bars come from the database after running ingestion endpoints.
 
-No bearer token is required for health, symbol, or candle read endpoints in Sprint 1.2.
+Authenticated bearer token required for job and ingestion endpoints in Sprint 1.3.
 
 ---
 
@@ -191,7 +191,75 @@ Run this checklist after Sprint 1.2 changes or before marking the sprint complet
 | 9 | Reversed equity range | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-02-01&end=2026-01-01'` | `400`, `VALIDATION_ERROR` |
 | 10 | Invalid limit | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09&limit=0'` | `400`, `VALIDATION_ERROR` |
 
-With `DATABASE_URL` configured and empty bar tables, repeat rows 1, 2, 5, and 6; expect `200` with `[]` for valid symbols (ingestion lands in Sprint 1.3).
+With `DATABASE_URL` configured and empty bar tables, run Section 8 ingestion curls first, then repeat rows 1, 2, 5, and 6; expect non-empty candle arrays for seeded symbols.
+
+---
+
+## Section 8 – Jobs and ingestion (Sprint 1.3)
+
+Register and capture a bearer token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ingestion-manual@example.com","display_name":"Ingestion Manual"}' \
+  | jq -r '.access_token')
+```
+
+### Success – equity import (single symbol)
+
+```bash
+curl -s -X POST http://localhost:4000/api/market-data/ingestion/equity \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL"}' | jq
+```
+
+Expected: `201` job with `job_type: equity_daily_import`, `status: completed`, `payload.imported_equity_bars: 40`.
+
+### Success – crypto import (daily + hourly)
+
+```bash
+curl -s -X POST http://localhost:4000/api/market-data/ingestion/crypto \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"BTC-USD","intervals":["1d","1h"]}' | jq
+```
+
+Expected: `201` with `imported_crypto_daily_bars: 30` and `imported_crypto_hourly_bars: 48`.
+
+### Success – fetch job by id
+
+```bash
+JOB_ID=$(curl -s -X POST http://localhost:4000/api/jobs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"job_type":"equity_daily_import"}' | jq -r '.id')
+
+curl -s http://localhost:4000/api/jobs/$JOB_ID \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Expected: `200` with matching `id` and `status: completed`.
+
+### Validation – unauthenticated job request
+
+```bash
+curl -s -X POST http://localhost:4000/api/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"job_type":"equity_daily_import"}' | jq
+```
+
+Expected: `401` `UNAUTHORIZED`.
+
+## Section 8 – Ingestion regression checklist
+
+| # | Scenario | Expect |
+| --- | --- | --- |
+| 1 | Equity import `AAPL` | `completed`, 40 bars in payload |
+| 2 | Crypto import `BTC-USD` both intervals | `completed`, 30 daily + 48 hourly |
+| 3 | `GET /jobs/:id` as owner | `200`, same job id |
+| 4 | Unauthenticated `POST /jobs` | `401` |
 
 ---
 
