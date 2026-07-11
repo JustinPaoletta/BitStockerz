@@ -1,7 +1,3 @@
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
-import { AppLogger } from './common/logging/app-logger';
-import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
 import { AppConfigService } from './config/app-config.service';
 
 const createMockApp = (port = 4000) => ({
@@ -53,7 +49,10 @@ describe('bootstrap', () => {
     expect(filterArg).toBeDefined();
     expect(filterArg.name).toBe('GlobalHttpExceptionFilter');
     expect(
-      mockApp.get.mock.calls.some(([token]) => typeof token === 'function' && token.name === AppConfigService.name),
+      mockApp.get.mock.calls.some(
+        ([token]) =>
+          typeof token === 'function' && token.name === AppConfigService.name,
+      ),
     ).toBe(true);
     expect(mockApp.listen).toHaveBeenCalledWith(4567);
     expect(mockApp.useGlobalPipes).toHaveBeenCalledTimes(1);

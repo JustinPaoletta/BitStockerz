@@ -38,12 +38,17 @@ describe('AppLogger', () => {
 
   it('passes through non-suppressed logs', () => {
     logger.log('service initialized', 'AppService');
-    expect(pinoLogger.log).toHaveBeenCalledWith('service initialized', 'AppService');
+    expect(pinoLogger.log).toHaveBeenCalledWith(
+      'service initialized',
+      'AppService',
+    );
   });
 
   it('does not suppress when context is not a string', () => {
     logger.log('custom', { context: 'RouterExplorer' });
-    expect(pinoLogger.log).toHaveBeenCalledWith('custom', { context: 'RouterExplorer' });
+    expect(pinoLogger.log).toHaveBeenCalledWith('custom', {
+      context: 'RouterExplorer',
+    });
   });
 
   it('does not suppress when message object lacks message string', () => {
@@ -56,6 +61,16 @@ describe('AppLogger', () => {
     logger.verbose('AppController {/api}:', 'RoutesResolver');
     expect(pinoLogger.debug).not.toHaveBeenCalled();
     expect(pinoLogger.verbose).not.toHaveBeenCalled();
+  });
+
+  it('passes through non-suppressed debug and verbose logs', () => {
+    logger.debug('debug detail', 'AppService');
+    logger.verbose('verbose detail', 'AppService');
+    expect(pinoLogger.debug).toHaveBeenCalledWith('debug detail', 'AppService');
+    expect(pinoLogger.verbose).toHaveBeenCalledWith(
+      'verbose detail',
+      'AppService',
+    );
   });
 
   it('does not suppress warn or error logs', () => {

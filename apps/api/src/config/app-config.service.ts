@@ -4,8 +4,20 @@ export type NodeEnvironment = 'development' | 'test' | 'production';
 
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const FALSE_VALUES = new Set(['0', 'false', 'no', 'off']);
-const NODE_ENVIRONMENTS = new Set<NodeEnvironment>(['development', 'test', 'production']);
-const LOG_LEVELS = new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']);
+const NODE_ENVIRONMENTS = new Set<NodeEnvironment>([
+  'development',
+  'test',
+  'production',
+]);
+const LOG_LEVELS = new Set([
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+  'silent',
+]);
 
 const DEFAULT_PORT = 4000;
 const DEFAULT_LOG_LEVEL = 'info';
@@ -96,7 +108,9 @@ function parseBoolean(
     return false;
   }
 
-  errors.push(`${envName} must be one of ${[...TRUE_VALUES, ...FALSE_VALUES].join(', ')}`);
+  errors.push(
+    `${envName} must be one of ${[...TRUE_VALUES, ...FALSE_VALUES].join(', ')}`,
+  );
   return defaultValue;
 }
 
@@ -127,8 +141,13 @@ function parseInteger(
   return parsed;
 }
 
-function parseNodeEnvironment(rawValue: string | undefined, errors: string[]): NodeEnvironment {
-  const normalized = normalizeOptional(rawValue)?.toLowerCase() as NodeEnvironment | undefined;
+function parseNodeEnvironment(
+  rawValue: string | undefined,
+  errors: string[],
+): NodeEnvironment {
+  const normalized = normalizeOptional(rawValue)?.toLowerCase() as
+    | NodeEnvironment
+    | undefined;
   if (normalized === undefined) {
     return 'development';
   }
@@ -155,7 +174,10 @@ function parseLogLevel(rawValue: string | undefined, errors: string[]): string {
   return normalized;
 }
 
-function parseOptionalDatabaseUrl(rawValue: string | undefined, errors: string[]): string | undefined {
+function parseOptionalDatabaseUrl(
+  rawValue: string | undefined,
+  errors: string[],
+): string | undefined {
   const normalized = normalizeOptional(rawValue);
   if (!normalized) {
     return undefined;
@@ -200,7 +222,11 @@ function parseOptionalHttpUrl(
   }
 }
 
-function parseOptionalUrl(envName: string, rawValue: string | undefined, errors: string[]): string | undefined {
+function parseOptionalUrl(
+  envName: string,
+  rawValue: string | undefined,
+  errors: string[],
+): string | undefined {
   const normalized = normalizeOptional(rawValue);
   if (!normalized) {
     return undefined;
@@ -219,7 +245,11 @@ function parseOptionalUrl(envName: string, rawValue: string | undefined, errors:
   }
 }
 
-function parseCsvUrls(envName: string, rawValue: string | undefined, errors: string[]): string[] {
+function parseCsvUrls(
+  envName: string,
+  rawValue: string | undefined,
+  errors: string[],
+): string[] {
   const normalized = normalizeOptional(rawValue);
   if (!normalized) {
     return [];
@@ -254,7 +284,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   const port = parseInteger('PORT', env.PORT, DEFAULT_PORT, 1, 65535, errors);
   const logLevel = parseLogLevel(env.LOG_LEVEL, errors);
   const logFilePath = normalizeOptional(env.LOG_FILE_PATH);
-  const logToFile = parseBoolean('LOG_TO_FILE', env.LOG_TO_FILE, false, errors) || Boolean(logFilePath);
+  const logToFile =
+    parseBoolean('LOG_TO_FILE', env.LOG_TO_FILE, false, errors) ||
+    Boolean(logFilePath);
 
   const readinessTimeoutMs = parseInteger(
     'READINESS_TIMEOUT_MS',
@@ -266,7 +298,11 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   );
 
   const databaseUrl = parseOptionalDatabaseUrl(env.DATABASE_URL, errors);
-  const marketDataHealthUrl = parseOptionalHttpUrl('MARKET_DATA_HEALTH_URL', env.MARKET_DATA_HEALTH_URL, errors);
+  const marketDataHealthUrl = parseOptionalHttpUrl(
+    'MARKET_DATA_HEALTH_URL',
+    env.MARKET_DATA_HEALTH_URL,
+    errors,
+  );
   const sessionTtlSeconds = parseInteger(
     'AUTH_SESSION_TTL_SECONDS',
     env.AUTH_SESSION_TTL_SECONDS,
@@ -307,8 +343,10 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     1000,
     errors,
   );
-  const webauthnRpId = normalizeOptional(env.WEBAUTHN_RP_ID) ?? DEFAULT_WEBAUTHN_RP_ID;
-  const webauthnRpName = normalizeOptional(env.WEBAUTHN_RP_NAME) ?? DEFAULT_WEBAUTHN_RP_NAME;
+  const webauthnRpId =
+    normalizeOptional(env.WEBAUTHN_RP_ID) ?? DEFAULT_WEBAUTHN_RP_ID;
+  const webauthnRpName =
+    normalizeOptional(env.WEBAUTHN_RP_NAME) ?? DEFAULT_WEBAUTHN_RP_NAME;
   const webauthnAllowedOrigins = parseCsvUrls(
     'WEBAUTHN_ALLOWED_ORIGINS',
     env.WEBAUTHN_ALLOWED_ORIGINS,
@@ -316,12 +354,20 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   );
   const googleClientId = normalizeOptional(env.GOOGLE_OAUTH_CLIENT_ID);
   const googleClientSecret = normalizeOptional(env.GOOGLE_OAUTH_CLIENT_SECRET);
-  const googleRedirectUri = parseOptionalUrl('GOOGLE_OAUTH_REDIRECT_URI', env.GOOGLE_OAUTH_REDIRECT_URI, errors);
+  const googleRedirectUri = parseOptionalUrl(
+    'GOOGLE_OAUTH_REDIRECT_URI',
+    env.GOOGLE_OAUTH_REDIRECT_URI,
+    errors,
+  );
   const appleClientId = normalizeOptional(env.APPLE_OAUTH_CLIENT_ID);
   const appleTeamId = normalizeOptional(env.APPLE_OAUTH_TEAM_ID);
   const appleKeyId = normalizeOptional(env.APPLE_OAUTH_KEY_ID);
   const applePrivateKey = normalizeOptional(env.APPLE_OAUTH_PRIVATE_KEY);
-  const appleRedirectUri = parseOptionalUrl('APPLE_OAUTH_REDIRECT_URI', env.APPLE_OAUTH_REDIRECT_URI, errors);
+  const appleRedirectUri = parseOptionalUrl(
+    'APPLE_OAUTH_REDIRECT_URI',
+    env.APPLE_OAUTH_REDIRECT_URI,
+    errors,
+  );
 
   if (webauthnRpId.length === 0) {
     errors.push('WEBAUTHN_RP_ID must not be empty');
@@ -338,10 +384,18 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
 
   if ((googleClientSecret || googleRedirectUri) && !googleClientId) {
-    errors.push('GOOGLE_OAUTH_CLIENT_ID is required when Google OAuth settings are provided');
+    errors.push(
+      'GOOGLE_OAUTH_CLIENT_ID is required when Google OAuth settings are provided',
+    );
   }
 
-  const appleValues = [appleClientId, appleTeamId, appleKeyId, applePrivateKey, appleRedirectUri];
+  const appleValues = [
+    appleClientId,
+    appleTeamId,
+    appleKeyId,
+    applePrivateKey,
+    appleRedirectUri,
+  ];
   const anyAppleValue = appleValues.some((value) => value !== undefined);
   const allAppleValues = appleValues.every((value) => value !== undefined);
 

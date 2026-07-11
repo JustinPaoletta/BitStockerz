@@ -48,4 +48,13 @@ export const SEED_SYMBOLS: SymbolRecord[] = [
     quoteAsset: 'USD',
     isActive: true,
   },
+  {
+    id: 99,
+    symbol: 'DELISTED',
+    name: 'Delisted Equity Corp',
+    assetType: 'EQUITY',
+    exchange: 'NYSE',
+    currency: 'USD',
+    isActive: false,
+  },
 ];

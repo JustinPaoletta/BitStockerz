@@ -111,7 +111,9 @@ describe('AuthController', () => {
     } as unknown as AuthService;
 
     const controller = new AuthController(authService);
-    const options = controller.webauthnRegisterOptions({ email: 'user@example.com' });
+    const options = controller.webauthnRegisterOptions({
+      email: 'user@example.com',
+    });
     const verify = controller.webauthnRegisterVerify({
       email: 'user@example.com',
       challenge_id: 'challenge-1',
@@ -202,5 +204,88 @@ describe('AuthController', () => {
     expect(appleStart.provider).toBe('apple');
     expect(googleCallback.access_token).toBe('token-google');
     expect(appleCallback.access_token).toBe('token-apple');
+  });
+
+  it('starts and verifies webauthn login flows', async () => {
+    const createLoginOptionsMock = jest.fn(() => ({
+      challenge_id: 'login-challenge-1',
+      challenge: 'login-challenge-token',
+      timeout_ms: 300000,
+      user_email: 'login@example.com',
+      allow_credentials: ['cred-login-1'],
+      options: {},
+    }));
+    const verifyLoginMock = jest.fn(() => ({
+      access_token: 'token-login',
+      token_type: 'Bearer',
+      user: { id: 'u3', email: 'login@example.com' },
+    }));
+
+    const authService = {
+      register: jest.fn(),
+      login: jest.fn(),
+      logout: jest.fn(),
+      getProfileBySessionToken: jest.fn(),
+      createWebAuthnLoginOptions: createLoginOptionsMock,
+      verifyWebAuthnLogin: verifyLoginMock,
+    } as unknown as AuthService;
+
+    const controller = new AuthController(authService);
+    const options = await controller.webauthnLoginOptions({
+      email: 'login@example.com',
+    });
+    const verify = await controller.webauthnLoginVerify({
+      email: 'login@example.com',
+      challenge_id: 'login-challenge-1',
+      challenge: 'login-challenge-token',
+      credential_id: 'cred-login-1',
+      sign_count: 12,
+      response: { id: 'cred-login-1' },
+    });
+
+    expect(createLoginOptionsMock).toHaveBeenCalledWith('login@example.com');
+    expect(verifyLoginMock).toHaveBeenCalledWith({
+      email: 'login@example.com',
+      challengeId: 'login-challenge-1',
+      challenge: 'login-challenge-token',
+      credentialId: 'cred-login-1',
+      signCount: 12,
+      response: { id: 'cred-login-1' },
+    });
+    expect(options.challenge_id).toBe('login-challenge-1');
+    expect(verify.access_token).toBe('token-login');
+  });
+
+  it('handles apple oauth post callbacks', async () => {
+    const appleCallbackMock = jest.fn(() => ({
+      access_token: 'token-apple-post',
+      token_type: 'Bearer',
+      user: { id: 'u4', email: 'apple-post@example.com' },
+    }));
+    const authService = {
+      register: jest.fn(),
+      login: jest.fn(),
+      logout: jest.fn(),
+      getProfileBySessionToken: jest.fn(),
+      completeAppleOAuth: appleCallbackMock,
+    } as unknown as AuthService;
+    const controller = new AuthController(authService);
+
+    const callback = await controller.oauthAppleCallbackPost({
+      state: 'apple-post-state',
+      code: 'apple-post-code',
+      sub: 'apple-post-sub',
+      email: 'apple-post@example.com',
+      user: '{"email":"apple-post@example.com"}',
+    });
+
+    expect(appleCallbackMock).toHaveBeenCalledWith({
+      state: 'apple-post-state',
+      code: 'apple-post-code',
+      sub: 'apple-post-sub',
+      email: 'apple-post@example.com',
+      user: '{"email":"apple-post@example.com"}',
+    });
+    expect(callback.access_token).toBe('token-apple-post');
   });
 });

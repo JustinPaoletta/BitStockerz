@@ -17,7 +17,8 @@ import { AppConfigService } from '../config/app-config.service';
 
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
-const GOOGLE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_AUTHORIZATION_ENDPOINT =
+  'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
@@ -166,7 +167,9 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function normalizeDisplayName(displayName: string | undefined): string | undefined {
+function normalizeDisplayName(
+  displayName: string | undefined,
+): string | undefined {
   if (displayName === undefined) {
     return undefined;
   }
@@ -192,7 +195,9 @@ function normalizePrivateKey(input: string): string {
   return input.replace(/\\n/g, '\n');
 }
 
-function toTransports(values: string[] | undefined): AuthenticatorTransportFuture[] | undefined {
+function toTransports(
+  values: string[] | undefined,
+): AuthenticatorTransportFuture[] | undefined {
   if (!values || values.length === 0) {
     return undefined;
   }
@@ -200,7 +205,15 @@ function toTransports(values: string[] | undefined): AuthenticatorTransportFutur
   return values
     .map((value) => value.trim())
     .filter((value): value is AuthenticatorTransportFuture => {
-      return ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'].includes(value);
+      return [
+        'ble',
+        'cable',
+        'hybrid',
+        'internal',
+        'nfc',
+        'smart-card',
+        'usb',
+      ].includes(value);
     });
 }
 
@@ -210,11 +223,16 @@ export class AuthService {
   private readonly usersById = new Map<string, UserRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly credentialsById = new Map<string, PasskeyCredentialRecord>();
-  private readonly webAuthnChallengesById = new Map<string, WebAuthnChallengeRecord>();
+  private readonly webAuthnChallengesById = new Map<
+    string,
+    WebAuthnChallengeRecord
+  >();
   private readonly oauthStatesById = new Map<string, OauthStateRecord>();
   private readonly googleSubjectsToUserIds = new Map<string, string>();
   private readonly appleSubjectsToUserIds = new Map<string, string>();
-  private googleJwks?: ReturnType<(typeof import('jose'))['createRemoteJWKSet']>;
+  private googleJwks?: ReturnType<
+    (typeof import('jose'))['createRemoteJWKSet']
+  >;
   private appleJwks?: ReturnType<(typeof import('jose'))['createRemoteJWKSet']>;
 
   constructor(private readonly config: AppConfigService) {}
@@ -243,13 +261,18 @@ export class AuthService {
     const user = this.usersByEmail.get(normalizedEmail);
 
     if (!user) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid email or authentication method.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Invalid email or authentication method.',
+      );
     }
 
     return this.createAuthResponse(user);
   }
 
-  async createWebAuthnRegisterOptions(email: string): Promise<WebAuthnRegisterOptionsResponse> {
+  async createWebAuthnRegisterOptions(
+    email: string,
+  ): Promise<WebAuthnRegisterOptionsResponse> {
     const normalizedEmail = normalizeEmail(email);
 
     if (this.usersByEmail.has(normalizedEmail)) {
@@ -284,7 +307,9 @@ export class AuthService {
     };
   }
 
-  async verifyWebAuthnRegistration(input: WebAuthnRegistrationVerifyInput): Promise<AuthResponse> {
+  async verifyWebAuthnRegistration(
+    input: WebAuthnRegistrationVerifyInput,
+  ): Promise<AuthResponse> {
     const normalizedEmail = normalizeEmail(input.email);
 
     if (this.usersByEmail.has(normalizedEmail)) {
@@ -293,15 +318,23 @@ export class AuthService {
 
     const challengeId = normalizeOptional(input.challengeId);
     if (!challengeId) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'challenge_id is required.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'challenge_id is required.',
+      );
     }
 
-    const challenge = this.consumeWebAuthnChallenge(challengeId, 'register', normalizedEmail);
+    const challenge = this.consumeWebAuthnChallenge(
+      challengeId,
+      'register',
+      normalizedEmail,
+    );
 
     const user = this.createUser(normalizedEmail, input.displayName);
 
     if (input.response) {
-      const registrationResponse = input.response as unknown as RegistrationResponseJSON;
+      const registrationResponse =
+        input.response as unknown as RegistrationResponseJSON;
       const verification = await verifyRegistrationResponse({
         response: registrationResponse,
         expectedChallenge: challenge.challenge,
@@ -311,7 +344,10 @@ export class AuthService {
       });
 
       if (!verification.verified || !verification.registrationInfo) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey registration verification failed.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Passkey registration verification failed.',
+        );
       }
 
       this.addPasskeyCredential(user, {
@@ -332,12 +368,17 @@ export class AuthService {
     return this.createAuthResponse(user);
   }
 
-  async createWebAuthnLoginOptions(email: string): Promise<WebAuthnLoginOptionsResponse> {
+  async createWebAuthnLoginOptions(
+    email: string,
+  ): Promise<WebAuthnLoginOptionsResponse> {
     const normalizedEmail = normalizeEmail(email);
     const user = this.usersByEmail.get(normalizedEmail);
 
     if (!user || user.passkeyCredentialIds.size === 0) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'No passkey account found for this email.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'No passkey account found for this email.',
+      );
     }
 
     const challenge = this.createWebAuthnChallenge('login', normalizedEmail);
@@ -349,7 +390,9 @@ export class AuthService {
       userVerification: 'preferred',
       allowCredentials: [...user.passkeyCredentialIds]
         .map((credentialId) => this.credentialsById.get(credentialId))
-        .filter((credential): credential is PasskeyCredentialRecord => Boolean(credential))
+        .filter((credential): credential is PasskeyCredentialRecord =>
+          Boolean(credential),
+        )
         .map((credential) => ({
           id: credential.credential.id,
           transports: credential.credential.transports,
@@ -361,36 +404,56 @@ export class AuthService {
       challenge: challenge.challenge,
       timeout_ms: this.config.auth.challengeTtlSeconds * 1000,
       user_email: normalizedEmail,
-      allow_credentials: options.allowCredentials?.map((credential) => credential.id) ?? [],
+      allow_credentials:
+        options.allowCredentials?.map((credential) => credential.id) ?? [],
       options,
     };
   }
 
-  async verifyWebAuthnLogin(input: WebAuthnLoginVerifyInput): Promise<AuthResponse> {
+  async verifyWebAuthnLogin(
+    input: WebAuthnLoginVerifyInput,
+  ): Promise<AuthResponse> {
     const normalizedEmail = normalizeEmail(input.email);
     const user = this.usersByEmail.get(normalizedEmail);
 
     if (!user) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid email or authentication method.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Invalid email or authentication method.',
+      );
     }
 
     const challengeId = normalizeOptional(input.challengeId);
     if (!challengeId) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'challenge_id is required.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'challenge_id is required.',
+      );
     }
 
-    const challenge = this.consumeWebAuthnChallenge(challengeId, 'login', normalizedEmail);
+    const challenge = this.consumeWebAuthnChallenge(
+      challengeId,
+      'login',
+      normalizedEmail,
+    );
 
     if (input.response) {
-      const authenticationResponse = input.response as unknown as AuthenticationResponseJSON;
+      const authenticationResponse =
+        input.response as unknown as AuthenticationResponseJSON;
       const credentialId = normalizeOptional(authenticationResponse.id);
       if (!credentialId) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey credential is missing from authentication response.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Passkey credential is missing from authentication response.',
+        );
       }
 
       const credential = this.credentialsById.get(credentialId);
       if (!credential || credential.userId !== user.id) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey credential does not match this account.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Passkey credential does not match this account.',
+        );
       }
 
       const verification = await verifyAuthenticationResponse({
@@ -403,10 +466,14 @@ export class AuthService {
       });
 
       if (!verification.verified) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey authentication verification failed.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Passkey authentication verification failed.',
+        );
       }
 
-      credential.credential.counter = verification.authenticationInfo.newCounter;
+      credential.credential.counter =
+        verification.authenticationInfo.newCounter;
     } else {
       this.verifyLegacyWebAuthnLogin(user, input);
     }
@@ -432,31 +499,47 @@ export class AuthService {
     return {
       provider,
       state,
-      authorization_url: this.buildOAuthAuthorizationUrl(provider, state, nonce),
+      authorization_url: this.buildOAuthAuthorizationUrl(
+        provider,
+        state,
+        nonce,
+      ),
       expires_in_seconds: ttlSeconds,
     };
   }
 
-  async completeGoogleOAuth(input: GoogleOAuthCallbackInput): Promise<AuthResponse> {
+  async completeGoogleOAuth(
+    input: GoogleOAuthCallbackInput,
+  ): Promise<AuthResponse> {
     const state = this.consumeOauthState(input.state, 'google');
     const identity = await this.resolveGoogleIdentity(input, state);
 
     const mappedUserId = this.googleSubjectsToUserIds.get(identity.subject);
-    const emailUser = identity.email ? this.usersByEmail.get(identity.email) : undefined;
+    const emailUser = identity.email
+      ? this.usersByEmail.get(identity.email)
+      : undefined;
 
     if (mappedUserId && emailUser && mappedUserId !== emailUser.id) {
-      throw new DomainError(ErrorCode.CONFLICT, 'Google account is already linked to a different user.');
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Google account is already linked to a different user.',
+      );
     }
 
     const user = mappedUserId
       ? this.requireUserById(mappedUserId)
-      : emailUser ?? this.createUser(identity.email ?? `${identity.subject}@google.private`);
+      : (emailUser ??
+        this.createUser(
+          identity.email ?? `${identity.subject}@google.private`,
+        ));
 
     this.linkGoogleSubject(user, identity.subject);
     return this.createAuthResponse(user);
   }
 
-  async completeAppleOAuth(input: AppleOAuthCallbackInput): Promise<AuthResponse> {
+  async completeAppleOAuth(
+    input: AppleOAuthCallbackInput,
+  ): Promise<AuthResponse> {
     const state = this.consumeOauthState(input.state, 'apple');
     const identity = await this.resolveAppleIdentity(input, state);
 
@@ -466,7 +549,10 @@ export class AuthService {
       if (identity.email) {
         const emailUser = this.usersByEmail.get(identity.email);
         if (emailUser && emailUser.id !== user.id) {
-          throw new DomainError(ErrorCode.CONFLICT, 'Apple account is already linked to a different user.');
+          throw new DomainError(
+            ErrorCode.CONFLICT,
+            'Apple account is already linked to a different user.',
+          );
         }
       }
       this.linkAppleSubject(user, identity.subject);
@@ -474,7 +560,8 @@ export class AuthService {
     }
 
     const user = identity.email
-      ? this.usersByEmail.get(identity.email) ?? this.createUser(identity.email)
+      ? (this.usersByEmail.get(identity.email) ??
+        this.createUser(identity.email))
       : this.createUser(`${identity.subject}@apple.private`);
 
     this.linkAppleSubject(user, identity.subject);
@@ -492,7 +579,10 @@ export class AuthService {
     return this.toUserProfile(this.requireUserBySessionToken(sessionToken));
   }
 
-  updateProfileBySessionToken(sessionToken: string, update: ProfileUpdate): UserProfile {
+  updateProfileBySessionToken(
+    sessionToken: string,
+    update: ProfileUpdate,
+  ): UserProfile {
     const user = this.requireUserBySessionToken(sessionToken);
 
     if (update.display_name !== undefined) {
@@ -531,13 +621,24 @@ export class AuthService {
     const credentialId = normalizeOptional(input.credentialId);
     const publicKey = normalizeOptional(input.publicKey);
 
-    if (!challengeResponse || challengeResponse !== challenge.challenge || !credentialId || !publicKey) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'WebAuthn challenge verification failed.');
+    if (
+      !challengeResponse ||
+      challengeResponse !== challenge.challenge ||
+      !credentialId ||
+      !publicKey
+    ) {
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'WebAuthn challenge verification failed.',
+      );
     }
 
     const signCount = input.signCount ?? 0;
     if (signCount < 0) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'sign_count must be >= 0.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'sign_count must be >= 0.',
+      );
     }
 
     this.addPasskeyCredential(user, {
@@ -552,20 +653,32 @@ export class AuthService {
     });
   }
 
-  private verifyLegacyWebAuthnLogin(user: UserRecord, input: WebAuthnLoginVerifyInput): void {
+  private verifyLegacyWebAuthnLogin(
+    user: UserRecord,
+    input: WebAuthnLoginVerifyInput,
+  ): void {
     const credentialId = normalizeOptional(input.credentialId);
     if (!credentialId || !user.passkeyCredentialIds.has(credentialId)) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey credential does not match this account.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Passkey credential does not match this account.',
+      );
     }
 
     const credential = this.credentialsById.get(credentialId);
     if (!credential) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey credential does not match this account.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Passkey credential does not match this account.',
+      );
     }
 
     const signCount = input.signCount;
     if (signCount === undefined || signCount <= credential.credential.counter) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Passkey assertion failed counter validation.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Passkey assertion failed counter validation.',
+      );
     }
 
     credential.credential.counter = signCount;
@@ -589,18 +702,18 @@ export class AuthService {
   private isGoogleConfigured(): boolean {
     return Boolean(
       this.config.auth.googleClientId &&
-        this.config.auth.googleClientSecret &&
-        this.config.auth.googleRedirectUri,
+      this.config.auth.googleClientSecret &&
+      this.config.auth.googleRedirectUri,
     );
   }
 
   private isAppleConfigured(): boolean {
     return Boolean(
       this.config.auth.appleClientId &&
-        this.config.auth.appleTeamId &&
-        this.config.auth.appleKeyId &&
-        this.config.auth.applePrivateKey &&
-        this.config.auth.appleRedirectUri,
+      this.config.auth.appleTeamId &&
+      this.config.auth.appleKeyId &&
+      this.config.auth.applePrivateKey &&
+      this.config.auth.appleRedirectUri,
     );
   }
 
@@ -608,12 +721,22 @@ export class AuthService {
     return this.config.server.nodeEnv !== 'production';
   }
 
-  private buildOAuthAuthorizationUrl(provider: OauthProvider, state: string, nonce: string): string {
+  private buildOAuthAuthorizationUrl(
+    provider: OauthProvider,
+    state: string,
+    nonce: string,
+  ): string {
     if (provider === 'google') {
       if (this.isGoogleConfigured()) {
         const url = new URL(GOOGLE_AUTHORIZATION_ENDPOINT);
-        url.searchParams.set('client_id', this.config.auth.googleClientId as string);
-        url.searchParams.set('redirect_uri', this.config.auth.googleRedirectUri as string);
+        url.searchParams.set(
+          'client_id',
+          this.config.auth.googleClientId as string,
+        );
+        url.searchParams.set(
+          'redirect_uri',
+          this.config.auth.googleRedirectUri as string,
+        );
         url.searchParams.set('response_type', 'code');
         url.searchParams.set('scope', 'openid email profile');
         url.searchParams.set('state', state);
@@ -634,8 +757,14 @@ export class AuthService {
 
     if (this.isAppleConfigured()) {
       const url = new URL(APPLE_AUTHORIZATION_ENDPOINT);
-      url.searchParams.set('client_id', this.config.auth.appleClientId as string);
-      url.searchParams.set('redirect_uri', this.config.auth.appleRedirectUri as string);
+      url.searchParams.set(
+        'client_id',
+        this.config.auth.appleClientId as string,
+      );
+      url.searchParams.set(
+        'redirect_uri',
+        this.config.auth.appleRedirectUri as string,
+      );
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('response_mode', 'form_post');
       url.searchParams.set('scope', 'name email');
@@ -663,10 +792,16 @@ export class AuthService {
       const payload = await this.verifyGoogleIdToken(idToken, state.nonce);
       const subject = normalizeOptional(payload.sub);
       if (!subject) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Google ID token did not include a subject.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Google ID token did not include a subject.',
+        );
       }
 
-      const email = typeof payload.email === 'string' ? normalizeEmail(payload.email) : undefined;
+      const email =
+        typeof payload.email === 'string'
+          ? normalizeEmail(payload.email)
+          : undefined;
       return { subject, email };
     }
 
@@ -674,7 +809,8 @@ export class AuthService {
       const email = normalizeOptional(input.email)
         ? normalizeEmail(input.email as string)
         : undefined;
-      const subject = normalizeOptional(input.sub) ?? (email ? `google:${email}` : undefined);
+      const subject =
+        normalizeOptional(input.sub) ?? (email ? `google:${email}` : undefined);
       if (!subject) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
@@ -699,10 +835,16 @@ export class AuthService {
       const payload = await this.verifyAppleIdToken(idToken, state.nonce);
       const subject = normalizeOptional(payload.sub);
       if (!subject) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Apple ID token did not include a subject.');
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Apple ID token did not include a subject.',
+        );
       }
 
-      const tokenEmail = typeof payload.email === 'string' ? normalizeEmail(payload.email) : undefined;
+      const tokenEmail =
+        typeof payload.email === 'string'
+          ? normalizeEmail(payload.email)
+          : undefined;
       const userEmail = this.parseAppleUserEmail(input.user);
       const fallbackEmail = normalizeOptional(input.email)
         ? normalizeEmail(input.email as string)
@@ -723,8 +865,11 @@ export class AuthService {
         );
       }
 
-      const email = this.parseAppleUserEmail(input.user)
-        ?? (normalizeOptional(input.email) ? normalizeEmail(input.email as string) : undefined);
+      const email =
+        this.parseAppleUserEmail(input.user) ??
+        (normalizeOptional(input.email)
+          ? normalizeEmail(input.email as string)
+          : undefined);
 
       return { subject, email };
     }
@@ -735,7 +880,9 @@ export class AuthService {
     );
   }
 
-  private parseAppleUserEmail(userField: string | undefined): string | undefined {
+  private parseAppleUserEmail(
+    userField: string | undefined,
+  ): string | undefined {
     const raw = normalizeOptional(userField);
     if (!raw) {
       return undefined;
@@ -755,7 +902,10 @@ export class AuthService {
   private async exchangeGoogleCodeForIdToken(code: string): Promise<string> {
     const normalizedCode = normalizeOptional(code);
     if (!normalizedCode) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Google OAuth code is missing.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Google OAuth code is missing.',
+      );
     }
 
     try {
@@ -773,11 +923,17 @@ export class AuthService {
         }).toString(),
       });
 
-      const body = (await response.json()) as { id_token?: string; error?: string; error_description?: string };
+      const body = (await response.json()) as {
+        id_token?: string;
+        error?: string;
+        error_description?: string;
+      };
       if (!response.ok || !body.id_token) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
-          body.error_description ?? body.error ?? 'Google OAuth code exchange failed.',
+          body.error_description ??
+            body.error ??
+            'Google OAuth code exchange failed.',
         );
       }
 
@@ -787,20 +943,36 @@ export class AuthService {
         throw error;
       }
 
-      throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Google OAuth exchange failed due to network or provider error.');
+      throw new DomainError(
+        ErrorCode.INTERNAL_ERROR,
+        'Google OAuth exchange failed due to network or provider error.',
+      );
     }
   }
 
-  private async verifyGoogleIdToken(idToken: string, nonce: string): Promise<JWTPayload> {
+  private async verifyGoogleIdToken(
+    idToken: string,
+    nonce: string,
+  ): Promise<JWTPayload> {
     try {
       const jose = await import('jose');
-      const verification = await jose.jwtVerify(idToken, await this.getGoogleJwks(), {
-        issuer: GOOGLE_ISSUERS,
-        audience: this.config.auth.googleClientId,
-      });
+      const verification = await jose.jwtVerify(
+        idToken,
+        await this.getGoogleJwks(),
+        {
+          issuer: GOOGLE_ISSUERS,
+          audience: this.config.auth.googleClientId,
+        },
+      );
 
-      if (typeof verification.payload.nonce === 'string' && verification.payload.nonce !== nonce) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Google ID token nonce did not match the auth request.');
+      if (
+        typeof verification.payload.nonce === 'string' &&
+        verification.payload.nonce !== nonce
+      ) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Google ID token nonce did not match the auth request.',
+        );
       }
 
       return verification.payload;
@@ -809,14 +981,20 @@ export class AuthService {
         throw error;
       }
 
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Google ID token verification failed.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Google ID token verification failed.',
+      );
     }
   }
 
   private async exchangeAppleCodeForIdToken(code: string): Promise<string> {
     const normalizedCode = normalizeOptional(code);
     if (!normalizedCode) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Apple OAuth code is missing.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Apple OAuth code is missing.',
+      );
     }
 
     const clientSecret = await this.createAppleClientSecret();
@@ -836,11 +1014,17 @@ export class AuthService {
         }).toString(),
       });
 
-      const body = (await response.json()) as { id_token?: string; error?: string; error_description?: string };
+      const body = (await response.json()) as {
+        id_token?: string;
+        error?: string;
+        error_description?: string;
+      };
       if (!response.ok || !body.id_token) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
-          body.error_description ?? body.error ?? 'Apple OAuth code exchange failed.',
+          body.error_description ??
+            body.error ??
+            'Apple OAuth code exchange failed.',
         );
       }
 
@@ -850,20 +1034,36 @@ export class AuthService {
         throw error;
       }
 
-      throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Apple OAuth exchange failed due to network or provider error.');
+      throw new DomainError(
+        ErrorCode.INTERNAL_ERROR,
+        'Apple OAuth exchange failed due to network or provider error.',
+      );
     }
   }
 
-  private async verifyAppleIdToken(idToken: string, nonce: string): Promise<JWTPayload> {
+  private async verifyAppleIdToken(
+    idToken: string,
+    nonce: string,
+  ): Promise<JWTPayload> {
     try {
       const jose = await import('jose');
-      const verification = await jose.jwtVerify(idToken, await this.getAppleJwks(), {
-        issuer: APPLE_ISSUER,
-        audience: this.config.auth.appleClientId,
-      });
+      const verification = await jose.jwtVerify(
+        idToken,
+        await this.getAppleJwks(),
+        {
+          issuer: APPLE_ISSUER,
+          audience: this.config.auth.appleClientId,
+        },
+      );
 
-      if (typeof verification.payload.nonce === 'string' && verification.payload.nonce !== nonce) {
-        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Apple ID token nonce did not match the auth request.');
+      if (
+        typeof verification.payload.nonce === 'string' &&
+        verification.payload.nonce !== nonce
+      ) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Apple ID token nonce did not match the auth request.',
+        );
       }
 
       return verification.payload;
@@ -872,7 +1072,10 @@ export class AuthService {
         throw error;
       }
 
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Apple ID token verification failed.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Apple ID token verification failed.',
+      );
     }
   }
 
@@ -946,11 +1149,17 @@ export class AuthService {
   ): void {
     const credentialId = normalizeOptional(input.credentialId);
     if (!credentialId) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'credential_id is required.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'credential_id is required.',
+      );
     }
 
     if (this.credentialsById.has(credentialId)) {
-      throw new DomainError(ErrorCode.CONFLICT, 'Passkey credential already exists.');
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Passkey credential already exists.',
+      );
     }
 
     this.credentialsById.set(credentialId, {
@@ -972,12 +1181,18 @@ export class AuthService {
   private linkGoogleSubject(user: UserRecord, subject: string): void {
     const normalizedSubject = normalizeOptional(subject);
     if (!normalizedSubject) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'Google subject is required.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'Google subject is required.',
+      );
     }
 
     const mappedUserId = this.googleSubjectsToUserIds.get(normalizedSubject);
     if (mappedUserId && mappedUserId !== user.id) {
-      throw new DomainError(ErrorCode.CONFLICT, 'Google account is already linked to a different user.');
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Google account is already linked to a different user.',
+      );
     }
 
     user.googleSubject = normalizedSubject;
@@ -987,12 +1202,18 @@ export class AuthService {
   private linkAppleSubject(user: UserRecord, subject: string): void {
     const normalizedSubject = normalizeOptional(subject);
     if (!normalizedSubject) {
-      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'Apple subject is required.');
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'Apple subject is required.',
+      );
     }
 
     const mappedUserId = this.appleSubjectsToUserIds.get(normalizedSubject);
     if (mappedUserId && mappedUserId !== user.id) {
-      throw new DomainError(ErrorCode.CONFLICT, 'Apple account is already linked to a different user.');
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Apple account is already linked to a different user.',
+      );
     }
 
     user.appleSubject = normalizedSubject;
@@ -1030,30 +1251,48 @@ export class AuthService {
 
     const challenge = this.webAuthnChallengesById.get(challengeId);
     if (!challenge) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'WebAuthn challenge is invalid or expired.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'WebAuthn challenge is invalid or expired.',
+      );
     }
 
     this.webAuthnChallengesById.delete(challengeId);
 
-    if (challenge.purpose !== expectedPurpose || challenge.email !== expectedEmail) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'WebAuthn challenge does not match this request.');
+    if (
+      challenge.purpose !== expectedPurpose ||
+      challenge.email !== expectedEmail
+    ) {
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'WebAuthn challenge does not match this request.',
+      );
     }
 
     return challenge;
   }
 
-  private consumeOauthState(state: string, provider: OauthProvider): OauthStateRecord {
+  private consumeOauthState(
+    state: string,
+    provider: OauthProvider,
+  ): OauthStateRecord {
     this.pruneExpiredOauthStates();
 
     const stateRecord = this.oauthStatesById.get(state);
     if (!stateRecord) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'OAuth state is invalid or expired.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'OAuth state is invalid or expired.',
+      );
     }
 
     this.oauthStatesById.delete(state);
 
     if (stateRecord.provider !== provider) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'OAuth state does not match provider.');
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'OAuth state does not match provider.',
+      );
     }
 
     return stateRecord;
@@ -1087,7 +1326,10 @@ export class AuthService {
   private pruneExpiredChallenges(): void {
     const now = Date.now();
 
-    for (const [challengeId, challenge] of this.webAuthnChallengesById.entries()) {
+    for (const [
+      challengeId,
+      challenge,
+    ] of this.webAuthnChallengesById.entries()) {
       if (challenge.expiresAt <= now) {
         this.webAuthnChallengesById.delete(challengeId);
       }

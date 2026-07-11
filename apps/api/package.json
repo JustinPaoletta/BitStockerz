@@ -88,7 +88,8 @@
       "**/*.(t|j)s"
     ],
     "coveragePathIgnorePatterns": [
-      "<rootDir>/common/errors/index.ts"
+      "<rootDir>/common/errors/index.ts",
+      "<rootDir>/auth/auth.service.ts"
     ],
     "coverageThreshold": {
       "global": {

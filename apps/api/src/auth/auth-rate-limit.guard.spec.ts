@@ -5,7 +5,9 @@ import type { AppConfigService } from '../config/app-config.service';
 import type { AuthenticatedRequest } from './auth.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 
-function createConfig(overrides?: Partial<AppConfigService['auth']>): AppConfigService {
+function createConfig(
+  overrides?: Partial<AppConfigService['auth']>,
+): AppConfigService {
   return {
     auth: {
       sessionTtlSeconds: 3600,
@@ -20,7 +22,9 @@ function createConfig(overrides?: Partial<AppConfigService['auth']>): AppConfigS
   } as AppConfigService;
 }
 
-function createExecutionContext(request: AuthenticatedRequest): ExecutionContext {
+function createExecutionContext(
+  request: AuthenticatedRequest,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => request,
@@ -30,7 +34,9 @@ function createExecutionContext(request: AuthenticatedRequest): ExecutionContext
 
 describe('AuthRateLimitGuard', () => {
   it('allows requests under the configured limit', () => {
-    const guard = new AuthRateLimitGuard(createConfig({ rateLimitMaxRequests: 3 }));
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitMaxRequests: 3 }),
+    );
     const request = {
       path: '/api/auth/webauthn/register/options',
       ip: '127.0.0.1',
@@ -42,7 +48,9 @@ describe('AuthRateLimitGuard', () => {
   });
 
   it('throws RATE_LIMITED when request count exceeds the limit', () => {
-    const guard = new AuthRateLimitGuard(createConfig({ rateLimitMaxRequests: 1 }));
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitMaxRequests: 1 }),
+    );
     const request = {
       path: '/api/auth/webauthn/register/options',
       ip: '127.0.0.1',
@@ -59,6 +67,18 @@ describe('AuthRateLimitGuard', () => {
     }
   });
 
+  it('uses route path and socket address fallbacks when building rate-limit keys', () => {
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitMaxRequests: 3 }),
+    );
+    const request = {
+      route: { path: '/api/auth/oauth/apple/start' },
+      socket: { remoteAddress: '10.0.0.5' },
+    } as AuthenticatedRequest;
+
+    expect(guard.canActivate(createExecutionContext(request))).toBe(true);
+  });
+
   it('resets allowance once the window has elapsed', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
@@ -72,7 +92,9 @@ describe('AuthRateLimitGuard', () => {
     } as AuthenticatedRequest;
 
     expect(guard.canActivate(createExecutionContext(request))).toBe(true);
-    expect(() => guard.canActivate(createExecutionContext(request))).toThrow(DomainError);
+    expect(() => guard.canActivate(createExecutionContext(request))).toThrow(
+      DomainError,
+    );
 
     jest.advanceTimersByTime(1001);
 

@@ -11,7 +11,7 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.1**:
+The runnable API in `apps/api` currently ships through **Sprint 1.2**:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -19,9 +19,10 @@ The runnable API in `apps/api` currently ships through **Sprint 1.1**:
 | Auth, sessions, profile | Shipped (0.2) | Passkeys, Google/Apple OAuth, bearer sessions |
 | Symbol lookup & search | Shipped (1.1) | Public endpoints; in-memory seed data without `DATABASE_URL` |
 | Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
-| Candle read APIs, ingestion, trading, strategies | Planned | Described below; not implemented yet |
+| Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
+| Ingestion, trading, strategies | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth state and symbol data are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data.
+Without `DATABASE_URL`, auth state, symbol data, and candle fixtures are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data. Until Sprint 1.3 ingestion ships, an enabled database may validly return an empty candle array when its bar tables contain no rows.
 
 ---
 
@@ -188,7 +189,9 @@ Typeahead search.
 
 ---
 
-### 2.2 Equity OHLCV
+### 2.2 Equity OHLCV (implemented in Sprint 1.2)
+
+Public endpoint (no authentication required). When Prisma is disabled, reads use deterministic in-memory seed candles.
 
 **GET `/market-data/equities/candles`**
 
@@ -202,7 +205,9 @@ Typeahead search.
 
 ---
 
-### 2.3 Crypto OHLCV
+### 2.3 Crypto OHLCV (implemented in Sprint 1.2)
+
+Public endpoint (no authentication required). When Prisma is disabled, reads use deterministic in-memory seed candles.
 
 **GET `/market-data/crypto/candles`**
 

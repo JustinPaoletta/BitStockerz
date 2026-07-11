@@ -52,6 +52,22 @@ describe('AuthGuard', () => {
     expect(request[AUTH_TOKEN_REQUEST_KEY]).toBe('token-1');
   });
 
+  it('reads bearer tokens from array authorization headers', () => {
+    const requireUserBySessionTokenMock = jest.fn();
+    const authService = {
+      requireUserBySessionToken: requireUserBySessionTokenMock,
+    } as unknown as AuthService;
+    const guard = new AuthGuard(authService);
+    const request = {
+      headers: {
+        authorization: ['Bearer array-token'],
+      },
+    } as unknown as AuthenticatedRequest;
+
+    expect(guard.canActivate(createExecutionContext(request))).toBe(true);
+    expect(requireUserBySessionTokenMock).toHaveBeenCalledWith('array-token');
+  });
+
   it('rejects missing bearer token', () => {
     const authService = {
       requireUserBySessionToken: jest.fn(),

@@ -13,7 +13,7 @@ Scope includes:
 ## Status
 
 - Completed in Sprint 1.1 (July 3, 2026): #2.1.1–#2.1.3, #2.2.1, #2.3.1, #2.4.1
-- Planned for Sprint 1.2+: #2.2.3, #2.3.3 (candle read APIs)
+- Completed in Sprint 1.2 (July 10, 2026): #2.2.3, #2.3.3 (candle read APIs)
 - Planned for Sprint 1.3+: #2.2.2, #2.3.2 (data ingestion)
 - Planned for Sprint 1.4+: #2.6.1–#2.6.2 (data quality and health endpoint)
 - Planned for Sprint 5.1: #2.4.2 (symbol search UI component)
@@ -40,6 +40,16 @@ Scope includes:
 ### Story 2.2.2 – Equity daily history import (initial backfill)
 ### Story 2.2.3 – Equity daily candles API
 
+**Acceptance criteria**
+
+- `GET /api/market-data/equities/candles` is public and does not require a bearer token.
+- `symbol`, `start`, and `end` are required. Symbols are trimmed, normalized to uppercase, and must resolve to an active `EQUITY` symbol.
+- `start` and `end` use `YYYY-MM-DD`, define an inclusive range, and must satisfy `start <= end`.
+- `order` accepts `asc` or `desc` and defaults to `asc`. `limit` accepts an integer from 1 to 5000 and defaults to 5000.
+- A successful request returns `200` with an ordered array of `{ date, open, high, low, close, volume }`; `date` is `YYYY-MM-DD` and numeric database values are serialized as JSON numbers.
+- A valid symbol with no candles in the requested range returns `200` with `[]`. When Prisma is disabled, deterministic in-memory seed candles provide development and test data.
+- Missing or invalid query parameters, `start > end`, and a non-equity symbol return RFC 7807 `400 VALIDATION_ERROR` responses with `fieldErrors`; an unknown or inactive symbol returns `404 NOT_FOUND`.
+
 ---
 
 ## Epic 2.3 – Historical Crypto OHLCV (Daily + Hourly)
@@ -47,6 +57,16 @@ Scope includes:
 ### Story 2.3.1 – Crypto OHLCV schema
 ### Story 2.3.2 – Crypto daily/hourly import
 ### Story 2.3.3 – Crypto candles API
+
+**Acceptance criteria**
+
+- `GET /api/market-data/crypto/candles` is public and does not require a bearer token.
+- `symbol`, `interval`, `start`, and `end` are required. Symbols are trimmed, normalized to uppercase, and must resolve to an active `CRYPTO` symbol; `interval` accepts `1d` or `1h`.
+- Daily ranges use `YYYY-MM-DD`; hourly ranges use ISO 8601 datetimes. Ranges are inclusive and must satisfy `start <= end`.
+- `order` accepts `asc` or `desc` and defaults to `asc`. `limit` accepts an integer from 1 to 5000 and defaults to 5000.
+- A successful daily request returns `200` with an ordered array of `{ date, open, high, low, close, volume }`; an hourly request returns `{ timestamp, open, high, low, close, volume }`, with UTC ISO 8601 timestamps and numeric values serialized as JSON numbers.
+- A valid symbol with no candles in the requested range returns `200` with `[]`. When Prisma is disabled, deterministic in-memory seed candles provide development and test data.
+- Missing or invalid query parameters, `start > end`, and a non-crypto symbol return RFC 7807 `400 VALIDATION_ERROR` responses with `fieldErrors`; an unknown or inactive symbol returns `404 NOT_FOUND`.
 
 ---
 

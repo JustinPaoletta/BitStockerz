@@ -27,6 +27,18 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().symbol;
   }
 
+  get equityDailyBar() {
+    return this.requireClient().equityDailyBar;
+  }
+
+  get cryptoDailyBar() {
+    return this.requireClient().cryptoDailyBar;
+  }
+
+  get cryptoHourlyBar() {
+    return this.requireClient().cryptoHourlyBar;
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.client) {
       await this.client.$disconnect();

@@ -471,7 +471,8 @@ describe('Authentication and profile (e2e)', () => {
 });
 
 describe('Auth limits and TTL (e2e)', () => {
-  const originalAuthRateLimitMaxRequests = process.env.AUTH_RATE_LIMIT_MAX_REQUESTS;
+  const originalAuthRateLimitMaxRequests =
+    process.env.AUTH_RATE_LIMIT_MAX_REQUESTS;
   const originalAuthRateLimitWindowMs = process.env.AUTH_RATE_LIMIT_WINDOW_MS;
   const originalAuthSessionTtlSeconds = process.env.AUTH_SESSION_TTL_SECONDS;
   let app: INestApplication<App>;
@@ -489,7 +490,8 @@ describe('Auth limits and TTL (e2e)', () => {
     if (originalAuthRateLimitMaxRequests === undefined) {
       delete process.env.AUTH_RATE_LIMIT_MAX_REQUESTS;
     } else {
-      process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = originalAuthRateLimitMaxRequests;
+      process.env.AUTH_RATE_LIMIT_MAX_REQUESTS =
+        originalAuthRateLimitMaxRequests;
     }
 
     if (originalAuthRateLimitWindowMs === undefined) {
@@ -514,7 +516,9 @@ describe('Auth limits and TTL (e2e)', () => {
     process.env.AUTH_RATE_LIMIT_WINDOW_MS = '60000';
     await initApp();
 
-    await request(app.getHttpServer()).get('/api/auth/oauth/google/start').expect(200);
+    await request(app.getHttpServer())
+      .get('/api/auth/oauth/google/start')
+      .expect(200);
 
     await request(app.getHttpServer())
       .get('/api/auth/oauth/google/start')
@@ -603,6 +607,294 @@ describe('Market data symbols (e2e)', () => {
       .expect((res) => {
         const body = res.body as Record<string, unknown>;
         expect(body.code).toBe('NOT_FOUND');
+      });
+  });
+});
+
+describe('Market data candles (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function expectProblem(
+    body: Record<string, unknown>,
+    status: number,
+    code: string,
+  ): void {
+    expect(body).toMatchObject({ status, code });
+    expect(body.type).toMatch(/^https:\/\/bitstockerz\.dev\/errors\//);
+    expect(typeof body.title).toBe('string');
+    expect(typeof body.detail).toBe('string');
+    expect(typeof body.instance).toBe('string');
+    expect(typeof body.requestId).toBe('string');
+  }
+
+  function expectValidationProblem(body: Record<string, unknown>): void {
+    expectProblem(body, 400, 'VALIDATION_ERROR');
+    expect(Array.isArray(body.fieldErrors)).toBe(true);
+    expect((body.fieldErrors as unknown[]).length).toBeGreaterThan(0);
+  }
+
+  function expectNumericCandleValues(candle: Record<string, unknown>): void {
+    for (const field of ['open', 'high', 'low', 'close', 'volume']) {
+      expect(typeof candle[field]).toBe('number');
+    }
+  }
+
+  it('GET equities/candles returns the seeded daily shape in default ascending order', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/equities/candles')
+      .query({ symbol: ' aapl ', start: '2026-01-05', end: '2026-01-09' })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body).toHaveLength(5);
+        expect(body.map((candle) => candle.date)).toEqual([
+          '2026-01-05',
+          '2026-01-06',
+          '2026-01-07',
+          '2026-01-08',
+          '2026-01-09',
+        ]);
+        expect(body[0].date).toBe('2026-01-05');
+        expect(Object.keys(body[0]).sort()).toEqual([
+          'close',
+          'date',
+          'high',
+          'low',
+          'open',
+          'volume',
+        ]);
+        expectNumericCandleValues(body[0]);
+      });
+  });
+
+  it('GET equities/candles applies descending order and limit', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/equities/candles')
+      .query({
+        symbol: 'AAPL',
+        start: '2026-01-05',
+        end: '2026-01-09',
+        order: 'desc',
+        limit: 2,
+      })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body.map((candle) => candle.date)).toEqual([
+          '2026-01-09',
+          '2026-01-08',
+        ]);
+      });
+  });
+
+  it('GET crypto/candles returns seeded daily candles with date fields', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/crypto/candles')
+      .query({
+        symbol: 'btc-usd',
+        interval: '1d',
+        start: '2026-01-01',
+        end: '2026-01-03',
+      })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body).toHaveLength(3);
+        expect(body.map((candle) => candle.date)).toEqual([
+          '2026-01-01',
+          '2026-01-02',
+          '2026-01-03',
+        ]);
+        expect(body[0].date).toBe('2026-01-01');
+        expectNumericCandleValues(body[0]);
+        expect(body[0]).not.toHaveProperty('timestamp');
+      });
+  });
+
+  it('GET crypto/candles returns seeded hourly candles with UTC timestamps', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/crypto/candles')
+      .query({
+        symbol: 'BTC-USD',
+        interval: '1h',
+        start: '2026-01-15T00:00:00.000Z',
+        end: '2026-01-15T02:00:00.000Z',
+      })
+      .expect(200)
+      .expect((res) => {
+        const body = res.body as Array<Record<string, unknown>>;
+        expect(body).toHaveLength(3);
+        expect(body.map((candle) => candle.timestamp)).toEqual([
+          '2026-01-15T00:00:00.000Z',
+          '2026-01-15T01:00:00.000Z',
+          '2026-01-15T02:00:00.000Z',
+        ]);
+        expect(body[0].timestamp).toBe('2026-01-15T00:00:00.000Z');
+        expectNumericCandleValues(body[0]);
+        expect(body[0]).not.toHaveProperty('date');
+      });
+  });
+
+  it('returns an empty array when a valid range has no bars', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/equities/candles')
+      .query({ symbol: 'AAPL', start: '2025-01-01', end: '2025-01-31' })
+      .expect(200)
+      .expect([]);
+  });
+
+  it('returns RFC 7807 NOT_FOUND for an unknown symbol', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/crypto/candles')
+      .query({
+        symbol: 'NOPE-USD',
+        interval: '1d',
+        start: '2026-01-01',
+        end: '2026-01-03',
+      })
+      .expect(404)
+      .expect((res) => {
+        expectProblem(res.body as Record<string, unknown>, 404, 'NOT_FOUND');
+      });
+  });
+
+  it('returns VALIDATION_ERROR when a crypto symbol is sent to the equity endpoint', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/equities/candles')
+      .query({
+        symbol: 'BTC-USD',
+        start: '2026-01-05',
+        end: '2026-01-09',
+      })
+      .expect(400)
+      .expect((res) => {
+        expectValidationProblem(res.body as Record<string, unknown>);
+      });
+  });
+
+  it('returns VALIDATION_ERROR when an equity symbol is sent to the crypto endpoint', () => {
+    return request(app.getHttpServer())
+      .get('/api/market-data/crypto/candles')
+      .query({
+        symbol: 'AAPL',
+        interval: '1d',
+        start: '2026-01-01',
+        end: '2026-01-03',
+      })
+      .expect(400)
+      .expect((res) => {
+        expectValidationProblem(res.body as Record<string, unknown>);
+      });
+  });
+
+  it.each([
+    {
+      name: 'missing crypto interval',
+      path: '/api/market-data/crypto/candles',
+      query: {
+        symbol: 'BTC-USD',
+        start: '2026-01-01',
+        end: '2026-01-03',
+      },
+    },
+    {
+      name: 'reversed equity range',
+      path: '/api/market-data/equities/candles',
+      query: {
+        symbol: 'AAPL',
+        start: '2026-02-01',
+        end: '2026-01-01',
+      },
+    },
+    {
+      name: 'equity datetime instead of date',
+      path: '/api/market-data/equities/candles',
+      query: {
+        symbol: 'AAPL',
+        start: '2026-01-05T00:00:00.000Z',
+        end: '2026-01-09',
+      },
+    },
+    {
+      name: 'daily crypto datetime instead of date',
+      path: '/api/market-data/crypto/candles',
+      query: {
+        symbol: 'BTC-USD',
+        interval: '1d',
+        start: '2026-01-01T00:00:00.000Z',
+        end: '2026-01-03',
+      },
+    },
+    {
+      name: 'hourly crypto date without time',
+      path: '/api/market-data/crypto/candles',
+      query: {
+        symbol: 'BTC-USD',
+        interval: '1h',
+        start: '2026-01-15',
+        end: '2026-01-15T02:00:00.000Z',
+      },
+    },
+    {
+      name: 'hourly crypto datetime without timezone',
+      path: '/api/market-data/crypto/candles',
+      query: {
+        symbol: 'BTC-USD',
+        interval: '1h',
+        start: '2026-01-15T00:00:00',
+        end: '2026-01-15T02:00:00.000Z',
+      },
+    },
+    {
+      name: 'limit below minimum',
+      path: '/api/market-data/equities/candles',
+      query: {
+        symbol: 'AAPL',
+        start: '2026-01-05',
+        end: '2026-01-09',
+        limit: 0,
+      },
+    },
+    {
+      name: 'limit above maximum',
+      path: '/api/market-data/equities/candles',
+      query: {
+        symbol: 'AAPL',
+        start: '2026-01-05',
+        end: '2026-01-09',
+        limit: 5001,
+      },
+    },
+    {
+      name: 'invalid order',
+      path: '/api/market-data/equities/candles',
+      query: {
+        symbol: 'AAPL',
+        start: '2026-01-05',
+        end: '2026-01-09',
+        order: 'sideways',
+      },
+    },
+  ])('returns a query validation problem for $name', ({ path, query }) => {
+    return request(app.getHttpServer())
+      .get(path)
+      .query(query)
+      .expect(400)
+      .expect((res) => {
+        expectValidationProblem(res.body as Record<string, unknown>);
       });
   });
 });

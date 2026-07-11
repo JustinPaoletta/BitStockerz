@@ -1,5 +1,5 @@
 // BitStockerz API Prisma schema
-// Sprint 1.1 wires the runnable API to the core auth and market-data tables.
+// Sprint 1.2 wires the runnable API to the core auth and market-data tables.
 
 generator client {
   provider = "prisma-client-js"

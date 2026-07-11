@@ -2,7 +2,10 @@ import { randomUUID } from 'crypto';
 import type { IncomingMessage } from 'http';
 import { RequestMethod } from '@nestjs/common';
 import type { Params } from 'nestjs-pino';
-import { REQUEST_ID_HEADER, REQUEST_ID_PROP } from '../middleware/request-id.middleware';
+import {
+  REQUEST_ID_HEADER,
+  REQUEST_ID_PROP,
+} from '../middleware/request-id.middleware';
 import type { LoggingConfig } from '../../config/app-config.service';
 
 type RequestWithIds = IncomingMessage & {
@@ -42,7 +45,9 @@ function buildTransport(config: LoggingConfig): TransportConfig {
   };
 }
 
-function normalizeHeader(value: string | string[] | undefined): string | undefined {
+function normalizeHeader(
+  value: string | string[] | undefined,
+): string | undefined {
   if (!value) {
     return undefined;
   }
@@ -50,9 +55,13 @@ function normalizeHeader(value: string | string[] | undefined): string | undefin
 }
 
 function resolveRequestId(req: RequestWithIds): string {
-  const headerId = normalizeHeader(req.headers[REQUEST_ID_HEADER] as string | string[] | undefined);
+  const headerId = normalizeHeader(req.headers[REQUEST_ID_HEADER]);
   const existingId = req[REQUEST_ID_PROP] ?? req.id;
-  const id = headerId ?? (typeof existingId === 'string' && existingId.length > 0 ? existingId : randomUUID());
+  const id =
+    headerId ??
+    (typeof existingId === 'string' && existingId.length > 0
+      ? existingId
+      : randomUUID());
   req.id = id;
   req[REQUEST_ID_PROP] = id;
   return id;

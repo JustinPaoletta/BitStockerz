@@ -37,18 +37,27 @@ function normalizeValidationErrors(
   }
   const msg = response?.message;
   if (Array.isArray(msg)) {
-    return msg.map((m) => (typeof m === 'string' ? { field: 'body', reason: m } : { field: 'body', reason: String(m) }));
+    return msg.map((m) =>
+      typeof m === 'string'
+        ? { field: 'body', reason: m }
+        : { field: 'body', reason: String(m) },
+    );
   }
   if (typeof msg === 'string') {
     return [{ field: 'body', reason: msg }];
   }
   // class-validator often returns { message: string[], property: string } per constraint
-  const errors = response?.errors as Array<{ property?: string; constraints?: Record<string, string> }> | undefined;
+  const errors = response?.errors as
+    | Array<{ property?: string; constraints?: Record<string, string> }>
+    | undefined;
   if (Array.isArray(errors)) {
     return errors.flatMap((e) => {
       const field = e.property ?? 'body';
       if (e.constraints) {
-        return Object.entries(e.constraints).map(([, reason]) => ({ field, reason }));
+        return Object.entries(e.constraints).map(([, reason]) => ({
+          field,
+          reason,
+        }));
       }
       return [{ field, reason: 'invalid' }];
     });
@@ -125,52 +134,78 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof DomainError) {
       code = exception.code;
       status = exception.getStatus();
-      detail = (exception.getResponse() as { message?: string }).message ?? ERROR_CATALOG[code].defaultDetail ?? '';
+      const domainResponse = exception.getResponse() as {
+        message?: string;
+        fieldErrors?: { field: string; reason: string }[];
+      };
+      detail =
+        domainResponse.message ?? ERROR_CATALOG[code].defaultDetail ?? '';
+      fieldErrors = domainResponse.fieldErrors;
     } else if (exception instanceof HttpException) {
       const res = exception.getResponse();
       const statusCode = exception.getStatus();
-      const isValidation = statusCode === HttpStatus.BAD_REQUEST;
+      const isValidation = statusCode === 400;
       if (isValidation) {
         code = ErrorCode.VALIDATION_ERROR;
         fieldErrors = normalizeValidationErrors(
-          typeof res === 'object' && res !== null ? (res as Record<string, unknown>) : String(res),
+          typeof res === 'object' && res !== null
+            ? (res as Record<string, unknown>)
+            : String(res),
         );
-        detail = (typeof res === 'object' && res !== null && 'message' in res)
-          ? (Array.isArray((res as { message: unknown }).message)
-            ? (res as { message: string[] }).message.join('; ')
-            : String((res as { message: string }).message))
-          : ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail ?? '';
+        detail =
+          typeof res === 'object' && res !== null && 'message' in res
+            ? Array.isArray((res as { message: unknown }).message)
+              ? (res as { message: string[] }).message.join('; ')
+              : String((res as { message: string }).message)
+            : (ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail ?? '');
       } else {
-        code = statusCode === 401 ? ErrorCode.UNAUTHORIZED
-          : statusCode === 403 ? ErrorCode.FORBIDDEN
-          : statusCode === 404 ? ErrorCode.NOT_FOUND
-          : statusCode === 409 ? ErrorCode.CONFLICT
-          : statusCode === 429 ? ErrorCode.RATE_LIMITED
-          : ErrorCode.INTERNAL_ERROR;
-        detail = typeof res === 'object' && res !== null && 'message' in res
-          ? String((res as { message: unknown }).message)
-          : exception.message;
+        code =
+          statusCode === 401
+            ? ErrorCode.UNAUTHORIZED
+            : statusCode === 403
+              ? ErrorCode.FORBIDDEN
+              : statusCode === 404
+                ? ErrorCode.NOT_FOUND
+                : statusCode === 409
+                  ? ErrorCode.CONFLICT
+                  : statusCode === 429
+                    ? ErrorCode.RATE_LIMITED
+                    : ErrorCode.INTERNAL_ERROR;
+        detail =
+          typeof res === 'object' && res !== null && 'message' in res
+            ? String((res as { message: unknown }).message)
+            : exception.message;
       }
       status = statusCode;
     } else {
       code = ErrorCode.INTERNAL_ERROR;
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      detail = ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail ?? 'An unexpected error occurred.';
+      detail =
+        ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail ??
+        'An unexpected error occurred.';
       this.logger.error(
         {
           requestId,
           code,
           status,
           instance,
-          error: exception instanceof Error
-            ? { message: exception.message, stack: exception.stack }
-            : { message: String(exception) },
+          error:
+            exception instanceof Error
+              ? { message: exception.message, stack: exception.stack }
+              : { message: String(exception) },
         },
         'Unhandled error',
       );
     }
 
-    const body = buildProblem(code, status, detail, instance, requestId, fieldErrors);
+    const body = buildProblem(
+      code,
+      status,
+      detail,
+      instance,
+      requestId,
+      fieldErrors,
+    );
     response.status(status).json(body);
   }
 }

@@ -66,9 +66,11 @@ describe('HealthService', () => {
   });
 
   it('returns degraded when database URL is invalid', async () => {
-    const service = new HealthService(createConfigService({
-      databaseUrl: 'not-a-url',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: 'not-a-url',
+      }),
+    );
 
     const result = await service.readiness();
 
@@ -81,9 +83,11 @@ describe('HealthService', () => {
   });
 
   it('returns degraded when database URL has no hostname', async () => {
-    const service = new HealthService(createConfigService({
-      databaseUrl: 'postgres:///bitstockerz',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: 'postgres:///bitstockerz',
+      }),
+    );
 
     const result = await service.readiness();
 
@@ -95,9 +99,11 @@ describe('HealthService', () => {
   });
 
   it('returns degraded when database protocol is unsupported and no port is provided', async () => {
-    const service = new HealthService(createConfigService({
-      databaseUrl: 'oracle://localhost/bitstockerz',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: 'oracle://localhost/bitstockerz',
+      }),
+    );
 
     const result = await service.readiness();
 
@@ -110,7 +116,9 @@ describe('HealthService', () => {
 
   it('resolveDatabasePort handles explicit, invalid, and protocol-default ports', () => {
     const service = new HealthService(createConfigService());
-    const resolveDatabasePort = (service as any).resolveDatabasePort.bind(service);
+    const resolveDatabasePort = (service as any).resolveDatabasePort.bind(
+      service,
+    );
 
     expect(resolveDatabasePort('postgres', '7010')).toBe(7010);
     expect(resolveDatabasePort('postgres', 'abc')).toBeUndefined();
@@ -133,10 +141,12 @@ describe('HealthService', () => {
       throw new Error('Expected TCP server address object');
     }
 
-    const service = new HealthService(createConfigService({
-      databaseUrl: `postgres://127.0.0.1:${address.port}/bitstockerz`,
-      timeoutMs: 300,
-    }));
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: `postgres://127.0.0.1:${address.port}/bitstockerz`,
+        timeoutMs: 300,
+      }),
+    );
 
     try {
       const result = await service.readiness();
@@ -152,13 +162,15 @@ describe('HealthService', () => {
   it('returns timeout details for TCP dependencies and ignores late follow-up errors', async () => {
     const service = new HealthService(createConfigService({ timeoutMs: 50 }));
 
-    jest.spyOn(Socket.prototype, 'connect').mockImplementation(function mockConnect(this: Socket) {
-      setImmediate(() => {
-        this.emit('timeout');
-        this.emit('error', 'late-error');
-      });
-      return this;
-    } as any);
+    jest
+      .spyOn(Socket.prototype, 'connect')
+      .mockImplementation(function mockConnect(this: Socket) {
+        setImmediate(() => {
+          this.emit('timeout');
+          this.emit('error', 'late-error');
+        });
+        return this;
+      } as any);
 
     const result = await (service as any).checkTcpDependency('127.0.0.1', 9999);
 
@@ -169,12 +181,14 @@ describe('HealthService', () => {
   it('uses stringified values for non-Error TCP failures', async () => {
     const service = new HealthService(createConfigService({ timeoutMs: 50 }));
 
-    jest.spyOn(Socket.prototype, 'connect').mockImplementation(function mockConnect(this: Socket) {
-      setImmediate(() => {
-        this.emit('error', 'socket-failed');
-      });
-      return this;
-    } as any);
+    jest
+      .spyOn(Socket.prototype, 'connect')
+      .mockImplementation(function mockConnect(this: Socket) {
+        setImmediate(() => {
+          this.emit('error', 'socket-failed');
+        });
+        return this;
+      } as any);
 
     const result = await (service as any).checkTcpDependency('127.0.0.1', 9999);
 
@@ -188,9 +202,11 @@ describe('HealthService', () => {
       status: 200,
     }) as any;
 
-    const service = new HealthService(createConfigService({
-      marketDataHealthUrl: 'https://market-data.example.com/health',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        marketDataHealthUrl: 'https://market-data.example.com/health',
+      }),
+    );
 
     const result = await service.readiness();
 
@@ -205,41 +221,49 @@ describe('HealthService', () => {
       status: 503,
     }) as any;
 
-    const service = new HealthService(createConfigService({
-      marketDataHealthUrl: 'https://market-data.example.com/health',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        marketDataHealthUrl: 'https://market-data.example.com/health',
+      }),
+    );
 
     const result = await service.readiness();
 
     expect(result.ready).toBe(false);
     expect(result.status).toBe('degraded');
     expect(result.checks.marketData.status).toBe('down');
-    expect(result.checks.marketData.details).toBe('Health endpoint returned HTTP 503');
+    expect(result.checks.marketData.details).toBe(
+      'Health endpoint returned HTTP 503',
+    );
   });
 
   it('returns market data timeout details when fetch aborts', async () => {
     jest.useFakeTimers();
 
-    global.fetch = jest.fn().mockImplementation((_url: string, init?: RequestInit) => {
-      return new Promise((_resolve, reject) => {
-        const signal = init?.signal;
-        if (!signal) {
-          reject(new Error('missing abort signal'));
-          return;
-        }
+    global.fetch = jest
+      .fn()
+      .mockImplementation((_url: string, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error('missing abort signal'));
+            return;
+          }
 
-        signal.addEventListener('abort', () => {
-          const abortError = new Error('aborted');
-          abortError.name = 'AbortError';
-          reject(abortError);
+          signal.addEventListener('abort', () => {
+            const abortError = new Error('aborted');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          });
         });
-      });
-    }) as any;
+      }) as any;
 
-    const service = new HealthService(createConfigService({
-      marketDataHealthUrl: 'https://market-data.example.com/health',
-      timeoutMs: 50,
-    }));
+    const service = new HealthService(
+      createConfigService({
+        marketDataHealthUrl: 'https://market-data.example.com/health',
+        timeoutMs: 50,
+      }),
+    );
 
     const readinessPromise = service.readiness();
     jest.advanceTimersByTime(50);
@@ -247,15 +271,19 @@ describe('HealthService', () => {
 
     expect(result.ready).toBe(false);
     expect(result.checks.marketData.status).toBe('down');
-    expect(result.checks.marketData.details).toBe('Request timed out after 50ms');
+    expect(result.checks.marketData.details).toBe(
+      'Request timed out after 50ms',
+    );
   });
 
   it('uses stringified values for non-Error market data failures', async () => {
     global.fetch = jest.fn().mockRejectedValue('market-down') as any;
 
-    const service = new HealthService(createConfigService({
-      marketDataHealthUrl: 'https://market-data.example.com/health',
-    }));
+    const service = new HealthService(
+      createConfigService({
+        marketDataHealthUrl: 'https://market-data.example.com/health',
+      }),
+    );
 
     const result = await service.readiness();
 

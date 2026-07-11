@@ -17,7 +17,9 @@ describe('buildPinoLoggerOptions', () => {
 
   it('sets default routes and redaction', () => {
     const options = buildPinoLoggerOptions(baseConfig);
-    expect(options.forRoutes).toEqual([{ path: '*path', method: RequestMethod.ALL }]);
+    expect(options.forRoutes).toEqual([
+      { path: '*path', method: RequestMethod.ALL },
+    ]);
     expect(options.pinoHttp?.redact).toEqual({
       paths: ['req.headers.authorization', 'req.headers.cookie'],
       remove: true,
@@ -100,14 +102,18 @@ describe('buildPinoLoggerOptions', () => {
 
   it('exposes requestId in custom props', () => {
     const options = buildPinoLoggerOptions(baseConfig);
-    const customProps = options.pinoHttp?.customProps as (req: any) => Record<string, unknown>;
+    const customProps = options.pinoHttp?.customProps as (
+      req: any,
+    ) => Record<string, unknown>;
     const req = { headers: {}, requestId: 'req-1' };
     expect(customProps(req).requestId).toBe('req-1');
   });
 
   it('uses req.id when requestId is missing', () => {
     const options = buildPinoLoggerOptions(baseConfig);
-    const customProps = options.pinoHttp?.customProps as (req: any) => Record<string, unknown>;
+    const customProps = options.pinoHttp?.customProps as (
+      req: any,
+    ) => Record<string, unknown>;
     const req = { headers: {}, id: 'req-2' };
     expect(customProps(req).requestId).toBe('req-2');
   });

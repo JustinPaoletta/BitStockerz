@@ -22,7 +22,9 @@ export class AuthRateLimitGuard implements CanActivate {
     const maxRequests = this.config.auth.rateLimitMaxRequests;
 
     const bucket = this.buckets.get(key) ?? { timestamps: [] };
-    bucket.timestamps = bucket.timestamps.filter((timestamp) => now - timestamp < windowMs);
+    bucket.timestamps = bucket.timestamps.filter(
+      (timestamp) => now - timestamp < windowMs,
+    );
 
     if (bucket.timestamps.length >= maxRequests) {
       throw new DomainError(
@@ -37,7 +39,8 @@ export class AuthRateLimitGuard implements CanActivate {
   }
 
   private buildKey(request: AuthenticatedRequest): string {
-    const route = request.route?.path ?? request.path ?? 'unknown';
+    const matchedRoute = request.route as { path?: string } | undefined;
+    const route = matchedRoute?.path ?? request.path ?? 'unknown';
     const ip = request.ip ?? request.socket?.remoteAddress ?? 'unknown';
     return `${route}:${ip}`;
   }

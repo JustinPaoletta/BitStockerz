@@ -13,6 +13,9 @@ describe('AppModule', () => {
     module.configure(consumer as any);
 
     expect(consumer.apply).toHaveBeenCalledWith(RequestIdMiddleware);
-    expect(consumer.forRoutes).toHaveBeenCalledWith({ path: '*path', method: RequestMethod.ALL });
+    expect(consumer.forRoutes).toHaveBeenCalledWith({
+      path: '*path',
+      method: RequestMethod.ALL,
+    });
   });
 });
