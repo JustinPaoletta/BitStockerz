@@ -137,8 +137,8 @@ rebase_onto_main() {
   log "Fetching main and rebasing $branch..."
   git fetch origin main
   git rebase origin/main
-  push_branch
-  log "Rebased $branch onto origin/main"
+  git push --force-with-lease origin "$branch"
+  log "Rebased $branch onto origin/main (force-with-lease push)"
   gh pr edit 6 --base main >>"$WORK_LOG" 2>&1 || log "Note: retarget PR #6 base to main if needed"
 }
 
