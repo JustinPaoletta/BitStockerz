@@ -3,7 +3,10 @@
 // Database: MySQL (can be adapted to Postgres)
 //
 // Note: apps/api/prisma/schema.prisma is the runnable subset for the current API
-// (auth + market-data tables through Sprint 1.3). This file remains the full MVP target schema.
+// (users, webauthn_credentials, symbols, OHLCV bars, jobs through Sprint 1.3).
+// This file remains the full MVP target schema and may differ in Prisma field
+// naming, column annotations, and relations. Apply migrations from
+// apps/api/prisma/migrations/ only — do not treat this file as migrate-able.
 
 generator client {
   provider = "prisma-client-js"

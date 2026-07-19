@@ -12,10 +12,7 @@ function createAuthPersistenceMock(): Pick<AuthService, 'ensureUserPersisted'> {
 }
 
 function createJobsService(prisma: PrismaService): JobsService {
-  return new JobsService(
-    prisma,
-    createAuthPersistenceMock() as AuthService,
-  );
+  return new JobsService(prisma, createAuthPersistenceMock() as AuthService);
 }
 
 function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
@@ -223,6 +220,22 @@ describe('JobsService', () => {
     expect(findUnique).toHaveBeenCalled();
   });
 
+  it('returns undefined from getJobById when Prisma has no matching job', async () => {
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const prisma = {
+      isEnabled: true,
+      job: { create: jest.fn(), findUnique, update: jest.fn() },
+    };
+
+    const service = new JobsService(
+      prisma as never,
+      createAuthPersistenceMock() as AuthService,
+    );
+
+    await expect(service.getJobById('missing-job')).resolves.toBeUndefined();
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: 'missing-job' } });
+  });
+
   it('updates jobs in Prisma when enabled', async () => {
     const update = jest.fn().mockResolvedValue({});
     const findUnique = jest.fn().mockResolvedValue({
@@ -253,6 +266,46 @@ describe('JobsService', () => {
 
     expect(updated.status).toBe('running');
     expect(update).toHaveBeenCalled();
+  });
+
+  it('persists null timestamps in Prisma when optional fields are absent', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const findUnique = jest.fn().mockResolvedValue({
+      id: 'job-1',
+      jobType: 'equity_daily_import',
+      userId: 'user-1',
+      payloadJson: { symbol: 'AAPL' },
+      status: 'running',
+      errorMessage: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      startedAt: new Date('2026-01-01T00:00:01.000Z'),
+      finishedAt: null,
+    });
+
+    const prisma = {
+      isEnabled: true,
+      job: { create: jest.fn(), findUnique, update },
+    };
+
+    const service = new JobsService(
+      prisma as never,
+      createAuthPersistenceMock() as AuthService,
+    );
+    await service.updateJob('job-1', {
+      status: 'completed',
+      finishedAt: new Date('2026-01-01T00:00:02.000Z'),
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: {
+        status: 'completed',
+        payloadJson: { symbol: 'AAPL' },
+        errorMessage: null,
+        startedAt: new Date('2026-01-01T00:00:01.000Z'),
+        finishedAt: new Date('2026-01-01T00:00:02.000Z'),
+      },
+    });
   });
 
   it('throws NOT_FOUND when updating a missing job', async () => {

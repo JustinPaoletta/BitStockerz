@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AppConfigService } from '../config/app-config.service';
 
 @Injectable()
@@ -45,6 +45,16 @@ export class PrismaService implements OnModuleDestroy {
 
   get user() {
     return this.requireClient().user;
+  }
+
+  get webAuthnCredential() {
+    return this.requireClient().webAuthnCredential;
+  }
+
+  $transaction<R>(
+    fn: (tx: Prisma.TransactionClient) => Promise<R>,
+  ): Promise<R> {
+    return this.requireClient().$transaction(fn);
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -42,6 +42,26 @@ describe('PrismaService', () => {
     expect(() => service.equityDailyBar).toThrow(expectedMessage);
     expect(() => service.cryptoDailyBar).toThrow(expectedMessage);
     expect(() => service.cryptoHourlyBar).toThrow(expectedMessage);
+    expect(() => service.job).toThrow(expectedMessage);
+    expect(() => service.user).toThrow(expectedMessage);
+    expect(() => service.webAuthnCredential).toThrow(expectedMessage);
+    expect(() => service.$transaction(async () => undefined)).toThrow(
+      expectedMessage,
+    );
+  });
+
+  it('stays disabled for unsupported database URLs outside the test environment', () => {
+    const service = new PrismaService(
+      createConfig(
+        'postgres://user:password@localhost:5432/bitstockerz',
+        'development',
+      ),
+    );
+
+    expect(service.isEnabled).toBe(false);
+    expect(() => service.symbol).toThrow(
+      'Prisma client is not configured. Set DATABASE_URL to enable database access.',
+    );
   });
 
   it('enables mariadb protocol urls outside the test environment', async () => {
@@ -69,6 +89,10 @@ describe('PrismaService', () => {
     expect(service.equityDailyBar).toBeDefined();
     expect(service.cryptoDailyBar).toBeDefined();
     expect(service.cryptoHourlyBar).toBeDefined();
+    expect(service.job).toBeDefined();
+    expect(service.user).toBeDefined();
+    expect(service.webAuthnCredential).toBeDefined();
+    expect(typeof service.$transaction).toBe('function');
     await expect(service.onModuleDestroy()).resolves.toBeUndefined();
   });
 });

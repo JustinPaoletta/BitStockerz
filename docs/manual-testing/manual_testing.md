@@ -30,17 +30,27 @@ Set `INGESTION_SCHEDULER_ENABLED=false` in `apps/api/.env` while running Section
 
 | Mode | When | Behavior |
 | --- | --- | --- |
-| **In-memory** | No `DATABASE_URL` | Auth, symbols, candles, and jobs use deterministic seed data in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Auth, jobs, and ingested bars persist. Symbol/candle reads use DB rows (empty until ingestion). |
+| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, and jobs use deterministic seed data in process. Data resets on API restart. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs and ingested bars persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; job creation upserts a minimal `users` row for foreign keys. |
 
 ### Automated alternative
 
-With the API running:
+From repo root (starts the API and runs smoke tests):
+
+```bash
+./scripts/sprint-delivery-verify.sh verify
+KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # loads DATABASE_URL from apps/api/.env; includes DB persistence check
+```
+
+Default `verify` runs smoke tests in seed mode (the script clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it). `./scripts/smoke-test-api.sh` alone does not start the API — start it yourself first.
+
+Smoke tests only (API must already be running on port 4000):
 
 ```bash
 ./scripts/smoke-test-api.sh --sprint all
-KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # gates + smoke including DB persistence
 ```
+
+Both scripts read `DATABASE_URL` from `apps/api/.env` when needed: `smoke-test-api.sh` for the optional persisted-candles check; `sprint-delivery-verify.sh` only when `KEEP_DATABASE_URL=1`.
 
 Authenticated bearer token required for job and ingestion endpoints (Sprint 1.3).
 
@@ -58,10 +68,22 @@ Expected: `{ "status": "ok" }`
 curl -s http://localhost:4000/api/health/ready | jq
 ```
 
-Expected: `ready: true`.
+Expected: `ready: true`, `status: "ok"`, and:
+
+```json
+{
+  "ready": true,
+  "status": "ok",
+  "checks": {
+    "database": { "status": "not_configured" },
+    "marketData": { "status": "not_configured" }
+  }
+}
+```
 
 - **Without `DATABASE_URL`:** `checks.database.status` is `not_configured`.
 - **With MySQL:** `checks.database.status` is `up` with `latencyMs`.
+- **`checks.marketData`:** `not_configured` unless `MARKET_DATA_HEALTH_URL` is set (Sprint 1.4).
 
 ---
 
@@ -287,7 +309,7 @@ curl -s -X POST http://localhost:4000/api/jobs \
 
 Expected: `401` `UNAUTHORIZED`.
 
-## Section 8 – Ingestion regression checklist
+### Ingestion regression checklist
 
 | # | Scenario | Expect |
 | --- | --- | --- |

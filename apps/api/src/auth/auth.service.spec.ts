@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
@@ -35,9 +36,7 @@ function createConfig(
   } as AppConfigService;
 }
 
-function createPrismaMock(
-  overrides?: Partial<PrismaService>,
-): PrismaService {
+function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
   return {
     isEnabled: false,
     ...overrides,
@@ -68,22 +67,128 @@ describe('AuthService', () => {
   });
 
   it('persists registered users to mysql when prisma is enabled', async () => {
-    const upsert = jest.fn().mockResolvedValue({});
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    const create = jest.fn().mockResolvedValue({});
     const prisma = createPrismaMock({
       isEnabled: true,
-      user: { upsert },
+      user: { findUnique, create, update: jest.fn(), delete: jest.fn() },
+      $transaction: jest.fn(),
     } as Partial<PrismaService>);
     const dbService = new AuthService(createConfig(), prisma);
     const result = dbService.register('persist@example.com', 'Persist User');
 
     await dbService.ensureUserPersisted(result.user.id);
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: result.user.id } });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { email: 'persist@example.com' },
+    });
+    expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: result.user.id },
-        create: expect.objectContaining({ email: 'persist@example.com' }),
+        data: expect.objectContaining({
+          id: result.user.id,
+          email: 'persist@example.com',
+        }),
       }),
     );
+  });
+
+  it('remaps stale mysql users and keeps jobs when email matches a new in-memory id', async () => {
+    const staleUserId = '00000000-0000-4000-8000-000000000099';
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: staleUserId,
+        email: 'persist@example.com',
+        createdAt,
+      });
+    const update = jest.fn().mockResolvedValue({});
+    const create = jest.fn().mockResolvedValue({});
+    const deleteUser = jest.fn().mockResolvedValue({});
+    const updateManyJobs = jest.fn().mockResolvedValue({ count: 2 });
+    const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
+    const transaction = jest.fn(async (fn) =>
+      fn({
+        user: { update, create, delete: deleteUser },
+        job: { updateMany: updateManyJobs },
+        webAuthnCredential: { updateMany: updateManyCredentials },
+      }),
+    );
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: {
+        findUnique,
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      $transaction: transaction,
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+
+    await dbService.ensureUserPersisted(result.user.id);
+
+    expect(transaction).toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: staleUserId },
+      data: expect.objectContaining({
+        email: `__remap_${staleUserId}@bitstockerz.invalid`,
+      }),
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          id: result.user.id,
+          email: 'persist@example.com',
+          createdAt,
+        }),
+      }),
+    );
+    expect(updateManyJobs).toHaveBeenCalledWith({
+      where: { userId: staleUserId },
+      data: { userId: result.user.id },
+    });
+    expect(updateManyCredentials).toHaveBeenCalledWith({
+      where: { userId: staleUserId },
+      data: { userId: result.user.id },
+    });
+    expect(deleteUser).toHaveBeenCalledWith({ where: { id: staleUserId } });
+  });
+
+  it('treats concurrent unique constraint races as successful user persistence', async () => {
+    const create = jest.fn().mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    const findUnique = jest.fn();
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: { findUnique, create, update: jest.fn(), delete: jest.fn() },
+      $transaction: jest.fn(),
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+
+    findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: result.user.id,
+        email: 'persist@example.com',
+      });
+
+    await expect(
+      dbService.ensureUserPersisted(result.user.id),
+    ).resolves.toBeUndefined();
+    expect(create).toHaveBeenCalled();
   });
 
   it('rejects duplicate registration for the same email', () => {

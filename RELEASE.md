@@ -24,6 +24,7 @@ For API-impacting releases, run:
 npm --prefix apps/api run build
 npm --prefix apps/api run lint
 npm --prefix apps/api run test
+npm --prefix apps/api run test:cov
 npm --prefix apps/api run test:e2e
 ```
 

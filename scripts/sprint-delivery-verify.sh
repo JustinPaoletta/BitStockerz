@@ -2,11 +2,14 @@
 # End-to-end Sprint 1.2/1.3 verification and optional PR workflow.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
+#   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)
 #   ./scripts/sprint-delivery-verify.sh workflow        # verify + commit/push + merge PRs
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_DIR="$ROOT/apps/api"
+# shellcheck source=lib/load-api-env.sh
+source "$ROOT/scripts/lib/load-api-env.sh"
 LOG_DIR="$ROOT/logs/smoke"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 WORK_LOG="$LOG_DIR/workflow-$TIMESTAMP.log"
@@ -50,14 +53,25 @@ start_api() {
   log "Building API..."
   npm --prefix "$API_DIR" run build >>"$WORK_LOG" 2>&1
 
-  log "Starting API on port 4000 (INGESTION_SCHEDULER_ENABLED=false)..."
+  if [[ -n "${KEEP_DATABASE_URL:-}" ]]; then
+    load_database_url_from_api_env "$API_DIR"
+  fi
+
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    log "Starting API on port 4000 (MySQL mode, INGESTION_SCHEDULER_ENABLED=false)..."
+  else
+    log "Starting API on port 4000 (seed mode, INGESTION_SCHEDULER_ENABLED=false)..."
+  fi
   (
     cd "$API_DIR"
     export NODE_ENV=development
     export INGESTION_SCHEDULER_ENABLED=false
-    # Unset DATABASE_URL for seed-mode smoke unless explicitly provided
+    # Blank DATABASE_URL for seed-mode smoke unless explicitly requested.
+    # Use export DATABASE_URL= (not unset) so load-env.ts does not repopulate from .env.
     if [[ -z "${KEEP_DATABASE_URL:-}" ]]; then
-      unset DATABASE_URL
+      export DATABASE_URL=
+    elif [[ -n "${DATABASE_URL:-}" ]]; then
+      export DATABASE_URL
     fi
     npm run start
   ) >>"$WORK_LOG" 2>&1 &
@@ -82,9 +96,22 @@ verify_all() {
   run_gate "lint" npm --prefix apps/api run lint
   run_gate "test" npm --prefix apps/api run test
   run_gate "test:cov" npm --prefix apps/api run test:cov
-  run_gate "test:e2e" npm --prefix apps/api run test:e2e
+  run_gate "test:e2e" env NODE_ENV=test DATABASE_URL= npm --prefix apps/api run test:e2e
 
-  log "=== Phase: smoke tests (seed mode) ==="
+  log "=== Phase: smoke tests ==="
+  if [[ -n "${KEEP_DATABASE_URL:-}" ]]; then
+    load_database_url_from_api_env "$API_DIR"
+    if [[ -n "${DATABASE_URL:-}" ]]; then
+      log "Smoke DB checks enabled (DATABASE_URL loaded for persistence test)"
+    else
+      log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"
+    fi
+  else
+    # Clear in this shell too so smoke-test-api.sh does not inherit a URL and
+    # mis-report MySQL persistence against a seed-mode API process.
+    export DATABASE_URL=
+    log "Smoke seed mode (DATABASE_URL cleared for API start even when apps/api/.env defines it)"
+  fi
   start_api
   run_smoke all
 }

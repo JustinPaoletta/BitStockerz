@@ -126,6 +126,8 @@ Update each row when the sprint touches that area.
 | `docs/database/Migrations_Plan.md` | New Prisma migrations |
 | `CHANGELOG.md` | Every sprint |
 | `README.md` | Scope, e2e coverage, doc links |
+| `scripts/sprint-delivery-verify.sh` | Verification gate changes |
+| `scripts/smoke-test-api.sh` | Smoke scenario changes |
 | `apps/api/prisma/schema.prisma` | Schema changes — header comment |
 | `docs/database/schema.prisma` | Runnable subset note if applicable |
 
@@ -146,10 +148,18 @@ npm --prefix apps/api run build
 npm --prefix apps/api run lint
 npm --prefix apps/api run test          # unit; 90% coverage threshold
 npm --prefix apps/api run test:cov
-npm --prefix apps/api run test:e2e
+npm --prefix apps/api run test:e2e      # seed mode (setup-e2e.ts)
+
+# Full gate + smoke (API started automatically for smoke phase)
+./scripts/sprint-delivery-verify.sh verify
+
+# Same, plus MySQL persistence smoke (loads DATABASE_URL from apps/api/.env)
+KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ```
 
 API defaults: port **4000**, global prefix **`/api`**.
+
+**E2E vs smoke:** e2e always uses in-memory seed mode so it never depends on Docker MySQL. `./scripts/sprint-delivery-verify.sh verify` clears `DATABASE_URL` for the smoke API by default (even when `apps/api/.env` defines it). Set `KEEP_DATABASE_URL=1` to run smoke with MySQL; `./scripts/smoke-test-api.sh` reads `DATABASE_URL` from `apps/api/.env` only for the optional persisted-candles check.
 
 ---
 
@@ -160,9 +170,12 @@ API defaults: port **4000**, global prefix **`/api`**.
 | Errors | `DomainError` + `ErrorCode`; filter in `GlobalHttpExceptionFilter` |
 | Validation | DTOs in `dto/`; snake_case query params map to camelCase in service |
 | DB optional | `PrismaService.isEnabled`; seed modules for dev/test without `DATABASE_URL` |
+| E2E env | `test/setup-e2e.ts` forces `NODE_ENV=test` and clears `DATABASE_URL` |
+| Jobs + MySQL | `AuthService.ensureUserPersisted` creates/remaps minimal `users` row before job insert (keeps jobs on email rematch) |
 | Public routes | No `AuthGuard` unless story requires auth |
 | Module layout | `FeatureModule` → `controller` + `service` + `dto` + `*.spec.ts` |
 | E2E setup | `createApp()` in `app.e2e-spec.ts` — global prefix, `ValidationPipe`, exception filter |
+| Env loading | `src/load-env.ts` (imported first in `main.ts`); shell scripts use `scripts/lib/load-api-env.sh` |
 
 ---
 

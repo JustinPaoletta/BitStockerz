@@ -160,7 +160,11 @@ npm --prefix apps/api run build
 npm --prefix apps/api run lint
 npm --prefix apps/api run test
 npm --prefix apps/api run test:cov
-npm --prefix apps/api run test:e2e
+npm --prefix apps/api run test:e2e   # seed mode via test/setup-e2e.ts
+
+# Or from repo root (includes smoke tests; default verify clears DATABASE_URL for seed-mode smoke):
+./scripts/sprint-delivery-verify.sh verify
+KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # + MySQL persistence smoke
 ```
 
 **Coverage:** global thresholds in `apps/api/package.json` — **90%** branches, functions, lines, statements.
@@ -168,7 +172,7 @@ npm --prefix apps/api run test:e2e
 | Layer | Location | Expectations |
 |-------|----------|--------------|
 | Unit | `src/**/*.spec.ts` | Service logic, DTO validation, controllers, edge cases |
-| E2E | `apps/api/test/app.e2e-spec.ts` | Happy paths + RFC 7807 error shapes for new endpoints |
+| E2E | `apps/api/test/app.e2e-spec.ts` | Happy paths + RFC 7807 error shapes for new endpoints; seed mode enforced in `test/setup-e2e.ts` |
 
 If coverage fails:
 

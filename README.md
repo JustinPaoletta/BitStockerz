@@ -18,7 +18,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - MVP definition: [docs/product/MVP.md](./docs/product/MVP.md)
 - UX flows: [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - API inventory: [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
-- Database schema: [docs/database/schema.prisma](./docs/database/schema.prisma)
+- Database schema (full MVP target): [docs/database/schema.prisma](./docs/database/schema.prisma)
+- Runnable API schema: [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma)
 
 ## What The Project Covers
 
@@ -37,6 +38,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `apps/api` NestJS API implementation
 - `docs/product` product roadmap, MVP, UX flows, and stories
 - `docs/database` schema, migration, lifecycle, and API design docs
+- `docs/manual-testing` curl-based API smoke test guide
+- `scripts` Docker MySQL, sprint verification, and HTTP smoke helpers
 - root `package.json` repo tooling and release version anchor
 
 ## Prerequisites
@@ -59,10 +62,12 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `npm --prefix apps/api run build` builds the NestJS API.
 - `npm --prefix apps/api run lint` runs the API lint checks.
 - `npm --prefix apps/api run test` runs the API unit test suite.
-- `npm --prefix apps/api run test:e2e` runs the API end-to-end suite.
+- `npm --prefix apps/api run test:cov` runs unit tests with **90%** global coverage gates.
+- `npm --prefix apps/api run test:e2e` runs the API end-to-end suite (seed mode; see `apps/api/test/setup-e2e.ts`).
 - `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
-- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests (API must be running).
-- `./scripts/sprint-delivery-verify.sh verify` runs build/lint/test/cov/e2e plus smoke tests.
+- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests (API must be running; reads `DATABASE_URL` from `apps/api/.env` when set).
+- `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
+- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, then smoke tests with MySQL (loads `DATABASE_URL` from `apps/api/.env`).
 
 ## Environment & Configuration
 
@@ -71,9 +76,15 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | MySQL connection URL. Omit for in-memory seed mode. |
-| `INGESTION_SCHEDULER_ENABLED` | Set `false` during manual ingestion tests to disable hourly cron. |
+| `INGESTION_SCHEDULER_ENABLED` | Hourly background imports. When unset: `true` if `NODE_ENV=development`, otherwise `false`. Always off when `NODE_ENV=test`. Set `false` during manual ingestion tests. |
 | `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
+| `JOBS_SYSTEM_USER_ID` | User id for scheduled jobs (default matches migration seed). |
 | `PORT` | API listen port (default `4000`). |
+| `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData`. |
+| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
+| `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging (see Observability.md). |
+
+The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Restart after editing `.env`.
 
 **MySQL with Docker:** full setup in [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
 
@@ -83,8 +94,10 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 
 ## Testing & Quality Gates
 
-- API-focused releases should run `build`, `lint`, `test`, and `test:e2e` from `apps/api`.
-- The e2e suite covers health checks, auth flows, symbols, candles, jobs, and ingestion for completed backend scope.
+- API-focused releases should run `build`, `lint`, `test`, `test:cov`, and `test:e2e` from `apps/api`, or `./scripts/sprint-delivery-verify.sh verify` from the repo root.
+- Unit tests enforce **90%** global coverage (`branches`, `functions`, `lines`, `statements`).
+- E2E tests always run in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so they do not depend on a local MySQL instance.
+- `./scripts/sprint-delivery-verify.sh verify` starts the API for smoke tests in seed mode (clears `DATABASE_URL` for that process). Use `KEEP_DATABASE_URL=1` to run smoke against MySQL using `DATABASE_URL` from `apps/api/.env`.
 - Documentation-heavy releases should verify consistency across the roadmap, MVP, API inventory, and schema documents.
 
 ## Release Process
@@ -100,7 +113,8 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 - [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
-- [docs/database/schema.prisma](./docs/database/schema.prisma)
+- [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.3)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
