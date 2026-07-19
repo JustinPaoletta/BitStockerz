@@ -1,10 +1,22 @@
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobExecutorService } from './job-executor.service';
 import { JobsService } from './jobs.service';
 import type { JobHandler } from './jobs.types';
+
+function createAuthPersistenceMock(): Pick<AuthService, 'ensureUserPersisted'> {
+  return { ensureUserPersisted: jest.fn().mockResolvedValue(undefined) };
+}
+
+function createJobsService(prisma: PrismaService): JobsService {
+  return new JobsService(
+    prisma,
+    createAuthPersistenceMock() as AuthService,
+  );
+}
 
 function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
   return {
@@ -21,7 +33,7 @@ function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
 
 describe('JobExecutorService', () => {
   it('runs a registered handler and marks the job completed', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     const handler: JobHandler = jest
       .fn()
@@ -41,7 +53,7 @@ describe('JobExecutorService', () => {
   });
 
   it('marks jobs timed_out when handlers exceed the configured timeout', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     const handler: JobHandler = () =>
       new Promise((resolve) => {
@@ -61,7 +73,7 @@ describe('JobExecutorService', () => {
   });
 
   it('marks jobs failed when no handler is registered', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     const job = await jobsService.createJob({
       jobType: 'market_data_scheduled',
@@ -75,7 +87,7 @@ describe('JobExecutorService', () => {
   });
 
   it('marks jobs failed when handlers throw', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     executor.registerHandler('equity_daily_import', () => {
       throw new Error('boom');
@@ -92,7 +104,7 @@ describe('JobExecutorService', () => {
   });
 
   it('marks jobs failed when handlers reject with non-error values', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     executor.registerHandler('equity_daily_import', () =>
       Promise.reject(new Error('bad')),
@@ -109,7 +121,7 @@ describe('JobExecutorService', () => {
   });
 
   it('returns jobs that are not pending without re-running', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
     const handler = jest.fn();
     executor.registerHandler('equity_daily_import', handler);
@@ -126,7 +138,7 @@ describe('JobExecutorService', () => {
   });
 
   it('throws when executing a missing job', async () => {
-    const jobsService = new JobsService(new PrismaService(createConfig()));
+    const jobsService = createJobsService(new PrismaService(createConfig()));
     const executor = new JobExecutorService(jobsService, createConfig());
 
     await expect(executor.execute('missing-job')).rejects.toThrow(
@@ -137,7 +149,7 @@ describe('JobExecutorService', () => {
 
 describe('JobsService', () => {
   it('stores jobs in memory when Prisma is disabled', async () => {
-    const service = new JobsService(new PrismaService(createConfig()));
+    const service = createJobsService(new PrismaService(createConfig()));
 
     const job = await service.createJob({
       jobType: 'equity_daily_import',
@@ -155,7 +167,7 @@ describe('JobsService', () => {
   });
 
   it('throws NOT_FOUND when a user requests another users job', async () => {
-    const service = new JobsService(new PrismaService(createConfig()));
+    const service = createJobsService(new PrismaService(createConfig()));
     const job = await service.createJob({
       jobType: 'equity_daily_import',
       userId: 'owner',
@@ -175,17 +187,20 @@ describe('JobsService', () => {
     const findUnique = jest.fn();
     const update = jest.fn().mockResolvedValue({});
 
+    const auth = createAuthPersistenceMock();
     const prisma = {
       isEnabled: true,
       job: { create, findUnique, update },
     };
 
-    const service = new JobsService(prisma as never);
+    const service = new JobsService(prisma as never, auth as AuthService);
     const job = await service.createJob({
       jobType: 'crypto_import',
       userId: 'user-1',
       payload: { symbol: 'BTC-USD' },
     });
+
+    expect(auth.ensureUserPersisted).toHaveBeenCalledWith('user-1');
 
     findUnique.mockResolvedValue({
       id: job.id,
@@ -227,7 +242,10 @@ describe('JobsService', () => {
       job: { create: jest.fn(), findUnique, update },
     };
 
-    const service = new JobsService(prisma as never);
+    const service = new JobsService(
+      prisma as never,
+      createAuthPersistenceMock() as AuthService,
+    );
     const updated = await service.updateJob('job-1', {
       status: 'running',
       startedAt: new Date('2026-01-01T00:00:01.000Z'),
@@ -238,7 +256,7 @@ describe('JobsService', () => {
   });
 
   it('throws NOT_FOUND when updating a missing job', async () => {
-    const service = new JobsService(new PrismaService(createConfig()));
+    const service = createJobsService(new PrismaService(createConfig()));
 
     try {
       await service.updateJob('missing-job', { status: 'failed' });
@@ -250,7 +268,7 @@ describe('JobsService', () => {
   });
 
   it('serializes optional timestamps in job responses', () => {
-    const service = new JobsService(new PrismaService(createConfig()));
+    const service = createJobsService(new PrismaService(createConfig()));
 
     expect(
       service.toJobResponse({

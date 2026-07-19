@@ -1,4 +1,5 @@
 import type { AppConfigService } from '../../config/app-config.service';
+import { AuthService } from '../../auth/auth.service';
 import { MarketDataIngestionService } from '../../market-data/ingestion/market-data-ingestion.service';
 import { JobExecutorService } from './job-executor.service';
 import { JobHandlersService } from './job-handlers.service';
@@ -18,9 +19,10 @@ describe('JobHandlersService', () => {
       }),
     } as unknown as MarketDataIngestionService;
 
-    const jobsService = new JobsService({
-      isEnabled: false,
-    } as never);
+    const jobsService = new JobsService(
+      { isEnabled: false } as never,
+      { ensureUserPersisted: jest.fn() } as never,
+    );
     const executor = new JobExecutorService(jobsService, {
       jobs: {
         timeoutMs: 5000,
@@ -64,7 +66,10 @@ describe('JobHandlersService', () => {
       }),
     } as unknown as MarketDataIngestionService;
 
-    const jobsService = new JobsService({ isEnabled: false } as never);
+    const jobsService = new JobsService(
+      { isEnabled: false } as never,
+      { ensureUserPersisted: jest.fn() } as never,
+    );
     const executor = new JobExecutorService(jobsService, {
       jobs: {
         timeoutMs: 5000,
@@ -113,7 +118,10 @@ describe('JobHandlersService', () => {
       }),
     } as unknown as MarketDataIngestionService;
 
-    const jobsService = new JobsService({ isEnabled: false } as never);
+    const jobsService = new JobsService(
+      { isEnabled: false } as never,
+      { ensureUserPersisted: jest.fn() } as never,
+    );
     const executor = new JobExecutorService(jobsService, {
       jobs: {
         timeoutMs: 5000,

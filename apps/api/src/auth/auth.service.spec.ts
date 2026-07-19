@@ -1,6 +1,7 @@
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
+import type { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 
 function createConfig(
@@ -34,11 +35,20 @@ function createConfig(
   } as AppConfigService;
 }
 
+function createPrismaMock(
+  overrides?: Partial<PrismaService>,
+): PrismaService {
+  return {
+    isEnabled: false,
+    ...overrides,
+  } as PrismaService;
+}
+
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    service = new AuthService(createConfig());
+    service = new AuthService(createConfig(), createPrismaMock());
   });
 
   it('registers a user and creates a bearer token session', () => {
@@ -55,6 +65,25 @@ describe('AuthService', () => {
       apple: false,
     });
     expect(result.user.passkey_count).toBe(1);
+  });
+
+  it('persists registered users to mysql when prisma is enabled', async () => {
+    const upsert = jest.fn().mockResolvedValue({});
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: { upsert },
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+
+    await dbService.ensureUserPersisted(result.user.id);
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: result.user.id },
+        create: expect.objectContaining({ email: 'persist@example.com' }),
+      }),
+    );
   });
 
   it('rejects duplicate registration for the same email', () => {
@@ -278,6 +307,7 @@ describe('AuthService', () => {
 
     const shortTtlService = new AuthService(
       createConfig({ sessionTtlSeconds: 1 }),
+      createPrismaMock(),
     );
     const registration = shortTtlService.register('ttl@example.com');
 
@@ -388,6 +418,7 @@ describe('AuthService', () => {
   it('uses configured webauthn origins when provided', async () => {
     const configuredService = new AuthService(
       createConfig({ webauthnAllowedOrigins: ['https://app.example.com'] }),
+      createPrismaMock(),
     );
 
     await expect(
@@ -415,6 +446,7 @@ describe('AuthService', () => {
           '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
         appleRedirectUri: 'http://localhost:4000/api/auth/oauth/apple/callback',
       }),
+      createPrismaMock(),
     );
 
     const googleStart = configuredService.createOAuthStart('google');
@@ -710,6 +742,7 @@ describe('AuthService', () => {
         googleRedirectUri:
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
+      createPrismaMock(),
     );
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
@@ -741,6 +774,7 @@ describe('AuthService', () => {
         googleRedirectUri:
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
+      createPrismaMock(),
     );
     const start = configuredService.createOAuthStart('google');
 
@@ -762,6 +796,7 @@ describe('AuthService', () => {
         googleRedirectUri:
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
+      createPrismaMock(),
     );
     const fetchMock = jest
       .spyOn(global, 'fetch')
@@ -795,6 +830,7 @@ describe('AuthService', () => {
   it('rejects oauth starts in production when provider credentials are missing', () => {
     const productionService = new AuthService(
       createConfig(undefined, { nodeEnv: 'production' }),
+      createPrismaMock(),
     );
 
     expect(() => productionService.createOAuthStart('google')).toThrow(

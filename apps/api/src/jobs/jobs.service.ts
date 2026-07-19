@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Job as PrismaJob, Prisma } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateJobInput,
@@ -16,7 +17,10 @@ import {
 export class JobsService {
   private readonly inMemoryJobs = new Map<string, JobRecord>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   async createJob(input: CreateJobInput): Promise<JobRecord> {
     const now = new Date();
@@ -30,6 +34,7 @@ export class JobsService {
     };
 
     if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(input.userId);
       await this.prisma.job.create({
         data: toPrismaCreate(record),
       });

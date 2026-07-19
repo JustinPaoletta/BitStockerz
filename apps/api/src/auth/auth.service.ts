@@ -14,6 +14,7 @@ import type { JWTPayload } from 'jose';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -235,7 +236,39 @@ export class AuthService {
   >;
   private appleJwks?: ReturnType<(typeof import('jose'))['createRemoteJWKSet']>;
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async ensureUserPersisted(userId: string): Promise<void> {
+    if (!this.prisma.isEnabled) {
+      return;
+    }
+
+    const user = this.usersById.get(userId);
+    if (!user) {
+      throw new DomainError(
+        ErrorCode.NOT_FOUND,
+        `User ${userId} was not found.`,
+      );
+    }
+
+    const now = new Date();
+    await this.prisma.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email: user.email,
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: {
+        email: user.email,
+        updatedAt: now,
+      },
+    });
+  }
 
   register(email: string, displayName?: string): AuthResponse {
     const normalizedEmail = normalizeEmail(email);

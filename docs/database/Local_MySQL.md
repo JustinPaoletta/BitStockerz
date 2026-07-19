@@ -159,6 +159,11 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 - Confirm `DATABASE_URL` in `apps/api/.env` matches credentials and port
 - Restart the API after changing `.env`
 
+**Ingestion or `POST /jobs` returns `500 INTERNAL_ERROR`**
+
+- Usually means the authenticated user was not persisted to MySQL before the job row was created. Pull latest `main` (includes `AuthService.ensureUserPersisted`) and restart the API.
+- Re-register to get a fresh token, then retry Section 8 curls.
+
 **Migrations fail**
 
 ```bash
