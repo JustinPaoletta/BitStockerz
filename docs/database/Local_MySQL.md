@@ -26,6 +26,8 @@ npm --prefix apps/api run db:deploy
 npm --prefix apps/api run start:dev
 ```
 
+The API loads `apps/api/.env` automatically on startup (via `src/load-env.ts`). **Restart the API** after editing `.env`.
+
 Verify the database is connected:
 
 ```bash
