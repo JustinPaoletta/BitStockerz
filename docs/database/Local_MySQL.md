@@ -117,7 +117,7 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when creating jobs (`ensureUserPersisted`). The `webauthn_credentials` table is unused. If you re-register the same email after an API restart, `ensureUserPersisted` deletes any jobs owned by the previous MySQL user id for that email, then replaces that user row with the new in-memory id. |
+| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when creating jobs (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, `ensureUserPersisted` remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs (and any credential rows) so history is retained. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
@@ -167,7 +167,7 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 - Ensure you are on latest `main` (includes `AuthService.ensureUserPersisted`).
 - Restart the API after changing `.env`.
 - Re-register to get a fresh bearer token, then retry Section 8 curls.
-- If the error mentions `users_email_key`, a stale `users` row from a prior session shares your email but not your current in-memory user id. Latest code replaces stale rows automatically (and deletes jobs owned by the old user id for that email); otherwise reset the dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
+- If the error mentions `users_email_key`, a stale `users` row from a prior session shares your email but not your current in-memory user id. Latest code remaps that row (and its jobs) to the new in-memory id automatically; otherwise reset the dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
 
 **Migrations fail**
 

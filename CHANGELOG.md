@@ -22,7 +22,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - API development default port is `4000` (override with `PORT`).
 - Updated roadmap, README, API inventory, migration plan, and story status docs to reflect Sprint 1.3 completion.
-- `AuthService.ensureUserPersisted` replaces stale MySQL user rows when the same email is re-registered in a new in-memory session (also deletes jobs owned by the previous user id for that email).
+- `AuthService.ensureUserPersisted` remaps stale MySQL user rows (and dependent jobs/credentials) when the same email is re-registered under a new in-memory id, and tolerates concurrent unique-constraint races on first persist.
 - E2E tests force seed mode via `apps/api/test/setup-e2e.ts` so gates pass without a local MySQL instance.
 
 ### Documentation

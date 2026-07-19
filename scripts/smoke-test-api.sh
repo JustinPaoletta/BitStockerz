@@ -4,9 +4,6 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-API_DIR="$ROOT/apps/api"
-# shellcheck source=lib/load-api-env.sh
-source "$ROOT/scripts/lib/load-api-env.sh"
 SPRINT_SCOPE="${SPRINT_SCOPE:-all}"
 BASE_URL="${BASE_URL:-http://localhost:4000/api}"
 LOG_DIR="$ROOT/logs/smoke"
@@ -243,9 +240,11 @@ run_sprint_13() {
 }
 
 run_db_persisted_candles() {
-  load_database_url_from_api_env "$API_DIR"
+  # Only when the caller already exported DATABASE_URL (e.g. KEEP_DATABASE_URL=1).
+  # Do not reload apps/api/.env here: default verify starts the API in seed mode
+  # while .env may still define DATABASE_URL, which would falsely pass as "MySQL".
   if [[ -z "${DATABASE_URL:-}" ]]; then
-    record_skip "1.3 persisted candles after ingestion" "DATABASE_URL not set"
+    record_skip "1.3 persisted candles after ingestion" "DATABASE_URL not set (seed mode)"
     return 0
   fi
   log "=== DB mode — candles after ingestion ==="

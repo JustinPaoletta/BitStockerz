@@ -9,6 +9,7 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { JWTPayload } from 'jose';
 import { DomainError } from '../common/errors/domain-error';
@@ -168,6 +169,13 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
 function normalizeDisplayName(
   displayName: string | undefined,
 ): string | undefined {
@@ -273,22 +281,99 @@ export class AuthService {
       where: { email: user.email },
     });
     if (existingByEmail && existingByEmail.id !== userId) {
-      // Auth is in-memory today; a fresh session can reuse an email with a new id.
-      await this.prisma.job.deleteMany({
-        where: { userId: existingByEmail.id },
+      // Auth is in-memory today; after restart the same email gets a new id.
+      // Remap the persisted row (and dependent jobs) instead of deleting history.
+      await this.remapPersistedUserIdentity({
+        previousUserId: existingByEmail.id,
+        nextUserId: userId,
+        email: user.email,
+        createdAt: existingByEmail.createdAt,
+        updatedAt: now,
       });
-      await this.prisma.user.delete({
-        where: { id: existingByEmail.id },
-      });
+      return;
     }
 
-    await this.prisma.user.create({
-      data: {
-        id: userId,
-        email: user.email,
-        createdAt: now,
-        updatedAt: now,
-      },
+    try {
+      await this.prisma.user.create({
+        data: {
+          id: userId,
+          email: user.email,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (error) {
+      if (!isPrismaUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      // Concurrent first persist for the same user/email: treat as success when
+      // the winning row is already usable, otherwise remap a stale email row.
+      const createdById = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+      if (createdById) {
+        return;
+      }
+
+      const createdByEmail = await this.prisma.user.findUnique({
+        where: { email: user.email },
+      });
+      if (createdByEmail && createdByEmail.id !== userId) {
+        await this.remapPersistedUserIdentity({
+          previousUserId: createdByEmail.id,
+          nextUserId: userId,
+          email: user.email,
+          createdAt: createdByEmail.createdAt,
+          updatedAt: now,
+        });
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private async remapPersistedUserIdentity(input: {
+    previousUserId: string;
+    nextUserId: string;
+    email: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }): Promise<void> {
+    const tempEmail = `__remap_${input.previousUserId}@bitstockerz.invalid`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: input.previousUserId },
+        data: {
+          email: tempEmail,
+          updatedAt: input.updatedAt,
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          id: input.nextUserId,
+          email: input.email,
+          createdAt: input.createdAt,
+          updatedAt: input.updatedAt,
+        },
+      });
+
+      await tx.job.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
+      await tx.webAuthnCredential.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
+      await tx.user.delete({
+        where: { id: input.previousUserId },
+      });
     });
   }
 

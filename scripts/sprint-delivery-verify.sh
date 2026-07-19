@@ -107,6 +107,9 @@ verify_all() {
       log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"
     fi
   else
+    # Clear in this shell too so smoke-test-api.sh does not inherit a URL and
+    # mis-report MySQL persistence against a seed-mode API process.
+    export DATABASE_URL=
     log "Smoke seed mode (DATABASE_URL cleared for API start even when apps/api/.env defines it)"
   fi
   start_api

@@ -171,7 +171,7 @@ API defaults: port **4000**, global prefix **`/api`**.
 | Validation | DTOs in `dto/`; snake_case query params map to camelCase in service |
 | DB optional | `PrismaService.isEnabled`; seed modules for dev/test without `DATABASE_URL` |
 | E2E env | `test/setup-e2e.ts` forces `NODE_ENV=test` and clears `DATABASE_URL` |
-| Jobs + MySQL | `AuthService.ensureUserPersisted` upserts minimal `users` row before job insert |
+| Jobs + MySQL | `AuthService.ensureUserPersisted` creates/remaps minimal `users` row before job insert (keeps jobs on email rematch) |
 | Public routes | No `AuthGuard` unless story requires auth |
 | Module layout | `FeatureModule` → `controller` + `service` + `dto` + `*.spec.ts` |
 | E2E setup | `createApp()` in `app.e2e-spec.ts` — global prefix, `ValidationPipe`, exception filter |

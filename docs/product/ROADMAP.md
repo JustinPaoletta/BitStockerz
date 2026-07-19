@@ -82,7 +82,7 @@ Assumptions:
 - #8.1.3 – Job timeout handling
 - #8.6.1 – Scheduled jobs
 - Status: Completed (verified July 11, 2026)
-- Follow-up (July 19, 2026): local-dev hardening — MySQL Docker workflow, API `.env` auto-load, auth user-id reconciliation for MySQL jobs, e2e seed-mode setup, and smoke/verify script env helpers. Not Sprint 1.4 scope.
+- Follow-up (July 19, 2026): local-dev hardening — MySQL Docker workflow, API `.env` auto-load, auth user-id remapping that preserves MySQL jobs, e2e seed-mode setup, and smoke/verify script env helpers. Not Sprint 1.4 scope.
 
 **Exit**
 - Market data ingestion runnable on a schedule
