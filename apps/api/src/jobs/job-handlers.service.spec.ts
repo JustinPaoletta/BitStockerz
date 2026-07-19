@@ -1,5 +1,4 @@
 import type { AppConfigService } from '../../config/app-config.service';
-import { AuthService } from '../../auth/auth.service';
 import { MarketDataIngestionService } from '../../market-data/ingestion/market-data-ingestion.service';
 import { JobExecutorService } from './job-executor.service';
 import { JobHandlersService } from './job-handlers.service';
