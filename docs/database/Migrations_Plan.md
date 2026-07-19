@@ -17,6 +17,7 @@ Migrations are defined in terms of the domain DDL skeletons:
 | --- | --- |
 | Core auth tables (0.1–0.2) | `20260421100000_core_auth_tables` |
 | Symbols + OHLCV schemas (1.1) | `20260421110000_sprint_1_1_symbols_and_market_data` |
+| Jobs table (1.3) | `20260711000000_sprint_1_3_jobs` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 

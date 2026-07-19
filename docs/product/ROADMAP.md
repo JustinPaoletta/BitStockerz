@@ -82,6 +82,7 @@ Assumptions:
 - #8.1.3 – Job timeout handling
 - #8.6.1 – Scheduled jobs
 - Status: Completed (verified July 11, 2026)
+- Follow-up (July 19, 2026): local-dev hardening — MySQL Docker workflow, API `.env` auto-load, auth user-id reconciliation for MySQL jobs, e2e seed-mode setup, and smoke/verify script env helpers. Not Sprint 1.4 scope.
 
 **Exit**
 - Market data ingestion runnable on a schedule
@@ -89,13 +90,14 @@ Assumptions:
 
 ---
 
-### Sprint 1.4 – Data Health & Observability (START HERE JULY 11 2026)
+### Sprint 1.4 – Data Health & Observability (START HERE — July 19, 2026)
 
 **Stories**
 - #2.6.1 – Market data sanity checks
 - #2.6.2 – Market data health endpoint
 - #8.4.2 – Performance metrics
 - #8.4.3 – Audit logging
+- Status: Not started
 
 **Exit**
 - Market data pipelines are observable and verifiable

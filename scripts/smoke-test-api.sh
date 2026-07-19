@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_DIR="$ROOT/apps/api"
+# shellcheck source=lib/load-api-env.sh
+source "$ROOT/scripts/lib/load-api-env.sh"
 SPRINT_SCOPE="${SPRINT_SCOPE:-all}"
 BASE_URL="${BASE_URL:-http://localhost:4000/api}"
 LOG_DIR="$ROOT/logs/smoke"
@@ -241,6 +243,7 @@ run_sprint_13() {
 }
 
 run_db_persisted_candles() {
+  load_database_url_from_api_env "$API_DIR"
   if [[ -z "${DATABASE_URL:-}" ]]; then
     record_skip "1.3 persisted candles after ingestion" "DATABASE_URL not set"
     return 0

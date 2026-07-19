@@ -255,16 +255,38 @@ export class AuthService {
     }
 
     const now = new Date();
-    await this.prisma.user.upsert({
+    const existingById = await this.prisma.user.findUnique({
       where: { id: userId },
-      create: {
+    });
+    if (existingById) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          email: user.email,
+          updatedAt: now,
+        },
+      });
+      return;
+    }
+
+    const existingByEmail = await this.prisma.user.findUnique({
+      where: { email: user.email },
+    });
+    if (existingByEmail && existingByEmail.id !== userId) {
+      // Auth is in-memory today; a fresh session can reuse an email with a new id.
+      await this.prisma.job.deleteMany({
+        where: { userId: existingByEmail.id },
+      });
+      await this.prisma.user.delete({
+        where: { id: existingByEmail.id },
+      });
+    }
+
+    await this.prisma.user.create({
+      data: {
         id: userId,
         email: user.email,
         createdAt: now,
-        updatedAt: now,
-      },
-      update: {
-        email: user.email,
         updatedAt: now,
       },
     });

@@ -21,9 +21,11 @@ The runnable API in `apps/api` currently ships through **Sprint 1.3**:
 | Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
-| Trading, strategies | Planned | Described below; not implemented yet |
+| Trading, strategies | Planned | Described below; not implemented yet. A dev-only stub at `POST /api/strategies` returns placeholder JSON and is not part of shipped scope. |
 
-Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are in-memory. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, and jobs are in-memory. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused today); creating a job upserts a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper deletes jobs owned by the previous MySQL user for that email, then replaces the stale user row. Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
+
+Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
 ---
 
@@ -38,7 +40,7 @@ Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are i
   "title": "Validation error",
   "status": 400,
   "detail": "One or more fields are invalid.",
-  "instance": "/strategies",
+  "instance": "/api/strategies",
   "code": "VALIDATION_ERROR",
   "requestId": "uuid-or-correlation-id",
   "fieldErrors": [
@@ -49,7 +51,7 @@ Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are i
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search).
+- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search, candle reads). The dev-only `POST /strategies` stub is also unauthenticated and is not part of shipped scope.
 
 ### 0.1 Error code catalog
 
@@ -156,18 +158,18 @@ Return the authenticated user's profile.
 Alias for profile read (same response as `/auth/me`).
 
 **PATCH `/me`**  
-Update display preferences (`display_name`, `base_currency`, etc.).
+Update display preferences (`display_name`, `base_currency`). Only `USD` is accepted for `base_currency` today.
 
 ---
 
-### 1.2 Paper Account (per user)
+### 1.2 Paper Account (per user) (Planned)
 
 **GET `/paper-account`**  
 Return the current user’s paper trading account.
 
 - Response: `{ id, base_currency, starting_balance, cash_balance, created_at }`
 
-(Internal creation of the account happens on user registration.)
+(Planned: create the paper account when paper trading ships — story #1.3.1 / Sprint 4.1. Registration today does not create a paper account.)
 
 ---
 
@@ -186,7 +188,7 @@ Typeahead search.
 - Query params:
   - `q` – search string
   - `asset_type?` – EQUITY | CRYPTO
-  - `limit?` – default 20
+  - `limit?` – default 20, max 100
 
 ---
 
@@ -200,8 +202,8 @@ Public endpoint (no authentication required). When Prisma is disabled, reads use
   - `symbol`
   - `start`
   - `end`
-  - `limit?`
-  - `order?` – `asc` | `desc`
+  - `limit?` – default `5000`, max `5000`
+  - `order?` – `asc` | `desc` (default `asc`)
 - Response: array of `{ date, open, high, low, close, volume }`
 
 ---
@@ -217,8 +219,8 @@ Public endpoint (no authentication required). When Prisma is disabled, reads use
   - `interval` – `1d` | `1h`
   - `start`
   - `end`
-  - `limit?`
-  - `order?`
+  - `limit?` – default `5000`, max `5000`
+  - `order?` – `asc` | `desc` (default `asc`)
 - Response:
   - `1d`: `{ date, open, high, low, close, volume }`
   - `1h`: `{ timestamp, open, high, low, close, volume }`
@@ -248,7 +250,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-### 2.6 Market Data Health
+### 2.6 Market Data Health (Planned — Sprint 1.4)
 
 **GET `/market-data/health`** (admin/internal)
 
@@ -256,7 +258,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 3. Paper Trading APIs (#3)
+## 3. Paper Trading APIs (#3) (Planned)
 
 ### 3.1 Orders
 
@@ -322,7 +324,9 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 4. Strategy Lab APIs (#4)
+## 4. Strategy Lab APIs (#4) (Planned)
+
+Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and returns placeholder JSON without auth or persistence. Do not treat it as the Strategy Lab API.
 
 ### 4.1 Indicators
 
@@ -382,7 +386,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 5. Backtesting APIs (#5)
+## 5. Backtesting APIs (#5) (Planned)
 
 ### 5.1 Backtest Runs
 
@@ -424,7 +428,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 6. AI Assistant / Kernel APIs (#6)
+## 6. AI Assistant / Kernel APIs (#6) (Planned)
 
 All AI endpoints are **advisory**, read-only, and can be disabled by feature flag.
 
@@ -473,7 +477,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 
 ---
 
-## 7. Dashboard / UI Aggregation APIs (#7)
+## 7. Dashboard / UI Aggregation APIs (#7) (Planned)
 
 Most dashboard widgets reuse existing endpoints, but you may choose some light aggregations.
 
@@ -506,9 +510,13 @@ If you want to keep the backend simpler, skip this and let the Angular app call 
 **GET `/health/ready`**
 
 - Returns:
-  - DB status
-  - Market data service status
-  - Any other readiness checks
+  - `ready: boolean` — `false` when any configured dependency check is `down`
+  - `status: "ok" | "degraded"`
+  - `timestamp` — ISO-8601 string
+  - `checks.database` / `checks.marketData` — objects shaped as `{ status, latencyMs?, details? }` where `status` is `up` | `down` | `not_configured`
+  - `checks.database` — TCP probe when `DATABASE_URL` is set; otherwise `{ status: "not_configured", details: "..." }`
+  - `checks.marketData` — HTTP GET when `MARKET_DATA_HEALTH_URL` is set; otherwise `{ status: "not_configured", details: "..." }`
+- HTTP **503** when `ready` is `false`
 
 ---
 
@@ -534,7 +542,15 @@ If you want to keep the backend simpler, skip this and let the Angular app call 
   - `created_at`, `started_at`, `finished_at`
   - `error_message?`
 
-Scheduled `market_data_scheduled` jobs also run hourly when `INGESTION_SCHEDULER_ENABLED=true`.
+Scheduled `market_data_scheduled` jobs also run hourly (`0 * * * *`) when `INGESTION_SCHEDULER_ENABLED` is effectively true: default `true` when unset and `NODE_ENV=development`; default `false` when unset in other environments; always disabled when `NODE_ENV=test`.
+
+---
+
+### 8.3 Test helpers (not product API)
+
+**GET `/`** — Nest hello string from `AppController` (smoke/dev).
+
+**GET `/error-test/*`** — Forces RFC 7807 error shapes for e2e (`unauthorized`, `forbidden`, `conflict`, `rate-limited`, `internal`). Not for clients.
 
 ---
 
@@ -580,17 +596,17 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-- `AuthModule`
-- `UserModule` / `AccountModule`
-- `MarketDataModule`
+**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, plus controllers for health, strategies stub, and error-test.
+
+**Planned as domains grow:**
+
+- `UserModule` / `AccountModule` (or keep under Auth)
 - `TradingModule`
 - `StrategyModule`
 - `BacktestModule`
 - `AiModule` (Kernel)
 - `DashboardModule` (thin)
-- `JobsModule`
-- `HealthModule`
-- `ConfigModule` / `CoreModule`
+- `HealthModule` / `CoreModule` (if extracted from AppModule)
 
 Each module owns the endpoints listed above in its domain.
 

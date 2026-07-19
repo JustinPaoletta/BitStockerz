@@ -35,9 +35,7 @@ function createConfig(
   } as AppConfigService;
 }
 
-function createPrismaMock(
-  overrides?: Partial<PrismaService>,
-): PrismaService {
+function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
   return {
     isEnabled: false,
     ...overrides,
@@ -68,20 +66,64 @@ describe('AuthService', () => {
   });
 
   it('persists registered users to mysql when prisma is enabled', async () => {
-    const upsert = jest.fn().mockResolvedValue({});
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    const create = jest.fn().mockResolvedValue({});
     const prisma = createPrismaMock({
       isEnabled: true,
-      user: { upsert },
+      user: { findUnique, create, update: jest.fn(), delete: jest.fn() },
+      job: { deleteMany: jest.fn() },
     } as Partial<PrismaService>);
     const dbService = new AuthService(createConfig(), prisma);
     const result = dbService.register('persist@example.com', 'Persist User');
 
     await dbService.ensureUserPersisted(result.user.id);
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: result.user.id } });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { email: 'persist@example.com' },
+    });
+    expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: result.user.id },
-        create: expect.objectContaining({ email: 'persist@example.com' }),
+        data: expect.objectContaining({
+          id: result.user.id,
+          email: 'persist@example.com',
+        }),
+      }),
+    );
+  });
+
+  it('replaces stale mysql users that share an email but not the in-memory id', async () => {
+    const staleUserId = '00000000-0000-4000-8000-000000000099';
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: staleUserId, email: 'persist@example.com' });
+    const deleteMany = jest.fn().mockResolvedValue({ count: 1 });
+    const deleteUser = jest.fn().mockResolvedValue({});
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: {
+        findUnique,
+        create,
+        update: jest.fn(),
+        delete: deleteUser,
+      },
+      job: { deleteMany },
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+
+    await dbService.ensureUserPersisted(result.user.id);
+
+    expect(deleteMany).toHaveBeenCalledWith({ where: { userId: staleUserId } });
+    expect(deleteUser).toHaveBeenCalledWith({ where: { id: staleUserId } });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ id: result.user.id }),
       }),
     );
   });
