@@ -23,7 +23,7 @@ The runnable API in `apps/api` currently ships through **Sprint 1.3**:
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Trading, strategies | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are in-memory. With MySQL/MariaDB, set `DATABASE_URL` and run `npm run db:migrate` in `apps/api` before relying on persisted data. Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
+Without `DATABASE_URL`, auth state, symbol data, candle fixtures, and jobs are in-memory. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
 
 ---
 

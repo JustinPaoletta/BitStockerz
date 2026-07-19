@@ -48,24 +48,38 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 1. Install root dependencies with `npm install`.
 2. Install API dependencies with `npm --prefix apps/api install`.
-3. Start the API locally with `npm --prefix apps/api run start:dev` (defaults to `http://localhost:4000/api`).
-4. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
+3. **(Recommended)** Start local MySQL and apply migrations — see [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
+4. Start the API with `npm --prefix apps/api run start:dev` (defaults to `http://localhost:4000/api`).
+5. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
 
 ## Common Commands
 
 - `npm run prepare` installs Husky hooks for the repo.
+- `./scripts/docker-mysql.sh start` starts MySQL 8 in Docker for local persistence.
 - `npm --prefix apps/api run build` builds the NestJS API.
 - `npm --prefix apps/api run lint` runs the API lint checks.
 - `npm --prefix apps/api run test` runs the API unit test suite.
 - `npm --prefix apps/api run test:e2e` runs the API end-to-end suite.
+- `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
+- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests (API must be running).
+- `./scripts/sprint-delivery-verify.sh verify` runs build/lint/test/cov/e2e plus smoke tests.
 
 ## Environment & Configuration
 
-- The root repo does not have a shared environment-variable contract yet.
-- The API listens on port `4000` by default in development (`PORT` overrides it).
-- Optional MySQL/MariaDB: set `DATABASE_URL`, then run `npm --prefix apps/api run db:migrate`.
-- API-specific runtime configuration is still evolving and should be documented alongside new backend work.
-- Database, product, and observability expectations are documented under `docs/`.
+Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never commit `.env`).
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | MySQL connection URL. Omit for in-memory seed mode. |
+| `INGESTION_SCHEDULER_ENABLED` | Set `false` during manual ingestion tests to disable hourly cron. |
+| `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
+| `PORT` | API listen port (default `4000`). |
+
+**MySQL with Docker:** full setup in [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
+
+- Start database: `./scripts/docker-mysql.sh start`
+- Apply migrations: `npm --prefix apps/api run db:deploy`
+- Manual curl tests: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## Testing & Quality Gates
 
@@ -87,6 +101,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma)
+- [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## License & Access

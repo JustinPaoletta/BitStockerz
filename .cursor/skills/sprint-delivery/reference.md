@@ -8,7 +8,8 @@ Update this table when a sprint ships. Pattern: `feat/sprint-{milestone}-{sprint
 |--------|--------|-------------------------|
 | 1.1 | `feat/sprint-1-1-symbols-and-schemas` | this branch (until merged) |
 | 1.2 | `feat/sprint-1-2-market-data-candles` | this branch (until merged) |
-| 1.3 | `feat/sprint-1-3-data-ingestion-jobs` | TBD at ship time |
+| 1.3 | `feat/sprint-1-3-data-ingestion-jobs` | `main` (merged) |
+| 1.4 | TBD | `main` |
 
 **Stacked PR rule:** Sprint N+1 PR targets the branch for Sprint N. After Sprint N merges to `main`, Sprint N+1 rebases or merges `main`, then targets `main`.
 
@@ -121,6 +122,7 @@ Update each row when the sprint touches that area.
 | `docs/product/stories/BitStockerz_MVP_*.md` | Stories in sprint scope |
 | `docs/database/API_Inventory.md` | New or changed HTTP APIs |
 | `docs/manual-testing/manual_testing.md` | New user-testable behavior |
+| `docs/database/Local_MySQL.md` | Docker MySQL setup or env/migration changes |
 | `docs/database/Migrations_Plan.md` | New Prisma migrations |
 | `CHANGELOG.md` | Every sprint |
 | `README.md` | Scope, e2e coverage, doc links |

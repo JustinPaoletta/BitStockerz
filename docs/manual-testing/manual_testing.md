@@ -2,15 +2,47 @@
 
 Use this guide to smoke-test the runnable API in `apps/api` after local changes. All paths below are prefixed with `/api` and assume the server listens on port **4000** (override with `PORT`).
 
-## Prerequisites
+## Section 0 – Local setup
 
-1. From the repo root, install dependencies if needed: `npm install`
-2. Start the API: `npm --prefix apps/api run start:dev`
-3. **Database mode**
-   - **No `DATABASE_URL` (default dev/test):** Auth, symbols, and candles use deterministic in-memory seed data.
-   - **With `DATABASE_URL` (MySQL/MariaDB):** Run `npm --prefix apps/api run db:migrate`, then restart the API. Symbol rows and ingested bars come from the database after running ingestion endpoints.
+### Install and start
 
-Authenticated bearer token required for job and ingestion endpoints in Sprint 1.3.
+```bash
+npm install
+npm --prefix apps/api install
+npm --prefix apps/api run start:dev
+```
+
+### MySQL (recommended for persistence tests)
+
+Full Docker setup: [docs/database/Local_MySQL.md](../database/Local_MySQL.md)
+
+```bash
+./scripts/docker-mysql.sh start
+cp apps/api/.env.example apps/api/.env   # skip if .env already exists
+# Ensure DATABASE_URL is set in apps/api/.env
+npm --prefix apps/api run db:deploy
+npm --prefix apps/api run start:dev
+```
+
+Set `INGESTION_SCHEDULER_ENABLED=false` in `apps/api/.env` while running Section 8 manually so hourly cron does not interfere.
+
+### Database modes
+
+| Mode | When | Behavior |
+| --- | --- | --- |
+| **In-memory** | No `DATABASE_URL` | Auth, symbols, candles, and jobs use deterministic seed data in process. Data resets on API restart. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Auth, jobs, and ingested bars persist. Symbol/candle reads use DB rows (empty until ingestion). |
+
+### Automated alternative
+
+With the API running:
+
+```bash
+./scripts/smoke-test-api.sh --sprint all
+KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # gates + smoke including DB persistence
+```
+
+Authenticated bearer token required for job and ingestion endpoints (Sprint 1.3).
 
 ---
 
@@ -26,7 +58,10 @@ Expected: `{ "status": "ok" }`
 curl -s http://localhost:4000/api/health/ready | jq
 ```
 
-Expected: `ready: true` with `database` and `marketData` checks reported as `not_configured` when optional dependencies are unset.
+Expected: `ready: true`.
+
+- **Without `DATABASE_URL`:** `checks.database.status` is `not_configured`.
+- **With MySQL:** `checks.database.status` is `up` with `latencyMs`.
 
 ---
 
@@ -38,7 +73,7 @@ curl -s -X POST http://localhost:4000/api/auth/register \
   -d '{"email":"manual@example.com","display_name":"Manual Tester"}' | jq
 ```
 
-Expected: `200` with `access_token`, `token_type: "Bearer"`, and a `user` object.
+Expected: `201` with `access_token`, `token_type: "Bearer"`, and a `user` object.
 
 ```bash
 curl -s http://localhost:4000/api/me \
@@ -260,6 +295,55 @@ Expected: `401` `UNAUTHORIZED`.
 | 2 | Crypto import `BTC-USD` both intervals | `completed`, 30 daily + 48 hourly |
 | 3 | `GET /jobs/:id` as owner | `200`, same job id |
 | 4 | Unauthenticated `POST /jobs` | `401` |
+
+---
+
+## Section 9 – MySQL persistence checklist (Sprint 1.2 + 1.3)
+
+Run after Section 0 MySQL setup. On a **fresh migrated database**, symbol and bar tables are empty — run **Section 8 ingestion first** (it upserts symbols and OHLCV bars).
+
+### 9.1 Confirm database is up
+
+```bash
+curl -s http://localhost:4000/api/health/ready | jq '.checks.database'
+```
+
+Expected: `"status": "up"`.
+
+### 9.2 Fresh DB — symbols and candles absent (optional)
+
+```bash
+curl -s http://localhost:4000/api/symbols/AAPL | jq '.code'
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09' | jq '.code'
+```
+
+Expected on a **fresh migrated DB (before ingestion):** `NOT_FOUND` for both (no seed fallback when Prisma is enabled).
+
+### 9.3 Run ingestion (Section 8)
+
+Complete Section 8 equity and crypto import curls with a bearer token.
+
+### 9.4 Symbols and candles after ingestion
+
+```bash
+curl -s http://localhost:4000/api/symbols/AAPL | jq '.symbol'
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09' | jq 'length'
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1d&start=2026-01-01&end=2026-01-03' | jq 'length'
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2026-01-15T00:00:00.000Z&end=2026-01-15T02:00:00.000Z' | jq 'length'
+```
+
+Expected: `"AAPL"`, then `5`, `3`, and `3` respectively.
+
+### 9.5 Regression table (MySQL mode)
+
+| # | Scenario | Expect |
+| --- | --- | --- |
+| 1 | `/health/ready` database check | `up` |
+| 2 | Symbol/candles before ingestion (fresh DB) | `404 NOT_FOUND` |
+| 3 | Section 8 equity + crypto import | `completed` jobs |
+| 4 | Symbol lookup after ingestion | `200`, `AAPL` |
+| 5 | Equity + crypto candles after ingestion | non-empty arrays |
+| 6 | Restart API, re-fetch equity candles | same data (persisted) |
 
 ---
 
