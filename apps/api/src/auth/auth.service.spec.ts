@@ -111,11 +111,13 @@ describe('AuthService', () => {
     const create = jest.fn().mockResolvedValue({});
     const deleteUser = jest.fn().mockResolvedValue({});
     const updateManyJobs = jest.fn().mockResolvedValue({ count: 2 });
+    const updateManyAuditEvents = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
     const transaction = jest.fn(async (fn) =>
       fn({
         user: { update, create, delete: deleteUser },
         job: { updateMany: updateManyJobs },
+        auditEvent: { updateMany: updateManyAuditEvents },
         webAuthnCredential: { updateMany: updateManyCredentials },
       }),
     );

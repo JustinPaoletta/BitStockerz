@@ -369,4 +369,54 @@ Expected: `"AAPL"`, then `5`, `3`, and `3` respectively.
 
 ---
 
+## Section 10 – Data health, metrics, and audit (Sprint 1.4)
+
+### Prerequisites
+- API on port `4000` with global prefix `/api`
+- Seed mode (no `DATABASE_URL`) is fine for these curls
+- Note: seed candle fixtures are dated Jan–Feb 2026, so health will usually report `stale: true` / `status: "degraded"` under wall-clock dates in mid/late 2026 — that is expected
+
+### Success – market data health
+
+```bash
+curl -s http://localhost:4000/api/market-data/health | jq
+```
+
+Expected: `200` with `source` (`seed` or `database`), `series` (3 entries), and `sanity.checked > 0`.
+
+### Success – metrics snapshot
+
+```bash
+curl -s http://localhost:4000/api/health/live >/dev/null
+curl -s http://localhost:4000/api/metrics | jq
+```
+
+Expected: `200` with `http.request_count >= 1`, plus `jobs` and `errors_by_domain`.
+
+### Success – ingestion includes sanity + audit side effects
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"health@example.com","display_name":"Health"}' | jq -r .access_token)
+
+curl -s -X POST http://localhost:4000/api/market-data/ingestion/equity \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL"}' | jq '.payload.sanity'
+```
+
+Expected: `sanity.checked` is 40 (AAPL seed bars) and `invalid` is 0.
+
+### Section 10 regression checklist
+
+| # | Scenario | Command | Expect |
+| --- | --- | --- | --- |
+| 1 | Market data health | `GET /api/market-data/health` | `200`, has `series` + `sanity` |
+| 2 | Metrics | `GET /api/metrics` | `200`, has `http` |
+| 3 | Ingestion sanity | equity import `AAPL` | payload includes `sanity` |
+| 4 | Auth still works with audit | register → logout | `201` / `200` |
+
+---
+
 **File:** `docs/manual-testing/manual_testing.md`

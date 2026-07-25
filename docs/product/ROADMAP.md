@@ -90,14 +90,14 @@ Assumptions:
 
 ---
 
-### Sprint 1.4 – Data Health & Observability (START HERE — July 19, 2026)
+### Sprint 1.4 – Data Health & Observability
 
 **Stories**
 - #2.6.1 – Market data sanity checks
 - #2.6.2 – Market data health endpoint
 - #8.4.2 – Performance metrics
 - #8.4.3 – Audit logging
-- Status: Not started
+- Status: Completed (verified July 24, 2026)
 
 **Exit**
 - Market data pipelines are observable and verifiable
@@ -106,7 +106,7 @@ Assumptions:
 
 ## Milestone 2 – Strategy Lab Core
 
-### Sprint 2.1 – Strategy Persistence & Versioning
+### Sprint 2.1 – Strategy Persistence & Versioning (START HERE — July 24, 2026)
 
 **Stories**
 - #4.1.1 – Strategy schema

@@ -3,6 +3,7 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MarketDataService } from './market-data.service';
+import { CandleSanityService } from './sanity/candle-sanity.service';
 
 function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
   return {
@@ -13,13 +14,27 @@ function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
       databaseUrl: undefined,
       marketDataHealthUrl: undefined,
     },
+    marketData: {
+      staleEquityDailyMs: 172_800_000,
+      staleCryptoDailyMs: 129_600_000,
+      staleCryptoHourlyMs: 7_200_000,
+    },
     ...overrides,
   } as AppConfigService;
 }
 
+function createService(prisma?: PrismaService): MarketDataService {
+  const config = createConfig();
+  return new MarketDataService(
+    prisma ?? new PrismaService(config),
+    config,
+    new CandleSanityService(),
+  );
+}
+
 describe('MarketDataService', () => {
   it('looks up seeded equity symbols case-insensitively when Prisma is disabled', async () => {
-    const service = new MarketDataService(new PrismaService(createConfig()));
+    const service = createService();
 
     await expect(service.lookupSymbol(' aapl ')).resolves.toEqual({
       id: 1,
@@ -35,7 +50,7 @@ describe('MarketDataService', () => {
   });
 
   it('throws NOT_FOUND for unknown symbols', async () => {
-    const service = new MarketDataService(new PrismaService(createConfig()));
+    const service = createService();
 
     try {
       await service.lookupSymbol('missing');
@@ -47,7 +62,7 @@ describe('MarketDataService', () => {
   });
 
   it('searches seeded symbols by symbol, name, and asset type', async () => {
-    const service = new MarketDataService(new PrismaService(createConfig()));
+    const service = createService();
 
     const cryptoResults = await service.searchSymbols({
       q: 'usd',
@@ -69,7 +84,7 @@ describe('MarketDataService', () => {
   });
 
   it('honors search limits for seeded symbols', async () => {
-    const service = new MarketDataService(new PrismaService(createConfig()));
+    const service = createService();
 
     const results = await service.searchSymbols({ limit: 2 });
 
@@ -78,7 +93,7 @@ describe('MarketDataService', () => {
   });
 
   it('treats inactive seeded symbols as not found', async () => {
-    const service = new MarketDataService(new PrismaService(createConfig()));
+    const service = createService();
 
     await expect(service.lookupSymbol('DELISTED')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND,
@@ -106,7 +121,7 @@ describe('MarketDataService', () => {
       isEnabled: true,
       symbol: { findUnique },
     } as unknown as PrismaService;
-    const service = new MarketDataService(prisma);
+    const service = createService(prisma);
 
     await expect(service.lookupSymbol('inactive')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND,
@@ -152,7 +167,7 @@ describe('MarketDataService', () => {
       },
     } as unknown as PrismaService;
 
-    const service = new MarketDataService(prisma);
+    const service = createService(prisma);
 
     await expect(service.lookupSymbol('nvda')).resolves.toMatchObject({
       symbol: 'NVDA',
@@ -198,7 +213,7 @@ describe('MarketDataService', () => {
       isEnabled: true,
       symbol: { findMany },
     } as unknown as PrismaService;
-    const service = new MarketDataService(prisma);
+    const service = createService(prisma);
 
     await expect(service.searchSymbols({ limit: 3 })).resolves.toEqual([]);
 
@@ -213,7 +228,7 @@ describe('MarketDataService', () => {
 
   describe('candles', () => {
     it('returns seeded equity candles in ascending order by default', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       const candles = await service.getEquityDailyCandles({
         symbol: ' aapl ',
@@ -234,7 +249,7 @@ describe('MarketDataService', () => {
     });
 
     it('respects descending order and limit for seeded crypto daily candles', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       const candles = await service.getCryptoCandles({
         symbol: 'btc-usd',
@@ -254,7 +269,7 @@ describe('MarketDataService', () => {
     });
 
     it('returns seeded crypto hourly candles with UTC timestamps', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       const candles = await service.getCryptoCandles({
         symbol: 'ETH-USD',
@@ -276,7 +291,7 @@ describe('MarketDataService', () => {
     });
 
     it('returns an empty array when a valid range contains no seeded bars', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(
         service.getEquityDailyCandles({
@@ -288,7 +303,7 @@ describe('MarketDataService', () => {
     });
 
     it('throws NOT_FOUND when the candle symbol is unknown', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(
         service.getCryptoCandles({
@@ -301,7 +316,7 @@ describe('MarketDataService', () => {
     });
 
     it('throws VALIDATION_ERROR when a symbol belongs to the other asset type', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(
         service.getEquityDailyCandles({
@@ -322,7 +337,7 @@ describe('MarketDataService', () => {
     });
 
     it('throws VALIDATION_ERROR when the start of a range is after its end', async () => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(
         service.getEquityDailyCandles({
@@ -440,7 +455,7 @@ describe('MarketDataService', () => {
         field: 'limit',
       },
     ])('rejects $name when called without a DTO', async ({ call, field }) => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(call(service)).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
@@ -459,7 +474,7 @@ describe('MarketDataService', () => {
       '2026-01-15T00:00:00.000+24:00',
       '2026-01-15T00:00:00.000+05:60',
     ])('rejects invalid hourly datetime parts in %s', async (start) => {
-      const service = new MarketDataService(new PrismaService(createConfig()));
+      const service = createService();
 
       await expect(
         service.getCryptoCandles({
@@ -507,7 +522,7 @@ describe('MarketDataService', () => {
         symbol: { findUnique },
         equityDailyBar: { findMany },
       } as unknown as PrismaService;
-      const service = new MarketDataService(prisma);
+      const service = createService(prisma);
 
       await expect(
         service.getEquityDailyCandles({
@@ -598,7 +613,7 @@ describe('MarketDataService', () => {
           symbol: { findUnique },
           [delegate]: { findMany },
         } as unknown as PrismaService;
-        const service = new MarketDataService(prisma);
+        const service = createService(prisma);
 
         const result = await service.getCryptoCandles({
           symbol: 'BTC-USD',
@@ -635,5 +650,170 @@ describe('MarketDataService', () => {
         });
       },
     );
+  });
+
+  describe('getMarketDataHealth', () => {
+    it('returns seed-source health with stale series for wall-clock now', async () => {
+      const service = createService();
+      const health = await service.getMarketDataHealth(
+        new Date('2026-07-24T00:00:00.000Z'),
+      );
+
+      expect(health.source).toBe('seed');
+      expect(health.status).toBe('degraded');
+      expect(health.series).toHaveLength(3);
+      expect(health.series.every((series) => series.stale)).toBe(true);
+      expect(health.sanity.checked).toBeGreaterThan(0);
+      expect(health.sanity.invalid).toBe(0);
+    });
+
+    it('returns ok when now is within seed coverage windows', async () => {
+      const service = createService();
+      // Seed bars extend past this instant, so ages clamp to 0 and nothing is stale.
+      const health = await service.getMarketDataHealth(
+        new Date('2026-01-15T00:00:00.000Z'),
+      );
+
+      expect(health.source).toBe('seed');
+      expect(health.status).toBe('ok');
+      expect(health.series.every((series) => !series.stale)).toBe(true);
+    });
+
+    it('aggregates health from Prisma when enabled', async () => {
+      const latest = new Date('2026-07-24T00:00:00.000Z');
+      const prisma = {
+        isEnabled: true,
+        equityDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              open: 1,
+              high: 2,
+              low: 0.5,
+              close: 1.5,
+              volume: 10,
+              date: latest,
+              symbol: { symbol: 'AAPL' },
+            },
+          ]),
+        },
+        cryptoDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              open: 1,
+              high: 2,
+              low: 0.5,
+              close: 1.5,
+              volume: 10,
+              date: latest,
+              symbol: { symbol: 'BTC-USD' },
+            },
+          ]),
+        },
+        cryptoHourlyBar: {
+          aggregate: jest
+            .fn()
+            .mockResolvedValue({ _max: { timestamp: latest } }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              open: 1,
+              high: 2,
+              low: 0.5,
+              close: 1.5,
+              volume: 10,
+              timestamp: latest,
+              symbol: { symbol: 'BTC-USD' },
+            },
+          ]),
+        },
+      };
+
+      const service = createService(prisma as never);
+      const health = await service.getMarketDataHealth(latest);
+
+      expect(health.source).toBe('database');
+      expect(health.status).toBe('ok');
+      expect(health.series.every((series) => !series.stale)).toBe(true);
+    });
+
+    it('marks health unhealthy when database series are empty', async () => {
+      const prisma = {
+        isEnabled: true,
+        equityDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: null } }),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+        cryptoDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: null } }),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+        cryptoHourlyBar: {
+          aggregate: jest
+            .fn()
+            .mockResolvedValue({ _max: { timestamp: null } }),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+
+      const service = createService(prisma as never);
+      const health = await service.getMarketDataHealth();
+
+      expect(health.status).toBe('unhealthy');
+      expect(health.series.every((series) => series.latest_timestamp === null)).toBe(
+        true,
+      );
+    });
+
+    it('marks health degraded when sanity finds invalid bars', async () => {
+      const latest = new Date('2026-07-24T00:00:00.000Z');
+      const badBar = {
+        open: 10,
+        high: 5,
+        low: 8,
+        close: 9,
+        volume: 1,
+        date: latest,
+        symbol: { symbol: 'AAPL' },
+      };
+      const prisma = {
+        isEnabled: true,
+        equityDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+          findMany: jest.fn().mockResolvedValue([badBar]),
+        },
+        cryptoDailyBar: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              ...badBar,
+              symbol: { symbol: 'BTC-USD' },
+            },
+          ]),
+        },
+        cryptoHourlyBar: {
+          aggregate: jest
+            .fn()
+            .mockResolvedValue({ _max: { timestamp: latest } }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              open: 10,
+              high: 5,
+              low: 8,
+              close: 9,
+              volume: 1,
+              timestamp: latest,
+              symbol: { symbol: 'BTC-USD' },
+            },
+          ]),
+        },
+      };
+
+      const service = createService(prisma as never);
+      const health = await service.getMarketDataHealth(latest);
+
+      expect(health.status).toBe('degraded');
+      expect(health.sanity.invalid).toBeGreaterThan(0);
+    });
   });
 });

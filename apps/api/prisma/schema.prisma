@@ -1,5 +1,5 @@
 // BitStockerz API Prisma schema
-// Sprint 1.3 wires jobs plus market-data ingestion on top of auth and OHLCV tables.
+// Sprint 1.4 adds audit_events on top of jobs, auth, and OHLCV tables.
 
 generator client {
   provider = "prisma-client-js"
@@ -18,8 +18,23 @@ model User {
 
   webauthnCredentials WebAuthnCredential[]
   jobs                Job[]
+  auditEvents         AuditEvent[]
 
   @@map("users")
+}
+
+model AuditEvent {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId      String?  @map("user_id") @db.Char(36)
+  eventType   String   @map("event_type") @db.VarChar(64)
+  payloadJson Json     @map("payload_json")
+  createdAt   DateTime @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("audit_events")
 }
 
 model Job {

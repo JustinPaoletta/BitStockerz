@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from '../auth/auth.module';
 import { MarketDataModule } from '../market-data/market-data.module';
+import { ObservabilityModule } from '../observability/observability.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { IngestionController } from './ingestion.controller';
 import { JobExecutorService } from './job-executor.service';
@@ -15,6 +16,7 @@ import { JobsService } from './jobs.service';
     PrismaModule,
     MarketDataModule,
     AuthModule,
+    ObservabilityModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [JobsController, IngestionController],

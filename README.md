@@ -114,7 +114,8 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.3)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.4)
+- [docs/plans/sprint-1-4-data-health-observability.md](./docs/plans/sprint-1-4-data-health-observability.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 

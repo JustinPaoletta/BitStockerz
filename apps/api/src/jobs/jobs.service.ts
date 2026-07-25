@@ -3,6 +3,7 @@ import type { Job as PrismaJob, Prisma } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuthService } from '../auth/auth.service';
+import { AuditService } from '../observability/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateJobInput,
@@ -20,6 +21,7 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly audit: AuditService,
   ) {}
 
   async createJob(input: CreateJobInput): Promise<JobRecord> {
@@ -38,10 +40,19 @@ export class JobsService {
       await this.prisma.job.create({
         data: toPrismaCreate(record),
       });
-      return record;
+    } else {
+      this.inMemoryJobs.set(record.id, record);
     }
 
-    this.inMemoryJobs.set(record.id, record);
+    void this.audit.record({
+      userId: record.userId,
+      eventType: 'job.created',
+      payload: {
+        job_id: record.id,
+        job_type: record.jobType,
+      },
+    });
+
     return record;
   }
 

@@ -4,6 +4,7 @@ import {
   MiddlewareConsumer,
   RequestMethod,
 } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -20,6 +21,8 @@ import { AppConfigService } from './config/app-config.service';
 import { AuthModule } from './auth/auth.module';
 import { JobsModule } from './jobs/jobs.module';
 import { MarketDataModule } from './market-data/market-data.module';
+import { MetricsInterceptor } from './observability/metrics.interceptor';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -27,6 +30,7 @@ import { MarketDataModule } from './market-data/market-data.module';
     AuthModule,
     MarketDataModule,
     JobsModule,
+    ObservabilityModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
@@ -40,7 +44,16 @@ import { MarketDataModule } from './market-data/market-data.module';
     StrategiesController,
     ErrorTestController,
   ],
-  providers: [AppService, HealthService, GlobalHttpExceptionFilter, AppLogger],
+  providers: [
+    AppService,
+    HealthService,
+    GlobalHttpExceptionFilter,
+    AppLogger,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MetricsInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

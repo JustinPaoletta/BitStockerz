@@ -940,6 +940,10 @@ describe('Jobs and ingestion (e2e)', () => {
           symbol: 'AAPL',
           imported_equity_bars: 40,
         });
+        expect(body.payload).toHaveProperty('sanity');
+        expect(
+          (body.payload as { sanity: { checked: number } }).sanity.checked,
+        ).toBeGreaterThan(0);
       });
   });
 
@@ -991,6 +995,54 @@ describe('Jobs and ingestion (e2e)', () => {
       .expect(401)
       .expect((res) => {
         expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+  });
+});
+
+describe('Market data health and metrics (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('GET /api/market-data/health returns seed-mode health snapshot', async () => {
+    await request(app.getHttpServer())
+      .get('/api/market-data/health')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.source).toBe('seed');
+        expect(['ok', 'degraded', 'unhealthy']).toContain(res.body.status);
+        expect(Array.isArray(res.body.series)).toBe(true);
+        expect(res.body.series).toHaveLength(3);
+        expect(res.body.sanity).toMatchObject({
+          checked: expect.any(Number),
+          invalid: expect.any(Number),
+          issues: expect.any(Array),
+        });
+      });
+  });
+
+  it('GET /api/metrics returns a JSON summary snapshot', async () => {
+    await request(app.getHttpServer()).get('/api/health/live').expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/metrics')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveProperty('http');
+        expect(res.body).toHaveProperty('jobs');
+        expect(res.body).toHaveProperty('errors_by_domain');
+        expect(res.body.http.request_count).toBeGreaterThanOrEqual(1);
       });
   });
 });

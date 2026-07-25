@@ -1,6 +1,6 @@
 # Sprint 1.4 — Data Health & Observability
 
-**Status:** Plan ready (not started)  
+**Status:** Implemented (verified July 24, 2026)  
 **Roadmap marker:** `START HERE — July 19, 2026`  
 **Branch (when implementing):** `feat/sprint-1-4-data-health-observability`  
 **PR base:** `main` (after `chore/local-dev-hardening` merges; Sprint 1.3 already on `main`)

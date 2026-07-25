@@ -5,6 +5,7 @@ import {
   type AuthenticatedRequest,
 } from '../auth/auth.guard';
 import { AuthService } from '../auth/auth.service';
+import { AuditService } from '../observability/audit.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
@@ -17,6 +18,7 @@ export class IngestionController {
     private readonly jobHandlers: JobHandlersService,
     private readonly jobsService: JobsService,
     private readonly authService: AuthService,
+    private readonly audit: AuditService,
   ) {}
 
   @Post('equity')
@@ -28,6 +30,11 @@ export class IngestionController {
     const payload: JobPayload = body.symbol
       ? { symbol: body.symbol.trim().toUpperCase() }
       : {};
+    void this.audit.record({
+      userId,
+      eventType: 'market_data.ingestion_requested',
+      payload: { kind: 'equity', ...payload },
+    });
     const job = await this.jobHandlers.createAndRun(
       'equity_daily_import',
       userId,
@@ -46,6 +53,11 @@ export class IngestionController {
       ...(body.symbol ? { symbol: body.symbol.trim().toUpperCase() } : {}),
       ...(body.intervals ? { intervals: body.intervals } : {}),
     };
+    void this.audit.record({
+      userId,
+      eventType: 'market_data.ingestion_requested',
+      payload: { kind: 'crypto', ...payload },
+    });
     const job = await this.jobHandlers.createAndRun(
       'crypto_import',
       userId,

@@ -2,7 +2,25 @@ import type { AppConfigService } from '../../config/app-config.service';
 import { MarketDataIngestionService } from '../../market-data/ingestion/market-data-ingestion.service';
 import { JobExecutorService } from './job-executor.service';
 import { JobHandlersService } from './job-handlers.service';
+
+import type { AuditService } from '../observability/audit.service';
+import type { MetricsService } from '../observability/metrics.service';
 import { JobsService } from './jobs.service';
+
+function createAuditMock(): AuditService {
+  return {
+    record: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AuditService;
+}
+
+function createMetricsMock(): MetricsService {
+  return {
+    enabled: true,
+    recordHttp: jest.fn(),
+    recordJob: jest.fn(),
+    recordError: jest.fn(),
+  } as unknown as MetricsService;
+}
 
 describe('JobHandlersService', () => {
   it('registers handlers and runs scheduled imports', async () => {
@@ -10,25 +28,33 @@ describe('JobHandlersService', () => {
       importEquityDaily: jest.fn().mockResolvedValue({
         symbolsProcessed: 3,
         importedBars: 120,
+        sanity: { checked: 0, invalid: 0, issues: [] },
       }),
       importCrypto: jest.fn().mockResolvedValue({
         symbolsProcessed: 2,
         importedDailyBars: 60,
         importedHourlyBars: 96,
+        sanity: { checked: 0, invalid: 0, issues: [] },
       }),
     } as unknown as MarketDataIngestionService;
 
     const jobsService = new JobsService(
       { isEnabled: false } as never,
       { ensureUserPersisted: jest.fn() } as never,
+      createAuditMock(),
     );
-    const executor = new JobExecutorService(jobsService, {
-      jobs: {
-        timeoutMs: 5000,
-        schedulerEnabled: false,
-        systemUserId: 'system',
-      },
-    } as AppConfigService);
+    const executor = new JobExecutorService(
+      jobsService,
+      {
+        jobs: {
+          timeoutMs: 5000,
+          schedulerEnabled: false,
+          systemUserId: 'system',
+        },
+      } as AppConfigService,
+      createMetricsMock(),
+      createAuditMock(),
+    );
 
     const handlers = new JobHandlersService(
       ingestionService,
@@ -55,27 +81,36 @@ describe('JobHandlersService', () => {
 
   it('runs equity and crypto import jobs through the executor', async () => {
     const ingestionService = {
-      importEquityDaily: jest
-        .fn()
-        .mockResolvedValue({ symbolsProcessed: 1, importedBars: 40 }),
+      importEquityDaily: jest.fn().mockResolvedValue({
+        symbolsProcessed: 1,
+        importedBars: 40,
+        sanity: { checked: 0, invalid: 0, issues: [] },
+      }),
       importCrypto: jest.fn().mockResolvedValue({
         symbolsProcessed: 1,
         importedDailyBars: 30,
         importedHourlyBars: 48,
+        sanity: { checked: 0, invalid: 0, issues: [] },
       }),
     } as unknown as MarketDataIngestionService;
 
     const jobsService = new JobsService(
       { isEnabled: false } as never,
       { ensureUserPersisted: jest.fn() } as never,
+      createAuditMock(),
     );
-    const executor = new JobExecutorService(jobsService, {
-      jobs: {
-        timeoutMs: 5000,
-        schedulerEnabled: false,
-        systemUserId: 'system',
-      },
-    } as AppConfigService);
+    const executor = new JobExecutorService(
+      jobsService,
+      {
+        jobs: {
+          timeoutMs: 5000,
+          schedulerEnabled: false,
+          systemUserId: 'system',
+        },
+      } as AppConfigService,
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const handlers = new JobHandlersService(
       ingestionService,
       jobsService,
@@ -107,27 +142,36 @@ describe('JobHandlersService', () => {
 
   it('runs imports without optional payload fields', async () => {
     const ingestionService = {
-      importEquityDaily: jest
-        .fn()
-        .mockResolvedValue({ symbolsProcessed: 3, importedBars: 120 }),
+      importEquityDaily: jest.fn().mockResolvedValue({
+        symbolsProcessed: 3,
+        importedBars: 120,
+        sanity: { checked: 0, invalid: 0, issues: [] },
+      }),
       importCrypto: jest.fn().mockResolvedValue({
         symbolsProcessed: 2,
         importedDailyBars: 60,
         importedHourlyBars: 96,
+        sanity: { checked: 0, invalid: 0, issues: [] },
       }),
     } as unknown as MarketDataIngestionService;
 
     const jobsService = new JobsService(
       { isEnabled: false } as never,
       { ensureUserPersisted: jest.fn() } as never,
+      createAuditMock(),
     );
-    const executor = new JobExecutorService(jobsService, {
-      jobs: {
-        timeoutMs: 5000,
-        schedulerEnabled: false,
-        systemUserId: 'system',
-      },
-    } as AppConfigService);
+    const executor = new JobExecutorService(
+      jobsService,
+      {
+        jobs: {
+          timeoutMs: 5000,
+          schedulerEnabled: false,
+          systemUserId: 'system',
+        },
+      } as AppConfigService,
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const handlers = new JobHandlersService(
       ingestionService,
       jobsService,

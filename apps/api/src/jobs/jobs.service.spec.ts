@@ -4,6 +4,8 @@ import type { AppConfigService } from '../config/app-config.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobExecutorService } from './job-executor.service';
+import type { AuditService } from '../observability/audit.service';
+import type { MetricsService } from '../observability/metrics.service';
 import { JobsService } from './jobs.service';
 import type { JobHandler } from './jobs.types';
 
@@ -12,7 +14,27 @@ function createAuthPersistenceMock(): Pick<AuthService, 'ensureUserPersisted'> {
 }
 
 function createJobsService(prisma: PrismaService): JobsService {
-  return new JobsService(prisma, createAuthPersistenceMock() as AuthService);
+  return new JobsService(
+    prisma,
+    createAuthPersistenceMock() as AuthService,
+    createAuditMock(),
+  );
+}
+function createAuditMock(): AuditService {
+  return {
+    record: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AuditService;
+}
+
+function createMetricsMock(): MetricsService {
+  return {
+    enabled: true,
+    recordHttp: jest.fn(),
+    recordJob: jest.fn(),
+    recordError: jest.fn(),
+    snapshot: jest.fn(),
+    resetForTests: jest.fn(),
+  } as unknown as MetricsService;
 }
 
 function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
@@ -31,7 +53,12 @@ function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
 describe('JobExecutorService', () => {
   it('runs a registered handler and marks the job completed', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const handler: JobHandler = jest
       .fn()
       .mockResolvedValue({ imported_equity_bars: 3 });
@@ -51,7 +78,12 @@ describe('JobExecutorService', () => {
 
   it('marks jobs timed_out when handlers exceed the configured timeout', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const handler: JobHandler = () =>
       new Promise((resolve) => {
         setTimeout(() => resolve({}), 200);
@@ -71,7 +103,12 @@ describe('JobExecutorService', () => {
 
   it('marks jobs failed when no handler is registered', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const job = await jobsService.createJob({
       jobType: 'market_data_scheduled',
       userId: 'user-1',
@@ -85,7 +122,12 @@ describe('JobExecutorService', () => {
 
   it('marks jobs failed when handlers throw', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     executor.registerHandler('equity_daily_import', () => {
       throw new Error('boom');
     });
@@ -102,9 +144,14 @@ describe('JobExecutorService', () => {
 
   it('marks jobs failed when handlers reject with non-error values', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     executor.registerHandler('equity_daily_import', () =>
-      Promise.reject(new Error('bad')),
+      Promise.reject('bad-string'),
     );
     const job = await jobsService.createJob({
       jobType: 'equity_daily_import',
@@ -114,12 +161,17 @@ describe('JobExecutorService', () => {
     const result = await executor.execute(job.id);
 
     expect(result.status).toBe('failed');
-    expect(result.errorMessage).toBe('bad');
+    expect(result.errorMessage).toBe('bad-string');
   });
 
   it('returns jobs that are not pending without re-running', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
     const handler = jest.fn();
     executor.registerHandler('equity_daily_import', handler);
     const job = await jobsService.createJob({
@@ -136,7 +188,12 @@ describe('JobExecutorService', () => {
 
   it('throws when executing a missing job', async () => {
     const jobsService = createJobsService(new PrismaService(createConfig()));
-    const executor = new JobExecutorService(jobsService, createConfig());
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig(),
+      createMetricsMock(),
+      createAuditMock(),
+    );
 
     await expect(executor.execute('missing-job')).rejects.toThrow(
       'Job missing-job was not found.',
@@ -190,7 +247,11 @@ describe('JobsService', () => {
       job: { create, findUnique, update },
     };
 
-    const service = new JobsService(prisma as never, auth as AuthService);
+    const service = new JobsService(
+      prisma as never,
+      auth as AuthService,
+      createAuditMock(),
+    );
     const job = await service.createJob({
       jobType: 'crypto_import',
       userId: 'user-1',
@@ -230,6 +291,7 @@ describe('JobsService', () => {
     const service = new JobsService(
       prisma as never,
       createAuthPersistenceMock() as AuthService,
+      createAuditMock(),
     );
 
     await expect(service.getJobById('missing-job')).resolves.toBeUndefined();
@@ -258,6 +320,7 @@ describe('JobsService', () => {
     const service = new JobsService(
       prisma as never,
       createAuthPersistenceMock() as AuthService,
+      createAuditMock(),
     );
     const updated = await service.updateJob('job-1', {
       status: 'running',
@@ -290,6 +353,7 @@ describe('JobsService', () => {
     const service = new JobsService(
       prisma as never,
       createAuthPersistenceMock() as AuthService,
+      createAuditMock(),
     );
     await service.updateJob('job-1', {
       status: 'completed',

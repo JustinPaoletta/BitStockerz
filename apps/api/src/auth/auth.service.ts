@@ -366,6 +366,11 @@ export class AuthService {
         data: { userId: input.nextUserId },
       });
 
+      await tx.auditEvent.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
       await tx.webAuthnCredential.updateMany({
         where: { userId: input.previousUserId },
         data: { userId: input.nextUserId },

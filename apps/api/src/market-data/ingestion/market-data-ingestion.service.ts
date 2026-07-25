@@ -4,6 +4,11 @@ import { DomainError } from '../../common/errors/domain-error';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AssetType } from '../market-data.types';
+import { CandleSanityService } from '../sanity/candle-sanity.service';
+import type {
+  SanityBarInput,
+  SanitySummary,
+} from '../sanity/candle-sanity.types';
 import {
   SEED_CRYPTO_DAILY_BARS,
   SEED_CRYPTO_HOURLY_BARS,
@@ -23,28 +28,47 @@ export interface CryptoImportOptions {
 export interface EquityImportResult {
   symbolsProcessed: number;
   importedBars: number;
+  sanity: SanitySummary;
 }
 
 export interface CryptoImportResult {
   symbolsProcessed: number;
   importedDailyBars: number;
   importedHourlyBars: number;
+  sanity: SanitySummary;
 }
 
 @Injectable()
 export class MarketDataIngestionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sanity: CandleSanityService,
+  ) {}
 
   async importEquityDaily(
     options: EquityImportOptions = {},
   ): Promise<EquityImportResult> {
     const symbols = this.resolveSymbols('EQUITY', options.symbol);
     let importedBars = 0;
+    const sanityBars: SanityBarInput[] = [];
 
     for (const seedSymbol of symbols) {
       const bars = SEED_EQUITY_DAILY_BARS.filter(
         (bar) => bar.symbolId === seedSymbol.id,
       );
+
+      for (const bar of bars) {
+        sanityBars.push({
+          symbol: seedSymbol.symbol,
+          interval: '1d',
+          date: bar.date.toISOString().slice(0, 10),
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close,
+          volume: bar.volume,
+        });
+      }
 
       if (this.prisma.isEnabled) {
         const symbolId = await this.ensureSymbol(seedSymbol);
@@ -83,7 +107,11 @@ export class MarketDataIngestionService {
       }
     }
 
-    return { symbolsProcessed: symbols.length, importedBars };
+    return {
+      symbolsProcessed: symbols.length,
+      importedBars,
+      sanity: this.sanity.scan(sanityBars),
+    };
   }
 
   async importCrypto(
@@ -93,12 +121,26 @@ export class MarketDataIngestionService {
     const intervals = options.intervals ?? ['1d', '1h'];
     let importedDailyBars = 0;
     let importedHourlyBars = 0;
+    const sanityBars: SanityBarInput[] = [];
 
     for (const seedSymbol of symbols) {
       if (intervals.includes('1d')) {
         const bars = SEED_CRYPTO_DAILY_BARS.filter(
           (bar) => bar.symbolId === seedSymbol.id,
         );
+
+        for (const bar of bars) {
+          sanityBars.push({
+            symbol: seedSymbol.symbol,
+            interval: '1d',
+            date: bar.date.toISOString().slice(0, 10),
+            open: bar.open,
+            high: bar.high,
+            low: bar.low,
+            close: bar.close,
+            volume: bar.volume,
+          });
+        }
 
         if (this.prisma.isEnabled) {
           const symbolId = await this.ensureSymbol(seedSymbol);
@@ -142,6 +184,19 @@ export class MarketDataIngestionService {
           (bar) => bar.symbolId === seedSymbol.id,
         );
 
+        for (const bar of bars) {
+          sanityBars.push({
+            symbol: seedSymbol.symbol,
+            interval: '1h',
+            timestamp: bar.timestamp.toISOString(),
+            open: bar.open,
+            high: bar.high,
+            low: bar.low,
+            close: bar.close,
+            volume: bar.volume,
+          });
+        }
+
         if (this.prisma.isEnabled) {
           const symbolId = await this.ensureSymbol(seedSymbol);
           for (const bar of bars) {
@@ -184,6 +239,7 @@ export class MarketDataIngestionService {
       symbolsProcessed: symbols.length,
       importedDailyBars,
       importedHourlyBars,
+      sanity: this.sanity.scan(sanityBars),
     };
   }
 

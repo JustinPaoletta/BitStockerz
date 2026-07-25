@@ -32,6 +32,9 @@ const DEFAULT_WEBAUTHN_RP_ID = 'localhost';
 const DEFAULT_WEBAUTHN_RP_NAME = 'BitStockerz';
 const DEFAULT_JOB_TIMEOUT_MS = 30000;
 const DEFAULT_JOBS_SYSTEM_USER_ID = '00000000-0000-4000-8000-000000000001';
+const DEFAULT_STALE_EQUITY_DAILY_MS = 172_800_000; // 48h
+const DEFAULT_STALE_CRYPTO_DAILY_MS = 129_600_000; // 36h
+const DEFAULT_STALE_CRYPTO_HOURLY_MS = 7_200_000; // 2h
 
 export interface ServerConfig {
   port: number;
@@ -79,6 +82,16 @@ export interface JobsConfig {
   systemUserId: string;
 }
 
+export interface MarketDataConfig {
+  staleEquityDailyMs: number;
+  staleCryptoDailyMs: number;
+  staleCryptoHourlyMs: number;
+}
+
+export interface MetricsConfig {
+  enabled: boolean;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
@@ -86,6 +99,8 @@ export interface AppConfig {
   dependencies: DependencyConfig;
   auth: AuthConfig;
   jobs: JobsConfig;
+  marketData: MarketDataConfig;
+  metrics: MetricsConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -430,6 +445,36 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   );
   const systemUserId =
     normalizeOptional(env.JOBS_SYSTEM_USER_ID) ?? DEFAULT_JOBS_SYSTEM_USER_ID;
+  const staleEquityDailyMs = parseInteger(
+    'MARKET_DATA_STALE_EQUITY_DAILY_MS',
+    env.MARKET_DATA_STALE_EQUITY_DAILY_MS,
+    DEFAULT_STALE_EQUITY_DAILY_MS,
+    60_000,
+    30 * 24 * 60 * 60 * 1000,
+    errors,
+  );
+  const staleCryptoDailyMs = parseInteger(
+    'MARKET_DATA_STALE_CRYPTO_DAILY_MS',
+    env.MARKET_DATA_STALE_CRYPTO_DAILY_MS,
+    DEFAULT_STALE_CRYPTO_DAILY_MS,
+    60_000,
+    30 * 24 * 60 * 60 * 1000,
+    errors,
+  );
+  const staleCryptoHourlyMs = parseInteger(
+    'MARKET_DATA_STALE_CRYPTO_HOURLY_MS',
+    env.MARKET_DATA_STALE_CRYPTO_HOURLY_MS,
+    DEFAULT_STALE_CRYPTO_HOURLY_MS,
+    60_000,
+    7 * 24 * 60 * 60 * 1000,
+    errors,
+  );
+  const metricsEnabled = parseBoolean(
+    'METRICS_ENABLED',
+    env.METRICS_ENABLED,
+    true,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
@@ -476,6 +521,14 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       schedulerEnabled: nodeEnv === 'test' ? false : schedulerEnabled,
       systemUserId,
     },
+    marketData: {
+      staleEquityDailyMs,
+      staleCryptoDailyMs,
+      staleCryptoHourlyMs,
+    },
+    metrics: {
+      enabled: metricsEnabled,
+    },
   };
 }
 
@@ -509,5 +562,13 @@ export class AppConfigService {
 
   get jobs(): JobsConfig {
     return this.config.jobs;
+  }
+
+  get marketData(): MarketDataConfig {
+    return this.config.marketData;
+  }
+
+  get metrics(): MetricsConfig {
+    return this.config.metrics;
   }
 }

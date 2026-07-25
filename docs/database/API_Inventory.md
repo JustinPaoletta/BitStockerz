@@ -11,7 +11,7 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.3**:
+The runnable API in `apps/api` currently ships through **Sprint 1.4**:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -250,11 +250,25 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-### 2.6 Market Data Health (Planned — Sprint 1.4)
+### 2.6 Market Data Health (implemented in Sprint 1.4)
 
-**GET `/market-data/health`** (admin/internal)
+**GET `/market-data/health`** (public)
 
-- Returns latest data timestamps per asset type and “staleness” flags.
+- Returns:
+  - `status` — `ok` | `degraded` | `unhealthy`
+  - `timestamp` — ISO-8601
+  - `series[]` — per asset type/interval: `latest_timestamp`, `age_ms`, `stale`, `stale_after_ms`, `symbol_count_with_data`
+  - `sanity` — `{ checked, invalid, issues[] }` from a bounded sample
+  - `source` — `seed` | `database`
+- Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
+- Seed fixtures from Jan 2026 will report stale under wall-clock dates after that window — expected until live feeds (Sprint 7.1).
+
+### 2.7 Metrics Snapshot (implemented in Sprint 1.4)
+
+**GET `/metrics`** (public)
+
+- In-process JSON summary (not Prometheus text): HTTP request/error counts + duration stats, job counts/durations by type, errors by domain.
+- Cleared on process restart. Disable with `METRICS_ENABLED=false`.
 
 ---
 
