@@ -35,7 +35,9 @@ Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on 
 | `INGESTION_SCHEDULER_ENABLED` | Hourly background imports. When unset: `true` if `NODE_ENV=development`, otherwise `false`. Always off when `NODE_ENV=test`. Set `false` while manually testing ingestion. |
 | `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
 | `JOBS_SYSTEM_USER_ID` | User id for scheduled jobs (default `00000000-0000-4000-8000-000000000001`). |
-| `MARKET_DATA_HEALTH_URL` | Optional readiness probe for `checks.marketData`. |
+| `MARKET_DATA_HEALTH_URL` | Optional readiness probe for `checks.marketData` (can point at `/api/market-data/health`). |
+| `MARKET_DATA_STALE_*_MS` | Staleness thresholds for `GET /api/market-data/health` (equity daily / crypto daily / crypto hourly). |
+| `METRICS_ENABLED` | Toggle in-process `GET /api/metrics` (default `true`). |
 
 ## Verification
 

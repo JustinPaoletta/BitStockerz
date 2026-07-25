@@ -5,6 +5,11 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { GlobalHttpExceptionFilter } from '../src/common/errors/http-exception.filter';
 import { AppLogger } from '../src/common/logging/app-logger';
+import {
+  SEED_CRYPTO_DAILY_SAMPLE,
+  SEED_CRYPTO_HOURLY_SAMPLE,
+  SEED_EQUITY_SAMPLE,
+} from '../src/market-data/seed-candles';
 
 function createApp(module: TestingModule): INestApplication {
   const app = module.createNestApplication();
@@ -655,19 +660,19 @@ describe('Market data candles (e2e)', () => {
   it('GET equities/candles returns the seeded daily shape in default ascending order', () => {
     return request(app.getHttpServer())
       .get('/api/market-data/equities/candles')
-      .query({ symbol: ' aapl ', start: '2026-01-05', end: '2026-01-09' })
+      .query({
+        symbol: ' aapl ',
+        start: SEED_EQUITY_SAMPLE.start,
+        end: SEED_EQUITY_SAMPLE.end,
+      })
       .expect(200)
       .expect((res) => {
         const body = res.body as Array<Record<string, unknown>>;
         expect(body).toHaveLength(5);
-        expect(body.map((candle) => candle.date)).toEqual([
-          '2026-01-05',
-          '2026-01-06',
-          '2026-01-07',
-          '2026-01-08',
-          '2026-01-09',
-        ]);
-        expect(body[0].date).toBe('2026-01-05');
+        expect(body.map((candle) => candle.date)).toEqual(
+          SEED_EQUITY_SAMPLE.dates,
+        );
+        expect(body[0].date).toBe(SEED_EQUITY_SAMPLE.dates[0]);
         expect(Object.keys(body[0]).sort()).toEqual([
           'close',
           'date',
@@ -685,17 +690,18 @@ describe('Market data candles (e2e)', () => {
       .get('/api/market-data/equities/candles')
       .query({
         symbol: 'AAPL',
-        start: '2026-01-05',
-        end: '2026-01-09',
+        start: SEED_EQUITY_SAMPLE.start,
+        end: SEED_EQUITY_SAMPLE.end,
         order: 'desc',
         limit: 2,
       })
       .expect(200)
       .expect((res) => {
         const body = res.body as Array<Record<string, unknown>>;
+        const dates = SEED_EQUITY_SAMPLE.dates;
         expect(body.map((candle) => candle.date)).toEqual([
-          '2026-01-09',
-          '2026-01-08',
+          dates[dates.length - 1],
+          dates[dates.length - 2],
         ]);
       });
   });
@@ -706,19 +712,17 @@ describe('Market data candles (e2e)', () => {
       .query({
         symbol: 'btc-usd',
         interval: '1d',
-        start: '2026-01-01',
-        end: '2026-01-03',
+        start: SEED_CRYPTO_DAILY_SAMPLE.start,
+        end: SEED_CRYPTO_DAILY_SAMPLE.end,
       })
       .expect(200)
       .expect((res) => {
         const body = res.body as Array<Record<string, unknown>>;
         expect(body).toHaveLength(3);
-        expect(body.map((candle) => candle.date)).toEqual([
-          '2026-01-01',
-          '2026-01-02',
-          '2026-01-03',
-        ]);
-        expect(body[0].date).toBe('2026-01-01');
+        expect(body.map((candle) => candle.date)).toEqual(
+          SEED_CRYPTO_DAILY_SAMPLE.dates,
+        );
+        expect(body[0].date).toBe(SEED_CRYPTO_DAILY_SAMPLE.dates[0]);
         expectNumericCandleValues(body[0]);
         expect(body[0]).not.toHaveProperty('timestamp');
       });
@@ -730,19 +734,17 @@ describe('Market data candles (e2e)', () => {
       .query({
         symbol: 'BTC-USD',
         interval: '1h',
-        start: '2026-01-15T00:00:00.000Z',
-        end: '2026-01-15T02:00:00.000Z',
+        start: SEED_CRYPTO_HOURLY_SAMPLE.start,
+        end: SEED_CRYPTO_HOURLY_SAMPLE.end,
       })
       .expect(200)
       .expect((res) => {
         const body = res.body as Array<Record<string, unknown>>;
         expect(body).toHaveLength(3);
-        expect(body.map((candle) => candle.timestamp)).toEqual([
-          '2026-01-15T00:00:00.000Z',
-          '2026-01-15T01:00:00.000Z',
-          '2026-01-15T02:00:00.000Z',
-        ]);
-        expect(body[0].timestamp).toBe('2026-01-15T00:00:00.000Z');
+        expect(body.map((candle) => candle.timestamp)).toEqual(
+          SEED_CRYPTO_HOURLY_SAMPLE.timestamps,
+        );
+        expect(body[0].timestamp).toBe(SEED_CRYPTO_HOURLY_SAMPLE.timestamps[0]);
         expectNumericCandleValues(body[0]);
         expect(body[0]).not.toHaveProperty('date');
       });

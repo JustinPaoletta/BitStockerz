@@ -653,30 +653,27 @@ describe('MarketDataService', () => {
   });
 
   describe('getMarketDataHealth', () => {
-    it('returns seed-source health with stale series for wall-clock now', async () => {
+    it('returns ok for wall-clock now when seed bars end at today', async () => {
       const service = createService();
-      const health = await service.getMarketDataHealth(
-        new Date('2026-07-24T00:00:00.000Z'),
-      );
+      const health = await service.getMarketDataHealth(new Date());
 
       expect(health.source).toBe('seed');
-      expect(health.status).toBe('degraded');
+      expect(health.status).toBe('ok');
       expect(health.series).toHaveLength(3);
-      expect(health.series.every((series) => series.stale)).toBe(true);
+      expect(health.series.every((series) => !series.stale)).toBe(true);
       expect(health.sanity.checked).toBeGreaterThan(0);
       expect(health.sanity.invalid).toBe(0);
     });
 
-    it('returns ok when now is within seed coverage windows', async () => {
+    it('returns degraded when now is far after seed coverage', async () => {
       const service = createService();
-      // Seed bars extend past this instant, so ages clamp to 0 and nothing is stale.
       const health = await service.getMarketDataHealth(
-        new Date('2026-01-15T00:00:00.000Z'),
+        new Date('2099-01-01T00:00:00.000Z'),
       );
 
       expect(health.source).toBe('seed');
-      expect(health.status).toBe('ok');
-      expect(health.series.every((series) => !series.stale)).toBe(true);
+      expect(health.status).toBe('degraded');
+      expect(health.series.every((series) => series.stale)).toBe(true);
     });
 
     it('aggregates health from Prisma when enabled', async () => {

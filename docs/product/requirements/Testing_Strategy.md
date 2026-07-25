@@ -67,7 +67,7 @@ Failure paths:
 ## 3. CI Enforcement
 - Unit and e2e (seed-mode) tests required before merge for API changes
 - MySQL-backed smoke / persistence checks are recommended when touching Prisma or ingestion, via `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`
-- E2E required before merging backend PRs that touch completed API scope (health, auth, symbols, candles, jobs, ingestion)
+- E2E required before merging backend PRs that touch completed API scope (health, auth, symbols, candles, jobs, ingestion, market-data health, metrics)
 - `test:cov` enforces **90%** global coverage in `apps/api`
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, and HTTP smoke tests (smoke phase clears `DATABASE_URL` by default).
 - Broader E2E user flows (strategies, backtests, paper trading) remain optional for MVP, mandatory before public release

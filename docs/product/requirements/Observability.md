@@ -39,7 +39,7 @@ Track later (domain sprints):
 ## 3. Health Checks
 - Liveness: `GET /api/health/live` returns `{ status: "ok" }`
 - Readiness: `GET /api/health/ready` returns `ready`, `status`, `timestamp`, and `checks.database` / `checks.marketData` as objects `{ status, latencyMs?, details? }` where `status` is `up` | `down` | `not_configured`. Returns HTTP 503 when `ready` is `false`.
-- Domain market-data health: `GET /api/market-data/health` (freshness + sanity; separate from process readiness).
+- Domain market-data health: `GET /api/market-data/health` (freshness + sanity; separate from process readiness). Seed OHLCV fixtures roll to today (UTC) at process load so seed-mode demos typically report `ok`; MySQL needs re-ingestion after seed dates change.
 
 ## 4. Audit trail
 - Critical actions write `audit_events` (MySQL) or an in-memory ring buffer (seed mode).

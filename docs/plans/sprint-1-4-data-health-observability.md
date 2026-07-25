@@ -1,9 +1,9 @@
 # Sprint 1.4 — Data Health & Observability
 
-**Status:** Implemented (verified July 24, 2026)  
-**Roadmap marker:** `START HERE — July 19, 2026`  
-**Branch (when implementing):** `feat/sprint-1-4-data-health-observability`  
-**PR base:** `main` (after `chore/local-dev-hardening` merges; Sprint 1.3 already on `main`)
+**Status:** Implemented (verified July 24, 2026; seed fixtures roll to today UTC as of July 25, 2026)  
+**Roadmap marker:** next work is Sprint 2.1 (`START HERE — July 24, 2026` on ROADMAP)  
+**Branch:** `feat/sprint-1-4-data-health-observability`  
+**PR base:** `main`
 
 **Overview:** Make market-data pipelines verifiable and the API observable. Ship candle sanity checks, a market-data health endpoint with staleness, a lightweight in-process metrics foundation (API + job latency), and durable audit events for critical actions — without Prometheus/Grafana, Terminus, or admin RBAC.
 
@@ -15,9 +15,9 @@
 
 | ID | Title | Source |
 |----|-------|--------|
-| #2.6.1 | Market data sanity checks | [MVP_02](../product/stories/BitStockerz_MVP_02_Market_Data_Stories.md) (title only today) |
+| #2.6.1 | Market data sanity checks | [MVP_02](../product/stories/BitStockerz_MVP_02_Market_Data_Stories.md) |
 | #2.6.2 | Market data health endpoint | same + [API_Inventory §2.6](../database/API_Inventory.md) |
-| #8.4.2 | Performance metrics | [MVP_08](../product/stories/BitStockerz_MVP_08_Backend_Infrastructure_Stories.md) (title only; wording says “for backtests”) |
+| #8.4.2 | Performance metrics | [MVP_08](../product/stories/BitStockerz_MVP_08_Backend_Infrastructure_Stories.md) (backtest-specific counters deferred to Milestone 3) |
 | #8.4.3 | Audit logging | same + DDL `audit_events` |
 
 **Exit (from [ROADMAP.md](../product/ROADMAP.md)):** Market data pipelines are observable and verifiable.
@@ -52,7 +52,7 @@
 | Migration pattern | `apps/api/prisma/migrations/YYYYMMDDHHMMSS_sprint_*` | New `audit_events` migration |
 | Coverage gate | `apps/api/package.json` → **90%** global | Prefer tests over new `coveragePathIgnorePatterns` |
 
-**Schema gap:** `AuditEvent` model does not exist yet. [Migrations_Plan.md](../database/Migrations_Plan.md) schedules `V0131__create_audit_events.sql` from [DDL/06_infra.sql](../database/DDL/06_infra.sql).
+**Schema:** `AuditEvent` / `audit_events` shipped via Prisma folder `20260724150000_sprint_1_4_audit_events` (conceptual `V0131__create_audit_events.sql` from [DDL/06_infra.sql](../database/DDL/06_infra.sql)).
 
 ---
 
@@ -132,33 +132,33 @@ Global prefix `/api` ([`main.ts`](../../apps/api/src/main.ts)). Snake_case JSON 
 
 ```json
 {
-  "status": "degraded",
-  "timestamp": "2026-07-19T19:00:00.000Z",
+  "status": "ok",
+  "timestamp": "2026-07-25T15:30:00.000Z",
   "series": [
     {
       "asset_type": "EQUITY",
       "interval": "1d",
-      "latest_timestamp": "2026-02-27",
-      "age_ms": 1234567890,
-      "stale": true,
+      "latest_timestamp": "2026-07-24",
+      "age_ms": 54000000,
+      "stale": false,
       "stale_after_ms": 172800000,
       "symbol_count_with_data": 3
     },
     {
       "asset_type": "CRYPTO",
       "interval": "1d",
-      "latest_timestamp": "2026-02-03",
-      "age_ms": 1234567890,
-      "stale": true,
+      "latest_timestamp": "2026-07-25",
+      "age_ms": 0,
+      "stale": false,
       "stale_after_ms": 129600000,
       "symbol_count_with_data": 2
     },
     {
       "asset_type": "CRYPTO",
       "interval": "1h",
-      "latest_timestamp": "2026-01-07T00:00:00.000Z",
-      "age_ms": 1234567890,
-      "stale": true,
+      "latest_timestamp": "2026-07-25T15:00:00.000Z",
+      "age_ms": 0,
+      "stale": false,
       "stale_after_ms": 7200000,
       "symbol_count_with_data": 2
     }
@@ -187,7 +187,7 @@ Global prefix `/api` ([`main.ts`](../../apps/api/src/main.ts)). Snake_case JSON 
 | Crypto daily | `MARKET_DATA_STALE_CRYPTO_DAILY_MS` | `129600000` (36h) |
 | Crypto hourly | `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | `7200000` (2h) |
 
-**Important:** Seed fixtures are anchored at `2026-01-05` ([`seed-candles.ts`](../../apps/api/src/market-data/seed-candles.ts)). In July 2026 they will correctly report `stale: true`. That is expected for seed-mode demos; MySQL after seed import behaves the same until a live provider (7.1) or fresher fixtures land. Document this in manual testing — do **not** fake “fresh” by comparing against max seed date.
+**Important:** Seed fixtures roll to **today (UTC)** at process load ([`seed-candles.ts`](../../apps/api/src/market-data/seed-candles.ts)) so local health demos can report `ok`. MySQL still needs a fresh ingestion after the API restarts with new seed dates. A live provider remains Sprint 7.1 — do **not** fake “fresh” by comparing against max seed date inside the health endpoint itself.
 
 **Errors:** none expected for happy path; malformed internal state still returns 200 with `unhealthy` rather than 5xx when possible.
 
@@ -331,7 +331,7 @@ model AuditEvent {
 
 Update `User` with `auditEvents AuditEvent[]`.
 
-**Migration folder name:** `apps/api/prisma/migrations/20260719140000_sprint_1_4_audit_events/`  
+**Migration folder name:** `apps/api/prisma/migrations/20260724150000_sprint_1_4_audit_events/`  
 (Use `npm --prefix apps/api run db:migrate` locally; `db:deploy` in CI/prod — Prisma Migrate flow per [Prisma docs](https://www.prisma.io/docs/orm/prisma-migrate).)
 
 ---
@@ -423,16 +423,16 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ## Best-practice checklist
 
-- [ ] Config validation fail-fast at boot (`AppConfigService`)
-- [ ] RFC 7807 only for true request errors — health/metrics prefer soft `status` fields
-- [ ] Redact secrets in audit payloads and keep Pino redaction paths
-- [ ] Indexed Prisma aggregates; no full-table scans of all bars for health
-- [ ] Cardinality-safe metric labels (route **group**, not raw URLs with ids)
-- [ ] Deterministic tests via injectable `now`
-- [ ] Seed vs DB parity for health (same response shape)
-- [ ] Audit/metrics never break primary flows
-- [ ] Conventional Commits: `feat: add data health metrics and audit trail`
-- [ ] No Angular / no provider adapters / no Prometheus
+- [x] Config validation fail-fast at boot (`AppConfigService`)
+- [x] RFC 7807 only for true request errors — health/metrics prefer soft `status` fields
+- [x] Redact secrets in audit payloads and keep Pino redaction paths
+- [x] Indexed Prisma aggregates; no full-table scans of all bars for health
+- [x] Cardinality-safe metric labels (route **group**, not raw URLs with ids)
+- [x] Deterministic tests via injectable `now`
+- [x] Seed vs DB parity for health (same response shape)
+- [x] Audit/metrics never break primary flows
+- [x] Conventional Commits for the sprint feature commit
+- [x] No Angular / no provider adapters / no Prometheus
 
 ---
 
@@ -440,12 +440,12 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 | Risk | Mitigation |
 |------|------------|
-| Seed timestamps always “stale” in 2026+ | Document as expected; thresholds still valuable for MySQL + future live feeds |
-| Story #8.4.2 wording vs no backtests | Ship foundation + job/HTTP metrics; explicit deferral in stories + Observability.md |
+| Seed timestamps looked “always stale” with fixed Jan 2026 fixtures | Mitigated: seed bars roll to today (UTC) at process load; MySQL still needs re-ingest after restart |
+| Story #8.4.2 wording vs no backtests | Shipped foundation + job/HTTP metrics; backtest counters deferred in stories + Observability.md |
 | Audit FK when user only in-memory | `ensureUserPersisted` before insert (same as jobs) |
-| Coverage cliff from new modules | Test services first; avoid ignore-list creep |
+| Coverage cliff from new modules | Covered with unit/e2e; keep ignore-list tight |
 | `MARKET_DATA_HEALTH_URL` self-probe latency | Keep optional; readiness timeout already `READINESS_TIMEOUT_MS` (default 1500) |
-| Unmerged `chore/local-dev-hardening` | Branch 1.4 from updated `main` after PR #7 merges |
+| Unmerged `chore/local-dev-hardening` | Resolved — PR #7 merged before 1.4 branched from `main` |
 
 ---
 
@@ -459,9 +459,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 | 4 | Coverage excludes for thin Nest files | Sprint 1.3 needed excludes | ⏸ Prefer tests; ask before adding ignores | ⏸ needs input only if gate fails |
 | 5 | Audit event catalog beyond minimum | Product may want profile updates, OAuth link, etc. | ⏭ Ship minimum set in AC; extend later | ⏭ stubbed |
 | 6 | #8.4.2 backtest-specific metrics | No backtest domain yet | ⏭ Foundation + HTTP/jobs; document Milestone 3 hook | ⏭ stubbed |
-| 7 | Base branch | `chore/local-dev-hardening` open | Wait for merge to `main`, then branch | ⏸ until #7 merges |
-
-If implementing before PR #7 merges: stack on `chore/local-dev-hardening` temporarily, then retarget PR base to `main` after merge.
+| 7 | Base branch | `chore/local-dev-hardening` open | Wait for merge to `main`, then branch | ✅ resolved (PR #7 merged) |
 
 ---
 
@@ -482,14 +480,14 @@ If implementing before PR #7 merges: stack on `chore/local-dev-hardening` tempor
 
 ## Definition of done
 
-- [ ] Branched from correct base (`main` post-hardening, or stacked as noted)
-- [ ] Dev gates resolved or explicitly stubbed above
-- [ ] #2.6.1, #2.6.2, #8.4.2, #8.4.3 implemented per AC
-- [ ] `audit_events` migration applies cleanly (`db:deploy`)
-- [ ] build / lint / test / test:cov (≥90%) / test:e2e pass
-- [ ] Docs synced; ROADMAP `START HERE` moved to Sprint 2.1
-- [ ] Manual testing Section 10 added (seed stale behavior called out)
-- [ ] PR opened: `feat: add data health metrics and audit trail (Sprint 1.4)`
+- [x] Branched from correct base (`main` post-hardening)
+- [x] Dev gates resolved or explicitly stubbed above
+- [x] #2.6.1, #2.6.2, #8.4.2, #8.4.3 implemented per AC
+- [x] `audit_events` migration applies cleanly (`db:deploy`)
+- [x] build / lint / test / test:cov (≥90%) / test:e2e pass
+- [x] Docs synced; ROADMAP `START HERE` moved to Sprint 2.1
+- [x] Manual testing Section 10 added (rolling seed / `ok` health called out)
+- [x] PR opened for Sprint 1.4
 
 ---
 

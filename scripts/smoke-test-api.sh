@@ -87,56 +87,57 @@ auth_header() {
 run_sprint_12() {
   log "=== Sprint 1.2 — equity & crypto candles ==="
 
-  http_json GET "/market-data/equities/candles?symbol=aapl&start=2026-01-05&end=2026-01-09"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 5' >/dev/null 2>&1; then
-    record_pass "1.2 equity ascending AAPL (5 bars)"
+  # Seed bars roll to "today" (UTC); use a wide range and assert counts/shape.
+  http_json GET "/market-data/equities/candles?symbol=aapl&start=2000-01-01&end=2099-12-31"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 40' >/dev/null 2>&1; then
+    record_pass "1.2 equity ascending AAPL (40 bars)"
   else
     record_fail "1.2 equity ascending AAPL" "http=$HTTP_CODE body=$(echo "$HTTP_BODY" | head -c 200)"
   fi
 
-  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09&order=desc&limit=2"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e '.[0].date == "2026-01-09" and length == 2' >/dev/null 2>&1; then
+  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&order=desc&limit=2"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 2 and (.[0].date > .[1].date)' >/dev/null 2>&1; then
     record_pass "1.2 equity desc limit=2"
   else
     record_fail "1.2 equity desc limit=2" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2025-01-01&end=2025-01-31"
+  http_json GET "/market-data/equities/candles?symbol=AAPL&start=1990-01-01&end=1990-01-31"
   if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 0' >/dev/null 2>&1; then
     record_pass "1.2 equity empty range"
   else
     record_fail "1.2 equity empty range" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/equities/candles?symbol=BTC-USD&start=2026-01-05&end=2026-01-09"
+  http_json GET "/market-data/equities/candles?symbol=BTC-USD&start=2000-01-01&end=2099-12-31"
   if [[ "$HTTP_CODE" == "400" ]] && echo "$HTTP_BODY" | jq -e '.code == "VALIDATION_ERROR"' >/dev/null 2>&1; then
     record_pass "1.2 equity wrong asset type"
   else
     record_fail "1.2 equity wrong asset type" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/equities/candles?symbol=NOPE&start=2026-01-05&end=2026-01-09"
+  http_json GET "/market-data/equities/candles?symbol=NOPE&start=2000-01-01&end=2099-12-31"
   if [[ "$HTTP_CODE" == "404" ]] && echo "$HTTP_BODY" | jq -e '.code == "NOT_FOUND"' >/dev/null 2>&1; then
     record_pass "1.2 equity unknown symbol"
   else
     record_fail "1.2 equity unknown symbol" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/crypto/candles?symbol=btc-usd&interval=1d&start=2026-01-01&end=2026-01-03"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 3 and (.[0] | has("date"))' >/dev/null 2>&1; then
+  http_json GET "/market-data/crypto/candles?symbol=btc-usd&interval=1d&start=2000-01-01&end=2099-12-31"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 30 and (.[0] | has("date"))' >/dev/null 2>&1; then
     record_pass "1.2 crypto daily BTC-USD"
   else
     record_fail "1.2 crypto daily BTC-USD" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2026-01-15T00:00:00.000Z&end=2026-01-15T02:00:00.000Z"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 3 and (.[0] | has("timestamp"))' >/dev/null 2>&1; then
+  http_json GET "/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2000-01-01T00:00:00.000Z&end=2099-12-31T23:59:59.999Z"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 48 and (.[0] | has("timestamp"))' >/dev/null 2>&1; then
     record_pass "1.2 crypto hourly BTC-USD"
   else
     record_fail "1.2 crypto hourly BTC-USD" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/crypto/candles?symbol=AAPL&interval=1d&start=2026-01-01&end=2026-01-03"
+  http_json GET "/market-data/crypto/candles?symbol=AAPL&interval=1d&start=2000-01-01&end=2099-12-31"
   if [[ "$HTTP_CODE" == "400" ]] && echo "$HTTP_BODY" | jq -e '.code == "VALIDATION_ERROR"' >/dev/null 2>&1; then
     record_pass "1.2 crypto wrong asset type"
   else
@@ -150,7 +151,7 @@ run_sprint_12() {
     record_fail "1.2 reversed date range" "http=$HTTP_CODE"
   fi
 
-  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09&limit=0"
+  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&limit=0"
   if [[ "$HTTP_CODE" == "400" ]] && echo "$HTTP_BODY" | jq -e '.code == "VALIDATION_ERROR"' >/dev/null 2>&1; then
     record_pass "1.2 invalid limit"
   else
@@ -248,7 +249,7 @@ run_db_persisted_candles() {
     return 0
   fi
   log "=== DB mode — candles after ingestion ==="
-  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09"
+  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31"
   if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length > 0' >/dev/null 2>&1; then
     record_pass "DB persisted equity candles"
   else

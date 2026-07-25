@@ -83,7 +83,7 @@ Expected: `ready: true`, `status: "ok"`, and:
 
 - **Without `DATABASE_URL`:** `checks.database.status` is `not_configured`.
 - **With MySQL:** `checks.database.status` is `up` with `latencyMs`.
-- **`checks.marketData`:** `not_configured` unless `MARKET_DATA_HEALTH_URL` is set (Sprint 1.4).
+- **`checks.marketData`:** `not_configured` unless `MARKET_DATA_HEALTH_URL` is set (optional readiness probe; often pointed at `http://localhost:4000/api/market-data/health` after Sprint 1.4).
 
 ---
 
@@ -140,30 +140,30 @@ Public endpoint: `GET /api/market-data/equities/candles`
 
 | Symbol | Seed bars | Approximate range |
 | --- | --- | --- |
-| `AAPL` | 40 weekday daily bars | `2026-01-05` through mid-February 2026 |
+| `AAPL` | 40 weekday daily bars | rolling window ending **today (UTC)** |
 | `MSFT` | 40 weekday daily bars | same generator pattern |
 | `SPY` | 40 weekday daily bars | same generator pattern |
 
 ### Success – default ascending order
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=aapl&start=2026-01-05&end=2026-01-09' | jq
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=aapl&start=2000-01-01&end=2099-12-31' | jq 'length'
 ```
 
-Expected: `200` array of five objects ordered by `date`, each with numeric `open`, `high`, `low`, `close`, `volume` and `date` formatted as `YYYY-MM-DD`.
+Expected: `200` with `40` bars ordered by `date`, each with numeric OHLCV and `date` as `YYYY-MM-DD`.
 
 ### Success – descending order with limit
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09&order=desc&limit=2' | jq
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&order=desc&limit=2' | jq
 ```
 
-Expected: `200` with two rows; newest `date` first (`2026-01-09`, then `2026-01-08`).
+Expected: `200` with two rows; newest `date` first.
 
 ### Success – empty range
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2025-01-01&end=2025-01-31' | jq
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=1990-01-01&end=1990-01-31' | jq
 ```
 
 Expected: `200` with `[]`.
@@ -171,7 +171,7 @@ Expected: `200` with `[]`.
 ### Validation – wrong asset type
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=BTC-USD&start=2026-01-05&end=2026-01-09' | jq
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=BTC-USD&start=2000-01-01&end=2099-12-31' | jq
 ```
 
 Expected: `400` with `code: "VALIDATION_ERROR"` and `fieldErrors`.
@@ -179,7 +179,7 @@ Expected: `400` with `code: "VALIDATION_ERROR"` and `fieldErrors`.
 ### Not found
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=NOPE&start=2026-01-05&end=2026-01-09' | jq
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=NOPE&start=2000-01-01&end=2099-12-31' | jq
 ```
 
 Expected: `404` with `code: "NOT_FOUND"`.
@@ -194,29 +194,29 @@ Public endpoint: `GET /api/market-data/crypto/candles`
 
 | Symbol | Daily (`interval=1d`) | Hourly (`interval=1h`) |
 | --- | --- | --- |
-| `BTC-USD` | 30 daily bars from `2026-01-01` | 48 hourly bars from `2026-01-15T00:00:00.000Z` |
-| `ETH-USD` | 30 daily bars from `2026-01-01` | 48 hourly bars from `2026-01-15T00:00:00.000Z` |
+| `BTC-USD` | 30 daily bars ending today (UTC) | 48 hourly bars ending at the current UTC hour |
+| `ETH-USD` | same | same |
 
 ### Success – crypto daily
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=btc-usd&interval=1d&start=2026-01-01&end=2026-01-03' | jq
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=btc-usd&interval=1d&start=2000-01-01&end=2099-12-31' | jq 'length'
 ```
 
-Expected: `200` array of three objects with `date` (not `timestamp`) and numeric OHLCV fields.
+Expected: `200` with `30` objects using `date` (not `timestamp`) and numeric OHLCV fields.
 
 ### Success – crypto hourly
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2026-01-15T00:00:00.000Z&end=2026-01-15T02:00:00.000Z' | jq
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2000-01-01T00:00:00.000Z&end=2099-12-31T23:59:59.999Z' | jq 'length'
 ```
 
-Expected: `200` array of three objects with UTC `timestamp` ISO strings (for example `2026-01-15T00:00:00.000Z`).
+Expected: `200` with `48` objects using UTC `timestamp` ISO strings.
 
 ### Validation – equity symbol on crypto endpoint
 
 ```bash
-curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=AAPL&interval=1d&start=2026-01-01&end=2026-01-03' | jq
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=AAPL&interval=1d&start=2000-01-01&end=2099-12-31' | jq
 ```
 
 Expected: `400` `VALIDATION_ERROR`.
@@ -237,16 +237,16 @@ Run this checklist after Sprint 1.2 changes or before marking the sprint complet
 
 | # | Scenario | Command | Expect |
 | --- | --- | --- | --- |
-| 1 | Equity happy path | Section 5 ascending `AAPL` curl | `200`, 5 bars, ascending dates |
+| 1 | Equity happy path | Section 5 ascending `AAPL` curl | `200`, 40 bars, ascending dates |
 | 2 | Equity `order` + `limit` | Section 5 descending curl | `200`, 2 bars, newest first |
 | 3 | Equity empty range | Section 5 empty-range curl | `200`, `[]` |
 | 4 | Equity wrong asset | Section 5 `BTC-USD` curl | `400`, `VALIDATION_ERROR` |
-| 5 | Crypto daily happy path | Section 6 daily curl | `200`, 3 bars with `date` |
-| 6 | Crypto hourly happy path | Section 6 hourly curl | `200`, 3 bars with `timestamp` |
+| 5 | Crypto daily happy path | Section 6 daily curl | `200`, 30 bars with `date` |
+| 6 | Crypto hourly happy path | Section 6 hourly curl | `200`, 48 bars with `timestamp` |
 | 7 | Crypto wrong asset | Section 6 `AAPL` curl | `400`, `VALIDATION_ERROR` |
 | 8 | Unknown symbol | Section 5 `NOPE` curl | `404`, `NOT_FOUND` |
 | 9 | Reversed equity range | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-02-01&end=2026-01-01'` | `400`, `VALIDATION_ERROR` |
-| 10 | Invalid limit | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09&limit=0'` | `400`, `VALIDATION_ERROR` |
+| 10 | Invalid limit | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&limit=0'` | `400`, `VALIDATION_ERROR` |
 
 With `DATABASE_URL` configured and empty bar tables, run Section 8 ingestion curls first, then repeat rows 1, 2, 5, and 6; expect non-empty candle arrays for seeded symbols.
 
@@ -336,7 +336,7 @@ Expected: `"status": "up"`.
 
 ```bash
 curl -s http://localhost:4000/api/symbols/AAPL | jq '.code'
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09' | jq '.code'
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31' | jq '.code'
 ```
 
 Expected on a **fresh migrated DB (before ingestion):** `NOT_FOUND` for both (no seed fallback when Prisma is enabled).
@@ -349,12 +349,12 @@ Complete Section 8 equity and crypto import curls with a bearer token.
 
 ```bash
 curl -s http://localhost:4000/api/symbols/AAPL | jq '.symbol'
-curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-01-05&end=2026-01-09' | jq 'length'
-curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1d&start=2026-01-01&end=2026-01-03' | jq 'length'
-curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2026-01-15T00:00:00.000Z&end=2026-01-15T02:00:00.000Z' | jq 'length'
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31' | jq 'length'
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1d&start=2000-01-01&end=2099-12-31' | jq 'length'
+curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2000-01-01T00:00:00.000Z&end=2099-12-31T23:59:59.999Z' | jq 'length'
 ```
 
-Expected: `"AAPL"`, then `5`, `3`, and `3` respectively.
+Expected: `"AAPL"`, then `40`, `30`, and `48` respectively.
 
 ### 9.5 Regression table (MySQL mode)
 
@@ -374,7 +374,7 @@ Expected: `"AAPL"`, then `5`, `3`, and `3` respectively.
 ### Prerequisites
 - API on port `4000` with global prefix `/api`
 - Seed mode (no `DATABASE_URL`) is fine for these curls
-- Note: seed candle fixtures are dated Jan–Feb 2026, so health will usually report `stale: true` / `status: "degraded"` under wall-clock dates in mid/late 2026 — that is expected
+- Seed bars roll to **today (UTC)** on process start, so health should report `status: "ok"` and `stale: false` after a fresh restart (or after re-ingestion into MySQL)
 
 ### Success – market data health
 
@@ -382,7 +382,7 @@ Expected: `"AAPL"`, then `5`, `3`, and `3` respectively.
 curl -s http://localhost:4000/api/market-data/health | jq
 ```
 
-Expected: `200` with `source` (`seed` or `database`), `series` (3 entries), and `sanity.checked > 0`.
+Expected: `200` with `source` (`seed` or `database`), `series` (3 entries), `sanity.checked > 0`, and typically `status: "ok"`.
 
 ### Success – metrics snapshot
 
