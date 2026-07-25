@@ -9,6 +9,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 1.4 data health and observability: candle sanity checks, `GET /api/market-data/health`, in-process `GET /api/metrics`, and `audit_events` audit trail.
 - Local MySQL 8 Docker workflow (`scripts/docker-mysql.sh`, `docs/database/Local_MySQL.md`, `apps/api/.env.example`).
 - `npm --prefix apps/api run db:deploy` for non-interactive migration apply; Prisma loads `apps/api/.env` automatically.
 - Sprint 1.3 jobs infrastructure (`jobs` table, synchronous executor, timeout handling) and market-data ingestion endpoints with hourly scheduler.
@@ -21,9 +22,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Changed
 
 - API development default port is `4000` (override with `PORT`).
-- Updated roadmap, README, API inventory, migration plan, and story status docs to reflect Sprint 1.3 completion.
+- Seed OHLCV fixtures in `seed-candles.ts` roll to today (UTC) at process load so local market-data health demos can report `ok` (MySQL still needs re-ingestion after restart).
+- Updated roadmap, README, API inventory, migration plan, and story status docs through Sprint 1.4 completion.
 - `AuthService.ensureUserPersisted` remaps stale MySQL user rows (and dependent jobs/credentials) when the same email is re-registered under a new in-memory id, and tolerates concurrent unique-constraint races on first persist.
 - E2E tests force seed mode via `apps/api/test/setup-e2e.ts` so gates pass without a local MySQL instance.
+- Exception-path HTTP metrics record in `GlobalHttpExceptionFilter` (interceptor successes only); health aggregates filter active symbols.
 
 ### Documentation
 
@@ -31,3 +34,4 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Align docs with code: health/readiness response shape, verify-script seed mode, OAuth redirect URIs in `.env.example`, and scheduler defaults.
 - Clarify planned vs shipped API inventory sections; document in-memory auth/passkeys with MySQL; correct testing-strategy and security session claims.
 - Tighten scheduler default wording (dev-only when unset), candle `limit` defaults, rate-limit scope, and RFC 7807 `instance` examples.
+- Manual testing Sections 5–10 and smoke script use wide candle ranges for rolling seed windows; Section 10 expects typically `ok` health after restart.

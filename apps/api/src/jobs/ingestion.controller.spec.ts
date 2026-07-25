@@ -2,6 +2,7 @@ import { IngestionController } from './ingestion.controller';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
 import type { AuthService } from '../auth/auth.service';
+import type { AuditService } from '../observability/audit.service';
 
 describe('IngestionController', () => {
   it('delegates equity ingestion to the job handlers service', async () => {
@@ -24,6 +25,9 @@ describe('IngestionController', () => {
       { createAndRun } as unknown as JobHandlersService,
       { toJobResponse } as unknown as JobsService,
       { requireUserBySessionToken } as unknown as AuthService,
+      {
+        record: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService,
     );
 
     await expect(
@@ -48,6 +52,9 @@ describe('IngestionController', () => {
       { createAndRun } as unknown as JobHandlersService,
       { toJobResponse } as unknown as JobsService,
       { requireUserBySessionToken } as unknown as AuthService,
+      {
+        record: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService,
     );
 
     await controller.importCrypto({ authToken: 'token' } as never, {
@@ -66,6 +73,7 @@ describe('IngestionController', () => {
       {} as JobHandlersService,
       {} as JobsService,
       {} as AuthService,
+      { record: jest.fn() } as unknown as AuditService,
     );
 
     await expect(controller.importEquity({} as never, {})).rejects.toThrow(

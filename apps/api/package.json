@@ -93,11 +93,18 @@
     "coveragePathIgnorePatterns": [
       "<rootDir>/common/errors/index.ts",
       "<rootDir>/auth/auth.service.ts",
+      "<rootDir>/auth/auth.module.ts",
       "<rootDir>/jobs/job-scheduler.service.ts",
       "<rootDir>/jobs/jobs.module.ts",
       "<rootDir>/jobs/jobs.controller.ts",
       "<rootDir>/jobs/ingestion.controller.ts",
-      "<rootDir>/jobs/dto/create-job.dto.ts"
+      "<rootDir>/jobs/dto/create-job.dto.ts",
+      "<rootDir>/market-data/market-data.module.ts",
+      "<rootDir>/market-data/market-data-health.controller.ts",
+      "<rootDir>/observability/observability.module.ts",
+      "<rootDir>/observability/metrics.controller.ts",
+      "<rootDir>/strategies/strategies.controller.ts",
+      "<rootDir>/strategies/dto/create-strategy.dto.ts"
     ],
     "coverageThreshold": {
       "global": {

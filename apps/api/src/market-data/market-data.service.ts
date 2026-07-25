@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Symbol as PrismaSymbol } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AssetType,
@@ -16,12 +17,40 @@ import {
   SymbolResponse,
   SymbolSearchInput,
 } from './market-data.types';
+import { CandleSanityService } from './sanity/candle-sanity.service';
+import type {
+  SanityBarInput,
+  SanitySummary,
+} from './sanity/candle-sanity.types';
 import {
   SEED_CRYPTO_DAILY_BARS,
   SEED_CRYPTO_HOURLY_BARS,
   SEED_EQUITY_DAILY_BARS,
 } from './seed-candles';
 import { SEED_SYMBOLS } from './seed-symbols';
+
+export type MarketDataHealthStatus = 'ok' | 'degraded' | 'unhealthy';
+
+export interface MarketDataHealthSeries {
+  asset_type: AssetType;
+  interval: '1d' | '1h';
+  latest_timestamp: string | null;
+  age_ms: number | null;
+  stale: boolean;
+  stale_after_ms: number;
+  symbol_count_with_data: number;
+}
+
+export interface MarketDataHealthResponse {
+  status: MarketDataHealthStatus;
+  timestamp: string;
+  series: MarketDataHealthSeries[];
+  sanity: SanitySummary;
+  source: 'database' | 'seed';
+}
+
+const SANITY_SAMPLE_LIMIT = 40;
+const ACTIVE_SYMBOL_WHERE = { symbol: { isActive: true } } as const;
 
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -58,7 +87,11 @@ interface ParsedCandleRange {
 
 @Injectable()
 export class MarketDataService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: AppConfigService,
+    private readonly sanity: CandleSanityService,
+  ) {}
 
   async lookupSymbol(symbol: string): Promise<SymbolResponse> {
     const normalizedSymbol = normalizeSymbol(symbol);
@@ -109,6 +142,28 @@ export class MarketDataService {
     return selectSeedBars(SEED_EQUITY_DAILY_BARS, symbol.id, 'date', range).map(
       toDailyCandleResponse,
     );
+  }
+
+  async getMarketDataHealth(
+    now = new Date(),
+  ): Promise<MarketDataHealthResponse> {
+    const source = this.prisma.isEnabled ? 'database' : 'seed';
+    const series = this.prisma.isEnabled
+      ? await this.buildHealthSeriesFromDatabase(now)
+      : this.buildHealthSeriesFromSeed(now);
+
+    const sanityBars = this.prisma.isEnabled
+      ? await this.sampleBarsFromDatabase()
+      : this.sampleBarsFromSeed();
+    const sanity = this.sanity.scan(sanityBars);
+
+    return {
+      status: deriveHealthStatus(series, sanity),
+      timestamp: now.toISOString(),
+      series,
+      sanity,
+      source,
+    };
   }
 
   async getCryptoCandles(
@@ -267,6 +322,231 @@ export class MarketDataService {
     })
       .sort((left, right) => left.symbol.localeCompare(right.symbol))
       .slice(0, limit);
+  }
+
+  private buildHealthSeriesFromSeed(now: Date): MarketDataHealthSeries[] {
+    const equityBars = filterBarsForActiveSeedSymbols(SEED_EQUITY_DAILY_BARS);
+    const cryptoDailyBars = filterBarsForActiveSeedSymbols(
+      SEED_CRYPTO_DAILY_BARS,
+    );
+    const cryptoHourlyBars = filterBarsForActiveSeedSymbols(
+      SEED_CRYPTO_HOURLY_BARS,
+    );
+
+    return [
+      this.toSeries(
+        'EQUITY',
+        '1d',
+        maxDate(equityBars.map((bar) => bar.date)),
+        countDistinctSymbolIds(equityBars),
+        this.config.marketData.staleEquityDailyMs,
+        now,
+        'daily',
+      ),
+      this.toSeries(
+        'CRYPTO',
+        '1d',
+        maxDate(cryptoDailyBars.map((bar) => bar.date)),
+        countDistinctSymbolIds(cryptoDailyBars),
+        this.config.marketData.staleCryptoDailyMs,
+        now,
+        'daily',
+      ),
+      this.toSeries(
+        'CRYPTO',
+        '1h',
+        maxDate(cryptoHourlyBars.map((bar) => bar.timestamp)),
+        countDistinctSymbolIds(cryptoHourlyBars),
+        this.config.marketData.staleCryptoHourlyMs,
+        now,
+        'hourly',
+      ),
+    ];
+  }
+
+  private async buildHealthSeriesFromDatabase(
+    now: Date,
+  ): Promise<MarketDataHealthSeries[]> {
+    const [
+      equityAgg,
+      cryptoDailyAgg,
+      cryptoHourlyAgg,
+      equitySymbols,
+      cryptoDailySymbols,
+      cryptoHourlySymbols,
+    ] = await Promise.all([
+      this.prisma.equityDailyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { date: true },
+      }),
+      this.prisma.cryptoDailyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { date: true },
+      }),
+      this.prisma.cryptoHourlyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { timestamp: true },
+      }),
+      this.prisma.equityDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        distinct: ['symbolId'],
+        select: { symbolId: true },
+      }),
+      this.prisma.cryptoDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        distinct: ['symbolId'],
+        select: { symbolId: true },
+      }),
+      this.prisma.cryptoHourlyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        distinct: ['symbolId'],
+        select: { symbolId: true },
+      }),
+    ]);
+
+    return [
+      this.toSeries(
+        'EQUITY',
+        '1d',
+        equityAgg._max.date,
+        equitySymbols.length,
+        this.config.marketData.staleEquityDailyMs,
+        now,
+        'daily',
+      ),
+      this.toSeries(
+        'CRYPTO',
+        '1d',
+        cryptoDailyAgg._max.date,
+        cryptoDailySymbols.length,
+        this.config.marketData.staleCryptoDailyMs,
+        now,
+        'daily',
+      ),
+      this.toSeries(
+        'CRYPTO',
+        '1h',
+        cryptoHourlyAgg._max.timestamp,
+        cryptoHourlySymbols.length,
+        this.config.marketData.staleCryptoHourlyMs,
+        now,
+        'hourly',
+      ),
+    ];
+  }
+
+  private toSeries(
+    assetType: AssetType,
+    interval: '1d' | '1h',
+    latest: Date | null | undefined,
+    symbolCount: number,
+    staleAfterMs: number,
+    now: Date,
+    kind: 'daily' | 'hourly',
+  ): MarketDataHealthSeries {
+    if (!latest) {
+      return {
+        asset_type: assetType,
+        interval,
+        latest_timestamp: null,
+        age_ms: null,
+        stale: true,
+        stale_after_ms: staleAfterMs,
+        symbol_count_with_data: 0,
+      };
+    }
+
+    const ageMs = Math.max(0, now.getTime() - latest.getTime());
+    return {
+      asset_type: assetType,
+      interval,
+      latest_timestamp:
+        kind === 'daily'
+          ? latest.toISOString().slice(0, 10)
+          : latest.toISOString(),
+      age_ms: ageMs,
+      stale: ageMs > staleAfterMs,
+      stale_after_ms: staleAfterMs,
+      symbol_count_with_data: symbolCount,
+    };
+  }
+
+  private sampleBarsFromSeed(): SanityBarInput[] {
+    const symbolById = new Map(
+      SEED_SYMBOLS.filter((record) => record.isActive).map((record) => [
+        record.id,
+        record.symbol,
+      ]),
+    );
+
+    return [
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_EQUITY_DAILY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
+        toSanityBar(
+          symbolById.get(bar.symbolId) ?? String(bar.symbolId),
+          '1d',
+          bar,
+          'date',
+        ),
+      ),
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_CRYPTO_DAILY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
+        toSanityBar(
+          symbolById.get(bar.symbolId) ?? String(bar.symbolId),
+          '1d',
+          bar,
+          'date',
+        ),
+      ),
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_CRYPTO_HOURLY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
+        toSanityBar(
+          symbolById.get(bar.symbolId) ?? String(bar.symbolId),
+          '1h',
+          bar,
+          'timestamp',
+        ),
+      ),
+    ];
+  }
+
+  private async sampleBarsFromDatabase(): Promise<SanityBarInput[]> {
+    const [equity, cryptoDaily, cryptoHourly] = await Promise.all([
+      this.prisma.equityDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        orderBy: { date: 'desc' },
+        take: SANITY_SAMPLE_LIMIT,
+        include: { symbol: true },
+      }),
+      this.prisma.cryptoDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        orderBy: { date: 'desc' },
+        take: SANITY_SAMPLE_LIMIT,
+        include: { symbol: true },
+      }),
+      this.prisma.cryptoHourlyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
+        orderBy: { timestamp: 'desc' },
+        take: SANITY_SAMPLE_LIMIT,
+        include: { symbol: true },
+      }),
+    ]);
+
+    return [
+      ...equity.map((bar) => toSanityBar(bar.symbol.symbol, '1d', bar, 'date')),
+      ...cryptoDaily.map((bar) =>
+        toSanityBar(bar.symbol.symbol, '1d', bar, 'date'),
+      ),
+      ...cryptoHourly.map((bar) =>
+        toSanityBar(bar.symbol.symbol, '1h', bar, 'timestamp'),
+      ),
+    ];
   }
 }
 
@@ -472,4 +752,83 @@ function toHourlyCandleResponse(
 
 function toNumber(value: NumericValue): number {
   return typeof value === 'object' ? Number(value.toString()) : Number(value);
+}
+
+function filterBarsForActiveSeedSymbols<T extends { symbolId: number }>(
+  bars: T[],
+): T[] {
+  const activeIds = new Set(
+    SEED_SYMBOLS.filter((record) => record.isActive).map((record) => record.id),
+  );
+  return bars.filter((bar) => activeIds.has(bar.symbolId));
+}
+
+function maxDate(dates: Date[]): Date | null {
+  if (dates.length === 0) {
+    return null;
+  }
+
+  return dates.reduce((latest, current) =>
+    current.getTime() > latest.getTime() ? current : latest,
+  );
+}
+
+function countDistinctSymbolIds(bars: Array<{ symbolId: number }>): number {
+  return new Set(bars.map((bar) => bar.symbolId)).size;
+}
+
+function takeLast<T>(items: T[], count: number): T[] {
+  if (items.length <= count) {
+    return items;
+  }
+
+  return items.slice(items.length - count);
+}
+
+function toSanityBar(
+  symbol: string,
+  interval: '1d' | '1h',
+  bar: {
+    open: NumericValue;
+    high: NumericValue;
+    low: NumericValue;
+    close: NumericValue;
+    volume: NumericValue;
+    date?: Date;
+    timestamp?: Date;
+  },
+  timeField: 'date' | 'timestamp',
+): SanityBarInput {
+  const time =
+    timeField === 'date'
+      ? bar.date!.toISOString().slice(0, 10)
+      : bar.timestamp!.toISOString();
+
+  return {
+    symbol,
+    interval,
+    ...(timeField === 'date' ? { date: time } : { timestamp: time }),
+    open: toNumber(bar.open),
+    high: toNumber(bar.high),
+    low: toNumber(bar.low),
+    close: toNumber(bar.close),
+    volume: toNumber(bar.volume),
+  };
+}
+
+function deriveHealthStatus(
+  series: MarketDataHealthSeries[],
+  sanity: SanitySummary,
+): MarketDataHealthStatus {
+  const allEmpty = series.every((item) => item.symbol_count_with_data === 0);
+  if (allEmpty) {
+    return 'unhealthy';
+  }
+
+  const anyStale = series.some((item) => item.stale);
+  if (anyStale || sanity.invalid > 0) {
+    return 'degraded';
+  }
+
+  return 'ok';
 }

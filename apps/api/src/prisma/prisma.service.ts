@@ -43,6 +43,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().job;
   }
 
+  get auditEvent() {
+    return this.requireClient().auditEvent;
+  }
+
   get user() {
     return this.requireClient().user;
   }

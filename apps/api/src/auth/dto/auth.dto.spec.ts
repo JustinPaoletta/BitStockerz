@@ -19,6 +19,14 @@ describe('Auth DTOs', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('accepts register payload when optional display_name is omitted', async () => {
+    const dto = new RegisterDto();
+    dto.email = 'user@example.com';
+
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
   it('rejects invalid register payload', async () => {
     const dto = new RegisterDto();
     dto.email = 'not-an-email';
@@ -51,6 +59,12 @@ describe('Auth DTOs', () => {
     dto.display_name = 'Trader';
     dto.base_currency = 'USD';
 
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts empty update-profile payload', async () => {
+    const dto = new UpdateProfileDto();
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });
@@ -140,6 +154,30 @@ describe('Auth DTOs', () => {
 
     expect(googleErrors).toHaveLength(0);
     expect(appleErrors).toHaveLength(0);
+  });
+
+  it('accepts oauth callbacks when optional identity fields are omitted', async () => {
+    const google = new OAuthGoogleCallbackDto();
+    google.state = 'g-state';
+    google.code = 'g-code';
+
+    const apple = new OAuthAppleCallbackDto();
+    apple.state = 'a-state';
+    apple.code = 'a-code';
+    apple.sub = 'apple-sub';
+
+    const googleErrors = await validate(google);
+    const appleErrors = await validate(apple);
+
+    expect(googleErrors).toHaveLength(0);
+    expect(appleErrors).toHaveLength(0);
+  });
+
+  it('accepts webauthn login verify with only required email', async () => {
+    const dto = new WebAuthnLoginVerifyDto();
+    dto.email = 'user@example.com';
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
   });
 
   it('rejects invalid oauth callback payloads', async () => {

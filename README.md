@@ -80,7 +80,9 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
 | `JOBS_SYSTEM_USER_ID` | User id for scheduled jobs (default matches migration seed). |
 | `PORT` | API listen port (default `4000`). |
-| `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData`. |
+| `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData` (can point at `/api/market-data/health`). |
+| `MARKET_DATA_STALE_EQUITY_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | Domain health staleness thresholds (defaults 48h / 36h / 2h). |
+| `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
 | `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging (see Observability.md). |
 
@@ -114,7 +116,8 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.3)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.4)
+- [docs/plans/sprint-1-4-data-health-observability.md](./docs/plans/sprint-1-4-data-health-observability.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 

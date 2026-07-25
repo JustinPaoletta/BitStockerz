@@ -15,7 +15,7 @@ Scope includes:
 - Completed in Sprint 1.1 (July 3, 2026): #2.1.1–#2.1.3, #2.2.1, #2.3.1, #2.4.1
 - Completed in Sprint 1.2 (July 10, 2026): #2.2.3, #2.3.3 (candle read APIs)
 - Completed in Sprint 1.3 (July 11, 2026): #2.2.2, #2.3.2 (data ingestion)
-- Planned for Sprint 1.4+: #2.6.1–#2.6.2 (data quality and health endpoint)
+- Completed in Sprint 1.4 (July 24, 2026): #2.6.1–#2.6.2 (data quality and health endpoint)
 - Planned for Sprint 5.1: #2.4.2 (symbol search UI component)
 - Planned for Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
 
@@ -97,4 +97,16 @@ Acceptance criteria:
 ## Epic 2.6 – Minimal Data Quality & Monitoring
 
 ### Story 2.6.1 – Basic sanity checks on imported candles
+Acceptance criteria:
+- Candle bars are validated for `high >= low`, body within high/low, finite positive OHLC, and non-negative volume.
+- Batch scans return `{ checked, invalid, issues[] }` without throwing; issues are capped (50).
+- Ingestion job payloads include a `sanity` summary for imported bars.
+- Health sampling reuses the same validators.
+
 ### Story 2.6.2 – Market data health endpoint
+Acceptance criteria:
+- `GET /api/market-data/health` returns latest timestamps, staleness flags, sanity sample, and rollup `status` (`ok` | `degraded` | `unhealthy`).
+- Works in seed mode and with Prisma/MySQL.
+- Public endpoint (no auth); no PII in the response.
+- Staleness uses wall-clock `now` vs each series’ latest bar and `MARKET_DATA_STALE_*_MS` thresholds (injectable `now` in unit tests).
+- Seed fixtures roll to today (UTC) at process load so local demos typically report `ok`; bars older than the threshold still report `stale: true`.

@@ -1,0 +1,299 @@
+# Sprint 2.3 — Strategy CRUD & Validation
+
+**Status:** Plan ready (not started)  
+**Roadmap marker:** after Sprint 2.2 completes  
+**Branch (when implementing):** `feat/sprint-2-3-strategy-crud-validation`  
+**PR base:** `feat/sprint-2-2-indicators-rule-schema` (or `main` if merged)
+
+**Overview:** Complete the Strategy Lab HTTP surface: list, get, update (new version), soft-delete, validate endpoint, and human-readable summary. Exit criterion: users can create and manage valid strategies ready for backtesting (Milestone 3).
+
+---
+
+## Sprint scope and exit criteria
+
+**Stories**
+
+| ID | Title | Source |
+|----|-------|--------|
+| #4.5.1 | Create strategy | [MVP_04](../product/stories/BitStockerz_MVP_04_Strategy_Lab_Stories.md) — refine AC (create already partially in 2.1) |
+| #4.5.2 | Update strategy (new version) | MVP_04 + [API_Inventory §4.2](../database/API_Inventory.md) |
+| #4.5.3 | List user strategies | same |
+| #4.5.4 | Get strategy details | same (extend 2.1 get) |
+| #4.5.5 | Delete strategy (soft delete) | same |
+| #4.6.1 | Strategy validation endpoint | same |
+| #4.6.2 | Human-readable strategy summary | same |
+
+**Exit (ROADMAP):** Users can create and manage valid strategies.
+
+**Explicitly out of scope**
+
+| Item | Why deferred |
+|------|----------------|
+| Backtest run / pin version | Milestone 3 |
+| Angular editor | Milestone 5 |
+| AI explain / red flags | Milestone 6 |
+| Hard delete / GDPR purge beyond lifecycle policy | Lifecycle doc; not this sprint |
+| OR logic / optimization | MVP out of scope |
+
+**Migrations:** None required; optional index already on `user_id`.
+
+---
+
+## Prerequisites
+
+| Capability | From |
+|------------|------|
+| Persist + version rows | Sprint 2.1 |
+| Definition schema + validator + indicator catalog | Sprint 2.2 |
+| AuthGuard + ensureUserPersisted + AuditService | Prior sprints |
+
+---
+
+## Draft acceptance criteria
+
+### #4.5.1 – Create strategy
+
+- Authenticated `POST /api/strategies` creates metadata + version 1 with **valid** definition (validator from 2.2)
+- Duplicate active name → `409 CONFLICT`
+- Response includes `version_number`, `definition`, `summary` (JC-1: include summary on write responses)
+
+### #4.5.2 – Update strategy (new version)
+
+- `PUT /api/strategies/:id` (owner only):
+  - Updates mutable metadata: `name?`, `description?`, `asset_type?`, `timeframe?` (with 2.1 constraints)
+  - If `definition` present → append new `strategy_versions` row with `version_number = max+1`
+  - If only metadata changes → **no** new version (JC-2)
+- Cannot update soft-deleted strategies → `404`
+- Name conflict with another strategy → `409`
+- Invalid definition → `400 VALIDATION_ERROR`
+- Response returns latest version payload
+
+### #4.5.3 – List strategies
+
+- `GET /api/strategies` returns current user’s **active** strategies
+- Default sort: `updated_at DESC`
+- Query: `limit?` default 50 max 100; `offset?` optional (JC-3: offset pagination MVP)
+- Items: `{ id, name, asset_type, timeframe, version_number, created_at, updated_at, is_active }` — no full definition in list
+
+### #4.5.4 – Get strategy details
+
+- `GET /api/strategies/:id` returns metadata + latest definition + `version_number` + `summary`
+- Optional query `version?` to fetch a historical version (JC-4: **include** — cheap and helps backtest debugging)
+
+### #4.5.5 – Soft delete
+
+- `DELETE /api/strategies/:id` sets `is_active=false`; returns `204` or `200` with `{ id, is_active: false }` (JC-5: **204**)
+- Idempotent: second delete → `404`
+- List/get hide soft-deleted
+- Name remains reserved (per Sprint 2.1 JC-1)
+
+### #4.6.1 – Validation endpoint
+
+- `POST /api/strategies/validate`
+- Body: `{ "definition": { ... } }` **or** `{ "strategy_id": "..." }` (owner)
+- Response:
+
+```json
+{
+  "is_valid": false,
+  "errors": [
+    { "path": "entry.conditions[0].op", "code": "UNKNOWN_OP", "message": "..." }
+  ],
+  "summary": null
+}
+```
+
+- When valid: `is_valid: true`, `errors: []`, `summary` string present
+- Does not persist
+
+### #4.6.2 – Human-readable summary
+
+- Deterministic template (no AI): e.g.  
+  `"Buy when SMA(10) crosses above SMA(30) AND RSI(14) < 70. Exit when SMA(10) crosses below SMA(30). Stop loss 2%. Take profit 4%."`
+- Pure function `summarizeStrategyDefinition(def): string`
+- Unit tests for fixture definitions
+- Exposed on get/create/update/validate(valid)
+
+**Audit events:** `strategy.created` (exists), add `strategy.updated`, `strategy.deleted`.
+
+---
+
+## API contract (canonical)
+
+All routes authenticated except `GET /strategies/indicators` (2.2).
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/strategies` | create |
+| GET | `/strategies` | list |
+| GET | `/strategies/:id` | details; `?version=` |
+| PUT | `/strategies/:id` | metadata ± new version |
+| DELETE | `/strategies/:id` | soft delete → 204 |
+| POST | `/strategies/validate` | dry-run validation |
+| GET | `/strategies/indicators` | unchanged (2.2) |
+
+**Route ordering:** Register `GET indicators` and `POST validate` **before** `GET :id` to avoid param capture.
+
+**Error codes:** Continue using `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`. Domain-specific codes (`STRATEGY_INVALID`) optional until Sprint 4.3 `#8.3.2` consolidation — see JC-6.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+  C[StrategiesController]
+  S[StrategiesService]
+  V[StrategyDefinitionValidator]
+  SUM[StrategySummaryService]
+  C --> S
+  S --> V
+  S --> SUM
+  C --> V
+```
+
+**Files**
+
+| Path | Role |
+|------|------|
+| `strategies.controller.ts` | Full route set |
+| `strategies.service.ts` | list/update/softDelete |
+| `dto/update-strategy.dto.ts` | Partial metadata + optional definition |
+| `dto/validate-strategy.dto.ts` | definition XOR strategy_id |
+| `definition/strategy-summary.ts` | Pure summarizer |
+| specs + e2e expansions | Coverage |
+
+Use Prisma `$transaction` when updating metadata + inserting version ([Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions)).
+
+---
+
+## Implementation plan (ordered)
+
+1. AC into MVP_04 for #4.5.x / #4.6.x.
+2. Summary pure function + unit tests.
+3. List + delete + update service methods (memory + Prisma).
+4. Validate endpoint (reuse validator + summary).
+5. Controller routes + DTO; fix route order.
+6. Audit hooks; e2e happy/error paths.
+7. Docs: API_Inventory §4 complete; manual section; ROADMAP exit + START HERE → 3.1; CHANGELOG.
+
+Gates:
+
+```bash
+npm --prefix apps/api run build && npm --prefix apps/api run lint
+npm --prefix apps/api run test && npm --prefix apps/api run test:cov
+npm --prefix apps/api run test:e2e
+./scripts/sprint-delivery-verify.sh verify
+```
+
+---
+
+## Best-practice checklist
+
+- [ ] Owner checks on every id-based route (404 not 403 for cross-user)
+- [ ] Append-only versions for definition changes
+- [ ] Soft delete via `is_active` matching DDL
+- [ ] Deterministic summary (no LLM)
+- [ ] Validate endpoint side-effect free
+- [ ] class-validator DTOs ([NestJS pipes](https://docs.nestjs.com/pipes))
+- [ ] Conventional Commit: `feat: complete strategy crud and validation`
+
+---
+
+## Risks and mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| `validate` vs `:id` routing clash | Declare static paths first |
+| Large definitions | Rely on body parser defaults; optional max depth in validator |
+| Concurrent updates race on version_number | Transaction + unique `(strategy_id, version_number)`; retry once on conflict |
+| Summary drift from validator | Summarizer assumes valid def; validate first |
+
+---
+
+## Dev input required
+
+| # | Blocker | Why | Default | Status |
+|---|---------|-----|---------|--------|
+| 1 | PUT partial vs full body | Inventory says “same as POST or partial” | ⏭ Partial PATCH-like PUT | ⏭ stubbed |
+| 2 | Historical version query | Not in inventory | ⏭ Support `?version=` | ⏭ stubbed |
+| 3 | Delete response 204 vs body | Style | ⏭ 204 | ⏭ stubbed |
+
+---
+
+## Judgement calls
+
+### JC-1 — Summary on write responses
+
+**Decision:** Include `summary` on create/update/get/validate(valid).  
+**Why:** One round-trip for UI; cheap to compute.  
+**Discuss if:** Prefer summary-only via validate endpoint.
+
+### JC-2 — Metadata-only update versions
+
+**Decision:** New version **only** when `definition` is present in PUT body.  
+**Why:** Avoid version spam on renames; backtests pin definition versions.  
+**Discuss if:** Every PUT should bump version for audit simplicity.
+
+### JC-3 — Pagination
+
+**Decision:** `limit` + `offset` (not cursor).  
+**Why:** Small per-user cardinality in MVP.  
+**Discuss if:** Cursor pagination preferred for consistency with future lists.
+
+### JC-4 — Historical version fetch
+
+**Decision:** Support `GET /strategies/:id?version=N`.  
+**Why:** Supports reproducibility story `#5.6.1` debugging before backtests ship.  
+**Discuss if:** Defer until Milestone 3.
+
+### JC-5 — DELETE status
+
+**Decision:** `204 No Content`.  
+**Why:** Standard for successful delete without body.  
+**Discuss if:** Prefer `200` + entity for client convenience.
+
+### JC-6 — Strategy-specific ErrorCode enum values
+
+**Decision:** Defer new enum members to Sprint 4.3 (`#8.3.2`); use existing codes + `fieldErrors` / detail messages now.  
+**Why:** Avoid piecemeal enum churn across milestones.  
+**Discuss if:** Add `STRATEGY_NOT_FOUND` / `STRATEGY_INVALID` immediately.
+
+### JC-7 — Validate XOR body
+
+**Decision:** Exactly one of `definition` or `strategy_id` required; both/neither → validation error.  
+**Why:** Clear API.  
+**Discuss if:** Allow both with definition winning.
+
+---
+
+## Suggested ticket breakdown
+
+| Ticket | Estimate |
+|--------|----------|
+| Summary + validate endpoint | 0.75d |
+| List + soft delete | 0.5d |
+| Update + version bump + races | 1.0d |
+| E2E matrix + docs | 0.75d |
+
+**Total:** ~3 eng days.
+
+---
+
+## Definition of done
+
+- [ ] All #4.5.x and #4.6.x AC implemented
+- [ ] ROADMAP Milestone 2 exit satisfied; START HERE → Sprint 3.1
+- [ ] API_Inventory §4 marked implemented
+- [ ] Gates green; manual curls for full CRUD + validate
+- [ ] PR opened
+
+---
+
+## References
+
+- NestJS controllers/guards: https://docs.nestjs.com/guards  
+- Prisma transactions: https://www.prisma.io/docs/orm/prisma-client/queries/transactions  
+- API Inventory §4: `docs/database/API_Inventory.md`  
+- Plans: `sprint-2-1-*.md`, `sprint-2-2-*.md`  
+- Security tenancy: `docs/product/requirements/Security.md`

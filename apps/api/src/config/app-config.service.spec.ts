@@ -12,6 +12,12 @@ describe('loadAppConfig', () => {
     expect(config.readiness.timeoutMs).toBe(1500);
     expect(config.dependencies.databaseUrl).toBeUndefined();
     expect(config.dependencies.marketDataHealthUrl).toBeUndefined();
+    expect(config.marketData).toEqual({
+      staleEquityDailyMs: 172_800_000,
+      staleCryptoDailyMs: 129_600_000,
+      staleCryptoHourlyMs: 7_200_000,
+    });
+    expect(config.metrics.enabled).toBe(true);
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
       challengeTtlSeconds: 300,
@@ -62,12 +68,22 @@ describe('loadAppConfig', () => {
         '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
       APPLE_OAUTH_REDIRECT_URI:
         'https://api.bitstockerz.test/api/auth/oauth/apple/callback',
+      MARKET_DATA_STALE_EQUITY_DAILY_MS: '86400000',
+      MARKET_DATA_STALE_CRYPTO_DAILY_MS: '108000000',
+      MARKET_DATA_STALE_CRYPTO_HOURLY_MS: '3600000',
+      METRICS_ENABLED: 'false',
     });
 
     expect(config.server).toEqual({
       port: 4100,
       nodeEnv: 'production',
     });
+    expect(config.marketData).toEqual({
+      staleEquityDailyMs: 86_400_000,
+      staleCryptoDailyMs: 108_000_000,
+      staleCryptoHourlyMs: 3_600_000,
+    });
+    expect(config.metrics.enabled).toBe(false);
     expect(config.logging).toEqual({
       level: 'warn',
       nodeEnv: 'production',
@@ -174,6 +190,17 @@ describe('loadAppConfig', () => {
     }).toThrow(/Invalid configuration/);
   });
 
+  it('rejects invalid market-data and metrics configuration', () => {
+    expect(() => {
+      loadAppConfig({
+        MARKET_DATA_STALE_EQUITY_DAILY_MS: '0',
+        MARKET_DATA_STALE_CRYPTO_DAILY_MS: 'abc',
+        MARKET_DATA_STALE_CRYPTO_HOURLY_MS: '10',
+        METRICS_ENABLED: 'maybe',
+      });
+    }).toThrow(/Invalid configuration/);
+  });
+
   it('accepts comma-separated webauthn origins', () => {
     const config = loadAppConfig({
       WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com,http://localhost:4200',
@@ -245,6 +272,17 @@ describe('AppConfigService', () => {
     expect(service.dependencies).toEqual({
       databaseUrl: 'postgres://localhost:5432/bitstockerz',
       marketDataHealthUrl: 'https://market-data.example.com/health',
+    });
+    expect(service.marketData).toEqual({
+      staleEquityDailyMs: 172_800_000,
+      staleCryptoDailyMs: 129_600_000,
+      staleCryptoHourlyMs: 7_200_000,
+    });
+    expect(service.metrics).toEqual({ enabled: true });
+    expect(service.jobs).toEqual({
+      timeoutMs: 30000,
+      schedulerEnabled: false,
+      systemUserId: '00000000-0000-4000-8000-000000000001',
     });
     expect(service.auth).toEqual({
       sessionTtlSeconds: 5400,

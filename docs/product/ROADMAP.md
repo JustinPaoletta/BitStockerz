@@ -90,14 +90,14 @@ Assumptions:
 
 ---
 
-### Sprint 1.4 – Data Health & Observability (START HERE — July 19, 2026)
+### Sprint 1.4 – Data Health & Observability
 
 **Stories**
 - #2.6.1 – Market data sanity checks
 - #2.6.2 – Market data health endpoint
 - #8.4.2 – Performance metrics
 - #8.4.3 – Audit logging
-- Status: Not started
+- Status: Completed (verified July 24, 2026)
 
 **Exit**
 - Market data pipelines are observable and verifiable
@@ -106,7 +106,9 @@ Assumptions:
 
 ## Milestone 2 – Strategy Lab Core
 
-### Sprint 2.1 – Strategy Persistence & Versioning
+### Sprint 2.1 – Strategy Persistence & Versioning (START HERE — July 24, 2026)
+
+**Implementation plan:** [docs/plans/sprint-2-1-strategy-persistence-versioning.md](../plans/sprint-2-1-strategy-persistence-versioning.md) · [all remaining plans](../plans/README.md)
 
 **Stories**
 - #4.1.1 – Strategy schema
@@ -330,6 +332,7 @@ Frontend note:
 - Each sprint can be converted directly into tickets
 - If a sprint slips, later sprints do not collapse
 - Cutting scope is easiest in Milestones 6–7
+- Ready-for-dev implementation plans for all remaining sprints (2.1–7.2) live under [docs/plans/](../plans/README.md); resolve each plan’s **Judgement calls** before coding ambiguous slices
 
 ---
 

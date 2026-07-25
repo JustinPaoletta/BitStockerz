@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { PinoLogger } from 'nestjs-pino';
@@ -13,6 +14,12 @@ import { ERROR_CATALOG, getErrorTypeUri } from './error-catalog';
 import { DomainError } from './domain-error';
 import { ProblemDetailsDto } from './rfc7807.dto';
 import { REQUEST_ID_PROP } from '../middleware/request-id.middleware';
+import {
+  METRICS_HTTP_RECORDED,
+  REQUEST_STARTED_AT_MS,
+  classifyMetricsDomain,
+} from '../../observability/metrics-domain';
+import { MetricsService } from '../../observability/metrics.service';
 
 function Noop(): MethodDecorator {
   return () => undefined;
@@ -20,6 +27,8 @@ function Noop(): MethodDecorator {
 
 export interface RequestWithRequestId extends Request {
   requestId?: string;
+  [METRICS_HTTP_RECORDED]?: boolean;
+  [REQUEST_STARTED_AT_MS]?: number;
 }
 
 /**
@@ -111,7 +120,10 @@ function buildProblem(
 @Catch()
 @Injectable()
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
-  constructor(private readonly logger: PinoLogger) {
+  constructor(
+    private readonly logger: PinoLogger,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {
     this.logger.setContext(GlobalHttpExceptionFilter.name);
   }
 
@@ -198,6 +210,8 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       );
     }
 
+    this.recordExceptionMetrics(request, instance, status);
+
     const body = buildProblem(
       code,
       status,
@@ -207,5 +221,25 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       fieldErrors,
     );
     response.status(status).json(body);
+  }
+
+  private recordExceptionMetrics(
+    request: RequestWithRequestId,
+    instance: string,
+    status: number,
+  ): void {
+    if (!this.metrics?.enabled || request[METRICS_HTTP_RECORDED]) {
+      return;
+    }
+
+    const startedAt = request[REQUEST_STARTED_AT_MS];
+    const durationMs =
+      typeof startedAt === 'number' ? Math.max(0, Date.now() - startedAt) : 0;
+    const isError = status >= 400;
+    this.metrics.recordHttp(durationMs, isError);
+    if (isError) {
+      this.metrics.recordError(classifyMetricsDomain(instance));
+    }
+    request[METRICS_HTTP_RECORDED] = true;
   }
 }

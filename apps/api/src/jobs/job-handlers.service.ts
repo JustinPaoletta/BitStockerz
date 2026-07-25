@@ -53,6 +53,7 @@ export class JobHandlersService {
       ...job.payload,
       imported_equity_bars: result.importedBars,
       symbols_processed: result.symbolsProcessed,
+      sanity: result.sanity,
     };
   }
 
@@ -67,6 +68,7 @@ export class JobHandlersService {
       imported_crypto_daily_bars: result.importedDailyBars,
       imported_crypto_hourly_bars: result.importedHourlyBars,
       symbols_processed: result.symbolsProcessed,
+      sanity: result.sanity,
     };
   }
 
@@ -80,6 +82,11 @@ export class JobHandlersService {
       imported_crypto_daily_bars: crypto.importedDailyBars,
       imported_crypto_hourly_bars: crypto.importedHourlyBars,
       symbols_processed: equity.symbolsProcessed + crypto.symbolsProcessed,
+      sanity: {
+        checked: equity.sanity.checked + crypto.sanity.checked,
+        invalid: equity.sanity.invalid + crypto.sanity.invalid,
+        issues: [...equity.sanity.issues, ...crypto.sanity.issues].slice(0, 50),
+      },
     };
   }
 }

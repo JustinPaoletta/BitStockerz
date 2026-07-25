@@ -1,8 +1,13 @@
+import type { AuditService } from '../observability/audit.service';
 import { AuthController } from './auth.controller';
 import type { AuthenticatedRequest } from './auth.guard';
 import type { AuthService } from './auth.service';
 
 describe('AuthController', () => {
+  const audit = {
+    record: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AuditService;
+
   it('registers users through the auth service', () => {
     const registerMock = jest.fn(() => ({
       access_token: 'token-1',
@@ -17,7 +22,7 @@ describe('AuthController', () => {
       getProfileBySessionToken: jest.fn(),
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const result = controller.register({
       email: 'user@example.com',
       display_name: 'User',
@@ -41,7 +46,7 @@ describe('AuthController', () => {
       getProfileBySessionToken: jest.fn(),
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const result = controller.login({ email: 'user@example.com' });
 
     expect(loginMock).toHaveBeenCalledWith('user@example.com');
@@ -55,9 +60,13 @@ describe('AuthController', () => {
       login: jest.fn(),
       logout: logoutMock,
       getProfileBySessionToken: jest.fn(),
+      requireUserBySessionToken: jest.fn().mockReturnValue({
+        id: 'u1',
+        email: 'user@example.com',
+      }),
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const request = { authToken: 'token-3' } as unknown as AuthenticatedRequest;
     const response = controller.logout(request);
 
@@ -78,7 +87,7 @@ describe('AuthController', () => {
       getProfileBySessionToken: getProfileMock,
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const request = { authToken: 'token-4' } as unknown as AuthenticatedRequest;
     const profile = controller.me(request);
 
@@ -86,7 +95,7 @@ describe('AuthController', () => {
     expect(profile).toEqual({ id: 'u1', email: 'user@example.com' });
   });
 
-  it('starts and verifies webauthn registration', () => {
+  it('starts and verifies webauthn registration', async () => {
     const createOptionsMock = jest.fn(() => ({
       challenge_id: 'challenge-1',
       challenge: 'challenge-token',
@@ -95,7 +104,7 @@ describe('AuthController', () => {
       timeout_ms: 300000,
       user_email: 'user@example.com',
     }));
-    const verifyMock = jest.fn(() => ({
+    const verifyMock = jest.fn(async () => ({
       access_token: 'token-1',
       token_type: 'Bearer',
       user: { id: 'u1', email: 'user@example.com' },
@@ -110,11 +119,11 @@ describe('AuthController', () => {
       verifyWebAuthnRegistration: verifyMock,
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
-    const options = controller.webauthnRegisterOptions({
+    const controller = new AuthController(authService, audit);
+    const options = await controller.webauthnRegisterOptions({
       email: 'user@example.com',
     });
-    const verify = controller.webauthnRegisterVerify({
+    const verify = await controller.webauthnRegisterVerify({
       email: 'user@example.com',
       challenge_id: 'challenge-1',
       challenge: 'challenge-token',
@@ -140,19 +149,19 @@ describe('AuthController', () => {
     expect(verify.token_type).toBe('Bearer');
   });
 
-  it('starts oauth providers and handles callbacks', () => {
+  it('starts oauth providers and handles callbacks', async () => {
     const createOAuthStartMock = jest.fn((provider: 'google' | 'apple') => ({
       provider,
       state: `${provider}-state`,
       authorization_url: '/callback',
       expires_in_seconds: 300,
     }));
-    const googleCallbackMock = jest.fn(() => ({
+    const googleCallbackMock = jest.fn(async () => ({
       access_token: 'token-google',
       token_type: 'Bearer',
       user: { id: 'u1', email: 'user@example.com' },
     }));
-    const appleCallbackMock = jest.fn(() => ({
+    const appleCallbackMock = jest.fn(async () => ({
       access_token: 'token-apple',
       token_type: 'Bearer',
       user: { id: 'u2', email: 'apple@example.com' },
@@ -168,16 +177,16 @@ describe('AuthController', () => {
       completeAppleOAuth: appleCallbackMock,
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const googleStart = controller.oauthGoogleStart();
     const appleStart = controller.oauthAppleStart();
-    const googleCallback = controller.oauthGoogleCallback({
+    const googleCallback = await controller.oauthGoogleCallback({
       state: 'g-state',
       code: 'g-code',
       email: 'user@example.com',
       sub: 'google-sub',
     });
-    const appleCallback = controller.oauthAppleCallbackGet({
+    const appleCallback = await controller.oauthAppleCallbackGet({
       state: 'a-state',
       code: 'a-code',
       sub: 'apple-sub',
@@ -204,6 +213,21 @@ describe('AuthController', () => {
     expect(appleStart.provider).toBe('apple');
     expect(googleCallback.access_token).toBe('token-google');
     expect(appleCallback.access_token).toBe('token-apple');
+
+    const applePost = await controller.oauthAppleCallbackPost({
+      state: 'a-state-2',
+      code: 'a-code-2',
+      sub: 'apple-sub-2',
+      email: 'apple2@example.com',
+    });
+    expect(applePost.access_token).toBe('token-apple');
+    expect(appleCallbackMock).toHaveBeenCalledWith({
+      state: 'a-state-2',
+      code: 'a-code-2',
+      sub: 'apple-sub-2',
+      email: 'apple2@example.com',
+      user: undefined,
+    });
   });
 
   it('starts and verifies webauthn login flows', async () => {
@@ -230,7 +254,7 @@ describe('AuthController', () => {
       verifyWebAuthnLogin: verifyLoginMock,
     } as unknown as AuthService;
 
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
     const options = await controller.webauthnLoginOptions({
       email: 'login@example.com',
     });
@@ -257,7 +281,7 @@ describe('AuthController', () => {
   });
 
   it('handles apple oauth post callbacks', async () => {
-    const appleCallbackMock = jest.fn(() => ({
+    const appleCallbackMock = jest.fn(async () => ({
       access_token: 'token-apple-post',
       token_type: 'Bearer',
       user: { id: 'u4', email: 'apple-post@example.com' },
@@ -269,7 +293,7 @@ describe('AuthController', () => {
       getProfileBySessionToken: jest.fn(),
       completeAppleOAuth: appleCallbackMock,
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, audit);
 
     const callback = await controller.oauthAppleCallbackPost({
       state: 'apple-post-state',
@@ -287,5 +311,18 @@ describe('AuthController', () => {
       user: '{"email":"apple-post@example.com"}',
     });
     expect(callback.access_token).toBe('token-apple-post');
+  });
+
+  it('throws unauthorized when auth token is missing from request context', () => {
+    const controller = new AuthController(
+      {
+        getProfileBySessionToken: jest.fn(),
+      } as unknown as AuthService,
+      audit,
+    );
+
+    expect(() =>
+      controller.me({} as unknown as AuthenticatedRequest),
+    ).toThrow('Authentication is required.');
   });
 });

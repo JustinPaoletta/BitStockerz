@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AppConfigModule } from '../config/app-config.module';
+import { ObservabilityModule } from '../observability/observability.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
@@ -8,7 +9,11 @@ import { AuthService } from './auth.service';
 import { MeController } from './me.controller';
 
 @Module({
-  imports: [AppConfigModule, PrismaModule],
+  imports: [
+    AppConfigModule,
+    PrismaModule,
+    forwardRef(() => ObservabilityModule),
+  ],
   controllers: [AuthController, MeController],
   providers: [AuthService, AuthGuard, AuthRateLimitGuard],
   exports: [AuthService, AuthGuard, AuthRateLimitGuard],

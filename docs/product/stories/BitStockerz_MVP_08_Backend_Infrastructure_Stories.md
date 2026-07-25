@@ -27,6 +27,7 @@ Dependencies:
 - Completed in Sprint 0.1 (February 19, 2026): #8.5.1 – Central configuration service
 - Completed in Sprint 0.1 (February 19, 2026): #8.6.2 – Health and readiness endpoints for core services
 - Completed in Sprint 1.3 (July 11, 2026): #8.1.1 – Job model & lifecycle, #8.1.2 – Synchronous executor, #8.1.3 – Job timeout handling, #8.6.1 – Scheduled jobs
+- Completed in Sprint 1.4 (July 24, 2026): #8.4.2 – Performance metrics foundation, #8.4.3 – Audit trail
 
 ---
 
@@ -68,7 +69,16 @@ Acceptance criteria:
 
 ### Story 8.4.1 – Structured logging baseline and correlation IDs
 ### Story 8.4.2 – Basic performance metrics for backtests
+Acceptance criteria (Sprint 1.4 foundation; backtest-specific counters activate in Milestone 3):
+- In-process `MetricsService` records HTTP latency/errors and job duration by type.
+- `GET /api/metrics` returns a JSON snapshot (not Prometheus exposition).
+- No Prometheus/Grafana/OTel exporters in MVP.
+
 ### Story 8.4.3 – Minimal audit trail for critical actions
+Acceptance criteria:
+- `audit_events` table persisted when MySQL is enabled; in-memory ring buffer otherwise.
+- Critical events recorded: `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`.
+- Audit failures never fail the primary request path; payloads redact tokens/secrets.
 
 ---
 

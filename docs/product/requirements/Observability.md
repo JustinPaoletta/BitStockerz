@@ -27,16 +27,24 @@ Structured logs for (as domains ship):
 - AI invocation failures (planned)
 
 ## 2. Metrics
-Track (targets; Sprint 1.4+ / domain sprints):
+Shipped in Sprint 1.4 (in-process; `GET /api/metrics`):
+- API request latency / counts / errors
+- Job duration and terminal counts by `job_type`
+- Error counts by domain (`auth`, `market_data`, `jobs`, `unknown`)
+
+Track later (domain sprints):
 - Backtests per user per day
-- Backtest duration
-- Error counts per domain
-- API request latency
+- Backtest duration (wire into `MetricsService` when Milestone 3 lands)
 
 ## 3. Health Checks
 - Liveness: `GET /api/health/live` returns `{ status: "ok" }`
 - Readiness: `GET /api/health/ready` returns `ready`, `status`, `timestamp`, and `checks.database` / `checks.marketData` as objects `{ status, latencyMs?, details? }` where `status` is `up` | `down` | `not_configured`. Returns HTTP 503 when `ready` is `false`.
+- Domain market-data health: `GET /api/market-data/health` (freshness + sanity; separate from process readiness). Seed OHLCV fixtures roll to today (UTC) at process load so seed-mode demos typically report `ok`; MySQL needs re-ingestion after seed dates change.
 
-## 4. Debugging
+## 4. Audit trail
+- Critical actions write `audit_events` (MySQL) or an in-memory ring buffer (seed mode).
+- Events include auth register/login/logout, job lifecycle, and market-data ingestion requests.
+
+## 5. Debugging
 - Correlate logs via request IDs
 - Backtest runs reference job IDs (planned with backtesting)

@@ -11,7 +11,7 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.3**:
+The runnable API in `apps/api` currently ships through **Sprint 1.4**:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -21,9 +21,10 @@ The runnable API in `apps/api` currently ships through **Sprint 1.3**:
 | Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
+| Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
 | Trading, strategies | Planned | Described below; not implemented yet. A dev-only stub at `POST /api/strategies` returns placeholder JSON and is not part of shipped scope. |
 
-Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, and jobs are in-memory. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper remaps the stale MySQL user row and reassigns its jobs instead of deleting history. Ingestion upserts seed OHLCV bars into bar tables when the database is enabled.
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper remaps the stale MySQL user row and reassigns its jobs instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
@@ -250,11 +251,32 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-### 2.6 Market Data Health (Planned — Sprint 1.4)
+### 2.6 Market Data Health (implemented in Sprint 1.4)
 
-**GET `/market-data/health`** (admin/internal)
+**GET `/market-data/health`** (public)
 
-- Returns latest data timestamps per asset type and “staleness” flags.
+- Returns:
+  - `status` — `ok` | `degraded` | `unhealthy`
+  - `timestamp` — ISO-8601
+  - `series[]` — per asset type/interval: `latest_timestamp`, `age_ms`, `stale`, `stale_after_ms`, `symbol_count_with_data`
+  - `sanity` — `{ checked, invalid, issues[] }` from a bounded sample
+  - `source` — `seed` | `database`
+- Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
+- Freshness and `symbol_count_with_data` consider bars for **active** symbols only (`symbol.isActive`).
+- Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates. Live vendor feeds remain Sprint 7.1.
+
+### 2.7 Metrics Snapshot (implemented in Sprint 1.4)
+
+**GET `/metrics`** (public)
+
+- In-process JSON summary (not Prometheus text): HTTP request/error counts + duration stats, job counts/durations by type, errors by domain.
+- Cleared on process restart. Disable with `METRICS_ENABLED=false`.
+
+### 2.8 Audit trail (implemented in Sprint 1.4)
+
+- No public list/query API in MVP.
+- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`.
+- Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
 

@@ -98,7 +98,7 @@ You might add helper tables later if needed (e.g., import checkpoints), but MVP 
 
 **Migrations**
 
-1. `V0131__create_audit_events.sql`  
+1. Prisma folder `20260724150000_sprint_1_4_audit_events` (conceptual `V0131__create_audit_events.sql`)  
    - Creates: `audit_events`  
    - Source: `DDL/06_infra.sql`
 
