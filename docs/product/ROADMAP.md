@@ -108,6 +108,8 @@ Assumptions:
 
 ### Sprint 2.1 – Strategy Persistence & Versioning (START HERE — July 24, 2026)
 
+**Implementation plan:** [docs/plans/sprint-2-1-strategy-persistence-versioning.md](../plans/sprint-2-1-strategy-persistence-versioning.md) · [all remaining plans](../plans/README.md)
+
 **Stories**
 - #4.1.1 – Strategy schema
 - #4.1.2 – Strategy versioning
@@ -330,6 +332,7 @@ Frontend note:
 - Each sprint can be converted directly into tickets
 - If a sprint slips, later sprints do not collapse
 - Cutting scope is easiest in Milestones 6–7
+- Ready-for-dev implementation plans for all remaining sprints (2.1–7.2) live under [docs/plans/](../plans/README.md); resolve each plan’s **Judgement calls** before coding ambiguous slices
 
 ---
 
