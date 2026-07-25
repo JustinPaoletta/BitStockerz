@@ -50,6 +50,7 @@ export interface MarketDataHealthResponse {
 }
 
 const SANITY_SAMPLE_LIMIT = 40;
+const ACTIVE_SYMBOL_WHERE = { symbol: { isActive: true } } as const;
 
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -324,12 +325,20 @@ export class MarketDataService {
   }
 
   private buildHealthSeriesFromSeed(now: Date): MarketDataHealthSeries[] {
+    const equityBars = filterBarsForActiveSeedSymbols(SEED_EQUITY_DAILY_BARS);
+    const cryptoDailyBars = filterBarsForActiveSeedSymbols(
+      SEED_CRYPTO_DAILY_BARS,
+    );
+    const cryptoHourlyBars = filterBarsForActiveSeedSymbols(
+      SEED_CRYPTO_HOURLY_BARS,
+    );
+
     return [
       this.toSeries(
         'EQUITY',
         '1d',
-        maxDate(SEED_EQUITY_DAILY_BARS.map((bar) => bar.date)),
-        countDistinctSymbolIds(SEED_EQUITY_DAILY_BARS),
+        maxDate(equityBars.map((bar) => bar.date)),
+        countDistinctSymbolIds(equityBars),
         this.config.marketData.staleEquityDailyMs,
         now,
         'daily',
@@ -337,8 +346,8 @@ export class MarketDataService {
       this.toSeries(
         'CRYPTO',
         '1d',
-        maxDate(SEED_CRYPTO_DAILY_BARS.map((bar) => bar.date)),
-        countDistinctSymbolIds(SEED_CRYPTO_DAILY_BARS),
+        maxDate(cryptoDailyBars.map((bar) => bar.date)),
+        countDistinctSymbolIds(cryptoDailyBars),
         this.config.marketData.staleCryptoDailyMs,
         now,
         'daily',
@@ -346,8 +355,8 @@ export class MarketDataService {
       this.toSeries(
         'CRYPTO',
         '1h',
-        maxDate(SEED_CRYPTO_HOURLY_BARS.map((bar) => bar.timestamp)),
-        countDistinctSymbolIds(SEED_CRYPTO_HOURLY_BARS),
+        maxDate(cryptoHourlyBars.map((bar) => bar.timestamp)),
+        countDistinctSymbolIds(cryptoHourlyBars),
         this.config.marketData.staleCryptoHourlyMs,
         now,
         'hourly',
@@ -366,18 +375,30 @@ export class MarketDataService {
       cryptoDailySymbols,
       cryptoHourlySymbols,
     ] = await Promise.all([
-      this.prisma.equityDailyBar.aggregate({ _max: { date: true } }),
-      this.prisma.cryptoDailyBar.aggregate({ _max: { date: true } }),
-      this.prisma.cryptoHourlyBar.aggregate({ _max: { timestamp: true } }),
+      this.prisma.equityDailyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { date: true },
+      }),
+      this.prisma.cryptoDailyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { date: true },
+      }),
+      this.prisma.cryptoHourlyBar.aggregate({
+        where: ACTIVE_SYMBOL_WHERE,
+        _max: { timestamp: true },
+      }),
       this.prisma.equityDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         distinct: ['symbolId'],
         select: { symbolId: true },
       }),
       this.prisma.cryptoDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         distinct: ['symbolId'],
         select: { symbolId: true },
       }),
       this.prisma.cryptoHourlyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         distinct: ['symbolId'],
         select: { symbolId: true },
       }),
@@ -452,11 +473,17 @@ export class MarketDataService {
 
   private sampleBarsFromSeed(): SanityBarInput[] {
     const symbolById = new Map(
-      SEED_SYMBOLS.map((record) => [record.id, record.symbol]),
+      SEED_SYMBOLS.filter((record) => record.isActive).map((record) => [
+        record.id,
+        record.symbol,
+      ]),
     );
 
     return [
-      ...takeLast(SEED_EQUITY_DAILY_BARS, SANITY_SAMPLE_LIMIT).map((bar) =>
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_EQUITY_DAILY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
         toSanityBar(
           symbolById.get(bar.symbolId) ?? String(bar.symbolId),
           '1d',
@@ -464,7 +491,10 @@ export class MarketDataService {
           'date',
         ),
       ),
-      ...takeLast(SEED_CRYPTO_DAILY_BARS, SANITY_SAMPLE_LIMIT).map((bar) =>
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_CRYPTO_DAILY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
         toSanityBar(
           symbolById.get(bar.symbolId) ?? String(bar.symbolId),
           '1d',
@@ -472,7 +502,10 @@ export class MarketDataService {
           'date',
         ),
       ),
-      ...takeLast(SEED_CRYPTO_HOURLY_BARS, SANITY_SAMPLE_LIMIT).map((bar) =>
+      ...takeLast(
+        filterBarsForActiveSeedSymbols(SEED_CRYPTO_HOURLY_BARS),
+        SANITY_SAMPLE_LIMIT,
+      ).map((bar) =>
         toSanityBar(
           symbolById.get(bar.symbolId) ?? String(bar.symbolId),
           '1h',
@@ -486,16 +519,19 @@ export class MarketDataService {
   private async sampleBarsFromDatabase(): Promise<SanityBarInput[]> {
     const [equity, cryptoDaily, cryptoHourly] = await Promise.all([
       this.prisma.equityDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         orderBy: { date: 'desc' },
         take: SANITY_SAMPLE_LIMIT,
         include: { symbol: true },
       }),
       this.prisma.cryptoDailyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         orderBy: { date: 'desc' },
         take: SANITY_SAMPLE_LIMIT,
         include: { symbol: true },
       }),
       this.prisma.cryptoHourlyBar.findMany({
+        where: ACTIVE_SYMBOL_WHERE,
         orderBy: { timestamp: 'desc' },
         take: SANITY_SAMPLE_LIMIT,
         include: { symbol: true },
@@ -716,6 +752,15 @@ function toHourlyCandleResponse(
 
 function toNumber(value: NumericValue): number {
   return typeof value === 'object' ? Number(value.toString()) : Number(value);
+}
+
+function filterBarsForActiveSeedSymbols<T extends { symbolId: number }>(
+  bars: T[],
+): T[] {
+  const activeIds = new Set(
+    SEED_SYMBOLS.filter((record) => record.isActive).map((record) => record.id),
+  );
+  return bars.filter((bar) => activeIds.has(bar.symbolId));
 }
 
 function maxDate(dates: Date[]): Date | null {

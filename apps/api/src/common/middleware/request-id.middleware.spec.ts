@@ -1,3 +1,4 @@
+import { REQUEST_STARTED_AT_MS } from '../../observability/metrics-domain';
 import {
   RequestIdMiddleware,
   REQUEST_ID_HEADER,
@@ -23,6 +24,7 @@ describe('RequestIdMiddleware', () => {
 
     expect(req.requestId).toBe('header-id');
     expect(req.id).toBe('header-id');
+    expect(typeof req[REQUEST_STARTED_AT_MS]).toBe('number');
     expect(res.setHeader).toHaveBeenCalledWith(REQUEST_ID_HEADER, 'header-id');
     expect(next).toHaveBeenCalled();
   });

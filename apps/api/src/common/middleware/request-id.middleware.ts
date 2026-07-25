@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
+import { REQUEST_STARTED_AT_MS } from '../../observability/metrics-domain';
 
 export const REQUEST_ID_HEADER = 'x-request-id';
 export const REQUEST_ID_PROP = 'requestId';
@@ -20,6 +21,9 @@ export class RequestIdMiddleware implements NestMiddleware {
     const id = headerId ?? existingId ?? randomUUID();
     (req as Request & { requestId: string; id?: string }).requestId = id;
     (req as Request & { id: string }).id = id;
+    (req as Request & { [REQUEST_STARTED_AT_MS]?: number })[
+      REQUEST_STARTED_AT_MS
+    ] = Date.now();
     res.setHeader(REQUEST_ID_HEADER, id);
     next();
   }

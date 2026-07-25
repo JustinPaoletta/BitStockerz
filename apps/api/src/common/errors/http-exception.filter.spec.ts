@@ -4,6 +4,11 @@ import { GlobalHttpExceptionFilter } from './http-exception.filter';
 import { ErrorCode } from './error-codes.enum';
 import { DomainError } from './domain-error';
 import { RequestWithRequestId } from './http-exception.filter';
+import {
+  METRICS_HTTP_RECORDED,
+  REQUEST_STARTED_AT_MS,
+} from '../../observability/metrics-domain';
+import type { MetricsService } from '../../observability/metrics.service';
 
 function mockArgumentsHost(
   requestOverrides: Partial<RequestWithRequestId> = {},
@@ -465,6 +470,94 @@ describe('GlobalHttpExceptionFilter', () => {
       }),
       'Unhandled error',
     );
+  });
+
+  it('records http and domain metrics for exceptions when not already recorded', () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
+    const startedAt = Date.now() - 25;
+    const host = mockArgumentsHost({
+      path: '/api/auth/login',
+      url: '/api/auth/login',
+      requestId: 'req-metrics',
+      [REQUEST_STARTED_AT_MS]: startedAt,
+    });
+
+    metricsFilter.catch(new DomainError(ErrorCode.UNAUTHORIZED), host);
+
+    expect(metrics.recordHttp).toHaveBeenCalledWith(
+      expect.any(Number),
+      true,
+    );
+    expect(metrics.recordError).toHaveBeenCalledWith('auth');
+    const request = (host as any).switchToHttp().getRequest();
+    expect(request[METRICS_HTTP_RECORDED]).toBe(true);
+  });
+
+  it('skips metrics when already recorded by the interceptor', () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
+    const host = mockArgumentsHost({
+      path: '/api/jobs/1',
+      [METRICS_HTTP_RECORDED]: true,
+    });
+
+    metricsFilter.catch(new DomainError(ErrorCode.FORBIDDEN), host);
+
+    expect(metrics.recordHttp).not.toHaveBeenCalled();
+    expect(metrics.recordError).not.toHaveBeenCalled();
+  });
+
+  it('skips metrics when metrics are disabled', () => {
+    const metrics = {
+      enabled: false,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
+    const host = mockArgumentsHost({ path: '/api/market-data/health' });
+
+    metricsFilter.catch(new DomainError(ErrorCode.INTERNAL_ERROR), host);
+
+    expect(metrics.recordHttp).not.toHaveBeenCalled();
+  });
+
+  it('records zero duration when request start time is missing', () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
+    const host = mockArgumentsHost({ path: '/api/jobs/1' });
+
+    metricsFilter.catch(new DomainError(ErrorCode.NOT_FOUND), host);
+
+    expect(metrics.recordHttp).toHaveBeenCalledWith(0, true);
+    expect(metrics.recordError).toHaveBeenCalledWith('jobs');
+  });
+
+  it('records non-error http metrics when exception status is below 400', () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
+    const host = mockArgumentsHost({ path: '/api/health' });
+
+    metricsFilter.catch(new HttpException('redirect', HttpStatus.MOVED_PERMANENTLY), host);
+
+    expect(metrics.recordHttp).toHaveBeenCalledWith(0, false);
+    expect(metrics.recordError).not.toHaveBeenCalled();
   });
 
   it('covers metadata fallback when PinoLogger is not a function', () => {

@@ -1,5 +1,6 @@
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
-import { lastValueFrom, of } from 'rxjs';
+import { lastValueFrom, of, throwError } from 'rxjs';
+import { METRICS_HTTP_RECORDED } from './metrics-domain';
 import { MetricsInterceptor } from './metrics.interceptor';
 import type { MetricsService } from './metrics.service';
 
@@ -35,7 +36,7 @@ describe('MetricsInterceptor', () => {
     ['/api/jobs/abc', 'jobs'],
     ['/api', 'unknown'],
   ])(
-    'records domain errors for %s as %s',
+    'records domain errors for %s as %s when status is already set',
     async (path, domain) => {
       const metrics = {
         enabled: true,
@@ -62,6 +63,63 @@ describe('MetricsInterceptor', () => {
     },
   );
 
+  it('does not record on thrown errors (exception filter owns that path)', async () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+
+    const interceptor = new MetricsInterceptor(metrics);
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => ({ path: '/api/market-data/health' }),
+        getResponse: () => ({ statusCode: 200 }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(context, {
+          handle: () => throwError(() => new Error('boom')),
+        } as CallHandler),
+      ),
+    ).rejects.toThrow('boom');
+
+    expect(metrics.recordHttp).not.toHaveBeenCalled();
+    expect(metrics.recordError).not.toHaveBeenCalled();
+  });
+
+  it('skips when metrics were already recorded', async () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+
+    const interceptor = new MetricsInterceptor(metrics);
+    const request = {
+      path: '/api/market-data/health',
+      [METRICS_HTTP_RECORDED]: true,
+    };
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => request,
+        getResponse: () => ({ statusCode: 200 }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await lastValueFrom(
+      interceptor.intercept(context, {
+        handle: () => of({ ok: true }),
+      } as CallHandler),
+    );
+
+    expect(metrics.recordHttp).not.toHaveBeenCalled();
+  });
+
   it('skips when metrics are disabled', async () => {
     const metrics = {
       enabled: false,
@@ -82,7 +140,7 @@ describe('MetricsInterceptor', () => {
     expect(metrics.recordHttp).not.toHaveBeenCalled();
   });
 
-  it('falls back to request url and 500 status when fields are missing', async () => {
+  it('falls back to request url and treats missing status as success', async () => {
     const metrics = {
       enabled: true,
       recordHttp: jest.fn(),
@@ -103,8 +161,32 @@ describe('MetricsInterceptor', () => {
       } as CallHandler),
     );
 
-    expect(metrics.recordHttp).toHaveBeenCalledWith(expect.any(Number), true);
-    expect(metrics.recordError).toHaveBeenCalledWith('auth');
+    expect(metrics.recordHttp).toHaveBeenCalledWith(expect.any(Number), false);
+    expect(metrics.recordError).not.toHaveBeenCalled();
+  });
+
+  it('falls back to empty path when request path and url are missing', async () => {
+    const metrics = {
+      enabled: true,
+      recordHttp: jest.fn(),
+      recordError: jest.fn(),
+    } as unknown as MetricsService;
+    const interceptor = new MetricsInterceptor(metrics);
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => ({}),
+        getResponse: () => ({ statusCode: 500 }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await lastValueFrom(
+      interceptor.intercept(context, {
+        handle: () => of(null),
+      } as CallHandler),
+    );
+
+    expect(metrics.recordError).toHaveBeenCalledWith('unknown');
   });
 
   it('passes through non-http contexts', async () => {

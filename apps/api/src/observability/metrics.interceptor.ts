@@ -6,9 +6,16 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
-import { finalize } from 'rxjs/operators';
-import type { MetricsDomain } from './metrics.service';
+import { tap } from 'rxjs/operators';
+import {
+  METRICS_HTTP_RECORDED,
+  classifyMetricsDomain,
+} from './metrics-domain';
 import { MetricsService } from './metrics.service';
+
+type RequestWithMetrics = Request & {
+  [METRICS_HTTP_RECORDED]?: boolean;
+};
 
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {
@@ -20,35 +27,27 @@ export class MetricsInterceptor implements NestInterceptor {
     }
 
     const http = context.switchToHttp();
-    const request = http.getRequest<Request>();
+    const request = http.getRequest<RequestWithMetrics>();
     const response = http.getResponse<Response>();
     const startedAt = Date.now();
-    const domain = classifyDomain(request.path ?? request.url ?? '');
+    const domain = classifyMetricsDomain(request.path ?? request.url ?? '');
 
     return next.handle().pipe(
-      finalize(() => {
-        const durationMs = Date.now() - startedAt;
-        const statusCode = response.statusCode || 500;
-        const isError = statusCode >= 400;
-        this.metrics.recordHttp(durationMs, isError);
-        if (isError) {
-          this.metrics.recordError(domain);
-        }
+      tap({
+        next: () => {
+          if (request[METRICS_HTTP_RECORDED]) {
+            return;
+          }
+          const durationMs = Date.now() - startedAt;
+          const statusCode = response.statusCode || 200;
+          const isError = statusCode >= 400;
+          this.metrics.recordHttp(durationMs, isError);
+          if (isError) {
+            this.metrics.recordError(domain);
+          }
+          request[METRICS_HTTP_RECORDED] = true;
+        },
       }),
     );
   }
-}
-
-function classifyDomain(path: string): MetricsDomain {
-  const normalized = path.toLowerCase();
-  if (normalized.includes('/auth') || normalized.includes('/me')) {
-    return 'auth';
-  }
-  if (normalized.includes('/market-data')) {
-    return 'market_data';
-  }
-  if (normalized.includes('/jobs')) {
-    return 'jobs';
-  }
-  return 'unknown';
 }

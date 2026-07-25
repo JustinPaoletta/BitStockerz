@@ -735,6 +735,16 @@ describe('MarketDataService', () => {
       expect(health.source).toBe('database');
       expect(health.status).toBe('ok');
       expect(health.series.every((series) => !series.stale)).toBe(true);
+      expect(prisma.equityDailyBar.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { symbol: { isActive: true } },
+        }),
+      );
+      expect(prisma.equityDailyBar.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { symbol: { isActive: true } },
+        }),
+      );
     });
 
     it('marks health unhealthy when database series are empty', async () => {
