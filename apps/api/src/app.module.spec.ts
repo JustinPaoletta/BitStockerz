@@ -10,7 +10,7 @@ describe('AppModule', () => {
     };
 
     const module = new AppModule();
-    module.configure(consumer as any);
+    module.configure(consumer);
 
     expect(consumer.apply).toHaveBeenCalledWith(RequestIdMiddleware);
     expect(consumer.forRoutes).toHaveBeenCalledWith({

@@ -38,13 +38,13 @@
 |------------|----------|-----------|
 | `AiService` / providers / usage / flags | Sprint 6.1 | Invocation path |
 | Strategy read API + ownership | Milestone 2 `GET /strategies/:id` | Load definition for prompts |
-| Strategy validation (deterministic) | #4.6.1 if present | Optionally merge rule-based flags with AI |
+| Strategy validation (deterministic) | Sprint 2.3 #4.6.1 | Merge coded deterministic findings with AI review |
 | `AuthGuard` | `auth.guard.ts` | User identity for limits |
-| Angular Strategy Lab page (optional) | Milestone 5 stubs / later | Button “Explain with Kernel” can be minimal |
+| Angular Strategy Lab page | Sprint 5.3 core workflows UI | Host the required minimal Kernel panel |
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #6.2.1 – Explain strategy
 
@@ -57,16 +57,18 @@
 {
   "disclaimer": "Not financial advice. Kernel suggestions are informational only.",
   "confidence": "MEDIUM",
+  "ai_request_id": "uuid",
   "explanation": "...",
   "warnings": []
 }
 ```
 
-- When `AI_ENABLED=false` → domain error `AI_DISABLED`.
+- When `AI_ENABLED=false` → `503 AI_DISABLED`.
 - When over quota → `AI_RATE_LIMIT` 429.
 - StubProvider returns deterministic explanation including strategy name for tests.
 - Unit + e2e (stub mode) cover happy path and not-found.
 - Consumes one `ai_usage` call.
+- Provider output is generated with `Output.object()` and an operation-specific Zod schema. Schema/parse failures return `502 AI_PROVIDER_ERROR`; never return raw unvalidated model text.
 
 ### #6.2.2 – Logical red flags
 
@@ -77,17 +79,31 @@
 {
   "disclaimer": "Not financial advice. Kernel suggestions are informational only.",
   "confidence": "MEDIUM",
+  "ai_request_id": "uuid",
   "warnings": [
-    { "severity": "HIGH", "message": "Entry and exit rules may conflict for the same bar conditions." }
+    {
+      "code": "ENTRY_EXIT_CONFLICT",
+      "severity": "HIGH",
+      "message": "Entry and exit rules may conflict for the same bar conditions.",
+      "evidence_paths": ["entry.conditions[0]", "exit.conditions[0]"]
+    }
   ]
 }
 ```
 
 - Severity enum: `LOW` | `MEDIUM` | `HIGH`.
-- Prompt instructs model to focus on **logical** issues (conflicting rules, missing SL with aggressive entries, contradictory timeframes, empty rule sets) — not price predictions.
-- Optionally prepend deterministic checks (e.g. empty entry rules) as `HIGH` warnings before/without LLM (JC-1).
+- Prompt instructs model to focus on **logical** issues (conflicting rules, unreachable combinations, contradictory thresholds, or unsuitable parameter relationships) — not price predictions. Persisted definitions already guarantee non-empty rules and required SL/TP.
+- Run deterministic checks first and merge their coded warnings with schema-validated AI warnings. Deduplicate by `code + evidence_paths`; deterministic severity wins (JC-1).
+- Deterministic checks and codes:
+  - `DUPLICATE_CONDITION` (`MEDIUM`): the same canonical condition JSON appears more than once in one AND group.
+  - `ENTRY_EXIT_CONFLICT` (`HIGH`): the same canonical condition JSON appears in both entry and exit groups.
+  - `UNREFERENCED_INDICATOR` (`LOW`): a declared indicator id is not referenced by any entry/exit operand.
+  - `UNSATISFIABLE_RANGE` (`HIGH`): conditions in one AND group constrain the same dynamic operand against numeric literals to an empty interval. Treat `gt/gte` as lower bounds and `lt/lte` as upper bounds; equal bounds are satisfiable only when both sides are inclusive.
+  - `RISK_REWARD_NOT_POSITIVE` (`MEDIUM`): `stop_loss.value >= take_profit.value`.
+- Canonical condition JSON recursively sorts object keys but preserves array order and normalized numeric values. Do not add heuristic codes ad hoc in the prompt/parser; changing this deterministic catalog is an API-contract change.
 - Same auth, ownership, flag, and quota behavior as explain.
 - AI must not return executable patches that the API applies — warnings only.
+- Cap at 10 warnings. Runtime schema bounds: `explanation` 1–4000 chars; warning `code` matches `^[A-Z][A-Z0-9_]{0,63}$`; `message` 1–500 chars; `evidence_paths` has 0–10 unique entries of 1–200 chars. Live AI warnings cannot claim `HIGH` confidence unless backed by a deterministic check; model-only warnings are `LOW|MEDIUM`.
 
 ---
 
@@ -115,14 +131,16 @@ Align with [API_Inventory §6](../database/API_Inventory.md). Global prefix `/ap
 **Shared behaviors**
 
 - DTOs with `class-validator`; RFC 7807 on validation errors.
+- `strategy_id` must be a UUID; malformed ids fail before ownership lookup or quota consumption.
 - Ownership: reuse strategy service `findOwned(userId, id)`.
 - Provider errors → `AI_PROVIDER_ERROR` 502; do not leak upstream stack traces.
 - Include `disclaimer` always (even empty warnings).
+- Each valid owned request consumes one usage call. Disabled, invalid, and ownership-miss requests do not consume quota.
 
-**Angular (minimal, recommended)**
+**Angular (minimal, required)**
 
 - On strategy detail: buttons “Explain” / “Check for issues” calling these endpoints; render disclaimer prominently.
-- If Strategy Lab UI not ready, API-only is acceptable for DoD; document curl in manual testing.
+- Render model strings through Angular’s escaped interpolation/text content (no `innerHTML`); loading disables duplicate submissions; 503/429/502 get distinct retry guidance.
 
 ---
 
@@ -142,9 +160,9 @@ sequenceDiagram
   S-->>C: strategy definition
   C->>A: explainStrategy(user, strategy)
   A->>L: consume(userId)
-  A->>P: generateText(system, prompt)
-  P-->>A: text
-  A-->>C: envelope
+  A->>P: generateText with Output.object
+  P-->>A: schema-validated object
+  A-->>C: typed envelope
   C-->>U: 200 JSON
 ```
 
@@ -161,15 +179,15 @@ apps/api/src/ai/
     explain-strategy.prompt.ts
     validate-strategy.prompt.ts
   strategy-intelligence.service.ts   # or methods on AiService
-apps/web/src/app/features/strategies/  # optional Kernel panel
+apps/web/src/app/features/strategies/  # required minimal Kernel panel
   kernel-panel.component.ts
 ```
 
 **Prompt construction**
 
-- System: advisory-only, not financial advice, JSON-ish or plain text per operation, no trade execution language.
-- User: compact JSON of strategy definition (truncate oversized fields).
-- Parse model output defensively; on parse failure return raw explanation string / single MEDIUM warning.
+- System: advisory-only, not financial advice, schema-constrained object output, no trade execution language.
+- User: deterministic compact JSON of the strategy definition under `AI_MAX_CONTEXT_CHARS`; omit description first if necessary, set `context_truncated=true`, and reject an impossible over-budget canonical definition with `400 VALIDATION_ERROR` before quota consumption. Never byte-slice JSON.
+- Use AI SDK v6 `Output.object()` with bounded Zod schemas for each operation. On malformed/schema-invalid output, fail with `AI_PROVIDER_ERROR`; do not invent fallback content.
 
 ---
 
@@ -197,10 +215,10 @@ apps/web/src/app/features/strategies/  # optional Kernel panel
 - E2E seed mode: register → create strategy (or fixture) → explain/validate with StubProvider.
 - Ensure audit `ai.invocation` fires without full prompt in DB.
 
-### 5. Optional Angular Kernel panel
+### 5. Angular Kernel panel
 
 1. Two buttons + disclaimer display + loading/error states.
-2. Skip if web not ready; note in Dev input.
+2. Component tests cover escaped model content, duplicate-submit prevention, and 503/429/502 messages.
 
 ### 6. Docs
 
@@ -237,13 +255,13 @@ apps/web/src/app/features/strategies/  # optional Kernel panel
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Angular Kernel buttons this sprint? | Scope | ⏭ API DoD; UI nice-to-have | ⏭ stubbed |
-| 2 | Merge deterministic validation with AI? | Product clarity | ⏭ Yes — prepend empty/conflict checks (JC-1) | ⏭ recommended |
-| 3 | Disclaimer final copy | Legal | ⏭ Keep 6.1 placeholder | ⏸ before marketing |
+| 1 | Angular Kernel buttons this sprint? | User-facing story completion | Required minimal panel on strategy detail | Adopted |
+| 2 | Merge deterministic validation with AI? | Product clarity | Yes — merge coded deterministic/conflict checks (JC-1) | Adopted |
+| 3 | Disclaimer final copy | Legal | Keep 6.1 placeholder; production AI remains disabled | External legal prerequisite before public enablement |
 
 ---
 
@@ -251,7 +269,7 @@ apps/web/src/app/features/strategies/  # optional Kernel panel
 
 | ID | Decision | Why | Discuss before implement if |
 |----|----------|-----|-----------------------------|
-| **JC-1** | **Hybrid validate:** deterministic structural checks **plus** LLM logical review | Cheap HIGH-confidence flags without burning tokens | Want LLM-only for simplicity |
+| **JC-1** | **Hybrid validate:** deterministic logical checks **plus** schema-validated LLM review | Reliable coded findings plus broader advisory review | Want LLM-only for simplicity |
 | **JC-2** | Return **404** (not 403) for other users’ strategies | Matches common Nest pattern / reduce leakage | Prefer explicit 403 |
 | **JC-3** | Keep responses **non-streaming JSON** | Aligns with 6.1 JC-2 and inventory | Chat UI required |
 | **JC-4** | `warnings` on explain is optional soft list; validate is source of truth for severities | Avoid duplicating UX | Product wants one combined endpoint |
@@ -265,7 +283,7 @@ apps/web/src/app/features/strategies/  # optional Kernel panel
 | DTOs + controller + ownership wiring | 0.5d |
 | Explain prompt + service + tests | 0.75d |
 | Validate hybrid checks + LLM + tests | 1.0d |
-| E2E + docs + optional Angular panel | 0.75d |
+| E2E + docs + required Angular panel | 0.75d |
 
 **Total:** ~3 engineering days.
 
@@ -276,6 +294,7 @@ apps/web/src/app/features/strategies/  # optional Kernel panel
 - [ ] Both endpoints implemented per inventory + AC
 - [ ] Flag, quota, disclaimer, audit/logging honored
 - [ ] StubProvider e2e green without OpenAI key
+- [ ] Strategy detail Kernel panel handles success, disabled, quota, and provider-error states safely
 - [ ] Docs/API inventory updated
 - [ ] PR: `feat: add ai strategy explain and validate endpoints`
 

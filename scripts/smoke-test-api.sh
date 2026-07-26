@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BitStockerz API smoke tests — logs pass/fail per scenario.
-# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|all] [--base-url URL]
+# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|all] [--base-url URL]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,6 +9,7 @@ BASE_URL="${BASE_URL:-http://localhost:4000/api}"
 LOG_DIR="$ROOT/logs/smoke"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 LOG_FILE="$LOG_DIR/smoke-$TIMESTAMP.log"
+STRATEGY_STATE_FILE="${STRATEGY_SMOKE_STATE_FILE:-}"
 
 PASS=0
 FAIL=0
@@ -18,6 +19,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --sprint) SPRINT_SCOPE="$2"; shift 2 ;;
     --base-url) BASE_URL="$2"; shift 2 ;;
+    --strategy-state-file) STRATEGY_STATE_FILE="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -84,13 +86,26 @@ auth_header() {
   curl -s -H "Authorization: Bearer $TOKEN" "$@"
 }
 
+candle_count_is_valid() {
+  local expected="$1"
+  local actual
+  actual="$(echo "$HTTP_BODY" | jq -r 'length' 2>/dev/null)" || return 1
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    ((actual >= expected))
+  else
+    ((actual == expected))
+  fi
+}
+
 run_sprint_12() {
   log "=== Sprint 1.2 — equity & crypto candles ==="
 
   # Seed bars roll to "today" (UTC); use a wide range and assert counts/shape.
   http_json GET "/market-data/equities/candles?symbol=aapl&start=2000-01-01&end=2099-12-31"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 40' >/dev/null 2>&1; then
-    record_pass "1.2 equity ascending AAPL (40 bars)"
+  if [[ "$HTTP_CODE" == "200" ]] &&
+    candle_count_is_valid 40 &&
+    echo "$HTTP_BODY" | jq -e 'length > 1 and (.[0].date < .[-1].date)' >/dev/null 2>&1; then
+    record_pass "1.2 equity ascending AAPL (seed window present)"
   else
     record_fail "1.2 equity ascending AAPL" "http=$HTTP_CODE body=$(echo "$HTTP_BODY" | head -c 200)"
   fi
@@ -124,14 +139,18 @@ run_sprint_12() {
   fi
 
   http_json GET "/market-data/crypto/candles?symbol=btc-usd&interval=1d&start=2000-01-01&end=2099-12-31"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 30 and (.[0] | has("date"))' >/dev/null 2>&1; then
+  if [[ "$HTTP_CODE" == "200" ]] &&
+    candle_count_is_valid 30 &&
+    echo "$HTTP_BODY" | jq -e '.[0] | has("date")' >/dev/null 2>&1; then
     record_pass "1.2 crypto daily BTC-USD"
   else
     record_fail "1.2 crypto daily BTC-USD" "http=$HTTP_CODE"
   fi
 
   http_json GET "/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2000-01-01T00:00:00.000Z&end=2099-12-31T23:59:59.999Z"
-  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e 'length == 48 and (.[0] | has("timestamp"))' >/dev/null 2>&1; then
+  if [[ "$HTTP_CODE" == "200" ]] &&
+    candle_count_is_valid 48 &&
+    echo "$HTTP_BODY" | jq -e '.[0] | has("timestamp")' >/dev/null 2>&1; then
     record_pass "1.2 crypto hourly BTC-USD"
   else
     record_fail "1.2 crypto hourly BTC-USD" "http=$HTTP_CODE"
@@ -240,6 +259,190 @@ run_sprint_13() {
   rm -f "$tmp"
 }
 
+run_sprint_21() {
+  log "=== Sprint 2.1 — strategy persistence & versioning ==="
+
+  local email="strategy-smoke-$(date +%s)-$$@example.com"
+  http_json POST "/auth/register" "{\"email\":\"$email\",\"display_name\":\"Strategy Smoke\"}"
+  if [[ "$HTTP_CODE" != "201" ]]; then
+    record_fail "2.1 auth register" "http=$HTTP_CODE"
+    return 1
+  fi
+
+  local strategy_token
+  strategy_token="$(echo "$HTTP_BODY" | jq -r '.access_token')"
+  if [[ -z "$strategy_token" || "$strategy_token" == "null" ]]; then
+    record_fail "2.1 auth register" "missing access_token"
+    return 1
+  fi
+  record_pass "2.1 auth register"
+
+  local tmp
+  tmp="$(mktemp)"
+  local code
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke Momentum","asset_type":"EQUITY","timeframe":"1d","definition":{"indicators":[]}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  local strategy_id
+  strategy_id="$(echo "$HTTP_BODY" | jq -r '.id')"
+  if [[ "$code" == "201" ]] && echo "$HTTP_BODY" | jq -e \
+    '.version_number == 1 and .symbol_scope == "SINGLE" and .is_active == true' >/dev/null 2>&1; then
+    record_pass "2.1 create strategy + version one"
+    if [[ -n "$STRATEGY_STATE_FILE" ]]; then
+      jq -n \
+        --arg email "$email" \
+        --arg strategy_id "$strategy_id" \
+        '{ email: $email, strategy_id: $strategy_id }' >"$STRATEGY_STATE_FILE"
+    fi
+  else
+    record_fail "2.1 create strategy" "http=$code body=$(echo "$HTTP_BODY" | head -c 300)"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $strategy_token" \
+    "$BASE_URL/strategies/$strategy_id")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    ".id == \"$strategy_id\" and .version_number == 1" >/dev/null 2>&1; then
+    record_pass "2.1 get owned strategy"
+  else
+    record_fail "2.1 get owned strategy" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":" smoke momentum ","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "409" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "CONFLICT"' >/dev/null 2>&1; then
+    record_pass "2.1 normalized duplicate name rejected"
+  else
+    record_fail "2.1 duplicate name conflict" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke Straße","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  if [[ "$code" != "201" ]]; then
+    record_fail "2.1 Unicode name baseline" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke Strasse","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "409" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "CONFLICT"' >/dev/null 2>&1; then
+    record_pass "2.1 MySQL-compatible Unicode duplicate rejected"
+  else
+    record_fail "2.1 Unicode duplicate conflict" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke Σήμα","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  if [[ "$code" != "201" ]]; then
+    record_fail "2.1 Greek Unicode name baseline" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke ςημα","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "409" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "CONFLICT"' >/dev/null 2>&1; then
+    record_pass "2.1 MySQL-compatible Greek duplicate rejected"
+  else
+    record_fail "2.1 Greek Unicode duplicate conflict" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":123,"description":456,"asset_type":"CRYPTO","timeframe":"1h","definition":{}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "400" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "VALIDATION_ERROR"' >/dev/null 2>&1; then
+    record_pass "2.1 non-string text fields rejected"
+  else
+    record_fail "2.1 strict text validation" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Unauthorized","asset_type":"EQUITY","timeframe":"1d","definition":{}}' \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "401" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "UNAUTHORIZED"' >/dev/null 2>&1; then
+    record_pass "2.1 unauthenticated create rejected"
+  else
+    record_fail "2.1 unauthenticated create" "http=$code"
+  fi
+
+  rm -f "$tmp"
+}
+
+run_sprint_21_restart() {
+  log "=== Sprint 2.1 — MySQL restart persistence ==="
+
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    record_skip "2.1 strategy readable after API restart" "DATABASE_URL not set"
+    return 0
+  fi
+  if [[ -z "$STRATEGY_STATE_FILE" || ! -s "$STRATEGY_STATE_FILE" ]]; then
+    record_fail "2.1 strategy readable after API restart" "missing strategy state file"
+    return 1
+  fi
+
+  local email
+  local strategy_id
+  email="$(jq -r '.email' "$STRATEGY_STATE_FILE")"
+  strategy_id="$(jq -r '.strategy_id' "$STRATEGY_STATE_FILE")"
+  if [[ -z "$email" || "$email" == "null" || -z "$strategy_id" || "$strategy_id" == "null" ]]; then
+    record_fail "2.1 strategy readable after API restart" "invalid strategy state"
+    return 1
+  fi
+
+  http_json POST "/auth/register" "{\"email\":\"$email\",\"display_name\":\"Strategy Restart Smoke\"}"
+  if [[ "$HTTP_CODE" != "201" ]]; then
+    record_fail "2.1 restart auth register" "http=$HTTP_CODE"
+    return 1
+  fi
+
+  local strategy_token
+  strategy_token="$(echo "$HTTP_BODY" | jq -r '.access_token')"
+  local tmp
+  tmp="$(mktemp)"
+  local code
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $strategy_token" \
+    "$BASE_URL/strategies/$strategy_id")"
+  HTTP_BODY="$(cat "$tmp")"
+  rm -f "$tmp"
+
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    ".id == \"$strategy_id\" and .version_number == 1" >/dev/null 2>&1; then
+    record_pass "2.1 strategy readable after API restart"
+  else
+    record_fail "2.1 strategy readable after API restart" "http=$code"
+  fi
+}
+
 run_db_persisted_candles() {
   # Only when the caller already exported DATABASE_URL (e.g. KEEP_DATABASE_URL=1).
   # Do not reload apps/api/.env here: default verify starts the API in seed mode
@@ -269,12 +472,24 @@ main() {
   case "$SPRINT_SCOPE" in
     1.2) run_sprint_12 ;;
     1.3) run_sprint_13; run_db_persisted_candles ;;
+    2.1) run_sprint_21 ;;
+    2.1-restart) run_sprint_21_restart ;;
     all)
-      run_sprint_12
-      run_sprint_13
-      run_db_persisted_candles
+      if [[ -n "${DATABASE_URL:-}" ]]; then
+        # Make DB verification self-contained on both empty and previously used
+        # databases. Rolling seed windows upsert but intentionally do not delete
+        # older bars, so DB count assertions use the seed size as a minimum.
+        run_sprint_13
+        run_db_persisted_candles
+        run_sprint_12
+      else
+        run_sprint_12
+        run_sprint_13
+        run_db_persisted_candles
+      fi
+      run_sprint_21
       ;;
-    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, or all)" >&2; exit 1 ;;
+    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, or all)" >&2; exit 1 ;;
   esac
 
   log "=== Summary: $PASS passed, $FAIL failed, $SKIP skipped ==="

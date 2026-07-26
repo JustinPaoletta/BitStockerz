@@ -32,6 +32,45 @@ function createService(prisma?: PrismaService): MarketDataService {
   );
 }
 
+function createHealthPrismaMock(latest: Date) {
+  const dailyRecord = {
+    open: 1,
+    high: 2,
+    low: 0.5,
+    close: 1.5,
+    volume: 10,
+    date: latest,
+    symbol: { symbol: 'AAPL' },
+  };
+  const hourlyRecord = {
+    open: 1,
+    high: 2,
+    low: 0.5,
+    close: 1.5,
+    volume: 10,
+    timestamp: latest,
+    symbol: { symbol: 'BTC-USD' },
+  };
+
+  return {
+    isEnabled: true,
+    equityDailyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+      findMany: jest.fn().mockResolvedValue([dailyRecord]),
+    },
+    cryptoDailyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ ...dailyRecord, symbol: { symbol: 'BTC-USD' } }]),
+    },
+    cryptoHourlyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { timestamp: latest } }),
+      findMany: jest.fn().mockResolvedValue([hourlyRecord]),
+    },
+  };
+}
+
 describe('MarketDataService', () => {
   it('looks up seeded equity symbols case-insensitively when Prisma is disabled', async () => {
     const service = createService();
@@ -676,6 +715,31 @@ describe('MarketDataService', () => {
       expect(health.series.every((series) => series.stale)).toBe(true);
     });
 
+    it('measures daily staleness after the represented UTC day ends', async () => {
+      const friday = new Date('2026-07-24T00:00:00.000Z');
+      const service = createService(createHealthPrismaMock(friday) as never);
+
+      const sunday = await service.getMarketDataHealth(
+        new Date('2026-07-26T03:00:00.000Z'),
+      );
+      const monday = await service.getMarketDataHealth(
+        new Date('2026-07-27T01:00:00.000Z'),
+      );
+
+      expect(
+        sunday.series.find(
+          (series) =>
+            series.asset_type === 'EQUITY' && series.interval === '1d',
+        ),
+      ).toMatchObject({ age_ms: 97_200_000, stale: false });
+      expect(
+        monday.series.find(
+          (series) =>
+            series.asset_type === 'EQUITY' && series.interval === '1d',
+        ),
+      ).toMatchObject({ age_ms: 176_400_000, stale: true });
+    });
+
     it('aggregates health from Prisma when enabled', async () => {
       const latest = new Date('2026-07-24T00:00:00.000Z');
       const prisma = {
@@ -756,9 +820,7 @@ describe('MarketDataService', () => {
           findMany: jest.fn().mockResolvedValue([]),
         },
         cryptoHourlyBar: {
-          aggregate: jest
-            .fn()
-            .mockResolvedValue({ _max: { timestamp: null } }),
+          aggregate: jest.fn().mockResolvedValue({ _max: { timestamp: null } }),
           findMany: jest.fn().mockResolvedValue([]),
         },
       };
@@ -767,9 +829,9 @@ describe('MarketDataService', () => {
       const health = await service.getMarketDataHealth();
 
       expect(health.status).toBe('unhealthy');
-      expect(health.series.every((series) => series.latest_timestamp === null)).toBe(
-        true,
-      );
+      expect(
+        health.series.every((series) => series.latest_timestamp === null),
+      ).toBe(true);
     });
 
     it('marks health degraded when sanity finds invalid bars', async () => {

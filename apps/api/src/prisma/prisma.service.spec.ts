@@ -44,6 +44,8 @@ describe('PrismaService', () => {
     expect(() => service.cryptoHourlyBar).toThrow(expectedMessage);
     expect(() => service.job).toThrow(expectedMessage);
     expect(() => service.auditEvent).toThrow(expectedMessage);
+    expect(() => service.strategy).toThrow(expectedMessage);
+    expect(() => service.strategyVersion).toThrow(expectedMessage);
     expect(() => service.user).toThrow(expectedMessage);
     expect(() => service.webAuthnCredential).toThrow(expectedMessage);
     expect(() => service.$transaction(async () => undefined)).toThrow(
@@ -92,6 +94,8 @@ describe('PrismaService', () => {
     expect(service.cryptoHourlyBar).toBeDefined();
     expect(service.job).toBeDefined();
     expect(service.auditEvent).toBeDefined();
+    expect(service.strategy).toBeDefined();
+    expect(service.strategyVersion).toBeDefined();
     expect(service.user).toBeDefined();
     expect(service.webAuthnCredential).toBeDefined();
     expect(typeof service.$transaction).toBe('function');

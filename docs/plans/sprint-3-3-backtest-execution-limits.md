@@ -5,7 +5,7 @@
 **Branch:** `feat/sprint-3-3-backtest-execution-limits`  
 **PR base:** `feat/sprint-3-2-backtest-persistence`
 
-**Overview:** Expose authenticated HTTP APIs to run, list, and inspect backtests per [API_Inventory §5](../database/API_Inventory.md), executing synchronously through the existing jobs infrastructure (`backtest_run` job type + `JobExecutorService`). Enforce bar-count limits, wall-clock timeout, per-user rate limits, and structured diagnostics/logging. No new tables (optional index only). After this sprint the API alone can demo Strategy → Backtest → Results (JSON).
+**Overview:** Expose authenticated HTTP APIs to run, list, and inspect backtests per [API_Inventory §5](../database/API_Inventory.md), executing synchronously through the existing jobs infrastructure (`backtest_run` job type + `JobExecutorService`). Enforce bar-count limits, wall-clock timeout, per-user rate limits, and structured diagnostics/logging. No new tables; verify the required predecessor index. After this sprint the API alone can demo Strategy → Backtest → Results (JSON).
 
 ---
 
@@ -51,11 +51,11 @@
 | Error catalog | `common/errors` | Map `BACKTEST_*` to RFC 7807 |
 | Strategies CRUD | Milestone 2 | Resolve strategy ownership + definition |
 
-**Schema:** No new tables. Optional: ensure `idx_backtests_user_created` exists (already in DDL).
+**Schema:** No new tables. Verify the 3.2 migration already created `idx_backtests_user_created`; a missing index is a 3.2 defect, not optional 3.3 scope.
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### #5.3.1 – Run backtest API
 
@@ -66,11 +66,13 @@
   - `start_date`, `end_date` (ISO date/datetime, required, `start < end`)
   - `initial_equity?` (number, default `10000`, `> 0`)
   - `strategy_version_id?` (optional pin; default latest — 3.2 rules)
+- The requested symbol asset type must match the strategy’s `asset_type`, and requested `timeframe` must equal the pinned strategy’s timeframe; mismatches return `400 VALIDATION_ERROR`.
+- Date-only values are normalized in UTC (`start_date` to start-of-day, `end_date` to end-of-day); explicit timestamps retain their instant. The range is inclusive.
 - Behavior:
   1. Validate DTO → resolve strategy (owned by user) → pin version → resolve symbol
   2. Create `backtest_runs` row `pending`
   3. Create job `job_type: backtest_run` with payload referencing `backtest_run_id`
-  4. `JobExecutorService` runs handler **synchronously** before HTTP returns (same as market-data jobs)
+  4. `JobExecutorService` runs handler **synchronously** before HTTP returns (same as market-data jobs) and supplies a cooperative abort/deadline context
   5. Handler: mark running, load bars, enforce bar limits, run engine, `completeRun` or `failRun`
   6. Response **200** with run metadata + result summary (not full equity curve — JC-4)
 - Rate limited per user (see #5.5 / Security).
@@ -81,8 +83,10 @@
 
 - `GET /api/backtests` (AuthGuard)
 - Query: `strategy_id?`, `symbol?` (ticker), `status?`, `limit?` (default 50, max 100)
-- Returns only current user’s runs, newest `created_at` first
-- Item shape: id, strategy_id, strategy_version_id, symbol, timeframe, date range, status, initial_equity, created_at, finished_at, summary metrics if completed (`total_return_pct`, `max_drawdown_pct`, `num_trades`)
+- Also accepts `offset?` (default 0, min 0, max 10,000)
+- Returns only current user’s runs, ordered `created_at DESC, id ASC`
+- Response: `{ items, limit, offset, has_more }`, using a `limit + 1` query for `has_more`
+- Item shape: id, strategy_id, strategy_name, strategy_version_id, symbol, timeframe, date range, status, initial_equity, created_at, finished_at, summary metrics if completed (`total_return_pct`, `max_drawdown_pct`, `num_trades`)
 - Does not include trades or full equity curve
 
 ### #5.3.3 – Backtest details API
@@ -94,23 +98,24 @@
   - `results` (null if not completed)
   - `trades[]` ordered by `entry_time`
   - `equity_curve[]` as `{ timestamp, equity }`
-- Pagination for trades (JC-5): default return all up to soft cap (e.g. 1000); if over cap, support `?trades_limit=&trades_offset=` query params — document in inventory.
+- Trade pagination is always explicit: `trades_limit` default 500/max 1000 and `trades_offset` default 0/max 100,000. Response includes `trades_page: { limit, offset, has_more }`; order is `entry_time ASC, id ASC`.
 
 ### #5.5.1 – Bar count limits
 
 - Before engine run, count loaded bars; if `bars.length > BACKTEST_MAX_BARS` → fail run with `BACKTEST_BAR_LIMIT_EXCEEDED` (HTTP **400** on POST).
-- Additionally reject date ranges that would obviously exceed limit when interval known (optional pre-check): e.g. hourly span &gt; maxBars hours → 400 without loading (JC-6).
+- Also enforce the engine’s `BACKTEST_MAX_SERIES_CELLS`; map `BACKTEST_RESOURCE_LIMIT_EXCEEDED` to HTTP 400.
+- Reject date ranges that necessarily exceed the limit before loading: hourly uses inclusive UTC hours; daily uses inclusive calendar days as a conservative upper bound. The pre-check may reject impossible-over-limit ranges but must never approve by itself; actual loaded bar count remains authoritative (JC-6).
 - Defaults: `BACKTEST_MAX_BARS=10000` (≈1.1y hourly); daily 1y ≈ 252–365 ≪ limit.
 - Config via `AppConfigService` only; document in `.env.example`.
-- Unit tests for reject path; e2e with tiny max via test env override if practical.
+- Unit tests for reject path; e2e boots with a tiny test-only max and proves the HTTP mapping.
 
 ### #5.5.2 – Logging & diagnostics
 
 - Structured Pino logs on run start/end with fields: `backtestRunId`, `jobId`, `userId`, `strategyId`, `symbol`, `timeframe`, `bars`, `durationMs`, `status`, `requestId`.
-- Persist engine `diagnostics` into job `payload` (and optionally `error_message` on failure).
+- Persist bounded engine `diagnostics` into job `payload`; never place bars, definitions, trades, or equity points in job JSON.
 - Do not log full equity curves or entire definition JSON at info level (debug only, truncated).
 - Metrics snapshot includes backtest domain counters.
-- Failed validation (DTO) stays 400 `VALIDATION_ERROR` without creating runs (or create+fail — **default: no run row on DTO failure**; JC-7).
+- Failed DTO/ownership/symbol/strategy-timeframe validation returns before creating a run. Execution failures after a valid run is created persist the terminal run and return the mapped RFC 7807 error (JC-6).
 
 ---
 
@@ -133,26 +138,27 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <session>` o
 }
 ```
 
-**Response `200`:** `{ run, results }` where `run` includes ids, symbol, timeframe, dates, `initial_equity`, `status`, `job_id`, timestamps, and `diagnostics: { bars_processed, duration_ms, indicators_computed, signals_fired }`; `results` mirrors DDL metrics (`final_equity`, `total_return_pct`, `max_drawdown_pct`, `win_rate_pct`, `num_trades`, `avg_win_pct`, `avg_loss_pct`, `sharpe_ratio|null`). Full example: [API_Inventory §5](../database/API_Inventory.md) + e2e fixtures.
+**Response `200`:** `{ run, results }` where `run` includes ids, symbol, timeframe, dates, decimal-string `initial_equity`, `status`, `job_id`, timestamps, and `diagnostics: { bars_processed, duration_ms, indicators_computed, signals_fired }`; decimal-backed result fields are strings and `num_trades` is an integer. Full example: [API_Inventory §5](../database/API_Inventory.md) + e2e fixtures.
 
 | Error | Code | HTTP |
 |-------|------|------|
 | Bad body | `VALIDATION_ERROR` | 400 |
 | Strategy missing / not owned | `STRATEGY_NOT_FOUND` | 404 |
-| Symbol unknown | `NOT_FOUND` or `MARKET_DATA_SYMBOL_NOT_FOUND` | 404 |
+| Symbol unknown | `NOT_FOUND` | 404 |
 | No bars in range | `BACKTEST_INSUFFICIENT_BARS` | 400 |
 | Bar limit | `BACKTEST_BAR_LIMIT_EXCEEDED` | 400 |
-| Engine timeout | `BACKTEST_TIMEOUT` | 504 (JC-8) |
+| Series-cell/resource limit | `BACKTEST_RESOURCE_LIMIT_EXCEEDED` | 400 |
+| Engine timeout | `BACKTEST_TIMEOUT` | 504 (JC-6) |
 | Rate limited | `RATE_LIMITED` | 429 |
 | Unauthorized | `UNAUTHORIZED` | 401 |
 
 ### `GET /api/backtests` (#5.3.2)
 
-`{ items: BacktestListItem[], limit }` — list item = run summary fields + optional `total_return_pct` / `max_drawdown_pct` / `num_trades` when completed. No trades/curve.
+`{ items: BacktestListItem[], limit, offset, has_more }` — list item = run summary fields + `strategy_name` + optional `total_return_pct` / `max_drawdown_pct` / `num_trades` when completed. No trades/curve.
 
 ### `GET /api/backtests/:id` (#5.3.3)
 
-`{ run, results, trades[], equity_curve: [{ timestamp, equity }] }` — `results` null if not completed; trades ordered by `entry_time`; support `trades_limit` / `trades_offset` when over soft cap.
+`{ run, results, trades, trades_page, equity_curve: [{ timestamp, equity }] }` — `results` null if not completed; equity values are decimal strings; trade pagination is always applied as described above.
 
 ### Rate limit (planned Security.md)
 
@@ -174,7 +180,29 @@ export type JobType =
   | 'backtest_run';
 ```
 
-Payload minimum: `{ backtest_run_id, strategy_id, symbol, timeframe, start_date, end_date, bars?, duration_ms?, diagnostics? }`.
+Payload minimum: `{ backtest_run_id, user_id, strategy_id, symbol, timeframe, start_date, end_date, duration_ms?, diagnostics?, error_code? }`. Payloads never contain bar arrays or definitions.
+
+### Job timeout/cancellation hardening
+
+The current executor’s `Promise.race`-style timer does not cancel a handler. Extend the handler contract in this sprint:
+
+```ts
+type JobExecutionContext = {
+  signal: AbortSignal;
+  deadlineAtMs: number; // monotonic clock domain
+};
+
+type JobHandler = (
+  job: JobRecord,
+  context: JobExecutionContext,
+) => Promise<JobPayload>;
+```
+
+- `JobExecutorService` aborts the controller on timeout and passes the signal/deadline to handlers; existing handlers may ignore the second argument until migrated.
+- The backtest handler checks abort after every awaited boundary, passes it to the engine, and checks once more immediately before `completeRun`.
+- On a caught `DomainError`, the executor persists its stable code in bounded job payload metadata and a sanitized public message, then returns the terminal job.
+- The controller inspects terminal status/code: completed → 200; known validation/limit/timeout failures → their documented RFC 7807 response; unexpected failure → `INTERNAL_ERROR` 500.
+- A timed-out/failed handler must not later commit a completed run. Unit-test with a deferred market-data promise that resolves after abort.
 
 ---
 
@@ -237,13 +265,14 @@ sequenceDiagram
 
 1. Lock AC in MVP_05; update API_Inventory §5 status to Implemented (when done).
 2. Config: `backtest.maxBars`, `backtest.timeoutMs`, rate-limit window/max.
-3. Confirm HTTP status mapping for `BACKTEST_TIMEOUT` (JC-8).
+3. Lock HTTP mapping for `BACKTEST_TIMEOUT` to 504 (JC-6).
 
 ### 2. Job handler (#5.3.1 core)
 
 1. Add `backtest_run` to `JobType`.
-2. Implement handler: load run → load strategy version definition → load bars from `MarketDataService` for range → enforce limits → engine → persist.
-3. Unit test handler with mocked MD + engine.
+2. Harden `JobExecutorService` with `JobExecutionContext`, abort propagation, stable error-code metadata, and late-completion protection.
+3. Implement handler: load run → load strategy version definition → load bars from `MarketDataService` for range → enforce limits → engine → abort check → persist.
+4. Unit test handler with mocked MD + engine, including abort while awaiting bars and timeout during synchronous engine work.
 
 ### 3. HTTP APIs (#5.3.1–5.3.3)
 
@@ -313,16 +342,16 @@ npm --prefix apps/api run test:e2e
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | worker_threads in 3.3? | Scope creep vs latency | ⏭ Stay in-process; flag for later | ⏭ stubbed |
-| 2 | POST response includes equity? | Payload size | ⏭ Summary only; detail has curve | ⏭ stubbed |
-| 3 | HTTP status for timeout | 400 vs 504 | ⏭ **504** `BACKTEST_TIMEOUT` | ⏭ stubbed |
-| 4 | Default initial equity | Product UX | ⏭ `10000` | ⏭ stubbed |
-| 5 | Rate limit 10/min | Security vs demo friction | ⏭ 10 / 60s | ⏭ stubbed |
-| 6 | Create run row on DTO failure? | Orphan pending rows | ⏭ No row until validation passes | ⏭ stubbed |
+| 1 | worker_threads in 3.3? | Scope creep vs latency | Stay in-process; flag for later | Adopted |
+| 2 | POST response includes equity? | Payload size | Summary only; detail has curve | Adopted |
+| 3 | HTTP status for timeout | 400 vs 504 | **504** `BACKTEST_TIMEOUT` | Adopted |
+| 4 | Default initial equity | Product UX | `10000` | Adopted |
+| 5 | Rate limit 10/min | Security vs demo friction | 10 / 60s | Adopted |
+| 6 | Create run row on DTO failure? | Orphan pending rows | No row until validation passes | Adopted |
 
 ---
 
@@ -354,8 +383,8 @@ npm --prefix apps/api run test:e2e
 
 ### JC-5 — Trades pagination soft cap
 
-**Decision:** Detail returns all trades if `≤ 1000`; else require `trades_limit` (default 500) + `trades_offset`. Equity curve always full for MVP (bar limit already caps size).  
-**Why:** Avoid multi‑MB JSON; still simple for daily demos.  
+**Decision:** Detail always applies `trades_limit` (default 500, max 1000) + `trades_offset` and returns `trades_page.has_more`. Equity curve remains full for MVP because the bar/resource limits cap its size.
+**Why:** Avoid response-shape changes at an arbitrary trade count and prevent silent truncation.
 **Discuss before implement if:** Downsampled equity endpoints are preferred now.
 
 ### JC-6 — Pre-check, no junk rows, 504 timeout, POST-only rate limit
@@ -384,7 +413,7 @@ npm --prefix apps/api run test:e2e
 
 - [ ] Branched from Sprint 3.2
 - [ ] #5.3.1–#5.3.3 and #5.5.1–#5.5.2 done per AC
-- [ ] No new tables (unless optional index proven necessary)
+- [ ] No new tables; the required Sprint 3.2 `idx_backtests_user_created` index is verified
 - [ ] E2E covers POST success, list, detail, 401, bar-limit 400, rate-limit 429
 - [ ] build / lint / test / test:cov (≥90%) / test:e2e pass
 - [ ] Security.md + API_Inventory + manual testing updated

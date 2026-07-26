@@ -8,6 +8,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surface: `apps/api`
+- Delivery state: Milestones 0–1 complete; Sprint 2.1 implemented and locally verified pending PR/merge
+- Next ready sprint: 2.2 Indicators & Rule Schema
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -25,7 +27,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - Product definition and implementation planning for the BitStockerz platform.
 - Database design, migration planning, lifecycle policy, and API inventory work.
-- A NestJS API foundation under `apps/api`, including auth, WebAuthn, market-data symbols, candle read APIs, jobs, and ingestion.
+- A NestJS API under `apps/api`, including auth, WebAuthn, market-data symbols/candles, jobs/ingestion, observability, and owner-scoped strategy persistence/versioning.
 
 ## Tech Stack
 
@@ -65,9 +67,9 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `npm --prefix apps/api run test:cov` runs unit tests with **90%** global coverage gates.
 - `npm --prefix apps/api run test:e2e` runs the API end-to-end suite (seed mode; see `apps/api/test/setup-e2e.ts`).
 - `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
-- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests (API must be running; reads `DATABASE_URL` from `apps/api/.env` when set).
+- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests against an already-running API; it honors an exported `DATABASE_URL` but does not load `.env` itself.
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
-- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, then smoke tests with MySQL (loads `DATABASE_URL` from `apps/api/.env`).
+- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
 
 ## Environment & Configuration
 
@@ -116,8 +118,9 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 1.4)
-- [docs/plans/sprint-1-4-data-health-observability.md](./docs/plans/sprint-1-4-data-health-observability.md)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 2.1)
+- [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
+- [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 

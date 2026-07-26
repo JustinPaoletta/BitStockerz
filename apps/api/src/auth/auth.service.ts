@@ -282,8 +282,8 @@ export class AuthService {
     });
     if (existingByEmail && existingByEmail.id !== userId) {
       // Auth is in-memory today; after restart the same email gets a new id.
-      // Remap the persisted row (and dependent jobs) instead of deleting history.
-      await this.remapPersistedUserIdentity({
+      // Remap the persisted row and dependents instead of deleting history.
+      await this.remapPersistedUserIdentitySafely({
         previousUserId: existingByEmail.id,
         nextUserId: userId,
         email: user.email,
@@ -320,7 +320,7 @@ export class AuthService {
         where: { email: user.email },
       });
       if (createdByEmail && createdByEmail.id !== userId) {
-        await this.remapPersistedUserIdentity({
+        await this.remapPersistedUserIdentitySafely({
           previousUserId: createdByEmail.id,
           nextUserId: userId,
           email: user.email,
@@ -330,6 +330,29 @@ export class AuthService {
         return;
       }
 
+      throw error;
+    }
+  }
+
+  private async remapPersistedUserIdentitySafely(input: {
+    previousUserId: string;
+    nextUserId: string;
+    email: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }): Promise<void> {
+    try {
+      await this.remapPersistedUserIdentity(input);
+    } catch (error) {
+      // Audit persistence and the requested domain operation may both try to
+      // repair the same post-restart identity. Treat a completed competing
+      // remap as success while preserving genuine database failures.
+      const remappedUser = await this.prisma.user.findUnique({
+        where: { id: input.nextUserId },
+      });
+      if (remappedUser?.email === input.email) {
+        return;
+      }
       throw error;
     }
   }
@@ -367,6 +390,11 @@ export class AuthService {
       });
 
       await tx.auditEvent.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
+      await tx.strategy.updateMany({
         where: { userId: input.previousUserId },
         data: { userId: input.nextUserId },
       });

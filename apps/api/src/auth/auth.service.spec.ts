@@ -112,12 +112,14 @@ describe('AuthService', () => {
     const deleteUser = jest.fn().mockResolvedValue({});
     const updateManyJobs = jest.fn().mockResolvedValue({ count: 2 });
     const updateManyAuditEvents = jest.fn().mockResolvedValue({ count: 0 });
+    const updateManyStrategies = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
     const transaction = jest.fn(async (fn) =>
       fn({
         user: { update, create, delete: deleteUser },
         job: { updateMany: updateManyJobs },
         auditEvent: { updateMany: updateManyAuditEvents },
+        strategy: { updateMany: updateManyStrategies },
         webAuthnCredential: { updateMany: updateManyCredentials },
       }),
     );
@@ -160,6 +162,10 @@ describe('AuthService', () => {
       where: { userId: staleUserId },
       data: { userId: result.user.id },
     });
+    expect(updateManyStrategies).toHaveBeenCalledWith({
+      where: { userId: staleUserId },
+      data: { userId: result.user.id },
+    });
     expect(deleteUser).toHaveBeenCalledWith({ where: { id: staleUserId } });
   });
 
@@ -191,6 +197,72 @@ describe('AuthService', () => {
       dbService.ensureUserPersisted(result.user.id),
     ).resolves.toBeUndefined();
     expect(create).toHaveBeenCalled();
+  });
+
+  it('treats a completed competing identity remap as success', async () => {
+    const staleUserId = '00000000-0000-4000-8000-000000000099';
+    const transaction = jest
+      .fn()
+      .mockRejectedValue(new Error('stale remap target disappeared'));
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: staleUserId,
+        email: 'persist@example.com',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: {
+        findUnique,
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      $transaction: transaction,
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+    findUnique.mockResolvedValueOnce({
+      id: result.user.id,
+      email: 'persist@example.com',
+    });
+
+    await expect(
+      dbService.ensureUserPersisted(result.user.id),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rethrows an identity remap failure when no competing remap completed', async () => {
+    const transaction = jest
+      .fn()
+      .mockRejectedValue(new Error('database transaction failed'));
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: '00000000-0000-4000-8000-000000000099',
+        email: 'persist@example.com',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+      .mockResolvedValueOnce(null);
+    const prisma = createPrismaMock({
+      isEnabled: true,
+      user: {
+        findUnique,
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      $transaction: transaction,
+    } as Partial<PrismaService>);
+    const dbService = new AuthService(createConfig(), prisma);
+    const result = dbService.register('persist@example.com', 'Persist User');
+
+    await expect(dbService.ensureUserPersisted(result.user.id)).rejects.toThrow(
+      'database transaction failed',
+    );
   });
 
   it('rejects duplicate registration for the same email', () => {

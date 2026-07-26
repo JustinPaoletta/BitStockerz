@@ -489,10 +489,7 @@ describe('GlobalHttpExceptionFilter', () => {
 
     metricsFilter.catch(new DomainError(ErrorCode.UNAUTHORIZED), host);
 
-    expect(metrics.recordHttp).toHaveBeenCalledWith(
-      expect.any(Number),
-      true,
-    );
+    expect(metrics.recordHttp).toHaveBeenCalledWith(expect.any(Number), true);
     expect(metrics.recordError).toHaveBeenCalledWith('auth');
     const request = (host as any).switchToHttp().getRequest();
     expect(request[METRICS_HTTP_RECORDED]).toBe(true);
@@ -554,7 +551,10 @@ describe('GlobalHttpExceptionFilter', () => {
     const metricsFilter = new GlobalHttpExceptionFilter(logger, metrics);
     const host = mockArgumentsHost({ path: '/api/health' });
 
-    metricsFilter.catch(new HttpException('redirect', HttpStatus.MOVED_PERMANENTLY), host);
+    metricsFilter.catch(
+      new HttpException('redirect', HttpStatus.MOVED_PERMANENTLY),
+      host,
+    );
 
     expect(metrics.recordHttp).toHaveBeenCalledWith(0, false);
     expect(metrics.recordError).not.toHaveBeenCalled();

@@ -18,6 +18,8 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Core auth tables (0.1–0.2) | `20260421100000_core_auth_tables` |
 | Symbols + OHLCV schemas (1.1) | `20260421110000_sprint_1_1_symbols_and_market_data` |
 | Jobs table (1.3) | `20260711000000_sprint_1_3_jobs` |
+| Audit events (1.4) | `20260724150000_sprint_1_4_audit_events` |
+| Strategies + immutable versions (2.1) | `20260725120000_sprint_2_1_strategies` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 
@@ -110,13 +112,10 @@ No new core tables are required for metrics/health endpoints beyond `audit_event
 
 **Migrations**
 
-1. `V0200__create_strategies.sql`  
-   - Creates: `strategies`  
-   - Source: `DDL/03_strategy_lab.sql`
-
-2. `V0201__create_strategy_versions.sql`  
-   - Creates: `strategy_versions`  
-   - Source: `DDL/03_strategy_lab.sql`
+1. Prisma folder `20260725120000_sprint_2_1_strategies` (conceptual `V0200__create_strategies.sql` + `V0201__create_strategy_versions.sql`)
+   - Creates `strategies` first, then `strategy_versions`, with foreign keys and uniqueness/index contracts.
+   - Source: `DDL/03_strategy_lab.sql`.
+   - Applied and verified against local MySQL on July 25, 2026.
 
 Run after Sprint 1 migrations.
 

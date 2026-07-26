@@ -65,8 +65,7 @@ export interface CryptoHourlyCandleResponse extends CandleValues {
 }
 
 export type CryptoCandleResponse =
-  | CryptoDailyCandleResponse
-  | CryptoHourlyCandleResponse;
+  CryptoDailyCandleResponse | CryptoHourlyCandleResponse;
 
 interface BarRecordBase extends CandleValues {
   symbolId: number;

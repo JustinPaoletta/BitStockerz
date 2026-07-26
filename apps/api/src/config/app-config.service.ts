@@ -170,8 +170,7 @@ function parseNodeEnvironment(
   errors: string[],
 ): NodeEnvironment {
   const normalized = normalizeOptional(rawValue)?.toLowerCase() as
-    | NodeEnvironment
-    | undefined;
+    NodeEnvironment | undefined;
   if (normalized === undefined) {
     return 'development';
   }

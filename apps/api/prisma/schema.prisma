@@ -1,5 +1,6 @@
 // BitStockerz API Prisma schema
-// Sprint 1.4 adds audit_events on top of jobs, auth, and OHLCV tables.
+// Sprint 2.1 adds strategies and immutable strategy_versions on top of the
+// Sprint 1.4 jobs, auth, OHLCV, and audit tables.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,6 +20,7 @@ model User {
   webauthnCredentials WebAuthnCredential[]
   jobs                Job[]
   auditEvents         AuditEvent[]
+  strategies          Strategy[]
 
   @@map("users")
 }
@@ -68,6 +70,40 @@ model WebAuthnCredential {
 
   @@index([userId])
   @@map("webauthn_credentials")
+}
+
+model Strategy {
+  id          String   @id @db.Char(36)
+  userId      String   @map("user_id") @db.Char(36)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  assetType   String   @map("asset_type") @db.VarChar(16)
+  symbolScope String   @map("symbol_scope") @db.VarChar(16)
+  timeframe   String   @db.VarChar(8)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @map("created_at")
+  updatedAt   DateTime @map("updated_at")
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  versions StrategyVersion[]
+
+  @@unique([userId, name], map: "uq_strategies_user_name")
+  @@index([userId], map: "idx_strategies_user")
+  @@map("strategies")
+}
+
+model StrategyVersion {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  strategyId     String   @map("strategy_id") @db.Char(36)
+  versionNumber  Int      @map("version_number")
+  definitionJson Json     @map("definition_json")
+  createdAt      DateTime @map("created_at")
+
+  strategy Strategy @relation(fields: [strategyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([strategyId, versionNumber], map: "uq_strategy_versions")
+  @@index([strategyId], map: "idx_strategy_versions_strategy")
+  @@map("strategy_versions")
 }
 
 model Symbol {

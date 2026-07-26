@@ -3,9 +3,9 @@
 **Status:** Plan ready (not started)  
 **Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
 **Branch (when implementing):** `feat/sprint-6-1-ai-infrastructure`  
-**PR base:** `feat/sprint-5-2-dashboard-widgets` (or `main` if Milestone 5 merged) — stack on latest completed prior sprint
+**PR base:** `feat/sprint-5-3-core-workflows-ui` (or `main` if Milestone 5 merged) — stack on latest completed prior sprint
 
-**Overview:** Stand up the Kernel AI foundation: provider abstraction (Vercel AI SDK `generateText`), OpenAI adapter + stub provider, daily usage limits (`ai_usage` / migration V0600), feature flag `AI_ENABLED`, prompt/response logging (Pino + audit event without full prompt in MySQL), and user-facing “not financial advice” disclaimers. No explain/validate product endpoints yet (6.2/6.3) — ship a thin internal/health path and shared `AiService` used by later sprints.
+**Overview:** Stand up the Kernel AI foundation: a typed provider abstraction using AI SDK v6 structured output, direct OpenAI adapter + explicit stub provider, atomic daily usage limits (`ai_usage` / migration V0600), feature flag `AI_ENABLED`, metadata-only AI observability, and user-facing “not financial advice” disclaimers. No public explain/validate routes yet (6.2/6.3); Sprint 6.1 exports the tested `AiService` contract used by later sprints.
 
 ---
 
@@ -30,7 +30,7 @@
 | `POST /ai/explain-strategy` etc. product logic | Sprints 6.2 / 6.3 |
 | Streaming LLM responses | JC-2 — MVP non-streaming JSON |
 | Autonomous edits / trading | Hard product out of scope |
-| Storing full prompts in MySQL | JC-4 — size + PII; logs only |
+| Storing full prompts/responses in MySQL or normal logs | JC-4 — size, strategy data, and PII |
 | Multi-provider routing / cost optimization | OpenAI default + stub |
 
 ---
@@ -49,78 +49,86 @@
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #6.1.1 – AI service abstraction
 
 - Nest `AiModule` exports `AiService`.
-- Interface `AiProvider` with `generate(input: AiGenerateRequest): Promise<AiGenerateResult>`.
+- Interface `AiProvider` exposes a generic structured-generation method that accepts a runtime schema, `AbortSignal`, operation name, system instructions, and prompt; it returns the schema-validated object plus bounded usage/model metadata.
 - Implementations:
-  - `OpenAiProvider` using Vercel AI SDK `generateText` + `@ai-sdk/openai` (JC-1).
-  - `StubProvider` deterministic responses for tests / missing API key.
-- Selection: if `AI_ENABLED` and `OPENAI_API_KEY` present → OpenAI; else Stub (or hard-disable — see JC-1).
-- AI **never** writes to strategies, orders, positions, or job executors — generate text only.
-- Unit tests cover provider selection and stub path without network.
+  - `OpenAiProvider` using AI SDK v6 `generateText` + `Output.object({ schema })` + direct `@ai-sdk/openai` model selection (JC-1).
+  - `StubProvider` deterministic structured responses for tests and explicitly configured local development.
+- Selection is explicit through `AI_PROVIDER=stub|openai`: tests force `stub`; production with `AI_ENABLED=true` requires `openai`, `OPENAI_API_KEY`, and `AI_MODEL` at startup. Never silently fall back to stub because a production key is missing.
+- AI **never** writes to strategies, orders, positions, or job executors; it returns advisory structured content only.
+- Unit tests cover provider selection, runtime-schema success/failure, timeout mapping, and stub path without network.
 
 ### #6.1.2 – Usage limits & guardrails
 
 - Table `ai_usage` (`user_id`, `date`, `calls`) via Prisma migration aligned to V0600 / DDL.
-- Before each invocation: increment/check daily calls for `userId` (UTC date).
-- Exceeding `AI_DAILY_CALL_LIMIT` (config, default e.g. **20**) → `429` domain error (`AI_RATE_LIMIT` or existing pattern).
-- When `AI_ENABLED=false` → `403` / `503` domain error (`AI_DISABLED`) — pick one code and document.
+- Before each provider invocation, atomically consume a call for `userId` and UTC date. In Prisma mode, use one transaction with unique-key upsert/increment and throw to roll back if the returned count exceeds the limit; do not use check-then-increment.
+- Exceeding `AI_DAILY_CALL_LIMIT` (default **20**, valid range 1–1000) → `429 AI_RATE_LIMIT`.
+- When `AI_ENABLED=false` → `503 AI_DISABLED`.
 - Seed/in-memory mode: in-memory `Map` usage counters when Prisma disabled.
-- Guardrail: reject requests that ask the model to place orders / mutate strategies in system prompt; still advisory only.
+- Disabled/invalid/over-quota requests do not consume quota. A provider attempt does consume one call even if the upstream fails; SDK retries within that attempt do not consume additional application quota.
+- Guardrail: the service accepts operation-specific prompt builders only; callers cannot submit arbitrary user prompts or tools. No tools are registered.
 
 ### #6.5.1 – Disclaimers & confidence labeling
 
-- Every AI HTTP response envelope includes:
-  - `disclaimer: "Not financial advice. Kernel suggestions are informational only."` (exact product copy TBD — Dev input).
-  - `confidence?: "LOW" | "MEDIUM" | "HIGH"` optional label from provider/heuristic.
-- Angular consumers (later) must display disclaimer; for 6.1 document contract + e2e on a probe endpoint or shared DTO used by 6.2.
+- Every later AI HTTP success response includes:
+  - `disclaimer: "Not financial advice. Kernel suggestions are informational only."` (adopted placeholder; external legal approval is required before public enablement).
+  - `confidence: "LOW" | "MEDIUM" | "HIGH"` (required).
+  - `ai_request_id` for log/audit correlation.
+- Angular consumers (later) must display the disclaimer; in 6.1, lock the shared envelope DTO and verify it through the `AiModule` + `StubProvider` integration test. No HTTP probe route is added.
 
 ### #6.5.2 – Prompt & response logging
 
-- On each invocation log structured Pino fields: `ai.provider`, `ai.model`, `ai.userId`, `ai.operation`, `ai.latencyMs`, `ai.prompt` (redacted), `ai.response` (truncated), `requestId`.
-- Emit `AuditService.record({ eventType: 'ai.invocation', payload })` **without** full prompt/response bodies (ids, operation, token estimates, success/fail only) — JC-4.
+- On each invocation log structured Pino fields: provider, model, user id, operation, latency, prompt/response character counts and SHA-256 hashes, token usage when available, finish reason, success/fail, `ai_request_id`, and request id.
+- Default `AI_LOG_CONTENT=false`. Normal production logs never include prompt/response content. A non-production-only opt-in may emit sanitized content at debug level with a hard 2,000-character bound; the flag is rejected in production.
+- Emit `AuditService.record({ eventType: 'ai.invocation', payload })` **without** prompt/response bodies (ids, operation, model, token counts, success/fail only) — JC-4.
 - Never log passwords, session tokens, or raw Authorization headers.
 - Unit test: audit payload excludes `prompt`/`response` full text.
 
 ### #8.5.2 – Feature flags
 
 - Config domain `features` / `ai`:
-  - `AI_ENABLED` (bool, default `false` in production-like envs; `true` in development if key present — document).
-  - `AI_DAILY_CALL_LIMIT` (int).
-  - `AI_MODEL` (string, default e.g. `gpt-4o-mini`).
-  - `OPENAI_API_KEY` (secret, optional).
+  - `AI_ENABLED` (bool, default `false` in every environment; live use is explicit).
+  - `AI_DAILY_CALL_LIMIT` (int, default `20`, valid range 1–1000).
+  - `AI_PROVIDER` (`stub` | `openai`; test default `stub`, production-live must be `openai`).
+  - `AI_MODEL` (required non-empty model id when the OpenAI provider is enabled; no stale compiled model default).
+  - `AI_TIMEOUT_MS` (default `15000`, range 1000–60000), `AI_MAX_RETRIES` (default `1`, range 0–3), `AI_MAX_OUTPUT_TOKENS` (default `1200`, range 1–4000).
+  - `AI_MAX_CONTEXT_CHARS` (default `12000`, range 1000–50000); operation context builders must fit this deterministic budget before provider invocation.
+  - `AI_LOG_CONTENT` (default `false`; must remain false in production).
+  - `OPENAI_API_KEY` (secret; may be absent only while AI is disabled or `AI_PROVIDER=stub`).
 - All reads via `AppConfigService` (no raw `process.env` in services).
 - `.env.example` documents names only.
 - Unit tests: flag off short-circuits provider.
 
 **Probe endpoint for 6.1 (internal / testable):**
 
-Optional thin `POST /api/ai/ping` (auth required) returns stub/live echo + disclaimer — **or** defer public HTTP until 6.2 and test `AiService` via unit/e2e module only. **Recommend:** no public product routes in 6.1; cover via unit + one e2e that boots module with StubProvider. (JC-5)
+Do not add `POST /api/ai/ping`. Cover the service through unit tests plus an integration test that boots `AiModule` with `StubProvider` (JC-5).
 
 ---
 
 ## API contract
 
-Product routes land in 6.2/6.3. This sprint establishes shared response envelope:
+Product routes land in 6.2/6.3. This sprint establishes the shared response intersection:
 
-```json
-{
-  "disclaimer": "Not financial advice. Kernel suggestions are informational only.",
-  "confidence": "MEDIUM",
-  "data": {}
-}
+```ts
+type AiResponse<T extends object> = T & {
+  disclaimer: string;
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+  ai_request_id: string;
+};
 ```
 
 Errors (RFC 7807 via existing filter):
 
 | Code | HTTP | When |
 |------|------|------|
-| `AI_DISABLED` | 403 | `AI_ENABLED=false` |
+| `AI_DISABLED` | 503 | `AI_ENABLED=false` |
 | `AI_RATE_LIMIT` | 429 | Daily calls exceeded |
 | `AI_PROVIDER_ERROR` | 502 | Upstream failure |
+| `AI_TIMEOUT` | 504 | Provider deadline/abort |
 | `VALIDATION_ERROR` | 400 | Bad body (later) |
 
 Migration: `apps/api/prisma/migrations/YYYYMMDDHHMMSS_sprint_6_1_ai_usage/` implementing V0600:
@@ -196,7 +204,7 @@ apps/api/prisma/migrations/..._sprint_6_1_ai_usage/
 apps/api/src/config/app-config.service.ts  # AI_* flags
 ```
 
-**Dependencies:** `ai`, `@ai-sdk/openai` (https://ai-sdk.dev).
+**Dependencies:** pin compatible AI SDK v6 `ai`, `@ai-sdk/openai`, and `zod` versions in `apps/api/package-lock.json`. Current v6 contract uses `generateText({ output: Output.object(...) })` and reads the parsed value from `result.output`; malformed/schema-invalid output throws and maps to `AI_PROVIDER_ERROR` rather than falling back to raw text.
 
 ---
 
@@ -204,8 +212,8 @@ apps/api/src/config/app-config.service.ts  # AI_* flags
 
 ### 1. Config + feature flags (#8.5.2)
 
-1. Extend `loadAppConfig` with `ai.enabled`, `ai.dailyCallLimit`, `ai.model`, `ai.openaiApiKey`.
-2. Fail-fast on invalid integers; empty key allowed.
+1. Extend `loadAppConfig` with all AI config keys above.
+2. Fail fast when `AI_ENABLED=true` with a missing/invalid provider, model, or key; allow an empty key only when AI is disabled or the provider is explicitly `stub`.
 3. `.env.example` + unit tests.
 
 ### 2. Migration V0600 (`ai_usage`)
@@ -217,15 +225,15 @@ apps/api/src/config/app-config.service.ts  # AI_* flags
 ### 3. Providers (#6.1.1)
 
 1. `AiProvider` interface.
-2. `StubProvider` returns fixed JSON text.
-3. `OpenAiProvider` wraps `generateText({ model, system, prompt })` — **non-streaming** (JC-2).
+2. `StubProvider` returns deterministic objects that are validated by the same runtime schema as live output.
+3. `OpenAiProvider` wraps non-streaming AI SDK v6 `generateText` with `Output.object`, direct `openai(modelId)`, total timeout/abort, output-token cap, and bounded retries (JC-2).
 4. Factory provider in Nest DI.
 
 ### 4. Usage + AiService (#6.1.2, #6.5.x)
 
-1. `AiUsageService.consume(userId)` atomic increment (Prisma upsert on `(user_id, date)`).
-2. `AiService.invoke({ userId, operation, system, prompt })`:
-   - check flag → check limit → call provider → log Pino → audit `ai.invocation` → return envelope fields.
+1. `AiUsageService.consume(userId)` atomic transactional increment/limit check on `(user_id, date)`.
+2. Generic `AiService.invoke({ userId, operation, schema, system, prompt, signal? })`:
+   - validate operation → check flag/config → consume quota → call provider → metadata log → audit `ai.invocation` → add envelope fields.
 3. System prompt always includes: advisory-only, never instruct user that AI can place trades; include disclaimer instruction.
 
 ### 5. Tests + docs
@@ -257,7 +265,7 @@ npm --prefix apps/api run test:e2e
 - [ ] Feature flag kill switch `AI_ENABLED`
 - [ ] Daily quota via `ai_usage`
 - [ ] Never mutate trading/strategy state from AI module
-- [ ] Redact secrets in logs; no full prompts in MySQL (JC-4)
+- [ ] Metadata-only production logs; no prompt/response bodies in MySQL (JC-4)
 - [ ] Conventional Commits: `feat: add ai kernel infrastructure and usage limits`
 
 ---
@@ -268,20 +276,20 @@ npm --prefix apps/api run test:e2e
 |------|------------|
 | Key leakage in logs | Pino redact paths; never log `OPENAI_API_KEY` |
 | Cost blowups | Low daily limit default; flag off by default in prod |
-| Stub vs live confusion | Response header or `provider: "stub" \| "openai"` in debug field (omit in prod if needed) |
+| Stub vs live confusion | Explicit `AI_PROVIDER`; startup validation; structured provider field in internal logs/metrics |
 | Prisma disabled e2e | In-memory usage map |
 | AI SDK API churn | Pin versions; thin adapter layer |
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | OpenAI API key for staging | Live provider | ⏭ StubProvider when missing | ⏭ stubbed |
-| 2 | Daily call limit number | Product/cost | ⏭ 20/user/day | ⏭ stubbed |
-| 3 | Disclaimer legal copy | Compliance tone | ⏭ Placeholder “Not financial advice…” | ⏸ product review before public launch |
-| 4 | Default `AI_ENABLED` per env | Safety | ⏭ false unless key + development | ⏭ recommended |
+| 1 | OpenAI API key for staging | Live provider | StubProvider for tests/local; staging live remains disabled until provisioned | External prerequisite for live testing |
+| 2 | Daily call limit number | Product/cost | 20/user/UTC day | Adopted |
+| 3 | Disclaimer legal copy | Compliance tone | Placeholder “Not financial advice…” | External legal review before public enablement |
+| 4 | Default `AI_ENABLED` per env | Safety | false; developers explicitly opt in with valid live config | Adopted |
 
 ---
 
@@ -289,11 +297,11 @@ npm --prefix apps/api run test:e2e
 
 | ID | Decision | Why | Discuss before implement if |
 |----|----------|-----|-----------------------------|
-| **JC-1** | **OpenAI default** via `@ai-sdk/openai`; **StubProvider** when no key / tests | Fastest path; AI SDK abstraction keeps swap cheap | Prefer Anthropic/Gateway first |
+| **JC-1** | **OpenAI live provider** via direct `@ai-sdk/openai`; **StubProvider only when explicitly selected** for test/local | API is hosted outside Vercel by default; explicit selection prevents fake production AI | Prefer AI Gateway/another provider and update deployment/config together |
 | **JC-2** | **Non-streaming** JSON responses for MVP | Simpler Angular + Nest error handling; inventory is request/response | Product wants typed chat UX |
 | **JC-3** | Hard **read-only** boundary: AI module has no imports of order/strategy write services | Prevent accidental mutation | — |
-| **JC-4** | **Pino logs full prompt/response (redacted/truncated)**; **audit_events `ai.invocation` without full prompt** in MySQL | Prompt size + PII; still traceable via `requestId` | Compliance requires durable prompt archive |
-| **JC-5** | **No public AI HTTP routes in 6.1** — service + usage only | Avoid half-baked explain APIs; 6.2 owns contracts | Need a `/ai/ping` for ops smoke |
+| **JC-4** | **Metadata-only Pino/audit by default**; content logging is bounded, non-production-only, and explicitly enabled | Redaction cannot reliably make arbitrary strategy/user text safe | Compliance requires a separately designed encrypted prompt archive |
+| **JC-5** | **No public AI HTTP routes in 6.1** — service + usage only | Avoid half-baked explain APIs; 6.2 owns contracts | An authenticated ops probe is formally added to inventory |
 
 ---
 

@@ -17,7 +17,26 @@ This module feeds directly into **#5 Backtesting**.
 ## Epic 4.1 – Strategy Model & Persistence
 
 ### Story 4.1.1 – Strategy schema (core metadata)
+
+**Status:** Completed (verified July 25, 2026)
+
+**Acceptance criteria**
+
+- Authenticated users can create `EQUITY` daily or `CRYPTO` daily/hourly strategies; `symbol_scope` is `SINGLE` for MVP.
+- Strategy names are trimmed, 1–255 characters, and unique per user under case/accent-insensitive comparison.
+- MySQL persists strategy metadata with a user foreign key; seed mode provides equivalent process-local behavior.
+- Reads and writes are owner-scoped. Missing, inactive, or another user's strategy returns `404 NOT_FOUND`.
+
 ### Story 4.1.2 – Strategy versioning (MVP-light)
+
+**Status:** Completed (verified July 25, 2026)
+
+**Acceptance criteria**
+
+- Creating a strategy atomically creates immutable version 1 with a non-null, non-array JSON definition object.
+- `GET /api/strategies/:id` returns metadata plus the latest `version_number` and `definition`.
+- Creating a strategy records a bounded `strategy.created` audit event without logging the definition.
+- Definition structure remains opaque until Story 4.2.1 and Epic 4.3 validation ship.
 
 ---
 
@@ -66,4 +85,3 @@ This module feeds directly into **#5 Backtesting**.
 - Multi-symbol strategies
 - Parameter optimization
 - AI assistance (handled in #6)
-

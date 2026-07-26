@@ -33,7 +33,7 @@
 | Live broker / vendor execution | Simulated fill only |
 | Soft reset account | JC-5 deferred |
 | Angular trade ticket | Milestone 5 |
-| Full `TRADING_*` / `STRATEGY_*` / `BACKTEST_*` catalog | Consolidate in 4.3 (#8.3.2); may add provisional trading codes here |
+| Exhaustive cross-domain error-catalog test | Sprint 4.3 (#8.3.2); canonical trading codes are already added in 4.1/4.2 |
 
 ---
 
@@ -41,7 +41,7 @@
 
 | Capability | Location | Relevance |
 |------------|----------|-----------|
-| Paper account + cash/position helpers | Sprint 4.1 `TradingModule` | Mutated inside fill transaction |
+| Paper account + `TradingLedgerService` | Sprint 4.1 `TradingModule` | Mutated through one atomic fill boundary |
 | `ensureUserPersisted` | `auth.service.ts` | FK safety if any user-scoped writes |
 | Symbols lookup | `MarketDataService` / symbols | Resolve ticker → `symbol_id` + asset type |
 | Candles (seed + DB) | `market-data.service.ts`, `seed-candles.ts` | Latest close for fill price (JC-1) |
@@ -53,7 +53,7 @@
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### #3.2.1 – Order schema
 
@@ -65,18 +65,21 @@
 ### #3.2.2 – Place market order
 
 - `POST /api/trading/orders` (AuthGuard).
-- Body: `symbol`, `side`, `quantity`, `client_order_id?`.
-- Resolve symbol (active only); unknown/inactive → `NOT_FOUND` or `VALIDATION_ERROR`.
-- **Market only** — ignore/forbid other types; always `order_type = MARKET`.
+- Body: `symbol`, `side`, `quantity`, `client_order_id?`. `quantity` is a decimal string only, with 1–8 fractional digits, `> 0`, and within `DECIMAL(18,8)`; `client_order_id` is trimmed, 1–64 characters when present.
+- Resolve symbol (active only); unknown/inactive symbols → `404 NOT_FOUND`.
+- An inactive paper account fails before order insertion with `403 TRADING_ACCOUNT_INACTIVE`; it is not a persisted business rejection.
+- **Market only** — the request DTO has no `order_type`; reject `order_type` and all other unknown fields through strict DTO whitelisting, and persist `order_type = MARKET`.
 - Fill price = latest close per JC-1 (see Judgement calls).
-- Happy path (single transaction when Prisma on):
-  1. Insert order `PENDING` (or skip persist-until-terminal — **default: write FILLED/REJECTED terminal row**; PENDING only if price lookup async — MVP is sync so terminal in one shot) (JC-11).
-  2. Risk checks (#3.6.1).
-  3. Cash/position apply (4.1 helpers).
-  4. Insert execution (#3.3.1).
-  5. Set order `FILLED`, `avg_fill_price`, `filled_at`.
-- On reject: order row `REJECTED` + `reject_reason` (still persisted for history) **or** no row + Problem Details — **default: persist REJECTED** so 4.3 history shows attempts (JC-12).
-- Response includes order object (API contract). Audit event `trading.order_placed` (or `trading.order_filled` / `trading.order_rejected`) — fire-and-forget via `AuditService`.
+- Reject a non-positive or stale close using the existing market-data freshness thresholds. Seed data is anchored to current UTC, so seed e2e remains deterministic enough when the test clock is injected.
+- Happy path (single serializable transaction when Prisma on):
+  1. Lock/re-read the paper account and fail with `TRADING_ACCOUNT_INACTIVE` before inserting an order if inactive.
+  2. Re-check idempotency inside the transaction, then insert an internal `PENDING` row to claim `client_order_id`; it must be updated to terminal before commit, so clients never observe durable `PENDING` (JC-11).
+  3. Risk checks (#3.6.1).
+  4. Cash/position apply through 4.1 `TradingLedgerService.applyFill` using the same transaction context and 2dp cash notional.
+  5. Insert execution (#3.3.1).
+  6. Set order `FILLED`, `avg_fill_price`, `filled_at`.
+- On a documented business reject, persist an order row as `REJECTED` with the stable `reject_reason` and return it with HTTP 200 (JC-12).
+- Response includes order object (API contract). After the transaction commits, await non-throwing `AuditService.record` for `trading.order_filled` or `trading.order_rejected`; never emit “filled” before commit.
 
 ### #3.3.1 – Execution records
 
@@ -92,17 +95,20 @@ Configurable defaults (env / `AppConfig`):
 | Limit | Env | Default | Behavior |
 |-------|-----|---------|----------|
 | Max order notional | `TRADING_MAX_ORDER_NOTIONAL` | `25000` | Reject if `qty * price > max` |
-| Max position % of equity | `TRADING_MAX_POSITION_PCT` | `25` | Reject BUY if resulting position market value &gt; pct of (cash + positions MTM) |
-| Min cash remaining | `TRADING_MIN_CASH_REMAINING` | `0` | Reject BUY if `cash - notional < min` |
+| Max position % of equity | `TRADING_MAX_POSITION_PCT` | `25` | Reject BUY if resulting symbol position value / pre-trade total equity &gt; pct |
+| Min cash remaining | `TRADING_MIN_CASH_REMAINING` | `0` | Reject BUY if `cash - roundedCashNotional < min` |
 
 - SELL checks: sufficient position qty; no short (JC-6).
 - Quantity &gt; 0; max 8 decimal places; both equity and crypto allow fractional (JC-3).
-- Missing price data → reject `NO_MARKET_PRICE` (provisional trading code).
+- Missing/stale/non-positive price data → persist the business reject reason `NO_MARKET_PRICE`; direct price-dependent read paths use canonical `TRADING_NO_MARKET_PRICE`.
+- Compute max-order-notional from unrounded `qty * price`; compute cash constraints and ledger changes from the same 2dp `ROUND_HALF_UP` cash notional. Pre-trade total equity is cash + all positions at the same price snapshot used by the request.
+- Persisted business reject reasons are stable: `NO_MARKET_PRICE`, `MAX_ORDER_NOTIONAL`, `MAX_POSITION_PCT`, `MIN_CASH_REMAINING`, `INSUFFICIENT_CASH`, `INSUFFICIENT_POSITION`.
 
 ### #3.6.2 – Idempotent order submission
 
 - When `client_order_id` present: lookup by `(paper_account_id, client_order_id)`.
-- If exists: return **200** with original order (same body as create) — **do not** re-fill or mutate cash.
+- If it exists and normalized `symbol`, `side`, and exact decimal `quantity` match: return **200** with original order — **do not** re-fill or mutate cash.
+- If it exists with a different request payload: return `409 CONFLICT`; never replay a semantically different order under the same key.
 - If concurrent inserts race: unique constraint → load winner and return (same as jobs unique handling).
 - Missing `client_order_id`: always new order.
 - E2E: POST twice with same id → identical `id` / balances unchanged on second call.
@@ -164,19 +170,21 @@ Configurable defaults (env / `AppConfig`):
 }
 ```
 
-Alternative (if Dev prefers HTTP errors for rejects): `422`/`400` Problem Details with `code: TRADING_RISK_LIMIT` and still persist REJECTED — pick one; **default HTTP 200 with status REJECTED** for trade UX simplicity (JC-12). Validation errors (bad side, qty ≤ 0) stay `400 VALIDATION_ERROR` without order row.
+Business rejects return the documented HTTP 200 terminal order (JC-12). DTO errors (bad side/decimal/client id), unknown/inactive symbols, inactive accounts, and idempotency-key payload conflicts do not create an order row and use RFC 7807.
 
-**Provisional error codes** (add to enum if used as HTTP errors; finalize catalog in 4.3):
+**Canonical HTTP error codes** (added in 4.1/4.2 and exhaustively catalog-tested in 4.3):
 
 | Code | HTTP | When |
 |------|------|------|
 | `VALIDATION_ERROR` | 400 | Bad DTO |
 | `UNAUTHORIZED` | 401 | No session |
-| `NOT_FOUND` | 404 | Unknown symbol / no paper account |
-| `TRADING_NO_MARKET_PRICE` | 422 | No candle close |
-| `TRADING_INSUFFICIENT_CASH` | 422 | Optional if not using REJECTED body |
-| `TRADING_INSUFFICIENT_POSITION` | 422 | Sell too much |
-| `TRADING_RISK_LIMIT` | 422 | Notional / position % / min cash |
+| `NOT_FOUND` | 404 | Unknown/inactive symbol; missing paper accounts are healed through Sprint 4.1 provisioning |
+| `CONFLICT` | 409 | Existing `client_order_id` has a different normalized request |
+| `TRADING_ACCOUNT_INACTIVE` | 403 | Paper account is inactive; no order row is created |
+| `TRADING_NO_MARKET_PRICE` | 422 | Reserved for read/valuation paths; order placement persists `NO_MARKET_PRICE` reject |
+| `TRADING_INSUFFICIENT_CASH` | 422 | Reserved for direct ledger callers; order placement persists reject |
+| `TRADING_INSUFFICIENT_POSITION` | 422 | Reserved for direct ledger callers; order placement persists reject |
+| `TRADING_RISK_LIMIT` | 422 | Reserved generic risk code; order placement persists a specific reject reason |
 
 ### Seed mode behavior
 
@@ -198,20 +206,24 @@ sequenceDiagram
   participant OS as OrdersService
   participant MD as MarketDataService
   participant PA as PaperAccountsService
-  participant POS as PositionsService
+  participant L as TradingLedgerService
   participant DB as Prisma / memory
 
   C->>OC: POST /trading/orders
   OC->>OS: placeMarketOrder
   OS->>PA: get account
-  OS->>OS: idempotency lookup
+  OS->>OS: fast idempotency lookup
   OS->>MD: latestClose(symbol)
   OS->>OS: riskLimits
+  OS->>DB: serializable tx + idempotency claim
   alt pass
-    OS->>DB: tx: order FILLED + execution + cash + position
+    OS->>L: applyFill(tx, account, fill)
+    L->>DB: cash + position in same tx
+    OS->>DB: execution + order FILLED in same tx
   else fail
-    OS->>DB: order REJECTED
+    OS->>DB: order REJECTED in same tx
   end
+  OS->>OS: await post-commit audit
   OS-->>C: order JSON
 ```
 
@@ -231,7 +243,7 @@ sequenceDiagram
 | `apps/api/src/config/app-config.service.ts` | Trading risk env |
 | `apps/api/.env.example` | Document risk env names |
 | `apps/api/src/auth/auth.service.ts` | Remap must reassign orders/executions `paper_account` ownership via account.user_id only (orders FK account, not user) |
-| `apps/api/src/common/errors/error-codes.enum.ts` | Provisional `TRADING_*` if needed |
+| `apps/api/src/common/errors/error-codes.enum.ts` | Add canonical `TRADING_*` codes named in 4.1/4.2 |
 | `apps/api/test/app.e2e-spec.ts` | Buy → reject → idempotent replay |
 
 ---
@@ -257,15 +269,16 @@ sequenceDiagram
 
 ### 4. OrdersService (#3.2.2 / #3.3.1 / #3.6.2)
 
-1. Idempotency short-circuit.
-2. Transactional fill path calling 4.1 cash/position helpers.
+1. Fast idempotency lookup, followed by the authoritative in-transaction lookup/claim and payload comparison.
+2. Transactional fill path calling 4.1 transaction-scoped ledger helper.
 3. REJECTED persistence (JC-12).
-4. Audit hooks (non-throwing).
-5. Unit tests: buy, sell, reject, idempotent, race unique constraint.
+4. Use Prisma `Serializable` isolation with bounded retry for `P2034` write conflicts; the in-memory path uses a per-account mutex/copy-on-write commit so concurrent seed requests cannot double-spend.
+5. Audit hooks (non-throwing, awaited after commit).
+6. Unit tests: buy, sell, cash rounding, reject reasons, same-payload replay, mismatched-payload conflict, concurrent unique race, and concurrent double-spend.
 
 ### 5. Controller + e2e + smoke
 
-1. DTO validation (class-validator): side enum, quantity decimal string/number, client_order_id max 64.
+1. DTO validation (class-validator): side enum, quantity decimal string (not JSON number), client_order_id trimmed/non-empty/max 64.
 2. E2E seed mode: register → buy AAPL → GET paper-account cash decreased → replay client_order_id.
 3. Extend smoke script with authenticated order if feasible.
 
@@ -308,19 +321,19 @@ Same verify script as 4.1; MySQL path must prove unique idempotency index.
 | Avg-cost bugs on partial sells | Reuse 4.1 unit-tested helpers; add integration cases |
 | Position % needs MTM of all positions | Batch latest closes; cap symbol set; fail closed if any price missing for held symbols |
 | REJECTED vs HTTP error UX confusion | Document JC-12; OpenAPI/inventory note |
-| Provisional error codes diverge from 4.3 | List codes in plan; 4.3 consolidates catalog |
+| Business reject reasons drift from HTTP domain codes | Keep the reject-reason enum and canonical `TRADING_*` catalog in one module with exhaustive tests |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | Fill interval for crypto (daily vs hourly) | Strategy timeframe unused until Milestone 3/5 | ⏭ Daily close; hourly fallback | ⏭ |
-| 2 | Reject as 200+REJECTED vs 422 Problem Details | Client contract | ⏭ 200 + `status: REJECTED` | ⏭ |
-| 3 | Risk default numbers ($25k / 25% / $0) | Product appetite | ⏭ Table defaults | ⏭ |
-| 4 | Fractional equity shares | Broker realism vs demo UX | ⏭ Allow decimals both | ⏭ |
-| 5 | Persist REJECTED rows | History noise | ⏭ Persist | ⏭ |
+| 1 | Fill interval for crypto (daily vs hourly) | Strategy timeframe unused until Milestone 3/5 | Daily close; hourly fallback | Adopted |
+| 2 | Reject as 200+REJECTED vs 422 Problem Details | Client contract | 200 + `status: REJECTED` | Adopted |
+| 3 | Risk default numbers ($25k / 25% / $0) | Product appetite | Table defaults | Adopted |
+| 4 | Fractional equity shares | Broker realism vs demo UX | Allow decimals both | Adopted |
+| 5 | Persist REJECTED rows | History noise | Persist | Adopted |
 
 ---
 
@@ -383,7 +396,7 @@ Same verify script as 4.1; MySQL path must prove unique idempotency index.
 - [ ] Seed and MySQL paths both work
 - [ ] build / lint / test / test:cov (≥90%) / test:e2e / verify script green
 - [ ] Docs + manual testing updated
-- [ ] JC-1/2/3/12 defaults followed or overridden in Dev input
+- [ ] Adopted defaults followed or any override recorded in the plan/PR
 
 ---
 

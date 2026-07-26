@@ -1,7 +1,8 @@
 # Sprint 2.2 — Indicators & Rule Schema
 
 **Status:** Plan ready (not started)  
-**Roadmap marker:** after Sprint 2.1 completes  
+**Roadmap marker:** `START HERE — July 26, 2026`
+
 **Branch (when implementing):** `feat/sprint-2-2-indicators-rule-schema`  
 **PR base:** `feat/sprint-2-1-strategy-persistence-versioning` (or `main` if 2.1 merged)
 
@@ -22,7 +23,7 @@
 | #4.4.1 | Stop loss configuration | MVP_04 |
 | #4.4.2 | Take profit configuration | MVP_04 |
 
-**Exit:** A documented, versioned definition schema exists; `GET /strategies/indicators` returns the catalog; a `StrategyDefinitionValidator` (or equivalent) can accept/reject definitions used by create/update in 2.3 and by the backtest engine in Milestone 3.
+**Exit:** A documented definition schema exists; `GET /strategies/indicators` returns the catalog; `StrategyDefinitionValidator` accepts/rejects definitions used by create/update in 2.3 and by the backtest engine in Milestone 3.
 
 **Explicitly out of scope**
 
@@ -50,12 +51,12 @@
 
 ---
 
-## Draft acceptance criteria
+## Acceptance criteria (implementation contract)
 
 ### #4.2.1 – Indicator catalog
 
 - `GET /api/strategies/indicators` returns supported indicators for MVP: **SMA**, **EMA**, **RSI**
-- Each entry includes: `key`, `display_name`, `description`, `params[]` (`name`, `type`, `min`, `max`, `default`), `outputs` / notes
+- Each entry includes exactly: `key`, `display_name`, `description`, `params[]` (`name`, `type`, `min`, `max`, `default`), `sources`, and `default_source`
 - Auth: **public** (no PII; helps Angular builder later) — see JC-1
 - Catalog is code-defined (const), not DB-backed
 - Unit test asserts keys and required param metadata
@@ -80,7 +81,8 @@ type Condition = {
 ```
 
 - Validator rejects unknown ops, missing operands, non-finite literals
-- `crosses_*` requires both sides resolvable as series (indicator or price), not literal-vs-literal — see JC-2
+- `crosses_*` requires at least one dynamic operand (indicator or price). Dynamic-vs-literal is valid; literal-vs-literal is rejected — see JC-2
+- `eq` uses a documented relative epsilon (`1e-9 * max(1, abs(left), abs(right))`) rather than exact floating-point equality in the 3.1 engine
 
 ### #4.3.2 / #4.3.3 – Entry / exit AND-only
 
@@ -117,9 +119,12 @@ type Condition = {
 
 - Top-level required keys: `indicators`, `entry`, `exit`, `risk`
 - `indicators[]`: each `{ id, type, params, source }` where `source` default `close`; `id` unique within definition; `type` ∈ catalog
+- `indicators` contains at most 20 entries; `id` is 1–64 characters matching `^[A-Za-z][A-Za-z0-9_-]*$`
 - SMA/EMA `period` integer 2–200; RSI `period` integer 2–100
 - Indicator refs in conditions must exist in `indicators[]`
+- Reject unknown keys at every schema level and reject `NaN`/`Infinity`; do not silently strip or persist unrecognized fields
 - `StrategyDefinitionValidator.validate(def) → { is_valid, errors: { path, code, message }[] }`
+- Error order is deterministic: depth-first in document order. Paths are relative to the definition root; write-endpoint RFC 7807 field errors prefix them with `definition.`
 - Wire validator into `StrategiesService.create` so invalid definitions fail at write time (forward-compat with 2.3)
 
 ---
@@ -169,7 +174,7 @@ type Condition = {
 
 ### Definition schema (canonical document)
 
-Publish as code comments + short section in API_Inventory §4 and/or `apps/api/src/strategies/definition/README.md` **only if** a tiny in-module doc helps implementers — prefer API_Inventory + story AC to avoid extra markdown sprawl (JC-7).
+Publish the contract in code types/comments, API_Inventory §4, and story acceptance criteria. Do not add another definition README (JC-7).
 
 **Example valid definition**
 
@@ -242,7 +247,7 @@ flowchart TB
 | `strategies/indicators.controller.ts` **or** route on strategies controller | `GET indicators` |
 | Update `create-strategy.dto.ts` | Keep `definition` as object; service runs validator |
 
-Prefer **pure functions** (no Nest DI inside validator) for reuse by backtest engine (3.1) and AI (6.2).
+Implement validation as **pure functions** (no Nest DI inside validator) for reuse by backtest engine (3.1) and AI (6.2).
 
 ---
 
@@ -254,6 +259,8 @@ Prefer **pure functions** (no Nest DI inside validator) for reuse by backtest en
 4. Integrate validator into `StrategiesService.create` (and prepare export for 2.3 update/validate).
 5. E2E: indicators 200; create with bad definition → 400; create with example → 201.
 6. Docs: API_Inventory §4.1 + definition schema notes; manual testing curls; ROADMAP status.
+
+Contract tests must also cover duplicate ids, unknown keys, array/object confusion, dynamic-vs-literal crosses, literal-vs-literal cross rejection, deterministic error ordering, and catalog/validator parameter-bound parity.
 
 ---
 
@@ -267,7 +274,7 @@ Prefer **pure functions** (no Nest DI inside validator) for reuse by backtest en
 - [ ] Align ops with what engine can evaluate in 3.1 (no “looks good in JSON” ops)
 - [ ] Conventional Commit: `feat: add strategy indicator catalog and definition schema`
 
-**Indicator math library (for later 3.1, decide now):** Prefer implementing SMA/EMA/RSI as small pure functions matching this schema rather than pulling `technicalindicators` unless correctness concerns dominate — see JC-8 (decision recorded for Milestone 3; no dep added in 2.2).
+**Indicator math library (decision for later 3.1):** Implement SMA/EMA/RSI as small pure functions matching this schema; do not add `technicalindicators` unless JC-8 is explicitly reversed.
 
 ---
 
@@ -282,13 +289,13 @@ Prefer **pure functions** (no Nest DI inside validator) for reuse by backtest en
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | Public vs auth catalog | Inventory silent | ⏭ Public | ⏭ stubbed |
-| 2 | Require SL/TP always | Product may want optional | ⏭ Required percent both | ⏭ stubbed |
-| 3 | Min conditions | Empty entry ambiguous | ⏭ ≥1 each | ⏭ stubbed |
+| 1 | Public vs auth catalog | Inventory silent | Public | Adopted |
+| 2 | Require SL/TP always | Product may want optional | Required percent both | Adopted |
+| 3 | Min conditions | Empty entry ambiguous | ≥1 each | Adopted |
 
 ---
 
@@ -302,7 +309,7 @@ Prefer **pure functions** (no Nest DI inside validator) for reuse by backtest en
 
 ### JC-2 — `crosses_above` / `crosses_below` semantics
 
-**Decision:** True on the bar where previous left≤right and current left>right (above), inverse for below. Document for engine; validator only checks operand types.  
+**Decision:** True on the bar where previous left≤right and current left>right (above), inverse for below. At least one operand must be dynamic; a literal is treated as the same constant on current/previous bars. Document for engine; validator checks operand compatibility.
 **Why:** Standard crossover definition; evaluation is 3.1.  
 **Discuss if:** Product wants “while above” continuous true (that would be `gt`, not cross).
 

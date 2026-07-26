@@ -9,7 +9,8 @@ Update this table when a sprint ships. Pattern: `feat/sprint-{milestone}-{sprint
 | 1.1 | `feat/sprint-1-1-symbols-and-schemas` | this branch (until merged) |
 | 1.2 | `feat/sprint-1-2-market-data-candles` | this branch (until merged) |
 | 1.3 | `feat/sprint-1-3-data-ingestion-jobs` | `main` (merged) |
-| 1.4 | `feat/sprint-1-4-data-health-observability` | this branch (until merged) |
+| 1.4 | `feat/sprint-1-4-data-health-observability` | `main` (merged) |
+| 2.1 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (until merged) |
 
 **Stacked PR rule:** Sprint N+1 PR targets the branch for Sprint N. After Sprint N merges to `main`, Sprint N+1 rebases or merges `main`, then targets `main`.
 
@@ -159,7 +160,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 API defaults: port **4000**, global prefix **`/api`**.
 
-**E2E vs smoke:** e2e always uses in-memory seed mode so it never depends on Docker MySQL. `./scripts/sprint-delivery-verify.sh verify` clears `DATABASE_URL` for the smoke API by default (even when `apps/api/.env` defines it). Set `KEEP_DATABASE_URL=1` to run smoke with MySQL; `./scripts/smoke-test-api.sh` reads `DATABASE_URL` from `apps/api/.env` only for the optional persisted-candles check.
+**E2E vs smoke:** e2e always uses in-memory seed mode so it never depends on Docker MySQL. `./scripts/sprint-delivery-verify.sh verify` clears `DATABASE_URL` for the smoke API by default (even when `apps/api/.env` defines it). Set `KEEP_DATABASE_URL=1` to run smoke with MySQL. The standalone `./scripts/smoke-test-api.sh` deliberately does not load `.env`; safely export `DATABASE_URL` with `load_database_url_from_api_env` first when testing an already-running MySQL-backed API.
 
 ---
 

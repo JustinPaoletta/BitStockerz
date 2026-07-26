@@ -11,7 +11,7 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.4**:
+The runnable API in `apps/api` currently ships through **Sprint 2.1**:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -22,9 +22,10 @@ The runnable API in `apps/api` currently ships through **Sprint 1.4**:
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
-| Trading, strategies | Planned | Described below; not implemented yet. A dev-only stub at `POST /api/strategies` returns placeholder JSON and is not part of shipped scope. |
+| Strategy persistence | Shipped (2.1 partial) | Authenticated `POST /strategies` and owner-only `GET /strategies/:id`; full definition validation and CRUD remain planned for 2.2–2.3 |
+| Trading | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper remaps the stale MySQL user row and reassigns its jobs instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
@@ -52,7 +53,7 @@ Sections marked **(Planned)** below are design targets from the MVP stories — 
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search, candle reads). The dev-only `POST /strategies` stub is also unauthenticated and is not part of shipped scope.
+- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search, candle reads). Both shipped strategy endpoints require a bearer session.
 
 ### 0.1 Error code catalog
 
@@ -72,6 +73,16 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 - `instance` is the request path (no host), e.g. `/api/strategies`.
 - `requestId` is set from the `x-request-id` header when provided; otherwise the server generates a correlation ID. Use it for support and logs.
 - `fieldErrors` is only present for `VALIDATION_ERROR` and contains `{ field, reason }` entries.
+
+Planned domain-specific additions are owned by their implementation sprints and are
+canonical for later clients:
+
+| Owner | Codes |
+| --- | --- |
+| Sprint 2.3 | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
+| Sprints 3.1–3.3 | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
+| Sprints 4.1–4.3 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
+| Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
 ### 0.2 Client examples
 
@@ -262,6 +273,8 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `sanity` — `{ checked, invalid, issues[] }` from a bounded sample
   - `source` — `seed` | `database`
 - Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
+- A daily bar covers its full UTC calendar day, so its `age_ms` starts at the
+  end of that day; hourly age starts at the recorded timestamp.
 - Freshness and `symbol_count_with_data` consider bars for **active** symbols only (`symbol.isActive`).
 - Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates. Live vendor feeds remain Sprint 7.1.
 
@@ -275,7 +288,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 ### 2.8 Audit trail (implemented in Sprint 1.4)
 
 - No public list/query API in MVP.
-- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`.
+- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`, `strategy.created`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
@@ -289,31 +302,28 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 - Body:
   - `symbol`
   - `side` – BUY | SELL
-  - `quantity`
+  - `quantity` – positive decimal string
   - `client_order_id?`
 - Behavior:
-  - Validates symbol, cash/position, risk limits.
-  - Fills as market order using latest price from Market Data service.
-
-- Response:
-  - `order` object:
-    - `id`
-    - `symbol`
-    - `side`
-    - `quantity`
-    - `status` – PENDING | FILLED | REJECTED | CANCELLED
-    - `avg_fill_price?`
-    - `reject_reason?`
-    - `requested_at`
-    - `filled_at?`
+  - Validates symbol, cash/position, and risk limits.
+  - Fills synchronously as a market order using the latest eligible close.
+  - Atomically writes the terminal order, execution (for fills), cash, and position.
+  - Replaying the same `client_order_id` with the same normalized payload returns
+    the original order without another fill; a different payload returns `409 CONFLICT`.
+- Response `200`: `{ order }`, where `status` is `FILLED` or `REJECTED`.
+  Filled orders include `avg_fill_price` / `filled_at`; rejected orders include
+  the stable `reject_reason`. Business rejection is a terminal order, not an HTTP
+  validation error.
 
 **GET `/trading/orders`**
 
 - Query params:
   - `status?`
   - `symbol?`
-  - `limit?` (default 50)
-- Response: list of orders for current user’s paper account.
+  - `limit?` (default 50, max 200)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ orders, limit, offset, has_more }`, newest first by
+  `requested_at DESC, id ASC`.
 
 ---
 
@@ -323,14 +333,17 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 - Query params:
   - `symbol?`
-  - `limit?` (default 100)
-- Response: executions list:
-  - `{ executed_at, symbol, side, quantity, price, notional }`
+  - `limit?` (default 100, max 500)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ executions, limit, offset, has_more }`, newest first by
+  `executed_at DESC, id ASC`; each execution is
+  `{ executed_at, symbol, side, quantity, price, notional }`.
 
 **GET `/trading/positions`**
 
-- Returns all **non-zero** positions:
-  - `{ symbol, quantity, avg_cost }`
+- Returns `{ positions }` containing all **non-zero** positions in
+  `symbol ASC, position.id ASC` order. Each item is
+  `{ symbol, quantity, avg_cost }`.
 
 ---
 
@@ -343,14 +356,14 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `total_position_value`
   - `total_equity`
   - `unrealized_pnl_total`
+- All fields are 2-decimal strings. If any held symbol lacks an eligible close,
+  fail closed with `422 TRADING_NO_MARKET_PRICE`.
 
 ---
 
-## 4. Strategy Lab APIs (#4) (Planned)
+## 4. Strategy Lab APIs (#4) (Partial: Sprint 2.1 shipped)
 
-Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and returns placeholder JSON without auth or persistence. Do not treat it as the Strategy Lab API.
-
-### 4.1 Indicators
+### 4.1 Indicators (Planned for Sprint 2.2)
 
 **GET `/strategies/indicators`**
 
@@ -359,52 +372,66 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
 
 ---
 
-### 4.2 Strategies
+### 4.2 Strategies (Create/get shipped; remaining CRUD planned for Sprint 2.3)
 
 **POST `/strategies`**
 
+- Auth: required.
 - Body:
-  - `name`
-  - `description?`
-  - `asset_type`
-  - `timeframe`
-  - `definition` (full JSON: indicators, entry/exit, SL/TP)
+  - `name`: trimmed string, 1–255 characters; unique per user under database-style case/accent-insensitive comparison
+  - `description?`: string
+  - `asset_type`: `EQUITY` or `CRYPTO`
+  - `timeframe`: `1d` or `1h`; equity currently requires `1d`
+  - `symbol_scope?`: only `SINGLE`; defaults to `SINGLE`
+  - `definition`: required non-null, non-array JSON object; opaque until Sprint 2.2
 - Behavior:
-  - Creates strategy + initial version.
+  - Atomically creates strategy + immutable initial version (`version_number: 1`).
+  - Emits `strategy.created` audit metadata.
+  - Duplicate normalized name for the same user returns `409 CONFLICT`.
+- Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, created_at, updated_at }`.
 
-**PUT `/strategies/:id`**
+**PUT `/strategies/:id`** (Planned)
 
-- Body:
-  - same as POST (or partial, depending on design)
+- Body: partial metadata (`name`, `description`, `asset_type`, `timeframe`) and
+  optional `definition`; `description: null` clears it and an empty body is invalid.
 - Behavior:
-  - Creates **new version**, updates metadata.
+  - Updates metadata. A present valid `definition` always appends the next
+    immutable version; a metadata-only update does not.
+- Response: latest version payload plus deterministic `summary`.
 
-**GET `/strategies`**
+**GET `/strategies`** (Planned)
 
-- Response: strategies for current user:
-  - `{ id, name, asset_type, timeframe, created_at, updated_at, is_active }`
+- Query: `limit?` (default 50, max 100), `offset?` (default 0, max 10,000).
+- Response: `{ items, limit, offset, has_more }` for the current user’s active
+  strategies, ordered `updated_at DESC, id ASC`.
+- Each item is
+  `{ id, name, asset_type, timeframe, version_number, created_at, updated_at, is_active }`.
 
 **GET `/strategies/:id`**
 
+- Auth: required; only the owning user can read the strategy.
 - Response:
-  - metadata + latest version’s `definition`
-  - version number.
+  - Metadata + selected version’s `definition`, `version_number`, and deterministic
+    `summary`. Sprint 2.3 adds optional `?version=N` historical reads.
+- Invalid UUID returns `400 VALIDATION_ERROR`; missing, inactive, or non-owned ids return `404 NOT_FOUND`.
 
-**DELETE `/strategies/:id`**
+**DELETE `/strategies/:id`** (Planned)
 
-- Soft delete: sets `is_active = false`.
+- Soft delete: sets `is_active = false` and returns `204` with no body. A repeated
+  delete returns `404`; the name remains reserved.
 
 ---
 
-### 4.3 Strategy Validation
+### 4.3 Strategy Validation (Planned for Sprint 2.3)
 
 **POST `/strategies/validate`**
 
 - Body:
-  - `definition` OR `strategy_id`
+  - Exactly one of `definition` or `strategy_id`
 - Response:
   - `is_valid: boolean`
-  - `errors: string[]`
+  - `errors: [{ path, code, message }]`
+  - `summary: string | null`
 
 ---
 
@@ -421,14 +448,13 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
   - `start_date`
   - `end_date`
   - `initial_equity?`
+  - `strategy_version_id?`
 - Behavior:
-  - Creates `backtest_run` + job.
+  - Validates ownership and strategy/symbol/timeframe compatibility, pins a
+    strategy version, then creates a run + job.
   - Synchronously executes job (MVP).
-  - Enforces bar-count, timeout limits.
-
-- Response:
-  - `backtest_run` metadata
-  - `backtest_result` summary metrics
+  - Enforces bar-count, series-cell, and cooperative deadline limits.
+- Response `200`: `{ run, results }`; full trades/equity remain on detail.
 
 **GET `/backtests`**
 
@@ -436,16 +462,20 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
   - `strategy_id?`
   - `symbol?`
   - `status?`
-  - `limit?` (default 50)
-- Response:
-  - List of backtests for current user.
+  - `limit?` (default 50, max 100)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ items, limit, offset, has_more }` for the current user, ordered
+  `created_at DESC, id ASC`.
 
 **GET `/backtests/:id`**
 
+- Query: `trades_limit?` (default 500, max 1000),
+  `trades_offset?` (default 0, max 100,000).
 - Response:
   - `run` metadata
   - `results` (summary metrics)
-  - `trades[]` (possibly paginated)
+  - `trades[]`
+  - `trades_page: { limit, offset, has_more }`
   - `equity_curve[]` – `{ timestamp, equity }`
 
 ---
@@ -461,7 +491,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `strategy_id`
 - Response:
-  - `{ explanation: string, warnings?: string[] }`
+  - `{ disclaimer, confidence, ai_request_id, explanation, warnings }`
 
 ---
 
@@ -472,7 +502,8 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `strategy_id`
 - Response:
-  - `warnings: [{ severity: "LOW" | "MEDIUM" | "HIGH", message: string }]`
+  - `{ disclaimer, confidence, ai_request_id, warnings }`, where warnings are
+    `{ code, severity, message, evidence_paths }`
 
 ---
 
@@ -483,7 +514,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `backtest_run_id`
 - Response:
-  - `{ explanation: string, issues?: string[] }`
+  - `{ disclaimer, confidence, ai_request_id, explanation, issues }`
 
 ---
 
@@ -495,29 +526,22 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
   - `strategy_id`
   - `backtest_run_id?`
 - Response:
-  - `suggestions: [{ title: string, description: string }]`
+  - `{ disclaimer, confidence, ai_request_id, suggestions }`, where suggestions
+    are `{ code, title, description, evidence }`
 
 ---
 
-## 7. Dashboard / UI Aggregation APIs (#7) (Planned)
+## 7. Dashboard / UI Aggregation APIs (#7) (No new backend route planned)
 
-Most dashboard widgets reuse existing endpoints, but you may choose some light aggregations.
+Dashboard widgets make independent calls to the paper-account, trading, strategy,
+and backtest APIs so one failed widget does not fail the page.
 
-### 7.1 Dashboard Summary (optional helper)
+### 7.1 Dashboard Summary
 
-**GET `/dashboard/summary`**
-
-- Response:
-  - `portfolio_summary` (from `/trading/portfolio-summary`)
-  - recent `positions` (from `/trading/positions`)
-  - recent `strategies` (from `/strategies`)
-  - recent `backtests` (from `/backtests`)
-  - recent `trades` (from `/trading/executions`)
-- This can be implemented either as:
-  - a true aggregator, or
-  - handled client-side by calling each underlying API.
-
-If you want to keep the backend simpler, skip this and let the Angular app call the underlying APIs independently (as designed in #7).
+`GET /dashboard/summary` is intentionally skipped for MVP. Sprint 5.2 calls
+`/trading/portfolio-summary`, `/trading/positions`,
+`/strategies?limit=5&offset=0`, `/backtests?limit=5&offset=0`, and
+`/trading/executions?limit=5&offset=0` independently.
 
 ---
 
@@ -618,13 +642,12 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, plus controllers for health, strategies stub, and error-test.
+**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, `ObservabilityModule`, and `StrategiesModule`, plus controllers for health and error-test.
 
 **Planned as domains grow:**
 
 - `UserModule` / `AccountModule` (or keep under Auth)
 - `TradingModule`
-- `StrategyModule`
 - `BacktestModule`
 - `AiModule` (Kernel)
 - `DashboardModule` (thin)

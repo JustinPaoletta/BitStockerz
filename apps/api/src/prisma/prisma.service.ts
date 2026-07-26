@@ -47,6 +47,14 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().auditEvent;
   }
 
+  get strategy() {
+    return this.requireClient().strategy;
+  }
+
+  get strategyVersion() {
+    return this.requireClient().strategyVersion;
+  }
+
   get user() {
     return this.requireClient().user;
   }

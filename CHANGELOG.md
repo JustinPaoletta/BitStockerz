@@ -9,6 +9,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 2.1 strategy persistence and versioning: MySQL/Prisma schema, seed-mode parity, authenticated create/get endpoints, immutable version 1 definitions, normalized per-user name conflicts, owner-only reads, and `strategy.created` audit events.
+- Sprint 2.1 unit, e2e, manual, seed-smoke, and MySQL-smoke coverage.
 - Sprint 1.4 data health and observability: candle sanity checks, `GET /api/market-data/health`, in-process `GET /api/metrics`, and `audit_events` audit trail.
 - Local MySQL 8 Docker workflow (`scripts/docker-mysql.sh`, `docs/database/Local_MySQL.md`, `apps/api/.env.example`).
 - `npm --prefix apps/api run db:deploy` for non-interactive migration apply; Prisma loads `apps/api/.env` automatically.
@@ -21,15 +23,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Refreshed NestJS and Prisma to their current compatible releases, moved the Prisma CLI to development dependencies, and pinned patched transitive packages; both production and full development `npm audit` now report zero vulnerabilities.
+- Replaced the unauthenticated strategy placeholder with `StrategiesModule` and authenticated RFC 7807 contracts; full rule-schema validation and remaining CRUD stay scoped to Sprints 2.2–2.3.
+- Strategy DTOs preserve raw text-field types before validation despite global implicit conversion; seed uniqueness includes MySQL Unicode expansion weights and service length checks count Unicode characters.
+- Daily market-data health measures staleness from the end of the represented UTC day, preventing false weekend degradation for Friday equity bars.
+- `AuthService.ensureUserPersisted` now reassigns dependent strategies as well as jobs/credentials when remapping a stale MySQL user id; owner reads perform the repair immediately after an API restart and tolerate a concurrent audit-triggered remap.
 - API development default port is `4000` (override with `PORT`).
 - Seed OHLCV fixtures in `seed-candles.ts` roll to today (UTC) at process load so local market-data health demos can report `ok` (MySQL still needs re-ingestion after restart).
-- Updated roadmap, README, API inventory, migration plan, and story status docs through Sprint 1.4 completion.
+- Updated roadmap, README, API inventory, migration plan, story status, and manual-testing docs through Sprint 2.1 completion.
 - `AuthService.ensureUserPersisted` remaps stale MySQL user rows (and dependent jobs/credentials) when the same email is re-registered under a new in-memory id, and tolerates concurrent unique-constraint races on first persist.
 - E2E tests force seed mode via `apps/api/test/setup-e2e.ts` so gates pass without a local MySQL instance.
 - Exception-path HTTP metrics record in `GlobalHttpExceptionFilter` (interceptor successes only); health aggregates filter active symbols.
 
 ### Documentation
 
+- Make manual verification reproducible with a two-terminal workflow, explicit seed/MySQL startup modes, a change-to-test matrix, executable strategy restart steps, audit-table inspection, and rolling MySQL count expectations.
+- Refresh the roadmap through July 26, distinguish locally verified Sprint 2.1 work from merged delivery, keep Sprint 2.2 as `START HERE`, and link every remaining sprint to its ready implementation plan.
 - Standardize the repository around a shared README structure, a manual changelog, and a root `RELEASE.md` guide.
 - Align docs with code: health/readiness response shape, verify-script seed mode, OAuth redirect URIs in `.env.example`, and scheduler defaults.
 - Clarify planned vs shipped API inventory sections; document in-memory auth/passkeys with MySQL; correct testing-strategy and security session claims.

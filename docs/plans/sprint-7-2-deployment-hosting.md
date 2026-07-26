@@ -49,7 +49,7 @@
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #8.7.1 – Deployment pipeline
 
@@ -69,9 +69,9 @@
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| Frontend | **Vercel** | Static SPA (`ng build` output); region pinned |
-| API + jobs | **Railway / Render / Fly.io** (pick one) | Always-on Node process running Nest |
-| Database | **Managed MySQL** (PlanetScale / Railway MySQL / equivalent) or MySQL-compatible | Single region colocated with API |
+| Frontend | **Vercel** | Static SPA (`ng build` output) served by Vercel’s global edge; no stateful region claim |
+| API + jobs | **Railway, Render, or Fly.io** (selected during provisioning) | One always-on Node replica running Nest + scheduler |
+| Database | **Managed MySQL-compatible service** | Same region as API; must support foreign keys, serializable transactions, Prisma 7 adapter, and `prisma migrate deploy` |
 | Scheduler | In-process `JobSchedulerService` | `INGESTION_SCHEDULER_ENABLED=true` in prod |
 
 **Alternative — Option B (document only unless chosen)**
@@ -84,11 +84,13 @@
 
 **Shared AC**
 
-- Single region choice recorded (e.g. `iad1` / `us-east`).
+- API and database region recorded and colocated. The static SPA may remain globally cached; “single region” applies to stateful compute/data.
 - Env vars set in host dashboards: `DATABASE_URL`, auth secrets, `CORS_ORIGIN` (Vercel web URL), `AI_ENABLED`, etc.
-- `prisma migrate deploy` runs on API release (release command or CI step).
+- API service is pinned to one replica while in-process cron is enabled; horizontal scale requires an external scheduler or distributed lock first.
+- `prisma migrate deploy` runs once in a serialized release job before the new API revision receives traffic.
 - `/api/health/live` and `/api/health/ready` used for host health checks.
-- Angular `environment.production.ts` points `apiBaseUrl` at deployed API.
+- Production readiness performs a real Prisma `SELECT 1`/equivalent, returns 503 when `DATABASE_URL` is missing/unreachable in production, and does not treat “not configured” as ready. Seed/test behavior remains unchanged.
+- Angular build-time public config points `apiBaseUrl` at deployed API; no secret is compiled into the SPA.
 - Manual smoke against production URLs documented.
 
 ---
@@ -99,11 +101,11 @@ No new product APIs for Option A.
 
 **If Option B is selected**, add:
 
-### `POST /api/internal/cron/market-data` (or GET)
+### `POST /api/internal/cron/market-data`
 
 | Concern | Decision |
 |---------|----------|
-| Auth | Header `Authorization: Bearer ${CRON_SECRET}` or `x-cron-secret` |
+| Auth | Header `Authorization: Bearer ${CRON_SECRET}` |
 | Behavior | Triggers same work as `market_data_scheduled` job |
 | Exposure | Not for browsers; document as ops-only |
 
@@ -172,36 +174,39 @@ docs/ops/
 
 ### 2. Production config hardening
 
-1. Ensure `AppConfigService` validates prod-required secrets.
-2. `CORS_ORIGIN` = Vercel URL; cookie/token still Bearer (no cookie CORS complexity).
-3. `INGESTION_SCHEDULER_ENABLED=true` on Option A prod.
-4. `AI_ENABLED` per product choice; keys in host secrets.
+1. Ensure `AppConfigService` validates production-required settings at startup: DB, session/auth secrets, exact CORS allowlist, WebAuthn RP id/origins, enabled OAuth redirect credentials, scheduler system user, and live AI provider fields when AI is enabled.
+2. CORS allowlist contains the exact production Vercel URL(s); Bearer auth remains header-based. Wildcard origins are rejected in production.
+3. `INGESTION_SCHEDULER_ENABLED=true` on Option A prod and host replica count fixed at one.
+4. `AI_ENABLED=false` until live provider credentials and disclaimer approval exist.
+5. Add graceful shutdown hooks so the host stops accepting requests and disconnects Prisma before termination.
 
 ### 3. API deploy artifact (Option A)
 
-1. Dockerfile: multi-stage Node build, `node dist/main`, non-root if easy.
-2. Release command: `npx prisma migrate deploy` then start.
-3. Health check path `/api/health/live` (and ready for deeper checks).
+1. Dockerfile: multi-stage build pinned to the repository’s exact Node engine, `npm ci`, Prisma generate, API build, production dependency stage, non-root runtime, `node dist/main`.
+2. Release workflow: `prisma migrate status` → provider snapshot/backup checkpoint for any non-additive migration → `prisma migrate deploy` exactly once → deploy API → wait for readiness. Do not run migrations independently in every app replica.
+3. Require backward-compatible expand/contract migrations so the prior API revision remains safe during rollout; destructive migrations need a separate reviewed release.
+4. Health check: liveness for process restarts, readiness for traffic.
 
 ### 4. Angular static deploy
 
-1. `ng build --configuration production` with `apiBaseUrl` to API URL.
-2. Vercel project rooted at `apps/web` (or monorepo settings).
-3. SPA fallback rewrite to `index.html`.
+1. `ng build --configuration production` with public `apiBaseUrl` supplied at build time.
+2. Vercel project rooted at `apps/web`; set the actual Angular browser output directory from `angular.json` rather than assuming `dist/`.
+3. Commit a `vercel.json` SPA fallback rewrite for unmatched routes to `/index.html`; exclude real static assets from accidental fallback through a deploy smoke test.
 4. Prefer **static SPA** over SSR (JC-2).
 
 ### 5. GitHub Actions (#8.7.1)
 
-1. `ci.yml`: on PR — install, build, test api, build web.
-2. `deploy.yml`: on main — reuse CI jobs, then deploy with platform CLIs / OIDC.
-3. Protect `main` with required checks.
-4. Store secrets: `VERCEL_TOKEN`, host API tokens, `DATABASE_URL` only where needed.
+1. `ci.yml`: use pinned Node; `npm ci` at root, `apps/api`, and `apps/web`; run API build/lint/unit/coverage/e2e plus web lint/test/build. Cache npm directories keyed by each lockfile, not `node_modules`.
+2. `deploy.yml`: on `main`, reuse required CI, serialize with a production concurrency group, migrate/deploy/verify API first, then deploy the web artifact that targets the verified API.
+3. Protect `main` with required checks and a protected `production` GitHub Environment for deploy secrets/approval.
+4. Store `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, deployment credential, and host credentials only in GitHub/host settings. Scope `DATABASE_URL` to the migration/API jobs; never expose it to the web build.
 
 ### 6. Smoke + docs
 
-1. Post-deploy curl: live/ready, login, symbols search, one AI flag-off check.
-2. Write `docs/ops/deployment.md` (or section in README).
-3. Update ROADMAP final notes; CHANGELOG MVP deploy.
+1. Post-deploy smoke: live/ready, auth session, symbols search, authenticated paper-account read, SPA deep-link refresh, CORS preflight from the deployed web origin, and `AI_DISABLED` while AI remains off.
+2. Trigger the scheduled-import handler through an authenticated internal/manual path or observe one scheduler run; verify exactly one job/audit event (no duplicate replica cron).
+3. Write `docs/ops/deployment.md` with deploy, rollback, DB restore/contact, secret rotation, scheduler-disable, and incident checks.
+4. Update ROADMAP final notes; CHANGELOG MVP deploy.
 
 | File | Update |
 |------|--------|
@@ -234,22 +239,23 @@ docs/ops/
 | Serverless breaks `@Cron` + long backtests | Default Option A always-on |
 | Cold starts / maxDuration kill jobs | Option A; or redesign jobs for B |
 | CORS misconfig blocks SPA | Explicit prod CORS test in smoke |
-| Migrate fails mid-deploy | Migrate in release phase; fail deploy on error |
+| Migrate fails mid-deploy | Serialized release job; fail before traffic; snapshot/recovery note for non-additive changes |
 | Cost surprises (MySQL + always-on) | Choose free/hobby tiers for MVP; document |
 | OAuth redirect URLs | Register prod callbacks when enabling OAuth in prod |
+| Duplicate scheduled jobs | One API replica while in-process cron is enabled; verify singleton behavior in smoke |
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Hosting Option A vs B | Architecture | ⏭ **Option A** (JC-1) | ⏸ confirm platform brand |
-| 2 | Railway vs Render vs Fly | Account + billing | ⏭ Dev picks; plan is host-agnostic Dockerfile | ⏸ needs account |
-| 3 | Managed MySQL provider | `DATABASE_URL` | ⏭ Same host’s MySQL if available | ⏸ needs provision |
-| 4 | Vercel project + GitHub linkage | Web deploy | ⏭ Create under BitStockerz org/user | ⏸ needs account |
-| 5 | Production domain | CORS/OAuth | ⏭ Platform default URLs first | ⏭ stubbed |
-| 6 | Prod `AI_ENABLED` | Cost/safety | ⏭ false until key + disclaimer approved | ⏭ recommended |
+| 1 | Hosting Option A vs B | Architecture | **Option A** (JC-1) | Adopted |
+| 2 | Always-on provider brand | Account + billing | Choose Railway/Render/Fly only after verifying one-replica, release command, region, logs, and health-check support | External account/procurement prerequisite |
+| 3 | Managed MySQL provider | `DATABASE_URL` | Colocated service meeting the capability checklist above | External provisioning prerequisite |
+| 4 | Vercel project + GitHub linkage | Web deploy | Create under BitStockerz owner and record opaque ids only in secrets/settings | External account prerequisite |
+| 5 | Production domain | CORS/OAuth | Platform default URLs first | Adopted |
+| 6 | Prod `AI_ENABLED` | Cost/safety | false until key + disclaimer approved | Adopted |
 
 ---
 
@@ -260,7 +266,7 @@ docs/ops/
 | **JC-1** | **Option A default:** always-on Node (Railway/Fly/Render) for API+`JobSchedulerService`; **Vercel** for Angular; managed MySQL | In-process `@Cron` + potential `worker_threads` backtests conflict with serverless timeouts; preserves MVP fidelity | Team mandates all-on-Vercel |
 | **JC-2** | Angular as **static SPA** (no SSR) for MVP | Simpler deploy; auth is Bearer token; matches 5.1 scaffold | SEO/SSR required |
 | **JC-3** | Option B uses **Vercel Cron + `CRON_SECRET`** HTTP trigger and disables in-process cron | Documented Nest-on-Vercel path | — |
-| **JC-4** | **Single region** only; pin web + API + DB to same metro area | ROADMAP #8.7.2 | Multi-region requested |
+| **JC-4** | **Single stateful region**: colocate API + DB; static web remains globally delivered | ROADMAP #8.7.2 without misrepresenting CDN behavior | Multi-region stateful services requested |
 | **JC-5** | CI deploys only from **`main`** after tests; PRs build/test only | Safer MVP | Preview API deploys per PR desired |
 
 ---
@@ -287,6 +293,7 @@ docs/ops/
 - [ ] Prod `/api/health/live` + `/api/health/ready` OK with DB
 - [ ] Scheduler runs on Option A (or Cron route on Option B)
 - [ ] Angular production build calls prod API successfully (login + one data path)
+- [ ] Production deployment concurrency is serialized; rollback/runbook and DB migration safety are documented
 - [ ] Secrets not in repo; MVP_08 / ROADMAP Milestone 7 marked complete
 - [ ] PR: `ci: add deploy pipeline and hosting config`
 

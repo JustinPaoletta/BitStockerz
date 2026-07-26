@@ -150,9 +150,11 @@ describe('JobExecutorService', () => {
       createMetricsMock(),
       createAuditMock(),
     );
-    executor.registerHandler('equity_daily_import', () =>
-      Promise.reject('bad-string'),
-    );
+    executor.registerHandler('equity_daily_import', () => {
+      // Deliberately exercise defensive handling of a non-Error rejection.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      return Promise.reject('bad-string');
+    });
     const job = await jobsService.createJob({
       jobType: 'equity_daily_import',
       userId: 'user-1',

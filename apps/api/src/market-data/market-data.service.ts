@@ -51,6 +51,7 @@ export interface MarketDataHealthResponse {
 
 const SANITY_SAMPLE_LIMIT = 40;
 const ACTIVE_SYMBOL_WHERE = { symbol: { isActive: true } } as const;
+const MILLISECONDS_PER_DAY = 86_400_000;
 
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -456,7 +457,14 @@ export class MarketDataService {
       };
     }
 
-    const ageMs = Math.max(0, now.getTime() - latest.getTime());
+    // A date-only candle covers its full UTC calendar day. Measure staleness
+    // from the end of that coverage window so Friday daily data does not become
+    // falsely stale during the weekend merely because its DB value is midnight.
+    const coverageEndMs =
+      kind === 'daily'
+        ? latest.getTime() + MILLISECONDS_PER_DAY
+        : latest.getTime();
+    const ageMs = Math.max(0, now.getTime() - coverageEndMs);
     return {
       asset_type: assetType,
       interval,

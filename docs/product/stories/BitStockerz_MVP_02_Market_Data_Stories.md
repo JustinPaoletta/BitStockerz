@@ -108,5 +108,5 @@ Acceptance criteria:
 - `GET /api/market-data/health` returns latest timestamps, staleness flags, sanity sample, and rollup `status` (`ok` | `degraded` | `unhealthy`).
 - Works in seed mode and with Prisma/MySQL.
 - Public endpoint (no auth); no PII in the response.
-- Staleness uses wall-clock `now` vs each series’ latest bar and `MARKET_DATA_STALE_*_MS` thresholds (injectable `now` in unit tests).
+- Staleness uses wall-clock `now` vs each series’ latest coverage and `MARKET_DATA_STALE_*_MS` thresholds (injectable `now` in unit tests). Date-only daily bars cover their full UTC day; hourly bars cover through their timestamp.
 - Seed fixtures roll to today (UTC) at process load so local demos typically report `ok`; bars older than the threshold still report `stale: true`.

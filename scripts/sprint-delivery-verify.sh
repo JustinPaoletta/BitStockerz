@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2/1.3 verification and optional PR workflow.
+# End-to-end Sprint 1.2–2.1 verification.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)
-#   ./scripts/sprint-delivery-verify.sh workflow        # verify + commit/push + merge PRs
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,8 +11,9 @@ API_DIR="$ROOT/apps/api"
 source "$ROOT/scripts/lib/load-api-env.sh"
 LOG_DIR="$ROOT/logs/smoke"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-WORK_LOG="$LOG_DIR/workflow-$TIMESTAMP.log"
+WORK_LOG="$LOG_DIR/verify-$TIMESTAMP.log"
 API_PID=""
+STRATEGY_STATE_FILE=""
 MODE="${1:-verify}"
 
 mkdir -p "$LOG_DIR"
@@ -22,11 +22,19 @@ log() {
   echo "[$(date '+%H:%M:%S')] $*" | tee -a "$WORK_LOG"
 }
 
-cleanup() {
+stop_api() {
   if [[ -n "$API_PID" ]] && kill -0 "$API_PID" 2>/dev/null; then
     log "Stopping API (pid $API_PID)"
     kill "$API_PID" 2>/dev/null || true
     wait "$API_PID" 2>/dev/null || true
+  fi
+  API_PID=""
+}
+
+cleanup() {
+  stop_api
+  if [[ -n "$STRATEGY_STATE_FILE" ]]; then
+    rm -f "$STRATEGY_STATE_FILE"
   fi
 }
 trap cleanup EXIT
@@ -44,10 +52,10 @@ run_gate() {
 }
 
 start_api() {
+  stop_api
   if lsof -ti:4000 >/dev/null 2>&1; then
-    log "Port 4000 in use — stopping existing process"
-    lsof -ti:4000 | xargs kill -9 2>/dev/null || true
-    sleep 1
+    log "Port 4000 is already in use; stop that process before verification"
+    return 1
   fi
 
   log "Building API..."
@@ -73,7 +81,7 @@ start_api() {
     elif [[ -n "${DATABASE_URL:-}" ]]; then
       export DATABASE_URL
     fi
-    npm run start
+    exec node dist/src/main.js
   ) >>"$WORK_LOG" 2>&1 &
   API_PID=$!
   log "API pid=$API_PID"
@@ -81,8 +89,12 @@ start_api() {
 
 run_smoke() {
   local scope="${1:-all}"
+  local args=(--sprint "$scope" --base-url http://localhost:4000/api)
+  if [[ -n "$STRATEGY_STATE_FILE" ]]; then
+    args+=(--strategy-state-file "$STRATEGY_STATE_FILE")
+  fi
   log "Running smoke tests (scope=$scope)..."
-  if "$ROOT/scripts/smoke-test-api.sh" --sprint "$scope" --base-url http://localhost:4000/api; then
+  if "$ROOT/scripts/smoke-test-api.sh" "${args[@]}"; then
     log "Smoke PASS ($scope)"
     return 0
   fi
@@ -103,6 +115,8 @@ verify_all() {
     load_database_url_from_api_env "$API_DIR"
     if [[ -n "${DATABASE_URL:-}" ]]; then
       log "Smoke DB checks enabled (DATABASE_URL loaded for persistence test)"
+      run_gate "db:deploy" npm --prefix apps/api run db:deploy
+      STRATEGY_STATE_FILE="$(mktemp)"
     else
       log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"
     fi
@@ -114,84 +128,17 @@ verify_all() {
   fi
   start_api
   run_smoke all
-}
-
-commit_skill_updates() {
-  cd "$ROOT"
-  if git diff --quiet .cursor/skills/sprint-delivery/ 2>/dev/null && \
-     git diff --cached --quiet .cursor/skills/sprint-delivery/ 2>/dev/null; then
-    log "No sprint-delivery skill changes to commit"
-    return 0
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    log "Restarting API for persisted strategy ownership verification"
+    start_api
+    run_smoke 2.1-restart
   fi
-  git add .cursor/skills/sprint-delivery/
-  if [[ -f scripts/smoke-test-api.sh ]]; then
-    git add scripts/smoke-test-api.sh scripts/sprint-delivery-verify.sh
-  fi
-  if [[ -f apps/api/.env.example ]]; then
-    git add apps/api/.env.example
-  fi
-  git commit -m "$(cat <<'EOF'
-chore: add sprint smoke scripts and dev-input retrospectives
-
-EOF
-)"
-  log "Committed skill + script updates"
-}
-
-push_branch() {
-  local branch
-  branch="$(git branch --show-current)"
-  log "Pushing $branch..."
-  git push origin "$branch"
-}
-
-merge_pr_if_green() {
-  local pr="$1"
-  local title
-  title="$(gh pr view "$pr" --json title -q .title 2>/dev/null || echo "PR $pr")"
-  log "Attempting merge PR #$pr ($title)..."
-  if gh pr merge "$pr" --merge --delete-branch=false >>"$WORK_LOG" 2>&1; then
-    log "Merged PR #$pr"
-    return 0
-  fi
-  log "Could not merge PR #$pr automatically — merge manually on GitHub"
-  return 1
-}
-
-rebase_onto_main() {
-  local branch
-  branch="$(git branch --show-current)"
-  log "Fetching main and rebasing $branch..."
-  git fetch origin main
-  git rebase origin/main
-  git push --force-with-lease origin "$branch"
-  log "Rebased $branch onto origin/main (force-with-lease push)"
-  gh pr edit 6 --base main >>"$WORK_LOG" 2>&1 || log "Note: retarget PR #6 base to main if needed"
-}
-
-workflow() {
-  verify_all
-  commit_skill_updates
-  push_branch
-
-  log "=== Phase: merge PR #5 (Sprint 1.2) ==="
-  if merge_pr_if_green 5; then
-    log "=== Phase: rebase Sprint 1.3 onto main ==="
-    rebase_onto_main
-    log "=== Phase: merge PR #6 (Sprint 1.3) ==="
-    merge_pr_if_green 6 || true
-  else
-    log "Skipping PR #6 merge until PR #5 is merged"
-  fi
-
-  log "Workflow complete — log: $WORK_LOG"
 }
 
 case "$MODE" in
   verify) verify_all ;;
-  workflow) workflow ;;
   *)
-    echo "Usage: $0 [verify|workflow]" >&2
+    echo "Usage: $0 verify" >&2
     exit 1
     ;;
 esac

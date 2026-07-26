@@ -1,15 +1,8 @@
 export type JobStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled';
+  'pending' | 'running' | 'completed' | 'failed' | 'timed_out' | 'cancelled';
 
 export type JobType =
-  | 'equity_daily_import'
-  | 'crypto_import'
-  | 'market_data_scheduled';
+  'equity_daily_import' | 'crypto_import' | 'market_data_scheduled';
 
 export interface JobPayload {
   symbol?: string;

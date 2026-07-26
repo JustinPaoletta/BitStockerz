@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { GlobalHttpExceptionFilter } from '../src/common/errors/http-exception.filter';
 import { AppLogger } from '../src/common/logging/app-logger';
+import { AuditService } from '../src/observability/audit.service';
 import {
   SEED_CRYPTO_DAILY_SAMPLE,
   SEED_CRYPTO_HOURLY_SAMPLE,
@@ -185,9 +186,20 @@ describe('Error contract (e2e)', () => {
     expect((body.requestId as string).length).toBeGreaterThan(0);
   }
 
-  it('malformed request body returns 400 with VALIDATION_ERROR, fieldErrors, requestId', () => {
-    return request(app.getHttpServer())
+  async function registerAndGetToken(): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'error-contract@example.com' })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  it('malformed request body returns 400 with VALIDATION_ERROR, fieldErrors, requestId', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
       .post('/api/strategies')
+      .set('Authorization', `Bearer ${token}`)
       .set('Content-Type', 'application/json')
       .send({ invalid: 'body', name: 123 })
       .expect(400)
@@ -264,9 +276,12 @@ describe('Error contract (e2e)', () => {
       });
   });
 
-  it('all error responses have RFC 7807 base fields plus code and requestId', () => {
-    return request(app.getHttpServer())
+  it('all error responses have RFC 7807 base fields plus code and requestId', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
       .post('/api/strategies')
+      .set('Authorization', `Bearer ${token}`)
       .set('Content-Type', 'application/json')
       .send({})
       .expect(400)
@@ -548,6 +563,212 @@ describe('Auth limits and TTL (e2e)', () => {
     await request(app.getHttpServer())
       .get('/api/me')
       .set('Authorization', `Bearer ${token}`)
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+  });
+});
+
+describe('Strategy persistence and versioning (e2e)', () => {
+  let app: INestApplication<App>;
+  let audit: AuditService;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+    audit = app.get(AuditService);
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function registerAndGetToken(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  function strategyBody(overrides: Record<string, unknown> = {}) {
+    return {
+      name: 'SMA Cross Long',
+      description: 'Fast/slow SMA cross',
+      asset_type: 'EQUITY',
+      timeframe: '1d',
+      definition: { indicators: [] },
+      ...overrides,
+    };
+  }
+
+  it('creates version one, audits it, and reads it back for the owner', async () => {
+    const token = await registerAndGetToken('strategist@example.com');
+    const authorization = `Bearer ${token}`;
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: '  SMA Cross Long  ' }))
+      .expect(201);
+
+    expect(createResponse.body).toMatchObject({
+      name: 'SMA Cross Long',
+      description: 'Fast/slow SMA cross',
+      asset_type: 'EQUITY',
+      symbol_scope: 'SINGLE',
+      timeframe: '1d',
+      is_active: true,
+      version_number: 1,
+      definition: { indicators: [] },
+    });
+    expect(createResponse.body.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(
+      new Date(createResponse.body.created_at as string).toISOString(),
+    ).toBe(createResponse.body.created_at);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${createResponse.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual(createResponse.body);
+      });
+
+    expect(audit.getInMemoryEventsForTests()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'strategy.created',
+          payload: {
+            strategy_id: createResponse.body.id,
+            name: 'SMA Cross Long',
+          },
+        }),
+      ]),
+    );
+  });
+
+  it('enforces normalized name uniqueness per user and hides cross-user ids', async () => {
+    const ownerToken = await registerAndGetToken('owner@example.com');
+    const otherToken = await registerAndGetToken('other@example.com');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(strategyBody({ name: 'Café Momentum' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(strategyBody({ name: ' cafe momentum ' }))
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send(strategyBody({ name: 'CAFE MOMENTUM' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${createResponse.body.id as string}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('NOT_FOUND');
+      });
+  });
+
+  it('matches MySQL Unicode name-conflict behavior in seed mode', async () => {
+    const token = await registerAndGetToken('unicode-owner@example.com');
+    const authorization = `Bearer ${token}`;
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Straße Momentum' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Strasse Momentum' }))
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+  });
+
+  it('returns RFC 7807 validation errors for invalid strategy contracts', async () => {
+    const token = await registerAndGetToken('validation@example.com');
+    const authorization = `Bearer ${token}`;
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ timeframe: '1h' }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ definition: [] }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({ ...strategyBody(), unexpected: true })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 123, description: 456 }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/strategies/not-a-uuid')
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+  });
+
+  it('requires authentication for strategy reads and writes', async () => {
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .send(strategyBody())
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${crypto.randomUUID()}`)
       .expect(401)
       .expect((res) => {
         expect(res.body.code).toBe('UNAUTHORIZED');

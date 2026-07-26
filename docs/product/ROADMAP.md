@@ -9,6 +9,17 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
+## Current delivery state — July 26, 2026
+
+| Scope | State | Evidence / next action |
+| --- | --- | --- |
+| Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
+| Sprint 2.1 | Implementation complete locally; pending PR/merge | Seed and MySQL verification passed, including restart persistence and owner isolation. |
+| Sprint 2.2 | **START HERE — ready for development** | Implement on `feat/sprint-2-2-indicators-rule-schema`, based on the Sprint 2.1 branch until 2.1 merges. |
+| Sprints 2.3–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+
+The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
+
 ---
 
 ## Milestone 0 – Platform Foundation
@@ -106,17 +117,24 @@ Assumptions:
 
 ## Milestone 2 – Strategy Lab Core
 
-### Sprint 2.1 – Strategy Persistence & Versioning (START HERE — July 24, 2026)
+### Sprint 2.1 – Strategy Persistence & Versioning
 
-**Implementation plan:** [docs/plans/sprint-2-1-strategy-persistence-versioning.md](../plans/sprint-2-1-strategy-persistence-versioning.md) · [all remaining plans](../plans/README.md)
+**Implementation plan:** [docs/plans/sprint-2-1-strategy-persistence-versioning.md](../plans/sprint-2-1-strategy-persistence-versioning.md) · [all sprint plans](../plans/README.md)
 
 **Stories**
 - #4.1.1 – Strategy schema
 - #4.1.2 – Strategy versioning
+- Status: Implementation complete locally (verified in seed and MySQL modes July 26, 2026); pending PR/merge
+
+**Exit**
+- Authenticated strategy creation persists metadata and immutable version 1
+- Owner-scoped strategy reads return the latest definition without leaking other users' records
 
 ---
 
-### Sprint 2.2 – Indicators & Rule Schema
+### Sprint 2.2 – Indicators & Rule Schema (START HERE — July 26, 2026)
+
+**Implementation plan:** [docs/plans/sprint-2-2-indicators-rule-schema.md](../plans/sprint-2-2-indicators-rule-schema.md) · [all sprint plans](../plans/README.md)
 
 **Stories**
 - #4.2.1 – Indicator catalog
@@ -125,10 +143,13 @@ Assumptions:
 - #4.3.3 – Exit rules (AND-only)
 - #4.4.1 – Stop loss configuration
 - #4.4.2 – Take profit configuration
+- Status: Ready for development; not started
 
 ---
 
 ### Sprint 2.3 – Strategy CRUD & Validation
+
+**Implementation plan:** [docs/plans/sprint-2-3-strategy-crud-validation.md](../plans/sprint-2-3-strategy-crud-validation.md)
 
 **Stories**
 - #4.5.1 – Create strategy
@@ -148,6 +169,8 @@ Assumptions:
 
 ### Sprint 3.1 – Backtest Engine Core
 
+**Implementation plan:** [docs/plans/sprint-3-1-backtest-engine-core.md](../plans/sprint-3-1-backtest-engine-core.md)
+
 **Stories**
 - #5.2.1 – Engine interface
 - #5.2.2 – Indicator computation layer
@@ -161,6 +184,8 @@ Assumptions:
 
 ### Sprint 3.2 – Backtest Persistence
 
+**Implementation plan:** [docs/plans/sprint-3-2-backtest-persistence.md](../plans/sprint-3-2-backtest-persistence.md)
+
 **Stories**
 - #5.1.1 – Backtest run schema
 - #5.1.2 – Backtest result storage
@@ -170,6 +195,8 @@ Assumptions:
 ---
 
 ### Sprint 3.3 – Backtest Execution & Limits
+
+**Implementation plan:** [docs/plans/sprint-3-3-backtest-execution-limits.md](../plans/sprint-3-3-backtest-execution-limits.md)
 
 **Stories**
 - #5.3.1 – Run backtest API
@@ -181,6 +208,8 @@ Assumptions:
 ---
 
 ### Sprint 3.4 – Backtest UI
+
+**Implementation plan:** [docs/plans/sprint-3-4-backtest-ui.md](../plans/sprint-3-4-backtest-ui.md)
 
 **Stories**
 - #5.4.1 – Equity curve chart
@@ -195,6 +224,8 @@ Assumptions:
 
 ### Sprint 4.1 – Accounts & Positions
 
+**Implementation plan:** [docs/plans/sprint-4-1-accounts-positions.md](../plans/sprint-4-1-accounts-positions.md)
+
 **Stories**
 - #1.3.1 – Default paper account creation on first signup
 - #3.1.1 – Paper trading account
@@ -204,6 +235,8 @@ Assumptions:
 ---
 
 ### Sprint 4.2 – Orders & Executions
+
+**Implementation plan:** [docs/plans/sprint-4-2-orders-executions.md](../plans/sprint-4-2-orders-executions.md)
 
 **Stories**
 - #3.2.1 – Order schema
@@ -215,6 +248,8 @@ Assumptions:
 ---
 
 ### Sprint 4.3 – Trading Views
+
+**Implementation plan:** [docs/plans/sprint-4-3-trading-views.md](../plans/sprint-4-3-trading-views.md)
 
 **Stories**
 - #3.4.1 – Current positions API
@@ -236,9 +271,11 @@ Frontend note:
 
 ### Sprint 5.1 – Shell & Navigation
 
+**Implementation plan:** [docs/plans/sprint-5-1-shell-navigation.md](../plans/sprint-5-1-shell-navigation.md)
+
 **Implementation prerequisite**
-- Scaffold the Angular web application in `apps/web` at the start of this sprint
-- Establish Angular routing, auth gating, shared layout shell, and client-side API service patterns before widget work begins
+- Extend the minimal `apps/web` Angular scaffold introduced by Sprint 3.4
+- Complete the authenticated layout shell, navigation, dashboard route, and reusable client-side API patterns before widget work begins
 
 **Stories**
 - #7.1.1 – Authenticated app shell
@@ -248,6 +285,8 @@ Frontend note:
 ---
 
 ### Sprint 5.2 – Dashboard Widgets
+
+**Implementation plan:** [docs/plans/sprint-5-2-dashboard-widgets.md](../plans/sprint-5-2-dashboard-widgets.md)
 
 **Stories**
 - #7.2.1 – Account summary card
@@ -261,14 +300,29 @@ Frontend note:
 - #7.6.1 – UI consistency
 - #7.6.2 – Performance basics
 
+---
+
+### Sprint 5.3 – Core Workflows UI
+
+**Implementation plan:** [docs/plans/sprint-5-3-core-workflows-ui.md](../plans/sprint-5-3-core-workflows-ui.md)
+
+**Integration coverage**
+- Functional Strategy Lab create/edit/validate/delete workflow over Stories #4.2.1–#4.6.2
+- Strategy → Backtest launch and results navigation over Stories #5.3.1–#5.4.2
+- Paper market-order, portfolio, position, order, and execution workflow over Stories #3.2.2–#3.5.2
+- Dashboard quick actions from Sprint 5.2 land on functional routes rather than placeholders
+
 **Exit**
 - Dashboard surfaces all core system data
+- Both documented core UX flows are completable without curl or manual database ids
 
 ---
 
 ## Milestone 6 – AI Assistant / Kernel
 
 ### Sprint 6.1 – AI Infrastructure
+
+**Implementation plan:** [docs/plans/sprint-6-1-ai-infrastructure.md](../plans/sprint-6-1-ai-infrastructure.md)
 
 **Stories**
 - #6.1.1 – AI service abstraction
@@ -281,6 +335,8 @@ Frontend note:
 
 ### Sprint 6.2 – Strategy Intelligence
 
+**Implementation plan:** [docs/plans/sprint-6-2-strategy-intelligence.md](../plans/sprint-6-2-strategy-intelligence.md)
+
 **Stories**
 - #6.2.1 – Explain strategy
 - #6.2.2 – Detect logical red flags
@@ -288,6 +344,8 @@ Frontend note:
 ---
 
 ### Sprint 6.3 – Backtest Intelligence
+
+**Implementation plan:** [docs/plans/sprint-6-3-backtest-intelligence.md](../plans/sprint-6-3-backtest-intelligence.md)
 
 **Stories**
 - #6.3.1 – Explain backtest
@@ -304,6 +362,8 @@ Frontend note:
 
 ### Sprint 7.1 – Polish & Caching
 
+**Implementation plan:** [docs/plans/sprint-7-1-polish-caching.md](../plans/sprint-7-1-polish-caching.md)
+
 **Stories**
 - #2.5.1 – In-memory cache
 - #2.5.2 – Provider fallback guardrails
@@ -315,6 +375,8 @@ Frontend note:
 ---
 
 ### Sprint 7.2 – Deployment & Hosting
+
+**Implementation plan:** [docs/plans/sprint-7-2-deployment-hosting.md](../plans/sprint-7-2-deployment-hosting.md)
 
 **Stories**
 - #8.7.1 – Deployment pipeline (CI build and deploy to target environment)
@@ -332,7 +394,7 @@ Frontend note:
 - Each sprint can be converted directly into tickets
 - If a sprint slips, later sprints do not collapse
 - Cutting scope is easiest in Milestones 6–7
-- Ready-for-dev implementation plans for all remaining sprints (2.1–7.2) live under [docs/plans/](../plans/README.md); resolve each plan’s **Judgement calls** before coding ambiguous slices
+- Ready-for-dev contracts and completed-plan history for Sprints 2.1–7.2 live under [docs/plans/](../plans/README.md); adopted defaults are usable unless an owner records an override
 
 ---
 
