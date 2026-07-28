@@ -65,8 +65,13 @@ export class PrismaService implements OnModuleDestroy {
 
   $transaction<R>(
     fn: (tx: Prisma.TransactionClient) => Promise<R>,
+    options?: {
+      maxWait?: number;
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    },
   ): Promise<R> {
-    return this.requireClient().$transaction(fn);
+    return this.requireClient().$transaction(fn, options);
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -717,6 +717,10 @@ describe('Strategy persistence and versioning (e2e)', () => {
       is_active: true,
       version_number: 1,
       definition: strategyBody().definition,
+      summary:
+        'Buy when SMA(10) crosses above EMA(30). ' +
+        'Exit when SMA(10) crosses below EMA(30). ' +
+        'Stop loss 2%. Take profit 500%.',
     });
     expect(createResponse.body.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -776,7 +780,7 @@ describe('Strategy persistence and versioning (e2e)', () => {
       .set('Authorization', `Bearer ${otherToken}`)
       .expect(404)
       .expect((res) => {
-        expect(res.body.code).toBe('NOT_FOUND');
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
       });
   });
 
@@ -797,6 +801,300 @@ describe('Strategy persistence and versioning (e2e)', () => {
       .expect(409)
       .expect((res) => {
         expect(res.body.code).toBe('CONFLICT');
+      });
+  });
+
+  it('supports owner-scoped list, update history, and soft delete', async () => {
+    const token = await registerAndGetToken('crud-owner@example.com');
+    const authorization = `Bearer ${token}`;
+    const first = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'First CRUD strategy' }))
+      .expect(201);
+    const second = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Second CRUD strategy' }))
+      .expect(201);
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const metadataUpdate = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({
+        name: '  Renamed CRUD strategy  ',
+        description: null,
+        asset_type: 'CRYPTO',
+        timeframe: '1h',
+      })
+      .expect(200);
+    expect(metadataUpdate.body).toMatchObject({
+      name: 'Renamed CRUD strategy',
+      description: null,
+      asset_type: 'CRYPTO',
+      timeframe: '1h',
+      version_number: 1,
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/strategies?limit=1&offset=0')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          limit: 1,
+          offset: 0,
+          has_more: true,
+          items: [expect.objectContaining({ id: first.body.id })],
+        });
+        expect(Object.keys(res.body.items[0]).sort()).toEqual(
+          [
+            'asset_type',
+            'created_at',
+            'id',
+            'is_active',
+            'name',
+            'timeframe',
+            'updated_at',
+            'version_number',
+          ].sort(),
+        );
+      });
+
+    const nextDefinition = structuredClone(strategyBody().definition) as {
+      indicators: Array<{ params: { period: number } }>;
+    };
+    nextDefinition.indicators[0].params.period = 11;
+    const versionTwo = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: nextDefinition })
+      .expect(200);
+    expect(versionTwo.body).toMatchObject({
+      version_number: 2,
+      definition: nextDefinition,
+      summary: expect.stringContaining('SMA(11)'),
+    });
+
+    const versionThree = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: nextDefinition })
+      .expect(200);
+    expect(versionThree.body.version_number).toBe(3);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=1`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          name: 'Renamed CRUD strategy',
+          version_number: 1,
+          definition: strategyBody().definition,
+          is_latest: false,
+          version_created_at: expect.any(String),
+        });
+      });
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=99`)
+      .set('Authorization', authorization)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VERSION_NOT_FOUND');
+      });
+
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(204)
+      .expect('');
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Second CRUD strategy' }))
+      .expect(409);
+
+    expect(audit.getInMemoryEventsForTests()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'strategy.updated',
+          payload: expect.objectContaining({
+            strategy_id: first.body.id,
+            version_number: 3,
+          }),
+        }),
+        expect.objectContaining({
+          eventType: 'strategy.deleted',
+          payload: {
+            strategy_id: second.body.id,
+            name: 'Second CRUD strategy',
+          },
+        }),
+      ]),
+    );
+  });
+
+  it('dry-runs inline and persisted validation without side effects', async () => {
+    const ownerToken = await registerAndGetToken('validate-owner@example.com');
+    const otherToken = await registerAndGetToken('validate-other@example.com');
+    const authorization = `Bearer ${ownerToken}`;
+    const created = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Validation target' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ definition: strategyBody().definition })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual({
+          is_valid: true,
+          errors: [],
+          summary:
+            'Buy when SMA(10) crosses above EMA(30). ' +
+            'Exit when SMA(10) crosses below EMA(30). ' +
+            'Stop loss 2%. Take profit 500%.',
+        });
+      });
+
+    const invalidDefinition = structuredClone(strategyBody().definition) as {
+      entry: { conditions: Array<{ op: string }> };
+    };
+    invalidDefinition.entry.conditions[0].op = 'unknown';
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ definition: invalidDefinition })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          is_valid: false,
+          errors: [
+            expect.objectContaining({
+              path: 'entry.conditions[0].op',
+              code: 'UNKNOWN_OPERATOR',
+            }),
+          ],
+          summary: null,
+        });
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ strategy_id: created.body.id })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          is_valid: true,
+          errors: [],
+          summary: expect.any(String),
+        });
+      });
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ strategy_id: created.body.id })
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+
+    for (const body of [
+      {},
+      { definition: strategyBody().definition, strategy_id: created.body.id },
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/strategies/validate')
+        .set('Authorization', authorization)
+        .send(body)
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+        });
+    }
+
+    await request(app.getHttpServer())
+      .get('/api/strategies')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.items).toHaveLength(1);
+      });
+    expect(
+      audit
+        .getInMemoryEventsForTests()
+        .filter((event) => event.eventType.startsWith('strategy.')),
+    ).toHaveLength(1);
+  });
+
+  it('returns stable errors for invalid CRUD requests and query bounds', async () => {
+    const token = await registerAndGetToken('crud-errors@example.com');
+    const authorization = `Bearer ${token}`;
+    const first = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'CRUD errors one' }))
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'CRUD errors two' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({})
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ name: 'crud errors two' })
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: [] })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get('/api/strategies?limit=101&offset=-1')
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=0`)
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
       });
   });
 
@@ -836,7 +1134,7 @@ describe('Strategy persistence and versioning (e2e)', () => {
       )
       .expect(400)
       .expect((res) => {
-        expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
         expect(res.body.fieldErrors).toEqual(
           expect.arrayContaining([
             {
@@ -878,7 +1176,7 @@ describe('Strategy persistence and versioning (e2e)', () => {
       .send(strategyBody({ definition: [] }))
       .expect(400)
       .expect((res) => {
-        expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
         expect(res.body.fieldErrors).toEqual([
           {
             field: 'definition',
@@ -945,6 +1243,8 @@ describe('Strategy persistence and versioning (e2e)', () => {
   });
 
   it('requires authentication for strategy reads and writes', async () => {
+    const strategyId = crypto.randomUUID();
+
     await request(app.getHttpServer())
       .post('/api/strategies')
       .send(strategyBody())
@@ -954,11 +1254,24 @@ describe('Strategy persistence and versioning (e2e)', () => {
       });
 
     await request(app.getHttpServer())
-      .get(`/api/strategies/${crypto.randomUUID()}`)
+      .get(`/api/strategies/${strategyId}`)
       .expect(401)
       .expect((res) => {
         expect(res.body.code).toBe('UNAUTHORIZED');
       });
+
+    await request(app.getHttpServer()).get('/api/strategies').expect(401);
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .send({ definition: strategyBody().definition })
+      .expect(401);
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${strategyId}`)
+      .send({ description: 'blocked' })
+      .expect(401);
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${strategyId}`)
+      .expect(401);
   });
 });
 

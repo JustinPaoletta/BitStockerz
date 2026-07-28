@@ -6,21 +6,36 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuditService } from '../observability/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StrategyDefinitionValidator } from './definition/strategy-definition.validator';
+import { summarizeStrategyDefinition } from './definition/strategy-summary';
 import {
   STRATEGY_ASSET_TYPES,
   STRATEGY_TIMEFRAMES,
   type CreateStrategyInput,
+  type HistoricalStrategyResponse,
   type StrategyAssetType,
   type StrategyDefinition,
+  type StrategyDefinitionValidationError,
+  type StrategyListItem,
+  type StrategyListResponse,
   type StrategyRecord,
   type StrategyResponse,
   type StrategySymbolScope,
   type StrategyTimeframe,
+  type UpdateStrategyInput,
+  type ValidateStrategyInput,
+  type ValidateStrategyResponse,
 } from './strategy.types';
 
 type PrismaStrategyWithVersions = Prisma.StrategyGetPayload<{
   include: { versions: true };
 }>;
+
+interface ListOptions {
+  limit: number;
+  offset: number;
+}
+
+const MAX_UPDATE_TRANSACTION_ATTEMPTS = 2;
 
 @Injectable()
 export class StrategiesService {
@@ -60,10 +75,51 @@ export class StrategiesService {
       },
     });
 
-    return toStrategyResponse(record);
+    return toStrategyResponse(record, requireLatestVersion(record));
   }
 
-  async getById(userId: string, id: string): Promise<StrategyResponse> {
+  async list(
+    userId: string,
+    options: ListOptions,
+  ): Promise<StrategyListResponse> {
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      const records = await this.prisma.strategy.findMany({
+        where: { userId, isActive: true },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+        skip: options.offset,
+        take: options.limit + 1,
+        include: {
+          versions: {
+            orderBy: { versionNumber: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      return toListResponse(
+        records.map(fromPrismaStrategy),
+        options.limit,
+        options.offset,
+      );
+    }
+
+    const records = [...this.inMemoryStrategies.values()]
+      .filter((record) => record.userId === userId && record.isActive)
+      .sort(
+        (left, right) =>
+          right.updatedAt.getTime() - left.updatedAt.getTime() ||
+          left.id.localeCompare(right.id),
+      )
+      .slice(options.offset, options.offset + options.limit + 1);
+
+    return toListResponse(records, options.limit, options.offset);
+  }
+
+  async getById(
+    userId: string,
+    id: string,
+    requestedVersion?: number,
+  ): Promise<StrategyResponse | HistoricalStrategyResponse> {
     if (this.prisma.isEnabled) {
       // Auth is process-local today. Reattach persisted ownership before a
       // read so strategies remain available immediately after an API restart.
@@ -71,17 +127,123 @@ export class StrategiesService {
     }
 
     const record = this.prisma.isEnabled
-      ? await this.findWithPrisma(userId, id)
+      ? await this.findWithPrisma(userId, id, requestedVersion)
       : this.findInMemory(userId, id);
 
     if (!record || !record.isActive || record.versions.length === 0) {
+      throw strategyNotFoundError(id);
+    }
+
+    const latest = requireLatestVersion(record);
+    if (requestedVersion === undefined) {
+      return toStrategyResponse(record, latest);
+    }
+
+    const selected = record.versions.find(
+      (version) => version.versionNumber === requestedVersion,
+    );
+    if (!selected) {
+      throw strategyVersionNotFoundError(id, requestedVersion);
+    }
+
+    return {
+      ...toStrategyResponse(record, selected),
+      version_created_at: selected.createdAt.toISOString(),
+      is_latest: selected.versionNumber === latest.versionNumber,
+    };
+  }
+
+  async update(
+    userId: string,
+    id: string,
+    input: UpdateStrategyInput,
+  ): Promise<StrategyResponse> {
+    const normalized = normalizeUpdateInput(input);
+    let record: StrategyRecord;
+
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      record = await this.updateWithPrisma(userId, id, normalized);
+    } else {
+      record = this.updateInMemory(userId, id, normalized);
+    }
+
+    const latest = requireLatestVersion(record);
+    await this.audit.record({
+      userId,
+      eventType: 'strategy.updated',
+      payload: {
+        strategy_id: record.id,
+        changed_fields: normalized.changedFields,
+        version_number: latest.versionNumber,
+      },
+    });
+
+    return toStrategyResponse(record, latest);
+  }
+
+  async delete(userId: string, id: string): Promise<void> {
+    let name: string;
+
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      name = await this.deleteWithPrisma(userId, id);
+    } else {
+      const record = this.findInMemory(userId, id);
+      if (!record || !record.isActive) {
+        throw strategyNotFoundError(id);
+      }
+      record.isActive = false;
+      record.updatedAt = new Date();
+      name = record.name;
+    }
+
+    await this.audit.record({
+      userId,
+      eventType: 'strategy.deleted',
+      payload: { strategy_id: id, name },
+    });
+  }
+
+  async validate(
+    userId: string,
+    input: ValidateStrategyInput,
+  ): Promise<ValidateStrategyResponse> {
+    const hasDefinition = input.definition !== undefined;
+    const hasStrategyId = input.strategy_id !== undefined;
+    if (hasDefinition === hasStrategyId) {
       throw new DomainError(
-        ErrorCode.NOT_FOUND,
-        `Strategy ${id} was not found.`,
+        ErrorCode.STRATEGY_VALIDATION_ERROR,
+        'Exactly one of definition or strategy_id is required.',
+        400,
+        [
+          {
+            field: 'body',
+            reason: 'Exactly one of definition or strategy_id is required.',
+          },
+        ],
       );
     }
 
-    return toStrategyResponse(record);
+    let definition = input.definition;
+    if (hasStrategyId) {
+      const strategyId = input.strategy_id;
+      if (typeof strategyId !== 'string') {
+        throw validationError('strategy_id', 'strategy_id must be a UUID');
+      }
+      if (this.prisma.isEnabled) {
+        await this.authService.ensureUserPersisted(userId);
+      }
+      const record = this.prisma.isEnabled
+        ? await this.findWithPrisma(userId, strategyId)
+        : this.findInMemory(userId, strategyId);
+      if (!record || !record.isActive || record.versions.length === 0) {
+        throw strategyNotFoundError(strategyId);
+      }
+      definition = requireLatestVersion(record).definition;
+    }
+
+    return validateDefinitionForResponse(definition);
   }
 
   private async createWithPrisma(
@@ -167,9 +329,179 @@ export class StrategiesService {
     return record;
   }
 
+  private async updateWithPrisma(
+    userId: string,
+    id: string,
+    input: NormalizedUpdateStrategyInput,
+  ): Promise<StrategyRecord> {
+    try {
+      for (
+        let attempt = 1;
+        attempt <= MAX_UPDATE_TRANSACTION_ATTEMPTS;
+        attempt += 1
+      ) {
+        try {
+          return await this.prisma.$transaction(
+            async (transaction) => {
+              const current = await transaction.strategy.findFirst({
+                where: { id, userId, isActive: true },
+                include: {
+                  versions: {
+                    orderBy: { versionNumber: 'desc' },
+                    take: 1,
+                  },
+                },
+              });
+              if (!current || current.versions.length === 0) {
+                throw strategyNotFoundError(id);
+              }
+
+              const currentRecord = fromPrismaStrategy(current);
+              assertEffectiveUpdate(currentRecord, input);
+              const now = new Date();
+              const data: Prisma.StrategyUpdateInput = { updatedAt: now };
+              if (input.hasName) {
+                data.name = input.name;
+              }
+              if (input.hasDescription) {
+                data.description = input.description;
+              }
+              if (input.hasAssetType) {
+                data.assetType = input.assetType;
+              }
+              if (input.hasTimeframe) {
+                data.timeframe = input.timeframe;
+              }
+
+              await transaction.strategy.update({ where: { id }, data });
+
+              if (input.hasDefinition) {
+                await transaction.strategyVersion.create({
+                  data: {
+                    strategyId: id,
+                    versionNumber:
+                      requireLatestVersion(currentRecord).versionNumber + 1,
+                    definitionJson:
+                      input.definition as unknown as Prisma.InputJsonObject,
+                    createdAt: now,
+                  },
+                });
+              }
+
+              const updated = await transaction.strategy.findFirst({
+                where: { id, userId, isActive: true },
+                include: {
+                  versions: {
+                    orderBy: { versionNumber: 'desc' },
+                    take: 1,
+                  },
+                },
+              });
+              if (!updated) {
+                throw strategyNotFoundError(id);
+              }
+              return fromPrismaStrategy(updated);
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          );
+        } catch (error) {
+          if (
+            attempt < MAX_UPDATE_TRANSACTION_ATTEMPTS &&
+            isRetryableUpdateConflict(error)
+          ) {
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      throw new Error('Strategy update retry loop exited unexpectedly.');
+    } catch (error) {
+      if (isVersionUniqueConstraintError(error)) {
+        throw concurrentUpdateError();
+      }
+      if (isUniqueConstraintError(error)) {
+        throw duplicateNameError(input.name ?? '');
+      }
+      throw error;
+    }
+  }
+
+  private updateInMemory(
+    userId: string,
+    id: string,
+    input: NormalizedUpdateStrategyInput,
+  ): StrategyRecord {
+    const record = this.findInMemory(userId, id);
+    if (!record || !record.isActive || record.versions.length === 0) {
+      throw strategyNotFoundError(id);
+    }
+    assertEffectiveUpdate(record, input);
+
+    const oldNameKey = buildNameKey(userId, record.name);
+    const newNameKey = input.hasName
+      ? buildNameKey(userId, input.name as string)
+      : oldNameKey;
+    if (newNameKey !== oldNameKey && this.inMemoryNameKeys.has(newNameKey)) {
+      throw duplicateNameError(input.name as string);
+    }
+
+    if (input.hasName) {
+      record.name = input.name as string;
+      if (newNameKey !== oldNameKey) {
+        this.inMemoryNameKeys.delete(oldNameKey);
+        this.inMemoryNameKeys.add(newNameKey);
+      }
+    }
+    if (input.hasDescription) {
+      if (input.description === null) {
+        delete record.description;
+      } else {
+        record.description = input.description;
+      }
+    }
+    if (input.hasAssetType) {
+      record.assetType = input.assetType as StrategyAssetType;
+    }
+    if (input.hasTimeframe) {
+      record.timeframe = input.timeframe as StrategyTimeframe;
+    }
+
+    const now = new Date();
+    if (input.hasDefinition) {
+      record.versions.unshift({
+        versionNumber: requireLatestVersion(record).versionNumber + 1,
+        definition: structuredClone(input.definition as StrategyDefinition),
+        createdAt: now,
+      });
+    }
+    record.updatedAt = now;
+    return record;
+  }
+
+  private async deleteWithPrisma(userId: string, id: string): Promise<string> {
+    const current = await this.prisma.strategy.findFirst({
+      where: { id, userId, isActive: true },
+      select: { name: true },
+    });
+    if (!current) {
+      throw strategyNotFoundError(id);
+    }
+
+    const result = await this.prisma.strategy.updateMany({
+      where: { id, userId, isActive: true },
+      data: { isActive: false, updatedAt: new Date() },
+    });
+    if (result.count !== 1) {
+      throw strategyNotFoundError(id);
+    }
+    return current.name;
+  }
+
   private async findWithPrisma(
     userId: string,
     id: string,
+    requestedVersion?: number,
   ): Promise<StrategyRecord | undefined> {
     const record = await this.prisma.strategy.findFirst({
       where: {
@@ -185,7 +517,28 @@ export class StrategiesService {
       },
     });
 
-    return record ? fromPrismaStrategy(record) : undefined;
+    if (!record) {
+      return undefined;
+    }
+
+    const result = fromPrismaStrategy(record);
+    if (
+      requestedVersion !== undefined &&
+      result.versions[0]?.versionNumber !== requestedVersion
+    ) {
+      const historicalVersion = await this.prisma.strategyVersion.findFirst({
+        where: { strategyId: id, versionNumber: requestedVersion },
+      });
+      if (historicalVersion) {
+        result.versions.push({
+          versionNumber: historicalVersion.versionNumber,
+          definition:
+            historicalVersion.definitionJson as unknown as StrategyDefinition,
+          createdAt: historicalVersion.createdAt,
+        });
+      }
+    }
+    return result;
   }
 
   private findInMemory(userId: string, id: string): StrategyRecord | undefined {
@@ -201,6 +554,20 @@ interface NormalizedCreateStrategyInput {
   symbolScope: StrategySymbolScope;
   timeframe: StrategyTimeframe;
   definition: StrategyDefinition;
+}
+
+interface NormalizedUpdateStrategyInput {
+  hasName: boolean;
+  name?: string;
+  hasDescription: boolean;
+  description?: string | null;
+  hasAssetType: boolean;
+  assetType?: StrategyAssetType;
+  hasTimeframe: boolean;
+  timeframe?: StrategyTimeframe;
+  hasDefinition: boolean;
+  definition?: StrategyDefinition;
+  changedFields: string[];
 }
 
 function normalizeCreateInput(
@@ -240,33 +607,89 @@ function normalizeCreateInput(
   };
 }
 
-function assertCreateInput(input: NormalizedCreateStrategyInput): void {
-  const nameLength = Array.from(input.name).length;
-  if (nameLength === 0 || nameLength > 255) {
-    throw validationError('name', 'name must be between 1 and 255 characters');
+function normalizeUpdateInput(
+  input: UpdateStrategyInput,
+): NormalizedUpdateStrategyInput {
+  const hasName = input.name !== undefined;
+  const hasDescription = input.description !== undefined;
+  const hasAssetType = input.asset_type !== undefined;
+  const hasTimeframe = input.timeframe !== undefined;
+  const hasDefinition = input.definition !== undefined;
+  if (
+    !hasName &&
+    !hasDescription &&
+    !hasAssetType &&
+    !hasTimeframe &&
+    !hasDefinition
+  ) {
+    throw validationError('body', 'At least one update field is required');
   }
 
-  const definitionValidation = StrategyDefinitionValidator.validate(
-    input.definition,
-  );
-  if (!definitionValidation.is_valid) {
-    throw new DomainError(
-      ErrorCode.VALIDATION_ERROR,
-      'Strategy definition is invalid.',
-      400,
-      definitionValidation.errors.map((error) => ({
-        field: error.path ? `definition.${error.path}` : 'definition',
-        reason: `${error.code}: ${error.message}`,
-      })),
-    );
+  let name: string | undefined;
+  if (hasName) {
+    if (typeof input.name !== 'string') {
+      throw validationError('name', 'name must be a string');
+    }
+    name = input.name.trim();
+    assertName(name);
   }
 
-  if (!isJsonObject(input.definition)) {
+  if (
+    hasDescription &&
+    input.description !== null &&
+    typeof input.description !== 'string'
+  ) {
     throw validationError(
-      'definition',
-      'definition must be a JSON-compatible object',
+      'description',
+      'description must be a string or null',
     );
   }
+  if (
+    hasAssetType &&
+    !STRATEGY_ASSET_TYPES.includes(input.asset_type as StrategyAssetType)
+  ) {
+    throw validationError(
+      'asset_type',
+      'asset_type must be one of the following values: EQUITY, CRYPTO',
+    );
+  }
+  if (
+    hasTimeframe &&
+    !STRATEGY_TIMEFRAMES.includes(input.timeframe as StrategyTimeframe)
+  ) {
+    throw validationError(
+      'timeframe',
+      'timeframe must be one of the following values: 1d, 1h',
+    );
+  }
+  if (hasDefinition) {
+    assertValidDefinition(input.definition);
+  }
+
+  return {
+    hasName,
+    ...(hasName ? { name } : {}),
+    hasDescription,
+    ...(hasDescription ? { description: input.description } : {}),
+    hasAssetType,
+    ...(hasAssetType ? { assetType: input.asset_type } : {}),
+    hasTimeframe,
+    ...(hasTimeframe ? { timeframe: input.timeframe } : {}),
+    hasDefinition,
+    ...(hasDefinition ? { definition: input.definition } : {}),
+    changedFields: [
+      ...(hasName ? ['name'] : []),
+      ...(hasDescription ? ['description'] : []),
+      ...(hasAssetType ? ['asset_type'] : []),
+      ...(hasTimeframe ? ['timeframe'] : []),
+      ...(hasDefinition ? ['definition'] : []),
+    ],
+  };
+}
+
+function assertCreateInput(input: NormalizedCreateStrategyInput): void {
+  assertName(input.name);
+  assertValidDefinition(input.definition);
 
   if (input.symbolScope !== 'SINGLE') {
     throw validationError(
@@ -274,13 +697,94 @@ function assertCreateInput(input: NormalizedCreateStrategyInput): void {
       'symbol_scope must be the value SINGLE',
     );
   }
+  assertAssetTimeframe(input.assetType, input.timeframe);
+}
 
-  if (input.assetType === 'EQUITY' && input.timeframe !== '1d') {
+function assertEffectiveUpdate(
+  record: StrategyRecord,
+  input: NormalizedUpdateStrategyInput,
+): void {
+  assertAssetTimeframe(
+    input.hasAssetType
+      ? (input.assetType as StrategyAssetType)
+      : record.assetType,
+    input.hasTimeframe
+      ? (input.timeframe as StrategyTimeframe)
+      : record.timeframe,
+  );
+}
+
+function assertName(name: string): void {
+  const nameLength = Array.from(name).length;
+  if (nameLength === 0 || nameLength > 255) {
+    throw validationError('name', 'name must be between 1 and 255 characters');
+  }
+}
+
+function assertAssetTimeframe(
+  assetType: StrategyAssetType,
+  timeframe: StrategyTimeframe,
+): void {
+  if (assetType === 'EQUITY' && timeframe !== '1d') {
     throw validationError(
       'timeframe',
       'timeframe must be 1d when asset_type is EQUITY',
     );
   }
+}
+
+function assertValidDefinition(
+  definition: unknown,
+): asserts definition is StrategyDefinition {
+  const validation = validateDefinition(definition);
+  if (!validation.is_valid) {
+    throw new DomainError(
+      ErrorCode.STRATEGY_VALIDATION_ERROR,
+      'Strategy definition is invalid.',
+      400,
+      validation.errors.map((error) => ({
+        field: error.path ? `definition.${error.path}` : 'definition',
+        reason: `${error.code}: ${error.message}`,
+      })),
+    );
+  }
+}
+
+function validateDefinitionForResponse(
+  definition: unknown,
+): ValidateStrategyResponse {
+  const validation = validateDefinition(definition);
+  if (!validation.is_valid) {
+    return { ...validation, summary: null };
+  }
+  return {
+    is_valid: true,
+    errors: [],
+    summary: summarizeStrategyDefinition(definition as StrategyDefinition),
+  };
+}
+
+function validateDefinition(definition: unknown): {
+  is_valid: boolean;
+  errors: StrategyDefinitionValidationError[];
+} {
+  const validation = StrategyDefinitionValidator.validate(definition);
+  if (!validation.is_valid) {
+    return validation;
+  }
+  if (!isJsonObject(definition)) {
+    return {
+      is_valid: false,
+      errors: [
+        {
+          path: '',
+          code: 'INVALID_JSON',
+          message: 'Definition must be a JSON-compatible object.',
+        },
+      ],
+    };
+  }
+  return validation;
 }
 
 function isJsonObject(value: unknown): boolean {
@@ -330,8 +834,7 @@ function isJsonObject(value: unknown): boolean {
       continue;
     }
 
-    const prototype = Reflect.getPrototypeOf(candidate);
-    if (prototype !== Object.prototype && prototype !== null) {
+    if (!hasPlainObjectPrototype(candidate)) {
       return false;
     }
     for (const child of Object.values(candidate as Record<string, unknown>)) {
@@ -340,6 +843,19 @@ function isJsonObject(value: unknown): boolean {
   }
 
   return true;
+}
+
+function hasPlainObjectPrototype(value: object): boolean {
+  const prototype: object | null = Reflect.getPrototypeOf(value);
+  if (prototype === null) {
+    return true;
+  }
+  if (Reflect.getPrototypeOf(prototype) !== null) {
+    return false;
+  }
+  const constructor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
+    ?.value as unknown;
+  return typeof constructor === 'function' && constructor.name === 'Object';
 }
 
 function validationError(field: string, reason: string): DomainError {
@@ -352,6 +868,30 @@ function duplicateNameError(name: string): DomainError {
   return new DomainError(
     ErrorCode.CONFLICT,
     `A strategy named "${name}" already exists.`,
+  );
+}
+
+function concurrentUpdateError(): DomainError {
+  return new DomainError(
+    ErrorCode.CONFLICT,
+    'The strategy was updated concurrently. Retry the request.',
+  );
+}
+
+function strategyNotFoundError(id: string): DomainError {
+  return new DomainError(
+    ErrorCode.STRATEGY_NOT_FOUND,
+    `Strategy ${id} was not found.`,
+  );
+}
+
+function strategyVersionNotFoundError(
+  id: string,
+  version: number,
+): DomainError {
+  return new DomainError(
+    ErrorCode.STRATEGY_VERSION_NOT_FOUND,
+    `Version ${version} of strategy ${id} was not found.`,
   );
 }
 
@@ -397,15 +937,10 @@ function fromPrismaStrategy(
   };
 }
 
-function toStrategyResponse(record: StrategyRecord): StrategyResponse {
-  const version = record.versions[0];
-  if (!version) {
-    throw new DomainError(
-      ErrorCode.NOT_FOUND,
-      `Strategy ${record.id} was not found.`,
-    );
-  }
-
+function toStrategyResponse(
+  record: StrategyRecord,
+  version: StrategyRecord['versions'][number],
+): StrategyResponse {
   return {
     id: record.id,
     name: record.name,
@@ -416,9 +951,46 @@ function toStrategyResponse(record: StrategyRecord): StrategyResponse {
     is_active: record.isActive,
     version_number: version.versionNumber,
     definition: structuredClone(version.definition),
+    summary: summarizeStrategyDefinition(version.definition),
     created_at: record.createdAt.toISOString(),
     updated_at: record.updatedAt.toISOString(),
   };
+}
+
+function toListResponse(
+  records: StrategyRecord[],
+  limit: number,
+  offset: number,
+): StrategyListResponse {
+  return {
+    items: records.slice(0, limit).map(toStrategyListItem),
+    limit,
+    offset,
+    has_more: records.length > limit,
+  };
+}
+
+function toStrategyListItem(record: StrategyRecord): StrategyListItem {
+  return {
+    id: record.id,
+    name: record.name,
+    asset_type: record.assetType,
+    timeframe: record.timeframe,
+    version_number: requireLatestVersion(record).versionNumber,
+    created_at: record.createdAt.toISOString(),
+    updated_at: record.updatedAt.toISOString(),
+    is_active: record.isActive,
+  };
+}
+
+function requireLatestVersion(
+  record: StrategyRecord,
+): StrategyRecord['versions'][number] {
+  const version = record.versions[0];
+  if (!version) {
+    throw strategyNotFoundError(record.id);
+  }
+  return version;
 }
 
 function isUniqueConstraintError(
@@ -428,4 +1000,20 @@ function isUniqueConstraintError(
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2002'
   );
+}
+
+function isRetryableUpdateConflict(error: unknown): boolean {
+  return (
+    (error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2034') ||
+    isVersionUniqueConstraintError(error)
+  );
+}
+
+function isVersionUniqueConstraintError(error: unknown): boolean {
+  if (!isUniqueConstraintError(error)) {
+    return false;
+  }
+  const target = JSON.stringify(error.meta?.target ?? '').toLowerCase();
+  return target.includes('strategy') && target.includes('version_number');
 }

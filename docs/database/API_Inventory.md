@@ -11,8 +11,8 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 2.2**
-(Sprints 2.1–2.2 are locally verified in draft PR #9):
+The runnable API in `apps/api` currently implements through **Sprint 2.3**
+(Sprints 2.1–2.3 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ The runnable API in `apps/api` currently implements through **Sprint 2.2**
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
-| Strategy Lab | Implemented (2.1–2.2 partial) | Authenticated create/owner get, immutable version 1, public indicator catalog, and canonical definition validation; remaining CRUD/validate/summary endpoints are Sprint 2.3 |
+| Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
 | Trading | Planned | Described below; not implemented yet |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
@@ -68,6 +68,9 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 | UNAUTHORIZED | 401 | unauthorized | Unauthorized |
 | FORBIDDEN | 403 | forbidden | Forbidden |
 | NOT_FOUND | 404 | not-found | Not found |
+| STRATEGY_NOT_FOUND | 404 | strategy-not-found | Strategy not found |
+| STRATEGY_VERSION_NOT_FOUND | 404 | strategy-version-not-found | Strategy version not found |
+| STRATEGY_VALIDATION_ERROR | 400 | strategy-validation | Strategy validation error |
 | CONFLICT | 409 | conflict | Conflict |
 | RATE_LIMITED | 429 | rate-limited | Rate limited |
 | INTERNAL_ERROR | 500 | internal | Internal server error |
@@ -75,14 +78,16 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 - `type` is always `https://bitstockerz.dev/errors/{type suffix}`.
 - `instance` is the request path (no host), e.g. `/api/strategies`.
 - `requestId` is set from the `x-request-id` header when provided; otherwise the server generates a correlation ID. Use it for support and logs.
-- `fieldErrors` is only present for `VALIDATION_ERROR` and contains `{ field, reason }` entries.
+- `fieldErrors` is present for request/strategy validation errors when field
+  details are available and contains `{ field, reason }` entries.
 
-Planned domain-specific additions are owned by their implementation sprints and are
-canonical for later clients:
+Domain-specific additions are owned by their implementation sprints and are
+canonical for later clients. Sprint 2.3 codes are implemented; later rows are
+planned:
 
 | Owner | Codes |
 | --- | --- |
-| Sprint 2.3 | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
+| Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
 | Sprints 3.1–3.3 | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
 | Sprints 4.1–4.3 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
 | Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
@@ -291,7 +296,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 ### 2.8 Audit trail (implemented in Sprint 1.4)
 
 - No public list/query API in MVP.
-- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`, `strategy.created`.
+- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`, `strategy.created`, `strategy.updated`, and `strategy.deleted`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
@@ -364,7 +369,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 4. Strategy Lab APIs (#4) (Partial: Sprints 2.1–2.2 implemented)
+## 4. Strategy Lab APIs (#4) (Sprints 2.1–2.3 implemented)
 
 ### 4.1 Indicators
 
@@ -380,7 +385,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-### 4.2 Strategies (Create/get shipped; remaining CRUD planned for Sprint 2.3)
+### 4.2 Strategies
 
 **POST `/strategies`**
 
@@ -412,24 +417,28 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 - Behavior:
   - Atomically creates strategy + immutable initial version (`version_number: 1`).
   - Runs the pure canonical definition validator before either in-memory or
-    MySQL persistence. Definition failures return `400 VALIDATION_ERROR`;
+    MySQL persistence. Definition failures return
+    `400 STRATEGY_VALIDATION_ERROR`;
     `fieldErrors[].field` is `definition` for root-shape errors or begins with
     `definition.` for nested errors, and `reason` begins with a stable
     validator code such as `OR_NOT_SUPPORTED:`.
   - Emits `strategy.created` audit metadata.
   - Duplicate normalized name for the same user returns `409 CONFLICT`.
-- Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, created_at, updated_at }`.
+- Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, summary, created_at, updated_at }`.
 
-**PUT `/strategies/:id`** (Planned)
+**PUT `/strategies/:id`**
 
 - Body: partial metadata (`name`, `description`, `asset_type`, `timeframe`) and
   optional `definition`; `description: null` clears it and an empty body is invalid.
 - Behavior:
   - Updates metadata. A present valid `definition` always appends the next
-    immutable version; a metadata-only update does not.
+    immutable version, even when identical; a metadata-only update does not.
+  - MySQL version allocation uses a serializable transaction and one bounded
+    write-conflict retry.
+  - Emits bounded `strategy.updated` audit metadata.
 - Response: latest version payload plus deterministic `summary`.
 
-**GET `/strategies`** (Planned)
+**GET `/strategies`**
 
 - Query: `limit?` (default 50, max 100), `offset?` (default 0, max 10,000).
 - Response: `{ items, limit, offset, has_more }` for the current user’s active
@@ -442,17 +451,21 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 - Auth: required; only the owning user can read the strategy.
 - Response:
   - Metadata + selected version’s `definition`, `version_number`, and deterministic
-    `summary`. Sprint 2.3 adds optional `?version=N` historical reads.
-- Invalid UUID returns `400 VALIDATION_ERROR`; missing, inactive, or non-owned ids return `404 NOT_FOUND`.
+    `summary`. Optional `?version=N` reads an immutable historical definition
+    and adds `version_created_at` plus `is_latest`.
+- Invalid UUID returns `400 VALIDATION_ERROR`; missing, inactive, or non-owned
+  ids return `404 STRATEGY_NOT_FOUND`; a missing selected version returns
+  `404 STRATEGY_VERSION_NOT_FOUND`.
 
-**DELETE `/strategies/:id`** (Planned)
+**DELETE `/strategies/:id`**
 
 - Soft delete: sets `is_active = false` and returns `204` with no body. A repeated
-  delete returns `404`; the name remains reserved.
+  delete returns `404 STRATEGY_NOT_FOUND`; the name remains reserved.
+- Emits bounded `strategy.deleted` audit metadata.
 
 ---
 
-### 4.3 Strategy Validation (Planned for Sprint 2.3)
+### 4.3 Strategy Validation
 
 **POST `/strategies/validate`**
 
@@ -462,6 +475,9 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `is_valid: boolean`
   - `errors: [{ path, code, message }]`
   - `summary: string | null`
+- Valid and invalid definitions return `200`; the endpoint never persists.
+- Both/neither fields return `400 STRATEGY_VALIDATION_ERROR`. Missing,
+  inactive, or non-owned `strategy_id` returns `404 STRATEGY_NOT_FOUND`.
 
 ---
 

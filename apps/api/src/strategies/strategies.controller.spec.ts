@@ -17,6 +17,7 @@ describe('StrategiesController', () => {
     is_active: true,
     version_number: 1,
     definition: {},
+    summary: 'Summary.',
     created_at: '2026-07-25T12:00:00.000Z',
     updated_at: '2026-07-25T12:00:00.000Z',
   };
@@ -25,6 +26,19 @@ describe('StrategiesController', () => {
     const strategiesService = {
       create: jest.fn().mockResolvedValue(response),
       getById: jest.fn().mockResolvedValue(response),
+      list: jest.fn().mockResolvedValue({
+        items: [],
+        limit: 50,
+        offset: 0,
+        has_more: false,
+      }),
+      update: jest.fn().mockResolvedValue(response),
+      delete: jest.fn().mockResolvedValue(undefined),
+      validate: jest.fn().mockResolvedValue({
+        is_valid: true,
+        errors: [],
+        summary: 'Summary.',
+      }),
     } as unknown as StrategiesService;
     const authService = {
       requireUserBySessionToken: jest.fn().mockReturnValue({ id: 'user-1' }),
@@ -68,6 +82,40 @@ describe('StrategiesController', () => {
       controller.getById(authenticatedRequest(), response.id),
     ).resolves.toEqual(response);
     expect(strategiesService.getById).toHaveBeenCalledWith(
+      'user-1',
+      response.id,
+      undefined,
+    );
+  });
+
+  it('delegates list, historical read, update, validation, and delete', async () => {
+    const { controller, strategiesService } = createController();
+    const request = authenticatedRequest();
+
+    await controller.list(request, { limit: 10, offset: 2 });
+    await controller.getById(request, response.id, { version: 1 });
+    await controller.update(request, response.id, { description: null });
+    await controller.validate(request, { definition: {} });
+    await controller.delete(request, response.id);
+
+    expect(strategiesService.list).toHaveBeenCalledWith('user-1', {
+      limit: 10,
+      offset: 2,
+    });
+    expect(strategiesService.getById).toHaveBeenCalledWith(
+      'user-1',
+      response.id,
+      1,
+    );
+    expect(strategiesService.update).toHaveBeenCalledWith(
+      'user-1',
+      response.id,
+      { description: null },
+    );
+    expect(strategiesService.validate).toHaveBeenCalledWith('user-1', {
+      definition: {},
+    });
+    expect(strategiesService.delete).toHaveBeenCalledWith(
       'user-1',
       response.id,
     );

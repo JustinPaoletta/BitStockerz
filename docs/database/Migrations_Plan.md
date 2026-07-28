@@ -135,8 +135,10 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
+- Implemented July 28, 2026 with no migration.
 - No new tables required.  
-- You may add non-critical indexes later if needed (e.g., `idx_strategies_user`).
+- The existing strategy owner index and strategy-version uniqueness constraint
+  support the CRUD and serialized version-allocation paths.
 
 ---
 

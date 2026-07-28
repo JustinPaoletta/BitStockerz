@@ -9,14 +9,14 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — July 27, 2026
+## Current delivery state — July 28, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
 | Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
-| Sprints 2.1–2.2 | Implementation complete locally; draft PR #9 | Stacked in one PR; seed and MySQL verification cover persistence, restart ownership, public catalog, schema validation, and the 500% TP ceiling. |
-| Sprint 2.3 | **START HERE — ready for development** | Build CRUD, validation endpoint, and summaries on top of the locally verified 2.2 contract. |
-| Sprints 3.1–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 2.1–2.3 | Implementation complete locally; draft PR #9 | One stacked PR covers persistence, the rule schema/500% TP ceiling, full CRUD/history, dry-run validation, deterministic summaries, audits, and seed/MySQL restart verification. |
+| Sprint 3.1 | **START HERE — ready for development** | Build the pure backtest engine on the completed Strategy Lab contract after PR #9 review. |
+| Sprints 3.2–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
@@ -147,7 +147,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ---
 
-### Sprint 2.3 – Strategy CRUD & Validation (START HERE — July 27, 2026)
+### Sprint 2.3 – Strategy CRUD & Validation
 
 **Implementation plan:** [docs/plans/sprint-2-3-strategy-crud-validation.md](../plans/sprint-2-3-strategy-crud-validation.md)
 
@@ -159,7 +159,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #4.5.5 – Delete strategy
 - #4.6.1 – Strategy validation endpoint
 - #4.6.2 – Human-readable strategy summary
-- Status: Ready for development; not started
+- Status: Implementation complete locally (verified July 28, 2026); stacked with Sprints 2.1–2.2 in draft PR #9
 
 **Exit**
 - Users can create and manage valid strategies
@@ -168,7 +168,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ## Milestone 3 – Backtesting Engine (Critical Path)
 
-### Sprint 3.1 – Backtest Engine Core
+### Sprint 3.1 – Backtest Engine Core (START HERE — July 28, 2026)
 
 **Implementation plan:** [docs/plans/sprint-3-1-backtest-engine-core.md](../plans/sprint-3-1-backtest-engine-core.md)
 
@@ -180,6 +180,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #5.2.5 – Stop loss / take profit handling
 - #8.2.1 – Execution sandbox boundaries
 - #8.2.2 – Runtime & memory limits per backtest
+- Status: Ready for development; not started
 
 ---
 

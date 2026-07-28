@@ -8,8 +8,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surface: `apps/api`
-- Delivery state: Milestones 0–1 and Sprints 2.1–2.2 implemented and locally verified in draft PR #9
-- Next ready sprint: 2.3 Strategy CRUD & Validation
+- Delivery state: Milestones 0–1 and Sprints 2.1–2.3 implemented and locally verified in draft PR #9
+- Next ready sprint: 3.1 Backtest Engine Core
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -27,7 +27,9 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - Product definition and implementation planning for the BitStockerz platform.
 - Database design, migration planning, lifecycle policy, and API inventory work.
-- A NestJS API under `apps/api`, including auth, WebAuthn, market-data symbols/candles, jobs/ingestion, observability, owner-scoped strategy persistence/versioning, and a canonical strategy rule schema with public indicator catalog.
+- A NestJS API under `apps/api`, including auth, WebAuthn, market-data
+  symbols/candles, jobs/ingestion, observability, and complete owner-scoped
+  Strategy Lab CRUD/version history/validation/summaries.
 
 ## Tech Stack
 

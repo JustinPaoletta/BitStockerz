@@ -1,9 +1,9 @@
 # Sprint 3.1 — Backtest Engine Core
 
 **Status:** Plan ready (not started)  
-**Roadmap marker:** Milestone 3 / Sprint 3.1 (after Milestone 2 Strategy Lab exit)  
+**Roadmap marker:** `START HERE — July 28, 2026`
 **Branch:** `feat/sprint-3-1-backtest-engine-core`  
-**PR base:** `feat/sprint-2-3-strategy-crud-validation` (or `main` once 2.3 is merged)
+**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` once it merges)
 
 **Overview:** Ship a pure, in-process backtest engine that evaluates a Milestone 2 strategy definition against a bar series: indicators → rule evaluation → long-only trade simulation with SL/TP, plus hard wall-clock and bar-count guardrails. No HTTP routes and no persistence tables in this sprint — callers are unit tests and a thin Nest injectable used by Sprint 3.2/3.3. Target NFR: 1 year of daily bars for one symbol completes in under 2 seconds.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–2.2 verification.
+# End-to-end Sprint 1.2–2.3 verification.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)
@@ -131,7 +131,7 @@ verify_all() {
   if [[ -n "${DATABASE_URL:-}" ]]; then
     log "Restarting API for persisted strategy ownership verification"
     start_api
-    run_smoke 2.1-restart
+    run_smoke 2.3-restart
   fi
 }
 

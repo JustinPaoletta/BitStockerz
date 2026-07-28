@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BitStockerz API smoke tests — logs pass/fail per scenario.
-# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|all] [--base-url URL]
+# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|2.3|all] [--base-url URL]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -260,7 +260,7 @@ run_sprint_13() {
 }
 
 run_sprint_21() {
-  log "=== Sprints 2.1–2.2 — strategies, versioning, and rule schema ==="
+  log "=== Sprints 2.1–2.3 — strategy CRUD, versioning, validation, and rule schema ==="
 
   local definition
   definition='{"indicators":[{"id":"sma_fast","type":"SMA","params":{"period":10},"source":"close"},{"id":"sma_slow","type":"EMA","params":{"period":30},"source":"close"}],"entry":{"logic":"AND","conditions":[{"left":{"indicator":"sma_fast"},"op":"crosses_above","right":{"indicator":"sma_slow"}}]},"exit":{"logic":"AND","conditions":[{"left":{"indicator":"sma_fast"},"op":"crosses_below","right":{"indicator":"sma_slow"}}]},"risk":{"stop_loss":{"type":"percent","value":2},"take_profit":{"type":"percent","value":500}}}'
@@ -304,15 +304,9 @@ run_sprint_21() {
   if [[ "$code" == "201" ]] && echo "$HTTP_BODY" | jq -e \
     --argjson expected "$definition" \
     '.version_number == 1 and .symbol_scope == "SINGLE" and
-     .is_active == true and .definition == $expected' >/dev/null 2>&1; then
-    record_pass "2.1/2.2 create canonical strategy + version one"
-    if [[ -n "$STRATEGY_STATE_FILE" ]]; then
-      jq -n \
-        --arg email "$email" \
-        --arg strategy_id "$strategy_id" \
-        --argjson definition "$definition" \
-        '{ email: $email, strategy_id: $strategy_id, definition: $definition }' >"$STRATEGY_STATE_FILE"
-    fi
+     .is_active == true and .definition == $expected and
+     (.summary | contains("Take profit 500%."))' >/dev/null 2>&1; then
+    record_pass "2.1–2.3 create canonical strategy + version one + summary"
   else
     record_fail "2.1 create strategy" "http=$code body=$(echo "$HTTP_BODY" | head -c 300)"
   fi
@@ -402,7 +396,7 @@ run_sprint_21() {
     "$BASE_URL/strategies")"
   HTTP_BODY="$(cat "$tmp")"
   if [[ "$code" == "400" ]] && echo "$HTTP_BODY" | jq -e \
-    '.code == "VALIDATION_ERROR" and
+    '.code == "STRATEGY_VALIDATION_ERROR" and
      any(.fieldErrors[]; .field == "definition.risk.take_profit.value" and
        (.reason | startswith("RISK_VALUE_OUT_OF_RANGE:")))' >/dev/null 2>&1; then
     record_pass "2.2 take profit above 500% rejected"
@@ -439,6 +433,138 @@ run_sprint_21() {
     record_fail "2.1 unauthenticated create" "http=$code"
   fi
 
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --argjson definition "$definition" \
+      '{definition:$definition}')" \
+    "$BASE_URL/strategies/validate")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.is_valid == true and .errors == [] and
+     (.summary | contains("Take profit 500%."))' >/dev/null 2>&1; then
+    record_pass "2.3 inline validation + deterministic summary"
+  else
+    record_fail "2.3 inline validation" "http=$code"
+  fi
+
+  local invalid_definition
+  invalid_definition="$(echo "$definition" | jq '.entry.conditions[0].op = "unknown"')"
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --argjson definition "$invalid_definition" \
+      '{definition:$definition}')" \
+    "$BASE_URL/strategies/validate")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.is_valid == false and .summary == null and
+     .errors[0].code == "UNKNOWN_OPERATOR"' >/dev/null 2>&1; then
+    record_pass "2.3 invalid definition dry-run"
+  else
+    record_fail "2.3 invalid definition dry-run" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X PUT \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"description":null,"asset_type":"CRYPTO","timeframe":"1h"}' \
+    "$BASE_URL/strategies/$strategy_id")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.version_number == 1 and .description == null and
+     .asset_type == "CRYPTO" and .timeframe == "1h"' >/dev/null 2>&1; then
+    record_pass "2.3 metadata-only update preserves version"
+  else
+    record_fail "2.3 metadata-only update" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $strategy_token" \
+    "$BASE_URL/strategies?limit=1&offset=0")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg id "$strategy_id" \
+    '.limit == 1 and .offset == 0 and (.items | length) == 1 and
+     .items[0].id == $id and (.items[0] | has("definition") | not)' >/dev/null 2>&1; then
+    record_pass "2.3 owner list pagination without definitions"
+  else
+    record_fail "2.3 strategy list" "http=$code"
+  fi
+
+  local next_definition
+  next_definition="$(echo "$definition" | jq '.indicators[0].params.period = 11')"
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X PUT \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --argjson definition "$next_definition" \
+      '{definition:$definition}')" \
+    "$BASE_URL/strategies/$strategy_id")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --argjson expected "$next_definition" \
+    '.version_number == 2 and .definition == $expected and
+     (.summary | contains("SMA(11)"))' >/dev/null 2>&1; then
+    record_pass "2.3 definition update appends version two"
+  else
+    record_fail "2.3 definition update" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $strategy_token" \
+    "$BASE_URL/strategies/$strategy_id?version=1")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --argjson expected "$definition" \
+    '.version_number == 1 and .definition == $expected and
+     .is_latest == false and (.version_created_at | type) == "string"' >/dev/null 2>&1; then
+    record_pass "2.3 historical version read"
+  else
+    record_fail "2.3 historical version read" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $strategy_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --argjson definition "$definition" \
+      '{name:"Smoke Delete",asset_type:"EQUITY",timeframe:"1d",definition:$definition}')" \
+    "$BASE_URL/strategies")"
+  local delete_id
+  delete_id="$(cat "$tmp" | jq -r '.id')"
+  if [[ "$code" != "201" || -z "$delete_id" || "$delete_id" == "null" ]]; then
+    record_fail "2.3 soft-delete target creation" "http=$code"
+  else
+    code="$(curl -s -o "$tmp" -w "%{http_code}" -X DELETE \
+      -H "Authorization: Bearer $strategy_token" \
+      "$BASE_URL/strategies/$delete_id")"
+    if [[ "$code" == "204" && ! -s "$tmp" ]]; then
+      record_pass "2.3 soft delete returns empty 204"
+    else
+      record_fail "2.3 soft delete" "http=$code body=$(cat "$tmp")"
+    fi
+
+    code="$(curl -s -o "$tmp" -w "%{http_code}" \
+      -H "Authorization: Bearer $strategy_token" \
+      "$BASE_URL/strategies/$delete_id")"
+    HTTP_BODY="$(cat "$tmp")"
+    if [[ "$code" == "404" ]] && echo "$HTTP_BODY" | jq -e \
+      '.code == "STRATEGY_NOT_FOUND"' >/dev/null 2>&1; then
+      record_pass "2.3 deleted strategy is hidden"
+    else
+      record_fail "2.3 deleted strategy hidden" "http=$code"
+    fi
+  fi
+
+  if [[ -n "$STRATEGY_STATE_FILE" ]]; then
+    jq -n \
+      --arg email "$email" \
+      --arg strategy_id "$strategy_id" \
+      --argjson definition "$next_definition" \
+      --argjson version_number 2 \
+      '{ email: $email, strategy_id: $strategy_id, definition: $definition,
+         version_number: $version_number }' >"$STRATEGY_STATE_FILE"
+  fi
+
   rm -f "$tmp"
 }
 
@@ -457,12 +583,15 @@ run_sprint_21_restart() {
   local email
   local strategy_id
   local definition
+  local version_number
   email="$(jq -r '.email' "$STRATEGY_STATE_FILE")"
   strategy_id="$(jq -r '.strategy_id' "$STRATEGY_STATE_FILE")"
   definition="$(jq -c '.definition' "$STRATEGY_STATE_FILE")"
+  version_number="$(jq -r '.version_number' "$STRATEGY_STATE_FILE")"
   if [[ -z "$email" || "$email" == "null" ||
         -z "$strategy_id" || "$strategy_id" == "null" ||
-        -z "$definition" || "$definition" == "null" ]]; then
+        -z "$definition" || "$definition" == "null" ||
+        -z "$version_number" || "$version_number" == "null" ]]; then
     record_fail "2.1 strategy readable after API restart" "invalid strategy state"
     return 1
   fi
@@ -486,9 +615,10 @@ run_sprint_21_restart() {
 
   if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
     --arg id "$strategy_id" --argjson expected "$definition" \
-    '.id == $id and .version_number == 1 and
-     .definition == $expected' >/dev/null 2>&1; then
-    record_pass "2.1 strategy readable after API restart"
+    --argjson version "$version_number" \
+    '.id == $id and .version_number == $version and
+     .definition == $expected and (.summary | type) == "string"' >/dev/null 2>&1; then
+    record_pass "2.3 latest strategy version readable after API restart"
   else
     record_fail "2.1 strategy readable after API restart" "http=$code"
   fi
@@ -523,8 +653,8 @@ main() {
   case "$SPRINT_SCOPE" in
     1.2) run_sprint_12 ;;
     1.3) run_sprint_13; run_db_persisted_candles ;;
-    2.1|2.2) run_sprint_21 ;;
-    2.1-restart) run_sprint_21_restart ;;
+    2.1|2.2|2.3) run_sprint_21 ;;
+    2.1-restart|2.3-restart) run_sprint_21_restart ;;
     all)
       if [[ -n "${DATABASE_URL:-}" ]]; then
         # Make DB verification self-contained on both empty and previously used
@@ -540,7 +670,7 @@ main() {
       fi
       run_sprint_21
       ;;
-    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, or all)" >&2; exit 1 ;;
+    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, 2.3, or all)" >&2; exit 1 ;;
   esac
 
   log "=== Summary: $PASS passed, $FAIL failed, $SKIP skipped ==="

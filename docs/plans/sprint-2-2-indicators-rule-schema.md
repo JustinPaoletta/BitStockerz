@@ -219,7 +219,10 @@ Publish the contract in code types/comments, API_Inventory §4, and story accept
 
 ### Create path behavior change
 
-`POST /strategies` (from 2.1) begins rejecting invalid definitions with `400 VALIDATION_ERROR` + `fieldErrors` paths like `definition.entry.conditions[0].op`.
+`POST /strategies` (from 2.1) begins rejecting invalid definitions with
+definition-rooted `fieldErrors` paths like
+`definition.entry.conditions[0].op`; Sprint 2.3 upgrades the envelope code to
+`400 STRATEGY_VALIDATION_ERROR`.
 
 ---
 

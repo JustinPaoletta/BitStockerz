@@ -9,6 +9,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 2.3 complete owner-scoped Strategy Lab CRUD: offset-paged active list,
+  partial metadata updates, immutable definition versions/history, soft delete,
+  and bounded update/delete audit events in seed and MySQL modes.
+- Side-effect-free strategy validation by inline definition or owned strategy
+  id, deterministic human-readable summaries, and stable
+  `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, and
+  `STRATEGY_VALIDATION_ERROR` API codes.
+- Expanded unit/e2e/seed/MySQL verification and one canonical PR #9 manual
+  checklist covering Sprints 2.1–2.3 through restart persistence.
 - Sprint 2.2 canonical strategy-definition types and pure validation for SMA/EMA/RSI indicators, AND-only entry/exit conditions, finite operands, and required percent risk rules with a 500% take-profit ceiling.
 - Public `GET /api/strategies/indicators` catalog plus unit, e2e, seed-smoke, and MySQL-smoke contract coverage.
 - One self-contained PR #9 pre-merge manual checklist covering the public catalog, valid/invalid definition writes, owner isolation, round trips, audit metadata, and restart persistence.
@@ -26,9 +35,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Strategy create/get responses now include deterministic summaries; definition
+  validation failures use the strategy-specific validation code.
 - Strategy creation now rejects non-canonical definitions before persistence with deterministic definition-rooted RFC 7807 field paths and stable validator codes.
 - Refreshed NestJS and Prisma to their current compatible releases, moved the Prisma CLI to development dependencies, and pinned patched transitive packages; both production and full development `npm audit` now report zero vulnerabilities.
-- Replaced the unauthenticated strategy placeholder with `StrategiesModule` and authenticated RFC 7807 contracts; full rule-schema validation and remaining CRUD stay scoped to Sprints 2.2–2.3.
+- Replaced the unauthenticated strategy placeholder with `StrategiesModule`
+  and authenticated RFC 7807 contracts; Sprints 2.2–2.3 subsequently completed
+  rule validation and the remaining CRUD surface.
 - Strategy DTOs preserve raw text-field types before validation despite global implicit conversion; seed uniqueness includes MySQL Unicode expansion weights and service length checks count Unicode characters.
 - Daily market-data health measures staleness from the end of the represented UTC day, preventing false weekend degradation for Friday equity bars.
 - `AuthService.ensureUserPersisted` now reassigns dependent strategies as well as jobs/credentials when remapping a stale MySQL user id; owner reads perform the repair immediately after an API restart and tolerate a concurrent audit-triggered remap.

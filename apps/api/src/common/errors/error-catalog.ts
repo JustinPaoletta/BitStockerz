@@ -34,6 +34,24 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     title: 'Not found',
     defaultDetail: 'The requested resource was not found.',
   },
+  [ErrorCode.STRATEGY_NOT_FOUND]: {
+    httpStatus: 404,
+    typeSuffix: 'strategy-not-found',
+    title: 'Strategy not found',
+    defaultDetail: 'The requested strategy was not found.',
+  },
+  [ErrorCode.STRATEGY_VERSION_NOT_FOUND]: {
+    httpStatus: 404,
+    typeSuffix: 'strategy-version-not-found',
+    title: 'Strategy version not found',
+    defaultDetail: 'The requested strategy version was not found.',
+  },
+  [ErrorCode.STRATEGY_VALIDATION_ERROR]: {
+    httpStatus: 400,
+    typeSuffix: 'strategy-validation',
+    title: 'Strategy validation error',
+    defaultDetail: 'The strategy definition is invalid.',
+  },
   [ErrorCode.CONFLICT]: {
     httpStatus: 409,
     typeSuffix: 'conflict',

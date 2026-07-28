@@ -1,9 +1,9 @@
 # Sprint 2.3 — Strategy CRUD & Validation
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** `START HERE — July 27, 2026`
-**Branch (when implementing):** `feat/sprint-2-3-strategy-crud-validation`  
-**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` after it merges)
+**Status:** Implemented locally and verified (July 28, 2026); unmerged in draft PR #9
+**Roadmap marker:** Completed locally; `START HERE` moved to Sprint 3.1
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked PR #9)
+**PR base:** `main`
 
 **Overview:** Complete the Strategy Lab HTTP surface: list, get, update (new version), soft-delete, validate endpoint, and human-readable summary. Exit criterion: users can create and manage valid strategies ready for backtesting (Milestone 3).
 
@@ -67,7 +67,7 @@
 - A present valid `definition` creates a version even when byte-for-byte/equivalent to the latest definition; clients omit the field for metadata-only updates
 - Cannot update soft-deleted strategies → `404`
 - Name conflict with another strategy → `409`
-- Invalid definition → `400 VALIDATION_ERROR`
+- Invalid definition → `400 STRATEGY_VALIDATION_ERROR`
 - Response returns latest version payload
 
 ### #4.5.3 – List strategies
@@ -101,7 +101,7 @@
 {
   "is_valid": false,
   "errors": [
-    { "path": "entry.conditions[0].op", "code": "UNKNOWN_OP", "message": "..." }
+    { "path": "entry.conditions[0].op", "code": "UNKNOWN_OPERATOR", "message": "..." }
   ],
   "summary": null
 }
@@ -150,7 +150,7 @@ flowchart TB
   C[StrategiesController]
   S[StrategiesService]
   V[StrategyDefinitionValidator]
-  SUM[StrategySummaryService]
+  SUM[Pure StrategySummary]
   C --> S
   S --> V
   S --> SUM
@@ -195,13 +195,13 @@ npm --prefix apps/api run test:e2e
 
 ## Best-practice checklist
 
-- [ ] Owner checks on every id-based route (404 not 403 for cross-user)
-- [ ] Append-only versions for definition changes
-- [ ] Soft delete via `is_active` matching DDL
-- [ ] Deterministic summary (no LLM)
-- [ ] Validate endpoint side-effect free
-- [ ] class-validator DTOs ([NestJS pipes](https://docs.nestjs.com/pipes))
-- [ ] Conventional Commit: `feat: complete strategy crud and validation`
+- [x] Owner checks on every id-based route (404 not 403 for cross-user)
+- [x] Append-only versions for definition changes
+- [x] Soft delete via `is_active` matching DDL
+- [x] Deterministic summary (no LLM)
+- [x] Validate endpoint side-effect free
+- [x] class-validator DTOs ([NestJS pipes](https://docs.nestjs.com/pipes))
+- [x] Conventional Commit: `feat: complete strategy crud and validation`
 
 ---
 
@@ -287,11 +287,12 @@ npm --prefix apps/api run test:e2e
 
 ## Definition of done
 
-- [ ] All #4.5.x and #4.6.x AC implemented
-- [ ] ROADMAP Milestone 2 exit satisfied; START HERE → Sprint 3.1
-- [ ] API_Inventory §4 marked implemented
-- [ ] Gates green; manual curls for full CRUD + validate
-- [ ] PR opened
+- [x] All #4.5.x and #4.6.x AC implemented
+- [x] ROADMAP Milestone 2 exit satisfied; START HERE → Sprint 3.1
+- [x] API_Inventory §4 marked implemented
+- [x] Gates green; automated curl smoke covers full CRUD + validate and the
+      canonical manual checklist is merge-ready
+- [x] PR #9 open with Sprint 2.3 stacked
 
 ---
 

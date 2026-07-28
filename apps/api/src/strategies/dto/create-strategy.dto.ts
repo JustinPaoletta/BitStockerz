@@ -1,4 +1,4 @@
-import { Transform, type TransformFnParams } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   Allow,
   IsIn,
@@ -20,6 +20,10 @@ import {
   type StrategySymbolScope,
   type StrategyTimeframe,
 } from '../strategy.types';
+import {
+  preserveRawValue,
+  trimRawStringValue,
+} from './strategy-dto.transforms';
 
 @ValidatorConstraint({ name: 'strategyTimeframeCompatibility', async: false })
 export class StrategyTimeframeCompatibility implements ValidatorConstraintInterface {
@@ -63,26 +67,4 @@ export class CreateStrategyDto {
   // clients receive stable codes and definition-relative field paths.
   @Allow()
   definition!: StrategyDefinition;
-}
-
-function trimRawStringValue(params: TransformFnParams): unknown {
-  const candidate = readRawValue(params);
-  return typeof candidate === 'string' ? candidate.trim() : candidate;
-}
-
-function preserveRawValue(params: TransformFnParams): unknown {
-  return readRawValue(params);
-}
-
-function readRawValue({ key, obj, value }: TransformFnParams): unknown {
-  if (
-    typeof key === 'string' &&
-    typeof obj === 'object' &&
-    obj !== null &&
-    Object.prototype.hasOwnProperty.call(obj, key)
-  ) {
-    return (obj as Record<string, unknown>)[key];
-  }
-
-  return value;
 }

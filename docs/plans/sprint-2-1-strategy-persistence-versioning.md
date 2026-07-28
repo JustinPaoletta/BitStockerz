@@ -141,7 +141,7 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <token>` unl
 | Concern | Decision |
 |---------|----------|
 | Auth | Required; must own strategy |
-| Soft-deleted | `404 NOT_FOUND` if `is_active=false` or missing |
+| Soft-deleted | `404 STRATEGY_NOT_FOUND` if `is_active=false` or missing (upgraded by Sprint 2.3) |
 
 Same response shape as create (latest version). Cross-user id → `404` (no existence leak).
 

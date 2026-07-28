@@ -2,12 +2,12 @@
 
 This is the single required manual-test document for
 [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9). It covers the
-human-visible behavior added by Sprints 2.1 and 2.2. Unit, coverage, e2e, seed
-smoke, and MySQL smoke gates are automated and are not repeated here.
+human-visible behavior added by Sprints 2.1–2.3. Automated unit, coverage, e2e,
+seed-smoke, and MySQL-smoke gates are intentionally not duplicated here.
 
-Run commands from the repository root. Prerequisites are Node.js `24.11.1`,
-npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep the variables
-in Terminal B until the restart check is complete.
+Run every command from the repository root. Prerequisites are Node.js
+`24.11.1`, npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep
+Terminal B open through the restart check.
 
 ## 1. Start the API in MySQL mode
 
@@ -16,7 +16,7 @@ In **Terminal A**:
 ```bash
 ./scripts/docker-mysql.sh start
 test -f apps/api/.env || cp apps/api/.env.example apps/api/.env
-# Confirm apps/api/.env contains the DATABASE_URL printed by the command above.
+# Confirm apps/api/.env contains the DATABASE_URL printed above.
 npm --prefix apps/api run db:deploy
 INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
 ```
@@ -28,20 +28,19 @@ BASE_URL=http://localhost:4000/api
 curl -s "$BASE_URL/health/ready" | jq -e '.checks.database.status == "up"'
 ```
 
-Expected: `true`. Stop here if the database is not `up`; otherwise later
-persistence checks would only prove in-memory behavior.
+Expected: `true`. Stop if the database is not `up`; later persistence checks
+would otherwise prove only in-memory behavior.
 
 - [ ] API starts in MySQL mode and readiness reports the database `up`.
 
 ## 2. Verify the public indicator catalog
 
-No bearer token should be sent:
+Do not send a bearer token:
 
 ```bash
 curl -s "$BASE_URL/strategies/indicators" \
   -o /tmp/bitstockerz-indicators.json
 
-jq . /tmp/bitstockerz-indicators.json
 jq -e '
   (.indicators | map(.key)) == ["SMA", "EMA", "RSI"] and
   (.indicators[0] | keys | sort) ==
@@ -56,7 +55,7 @@ jq -e '
 ' /tmp/bitstockerz-indicators.json
 ```
 
-Expected: the final command prints `true`.
+Expected: `true`.
 
 - [ ] Catalog is public and exposes the exact SMA/EMA/RSI contract.
 
@@ -94,9 +93,11 @@ DEFINITION=$(jq -cn '{
   }
 }')
 
+EXPECTED_SUMMARY='Buy when SMA(10) crosses above EMA(30) AND RSI(14) < 70. Exit when SMA(10) crosses below EMA(30). Stop loss 2%. Take profit 500%.'
+
 CREATE_BODY=$(jq -cn --argjson definition "$DEFINITION" '{
   name:"PR 9 Manual Strategy",
-  description:"Canonical 2.2 definition with the 500% TP ceiling",
+  description:"Canonical Sprint 2.3 definition with the 500% TP ceiling",
   asset_type:"EQUITY",
   timeframe:"1d",
   definition:$definition
@@ -107,47 +108,202 @@ CREATE_CODE=$(curl -s -o /tmp/bitstockerz-strategy-create.json \
   -H "Authorization: Bearer $OWNER_TOKEN" \
   -H 'Content-Type: application/json' \
   -d "$CREATE_BODY")
-
-echo "HTTP $CREATE_CODE"
-jq . /tmp/bitstockerz-strategy-create.json
 STRATEGY_ID=$(jq -r '.id' /tmp/bitstockerz-strategy-create.json)
 
 test "$CREATE_CODE" = 201
-jq -e --argjson expected "$DEFINITION" '
+jq -e --argjson expected "$DEFINITION" --arg summary "$EXPECTED_SUMMARY" '
   .name == "PR 9 Manual Strategy" and
   .symbol_scope == "SINGLE" and
   .is_active == true and
   .version_number == 1 and
-  .definition == $expected
+  .definition == $expected and
+  .summary == $summary
 ' /tmp/bitstockerz-strategy-create.json
 ```
 
-Expected: both assertions pass. This specifically proves that `500` is
-accepted, not rounded or replaced.
+Expected: both assertions pass. This proves that exactly `500` is accepted and
+that the summary is deterministic.
 
-- [ ] Canonical strategy creation returns `201`, version 1, and exact JSON.
-- [ ] A take-profit value of exactly `500` is accepted.
+- [ ] Create returns `201`, immutable version 1, exact JSON, and exact summary.
+- [ ] A take-profit value of exactly `500%` is accepted and displayed.
 
-## 4. Verify owner read and exact round trip
+## 4. Verify dry-run validation
+
+### Valid inline definition and persisted strategy
 
 ```bash
-READ_CODE=$(curl -s -o /tmp/bitstockerz-strategy-read.json \
-  -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID" \
-  -H "Authorization: Bearer $OWNER_TOKEN")
+VALIDATE_BODY=$(jq -cn --argjson definition "$DEFINITION" \
+  '{definition:$definition}')
+VALIDATE_CODE=$(curl -s -o /tmp/bitstockerz-validate-valid.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies/validate" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$VALIDATE_BODY")
 
-test "$READ_CODE" = 200
-jq -e --arg id "$STRATEGY_ID" --argjson expected "$DEFINITION" '
-  .id == $id and .version_number == 1 and .definition == $expected
-' /tmp/bitstockerz-strategy-read.json
+test "$VALIDATE_CODE" = 200
+jq -e --arg summary "$EXPECTED_SUMMARY" '
+  .is_valid == true and .errors == [] and .summary == $summary
+' /tmp/bitstockerz-validate-valid.json
+
+PERSISTED_VALIDATE_CODE=$(curl -s \
+  -o /tmp/bitstockerz-validate-persisted.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies/validate" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}")
+
+test "$PERSISTED_VALIDATE_CODE" = 200
+jq -e '.is_valid == true and .errors == [] and (.summary | type) == "string"' \
+  /tmp/bitstockerz-validate-persisted.json
 ```
 
-Expected: both assertions pass.
+### Invalid definition and XOR body
 
-- [ ] The owner can read the strategy and the canonical definition round-trips exactly.
+```bash
+BAD_OPERATOR=$(echo "$DEFINITION" |
+  jq -c '.entry.conditions[0].op = "unknown"')
+BAD_OPERATOR_BODY=$(jq -cn --argjson definition "$BAD_OPERATOR" \
+  '{definition:$definition}')
+BAD_OPERATOR_CODE=$(curl -s \
+  -o /tmp/bitstockerz-validate-invalid.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies/validate" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$BAD_OPERATOR_BODY")
 
-## 5. Verify definition validation errors
+test "$BAD_OPERATOR_CODE" = 200
+jq -e '
+  .is_valid == false and
+  .summary == null and
+  .errors[0].path == "entry.conditions[0].op" and
+  .errors[0].code == "UNKNOWN_OPERATOR"
+' /tmp/bitstockerz-validate-invalid.json
 
-### Take profit above 500%
+XOR_CODE=$(curl -s -o /tmp/bitstockerz-validate-xor.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies/validate" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}')
+
+test "$XOR_CODE" = 400
+jq -e '.code == "STRATEGY_VALIDATION_ERROR"' \
+  /tmp/bitstockerz-validate-xor.json
+```
+
+Expected: validation returns `200` for both valid and invalid definitions and
+does not create a strategy. Only an invalid request envelope returns `400`.
+
+- [ ] Inline and persisted validation return the same deterministic summary.
+- [ ] Invalid rules return structured errors and `summary: null` without writes.
+- [ ] Both/neither validation inputs return `STRATEGY_VALIDATION_ERROR`.
+
+## 5. Verify list shape and default paging
+
+```bash
+LIST_CODE=$(curl -s -o /tmp/bitstockerz-strategy-list.json \
+  -w '%{http_code}' "$BASE_URL/strategies" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+
+test "$LIST_CODE" = 200
+jq -e --arg id "$STRATEGY_ID" '
+  .limit == 50 and .offset == 0 and .has_more == false and
+  (.items | length) == 1 and
+  .items[0].id == $id and
+  (.items[0] | keys | sort) ==
+    ["asset_type","created_at","id","is_active","name","timeframe","updated_at","version_number"] and
+  (.items[0] | has("definition") | not)
+' /tmp/bitstockerz-strategy-list.json
+```
+
+Expected: `true`; list items do not contain the potentially large definition.
+
+- [ ] Owner list uses the documented envelope and lightweight item shape.
+
+## 6. Verify metadata updates and immutable definition versions
+
+### Metadata-only update
+
+```bash
+METADATA_CODE=$(curl -s -o /tmp/bitstockerz-update-metadata.json \
+  -w '%{http_code}' -X PUT "$BASE_URL/strategies/$STRATEGY_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"  PR 9 Renamed Strategy  ","description":null,"asset_type":"CRYPTO","timeframe":"1h"}')
+
+test "$METADATA_CODE" = 200
+jq -e '
+  .name == "PR 9 Renamed Strategy" and
+  .description == null and
+  .asset_type == "CRYPTO" and
+  .timeframe == "1h" and
+  .version_number == 1
+' /tmp/bitstockerz-update-metadata.json
+```
+
+### Definition updates
+
+```bash
+NEW_DEFINITION=$(echo "$DEFINITION" |
+  jq -c '.indicators[0].params.period = 11')
+NEW_SUMMARY='Buy when SMA(11) crosses above EMA(30) AND RSI(14) < 70. Exit when SMA(11) crosses below EMA(30). Stop loss 2%. Take profit 500%.'
+NEW_DEFINITION_BODY=$(jq -cn --argjson definition "$NEW_DEFINITION" \
+  '{definition:$definition}')
+
+VERSION_2_CODE=$(curl -s -o /tmp/bitstockerz-update-v2.json \
+  -w '%{http_code}' -X PUT "$BASE_URL/strategies/$STRATEGY_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$NEW_DEFINITION_BODY")
+
+VERSION_3_CODE=$(curl -s -o /tmp/bitstockerz-update-v3.json \
+  -w '%{http_code}' -X PUT "$BASE_URL/strategies/$STRATEGY_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$NEW_DEFINITION_BODY")
+
+test "$VERSION_2_CODE" = 200
+test "$VERSION_3_CODE" = 200
+jq -e --argjson expected "$NEW_DEFINITION" --arg summary "$NEW_SUMMARY" '
+  .version_number == 2 and .definition == $expected and .summary == $summary
+' /tmp/bitstockerz-update-v2.json
+jq -e '.version_number == 3' /tmp/bitstockerz-update-v3.json
+```
+
+The second request intentionally repeats an identical definition. Its version
+must still increment because presence of `definition` is the versioning signal.
+
+### Historical and missing version reads
+
+```bash
+HISTORY_CODE=$(curl -s -o /tmp/bitstockerz-history-v1.json \
+  -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID?version=1" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+
+test "$HISTORY_CODE" = 200
+jq -e --argjson expected "$DEFINITION" '
+  .name == "PR 9 Renamed Strategy" and
+  .version_number == 1 and
+  .definition == $expected and
+  .is_latest == false and
+  (.version_created_at | type) == "string"
+' /tmp/bitstockerz-history-v1.json
+
+MISSING_VERSION_CODE=$(curl -s \
+  -o /tmp/bitstockerz-history-missing.json \
+  -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID?version=99" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+
+test "$MISSING_VERSION_CODE" = 404
+jq -e '.code == "STRATEGY_VERSION_NOT_FOUND"' \
+  /tmp/bitstockerz-history-missing.json
+```
+
+- [ ] Metadata-only changes preserve version 1 and `description: null` clears it.
+- [ ] Each present definition appends a version, including an identical repeat.
+- [ ] Version 1 remains readable with current metadata and historical markers.
+- [ ] A missing version returns `STRATEGY_VERSION_NOT_FOUND`.
+
+## 7. Verify stable validation errors
 
 ```bash
 BAD_TP=$(echo "$DEFINITION" | jq -c '.risk.take_profit.value = 500.01')
@@ -157,7 +313,6 @@ BAD_TP_BODY=$(jq -cn --argjson definition "$BAD_TP" '{
   timeframe:"1d",
   definition:$definition
 }')
-
 BAD_TP_CODE=$(curl -s -o /tmp/bitstockerz-bad-tp.json \
   -w '%{http_code}' -X POST "$BASE_URL/strategies" \
   -H "Authorization: Bearer $OWNER_TOKEN" \
@@ -166,46 +321,31 @@ BAD_TP_CODE=$(curl -s -o /tmp/bitstockerz-bad-tp.json \
 
 test "$BAD_TP_CODE" = 400
 jq -e '
-  .code == "VALIDATION_ERROR" and
+  .code == "STRATEGY_VALIDATION_ERROR" and
   any(.fieldErrors[];
     .field == "definition.risk.take_profit.value" and
     (.reason | startswith("RISK_VALUE_OUT_OF_RANGE:")))
 ' /tmp/bitstockerz-bad-tp.json
-```
 
-### OR logic
-
-```bash
-BAD_OR=$(echo "$DEFINITION" | jq -c '.entry.logic = "OR"')
-BAD_OR_BODY=$(jq -cn --argjson definition "$BAD_OR" '{
-  name:"PR 9 Invalid OR",
-  asset_type:"EQUITY",
-  timeframe:"1d",
-  definition:$definition
-}')
-
-BAD_OR_CODE=$(curl -s -o /tmp/bitstockerz-bad-or.json \
-  -w '%{http_code}' -X POST "$BASE_URL/strategies" \
+EMPTY_UPDATE_CODE=$(curl -s -o /tmp/bitstockerz-empty-update.json \
+  -w '%{http_code}' -X PUT "$BASE_URL/strategies/$STRATEGY_ID" \
   -H "Authorization: Bearer $OWNER_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d "$BAD_OR_BODY")
+  -d '{}')
+test "$EMPTY_UPDATE_CODE" = 400
+jq -e '.code == "VALIDATION_ERROR"' /tmp/bitstockerz-empty-update.json
 
-test "$BAD_OR_CODE" = 400
-jq -e '
-  .code == "VALIDATION_ERROR" and
-  any(.fieldErrors[];
-    .field == "definition.entry.logic" and
-    .reason == "OR_NOT_SUPPORTED: logic must be AND.")
-' /tmp/bitstockerz-bad-or.json
+BAD_PAGE_CODE=$(curl -s -o /tmp/bitstockerz-bad-page.json \
+  -w '%{http_code}' "$BASE_URL/strategies?limit=101&offset=-1" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+test "$BAD_PAGE_CODE" = 400
+jq -e '.code == "VALIDATION_ERROR"' /tmp/bitstockerz-bad-page.json
 ```
 
-Expected: all four assertions pass. The error paths should be precise and the
-stable validator code should be at the start of `reason`.
+- [ ] `500.01%` is rejected with the exact nested path and strategy code.
+- [ ] Empty updates and out-of-bounds paging return generic request validation.
 
-- [ ] `500.01` is rejected at `definition.risk.take_profit.value`.
-- [ ] OR is rejected at `definition.entry.logic` with `OR_NOT_SUPPORTED`.
-
-## 6. Verify ownership isolation
+## 8. Verify ownership isolation
 
 ```bash
 OTHER_TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
@@ -213,49 +353,103 @@ OTHER_TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
   -d "{\"email\":\"strategy-other-$(date +%s)@example.com\",\"display_name\":\"PR 9 Other\"}" \
   | jq -r '.access_token')
 
-OTHER_CODE=$(curl -s -o /tmp/bitstockerz-other-read.json \
+OTHER_READ_CODE=$(curl -s -o /tmp/bitstockerz-other-read.json \
   -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID" \
   -H "Authorization: Bearer $OTHER_TOKEN")
+OTHER_VALIDATE_CODE=$(curl -s -o /tmp/bitstockerz-other-validate.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies/validate" \
+  -H "Authorization: Bearer $OTHER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}")
 
-test "$OTHER_CODE" = 404
-jq -e '.code == "NOT_FOUND"' /tmp/bitstockerz-other-read.json
+test "$OTHER_READ_CODE" = 404
+test "$OTHER_VALIDATE_CODE" = 404
+jq -e '.code == "STRATEGY_NOT_FOUND"' /tmp/bitstockerz-other-read.json
+jq -e '.code == "STRATEGY_NOT_FOUND"' /tmp/bitstockerz-other-validate.json
 ```
 
-Expected: both assertions pass; the API does not disclose cross-user existence.
+Expected: cross-user reads and validation expose the same not-found response.
 
-- [ ] Another user receives `404 NOT_FOUND`.
+- [ ] Another user receives `404 STRATEGY_NOT_FOUND` without existence leakage.
 
-## 7. Verify bounded audit metadata
+## 9. Verify soft delete semantics
+
+```bash
+DELETE_CREATE_BODY=$(jq -cn --argjson definition "$DEFINITION" '{
+  name:"PR 9 Delete Target",
+  asset_type:"EQUITY",
+  timeframe:"1d",
+  definition:$definition
+}')
+DELETE_TARGET_CODE=$(curl -s -o /tmp/bitstockerz-delete-create.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$DELETE_CREATE_BODY")
+DELETE_ID=$(jq -r '.id' /tmp/bitstockerz-delete-create.json)
+test "$DELETE_TARGET_CODE" = 201
+
+DELETE_CODE=$(curl -s -o /tmp/bitstockerz-delete.json \
+  -w '%{http_code}' -X DELETE "$BASE_URL/strategies/$DELETE_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+test "$DELETE_CODE" = 204
+test ! -s /tmp/bitstockerz-delete.json
+
+SECOND_DELETE_CODE=$(curl -s -o /tmp/bitstockerz-delete-again.json \
+  -w '%{http_code}' -X DELETE "$BASE_URL/strategies/$DELETE_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+test "$SECOND_DELETE_CODE" = 404
+jq -e '.code == "STRATEGY_NOT_FOUND"' /tmp/bitstockerz-delete-again.json
+
+RESERVED_NAME_CODE=$(curl -s -o /tmp/bitstockerz-reserved-name.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$DELETE_CREATE_BODY")
+test "$RESERVED_NAME_CODE" = 409
+jq -e '.code == "CONFLICT"' /tmp/bitstockerz-reserved-name.json
+
+curl -s "$BASE_URL/strategies" \
+  -H "Authorization: Bearer $OWNER_TOKEN" |
+  jq -e --arg id "$DELETE_ID" 'all(.items[]; .id != $id)'
+```
+
+- [ ] Delete returns an empty `204`; repeated delete returns strategy not found.
+- [ ] Deleted strategies disappear from list/get and keep their names reserved.
+
+## 10. Verify bounded audit metadata
 
 ```bash
 docker exec bitstockerz-db \
   mysql -ubitstockerz -pdevpassword bitstockerz -N -e \
   "SELECT event_type, JSON_KEYS(payload_json)
    FROM audit_events
-   WHERE event_type = 'strategy.created'
+   WHERE event_type IN ('strategy.created','strategy.updated','strategy.deleted')
    ORDER BY id DESC
-   LIMIT 1;"
+   LIMIT 8;"
 ```
 
-Expected: one `strategy.created` row whose keys are `name` and `strategy_id`.
-The full definition must not appear. If you overrode the Docker database
-credentials or container name, use those values in this command.
+Expected: recent results include all three event types. Created/deleted payloads
+contain only `name` and `strategy_id`; updated payloads contain only
+`changed_fields`, `strategy_id`, and `version_number`. Definitions and tokens
+must not appear. If Docker credentials or the container name differ, adjust the
+command.
 
-- [ ] The audit event exists and does not store the definition or token.
+- [ ] Create, update, and delete audit rows exist with bounded metadata only.
 
-## 8. Verify persistence across an API restart
+## 11. Verify persistence across an API restart
 
 Keep Terminal B and its variables open.
 
 1. In **Terminal A**, stop the API with `Ctrl+C`.
-2. Restart it in the same MySQL mode:
+2. Restart in the same MySQL mode:
 
    ```bash
    INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
    ```
 
-3. Back in **Terminal B**, re-register the same email because sessions are
-   intentionally process-local, then read the original strategy:
+3. In **Terminal B**, re-register the same email because sessions are
+   intentionally process-local, then read latest and historical versions:
 
    ```bash
    OWNER_TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
@@ -266,30 +460,30 @@ Keep Terminal B and its variables open.
    RESTART_CODE=$(curl -s -o /tmp/bitstockerz-strategy-restart.json \
      -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID" \
      -H "Authorization: Bearer $OWNER_TOKEN")
+   RESTART_HISTORY_CODE=$(curl -s \
+     -o /tmp/bitstockerz-history-restart.json \
+     -w '%{http_code}' "$BASE_URL/strategies/$STRATEGY_ID?version=1" \
+     -H "Authorization: Bearer $OWNER_TOKEN")
 
    test "$RESTART_CODE" = 200
-   jq -e --arg id "$STRATEGY_ID" --argjson expected "$DEFINITION" '
-     .id == $id and .version_number == 1 and .definition == $expected
+   test "$RESTART_HISTORY_CODE" = 200
+   jq -e --arg id "$STRATEGY_ID" --argjson expected "$NEW_DEFINITION" '
+     .id == $id and .version_number == 3 and .definition == $expected
    ' /tmp/bitstockerz-strategy-restart.json
+   jq -e --argjson expected "$DEFINITION" '
+     .version_number == 1 and .definition == $expected and .is_latest == false
+   ' /tmp/bitstockerz-history-restart.json
    ```
 
-Expected: both assertions pass; the original id and canonical definition remain.
-
-- [ ] The same owner can read the original strategy after an API restart.
+- [ ] Latest version 3 and immutable version 1 both survive an API restart.
 
 ## Sign-off
 
-Merge only when every box above is checked. Record any failure directly on PR
-#9 with the failed section number, HTTP response, and API log excerpt.
+Merge only when every box above is checked. Record a failure on PR #9 with the
+section number, HTTP response, and relevant API log excerpt.
 
 Cleanup:
 
 ```bash
-rm -f /tmp/bitstockerz-indicators.json \
-  /tmp/bitstockerz-strategy-create.json \
-  /tmp/bitstockerz-strategy-read.json \
-  /tmp/bitstockerz-bad-tp.json \
-  /tmp/bitstockerz-bad-or.json \
-  /tmp/bitstockerz-other-read.json \
-  /tmp/bitstockerz-strategy-restart.json
+rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart}.json
 ```

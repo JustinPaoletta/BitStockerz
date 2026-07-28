@@ -25,7 +25,7 @@ This module feeds directly into **#5 Backtesting**.
 - Authenticated users can create `EQUITY` daily or `CRYPTO` daily/hourly strategies; `symbol_scope` is `SINGLE` for MVP.
 - Strategy names are trimmed, 1–255 characters, and unique per user under case/accent-insensitive comparison.
 - MySQL persists strategy metadata with a user foreign key; seed mode provides equivalent process-local behavior.
-- Reads and writes are owner-scoped. Missing, inactive, or another user's strategy returns `404 NOT_FOUND`.
+- Reads and writes are owner-scoped. Missing, inactive, or another user's strategy returns `404 STRATEGY_NOT_FOUND`.
 
 ### Story 4.1.2 – Strategy versioning (MVP-light)
 
@@ -99,17 +99,69 @@ This module feeds directly into **#5 Backtesting**.
 ## Epic 4.5 – Strategy CRUD APIs
 
 ### Story 4.5.1 – Create strategy
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- Authenticated create persists valid metadata plus immutable version 1.
+- The response includes the canonical definition and deterministic `summary`.
+- Duplicate normalized names return `409 CONFLICT`; invalid definitions return
+  `400 STRATEGY_VALIDATION_ERROR`.
+
 ### Story 4.5.2 – Update strategy (new version)
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- Partial `PUT /api/strategies/:id` updates mutable metadata; `description:
+  null` clears the description and an empty body is invalid.
+- A present valid definition always appends the next immutable version,
+  including an identical repeat. Metadata-only changes do not add a version.
+- Version allocation is serialized in MySQL with one bounded conflict retry.
+
 ### Story 4.5.3 – List user strategies
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- The active owner list uses `limit`/`offset`, returns `has_more`, and sorts by
+  `updated_at DESC, id ASC`.
+- List items include current version metadata but omit the full definition.
+
 ### Story 4.5.4 – Get strategy details
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- Latest reads include definition, version, and deterministic summary.
+- `?version=N` returns an immutable historical definition with
+  `version_created_at` and `is_latest`; a missing version returns
+  `STRATEGY_VERSION_NOT_FOUND`.
+
 ### Story 4.5.5 – Delete strategy (soft delete)
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- Delete sets `is_active=false`, returns an empty `204`, and hides the row from
+  list/get/validation. A repeated delete returns `STRATEGY_NOT_FOUND`.
+- The normalized name remains reserved.
 
 ---
 
 ## Epic 4.6 – Strategy Validation & Preview
 
 ### Story 4.6.1 – Strategy validation endpoint
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- `POST /api/strategies/validate` accepts exactly one inline definition or
+  active owned `strategy_id`.
+- Valid and invalid definitions return a side-effect-free `200` validation
+  envelope; invalid request envelopes use `STRATEGY_VALIDATION_ERROR`.
+
 ### Story 4.6.2 – Human-readable strategy summary
+
+**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+
+- A pure, deterministic formatter summarizes entry, exit, stop-loss, and
+  take-profit rules without AI.
+- Summary is exposed on create, update, details, and successful validation.
 
 ---
 
