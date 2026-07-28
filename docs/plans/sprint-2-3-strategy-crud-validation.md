@@ -180,7 +180,9 @@ Use Prisma `$transaction` when updating metadata + inserting version ([Prisma tr
 4. Validate endpoint (reuse validator + summary).
 5. Controller routes + DTO; fix route order.
 6. Audit hooks; e2e happy/error paths.
-7. Docs: API_Inventory §4 complete; manual section; ROADMAP exit + START HERE → 3.1; CHANGELOG.
+7. Docs at Sprint 2.3 completion: API_Inventory §4, manual section, roadmap
+   exit, then-current marker advanced to Sprint 3.1, and CHANGELOG. The plan
+   header carries the current marker.
 
 Gates:
 
@@ -288,7 +290,8 @@ npm --prefix apps/api run test:e2e
 ## Definition of done
 
 - [x] All #4.5.x and #4.6.x AC implemented
-- [x] ROADMAP Milestone 2 exit satisfied; START HERE → Sprint 3.1
+- [x] Historical completion record: ROADMAP Milestone 2 exit was satisfied and
+  its marker advanced to Sprint 3.1; the current marker is maintained above.
 - [x] API_Inventory §4 marked implemented
 - [x] Gates green; automated curl smoke covers full CRUD + validate and the
       canonical manual checklist is merge-ready

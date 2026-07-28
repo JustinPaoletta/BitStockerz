@@ -6,7 +6,7 @@
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning`
 
-**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (now also includes Sprint 2.2)
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.1)
 
 **Overview:** Replace the unauthenticated `POST /strategies` stub with durable strategy metadata + immutable version rows. Ship schema/migration, Prisma models, seed/in-memory stores, and a minimal authenticated create/get path that proves versioning — full CRUD and validation land in Sprint 2.3; indicator/rule JSON shape lands in Sprint 2.2.
 
@@ -351,7 +351,8 @@ Docs: ROADMAP (distinguish local verification from merged delivery and keep `STA
 - [x] Migration applies; seed mode works without MySQL
 - [x] Stub replaced with authenticated create + get
 - [x] build / lint / test / test:cov (≥90%) / test:e2e pass
-- [x] Docs synced; ROADMAP marks 2.1–2.2 locally verified/pending merge and moves `START HERE` to 2.3
+- [x] Historical completion record: docs were synced and the roadmap marker
+  advanced to Sprint 2.3; the current marker is maintained in this plan header.
 - [x] One self-contained pre-merge manual checklist with curl examples
 - [x] Committed, pushed, and included in draft PR #9
 

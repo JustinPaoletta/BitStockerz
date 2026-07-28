@@ -379,7 +379,8 @@ Contract tests must also cover duplicate ids, unknown keys, array/object confusi
 - [x] Catalog endpoint live; definition validator integrated on create
 - [x] AC written for all six stories
 - [x] Gates green (build/lint/test/cov/e2e plus seed/MySQL smoke verification)
-- [x] Docs + ROADMAP → START HERE Sprint 2.3
+- [x] Historical completion record: docs were synced and the roadmap marker
+  advanced to Sprint 2.3; the current marker is maintained in this plan header.
 - [x] Included in draft PR #9
 
 ---
