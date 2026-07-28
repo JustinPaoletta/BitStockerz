@@ -125,6 +125,7 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
+- Implemented July 27, 2026 with no migration.
 - No new tables required.  
 - All indicator/condition structures live in `strategy_versions.definition_json`.
 

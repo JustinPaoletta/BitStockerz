@@ -44,20 +44,55 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.2.1 – Supported indicators catalog
 
+**Status:** Completed (verified July 27, 2026)
+
+**Acceptance criteria**
+
+- Public `GET /api/strategies/indicators` returns code-defined SMA, EMA, and RSI entries with exact display, description, parameter, source, and default-source metadata.
+- SMA/EMA accept integer period 2–200 and OHLC sources; RSI accepts integer period 2–100 and close only. The catalog and validator share these bounds.
+
 ---
 
 ## Epic 4.3 – Rule Builder
 
 ### Story 4.3.1 – Condition schema (atomic rule)
+
+**Status:** Completed (verified July 27, 2026)
+
+- Conditions contain `left`, `op`, and `right`. Each operand contains exactly one indicator reference, OHLC price source, or finite numeric literal.
+- Supported operators are `gt`, `gte`, `lt`, `lte`, `eq`, `crosses_above`, and `crosses_below`. Crossover comparisons require at least one dynamic operand and indicator references must resolve.
+
 ### Story 4.3.2 – Entry rule group (AND-only MVP)
+
+**Status:** Completed (verified July 27, 2026)
+
+- Entry uses `logic: "AND"` with 1–10 conditions. OR, nested groups, unknown keys, and malformed shapes are rejected.
+
 ### Story 4.3.3 – Exit rule group (AND-only MVP)
+
+**Status:** Completed (verified July 27, 2026)
+
+- Exit uses the same AND-only 1–10-condition contract and validation as entry.
 
 ---
 
 ## Epic 4.4 – Risk Rules
 
 ### Story 4.4.1 – Stop loss configuration
+
+**Status:** Completed (verified July 27, 2026)
+
+- A definition requires `risk.stop_loss` with exactly
+  `{ "type": "percent", "value": number }`; value must be greater than 0 and
+  at most 50.
+
 ### Story 4.4.2 – Take profit configuration
+
+**Status:** Completed (verified July 27, 2026)
+
+- A definition requires `risk.take_profit` with exactly
+  `{ "type": "percent", "value": number }`; value must be greater than 0 and
+  at most 500.
 
 ---
 

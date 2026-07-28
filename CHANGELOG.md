@@ -9,6 +9,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 2.2 canonical strategy-definition types and pure validation for SMA/EMA/RSI indicators, AND-only entry/exit conditions, finite operands, and required percent risk rules with a 500% take-profit ceiling.
+- Public `GET /api/strategies/indicators` catalog plus unit, e2e, seed-smoke, and MySQL-smoke contract coverage.
+- One self-contained PR #9 pre-merge manual checklist covering the public catalog, valid/invalid definition writes, owner isolation, round trips, audit metadata, and restart persistence.
 - Sprint 2.1 strategy persistence and versioning: MySQL/Prisma schema, seed-mode parity, authenticated create/get endpoints, immutable version 1 definitions, normalized per-user name conflicts, owner-only reads, and `strategy.created` audit events.
 - Sprint 2.1 unit, e2e, manual, seed-smoke, and MySQL-smoke coverage.
 - Sprint 1.4 data health and observability: candle sanity checks, `GET /api/market-data/health`, in-process `GET /api/metrics`, and `audit_events` audit trail.
@@ -23,6 +26,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Strategy creation now rejects non-canonical definitions before persistence with deterministic definition-rooted RFC 7807 field paths and stable validator codes.
 - Refreshed NestJS and Prisma to their current compatible releases, moved the Prisma CLI to development dependencies, and pinned patched transitive packages; both production and full development `npm audit` now report zero vulnerabilities.
 - Replaced the unauthenticated strategy placeholder with `StrategiesModule` and authenticated RFC 7807 contracts; full rule-schema validation and remaining CRUD stay scoped to Sprints 2.2–2.3.
 - Strategy DTOs preserve raw text-field types before validation despite global implicit conversion; seed uniqueness includes MySQL Unicode expansion weights and service length checks count Unicode characters.

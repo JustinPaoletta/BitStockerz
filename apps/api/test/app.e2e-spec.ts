@@ -602,10 +602,101 @@ describe('Strategy persistence and versioning (e2e)', () => {
       description: 'Fast/slow SMA cross',
       asset_type: 'EQUITY',
       timeframe: '1d',
-      definition: { indicators: [] },
+      definition: {
+        indicators: [
+          {
+            id: 'sma_fast',
+            type: 'SMA',
+            params: { period: 10 },
+            source: 'close',
+          },
+          {
+            id: 'sma_slow',
+            type: 'EMA',
+            params: { period: 30 },
+            source: 'close',
+          },
+        ],
+        entry: {
+          logic: 'AND',
+          conditions: [
+            {
+              left: { indicator: 'sma_fast' },
+              op: 'crosses_above',
+              right: { indicator: 'sma_slow' },
+            },
+          ],
+        },
+        exit: {
+          logic: 'AND',
+          conditions: [
+            {
+              left: { indicator: 'sma_fast' },
+              op: 'crosses_below',
+              right: { indicator: 'sma_slow' },
+            },
+          ],
+        },
+        risk: {
+          stop_loss: { type: 'percent', value: 2 },
+          take_profit: { type: 'percent', value: 500 },
+        },
+      },
       ...overrides,
     };
   }
+
+  it('returns the exact public indicator catalog without authentication', async () => {
+    await request(app.getHttpServer())
+      .get('/api/strategies/indicators')
+      .expect(200)
+      .expect((res) => {
+        expect(
+          res.body.indicators.map((entry: { key: string }) => entry.key),
+        ).toEqual(['SMA', 'EMA', 'RSI']);
+        expect(res.body.indicators).toEqual([
+          expect.objectContaining({
+            key: 'SMA',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 200,
+                default: 20,
+              },
+            ],
+            sources: ['open', 'high', 'low', 'close'],
+            default_source: 'close',
+          }),
+          expect.objectContaining({
+            key: 'EMA',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 200,
+                default: 20,
+              },
+            ],
+          }),
+          expect.objectContaining({
+            key: 'RSI',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 100,
+                default: 14,
+              },
+            ],
+            sources: ['close'],
+          }),
+        ]);
+      });
+  });
 
   it('creates version one, audits it, and reads it back for the owner', async () => {
     const token = await registerAndGetToken('strategist@example.com');
@@ -625,7 +716,7 @@ describe('Strategy persistence and versioning (e2e)', () => {
       timeframe: '1d',
       is_active: true,
       version_number: 1,
-      definition: { indicators: [] },
+      definition: strategyBody().definition,
     });
     expect(createResponse.body.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -725,10 +816,105 @@ describe('Strategy persistence and versioning (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/strategies')
       .set('Authorization', authorization)
+      .send(
+        strategyBody({
+          name: 'Invalid OR',
+          definition: {
+            ...(strategyBody().definition as Record<string, unknown>),
+            entry: {
+              logic: 'OR',
+              conditions: [
+                {
+                  left: { price: 'close' },
+                  op: 'gt',
+                  right: { literal: 1 },
+                },
+              ],
+            },
+          },
+        }),
+      )
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(res.body.fieldErrors).toEqual(
+          expect.arrayContaining([
+            {
+              field: 'definition.entry.logic',
+              reason: 'OR_NOT_SUPPORTED: logic must be AND.',
+            },
+          ]),
+        );
+      });
+
+    const excessiveTakeProfit = structuredClone(strategyBody().definition) as {
+      risk: { take_profit: { value: number } };
+    };
+    excessiveTakeProfit.risk.take_profit.value = 500.01;
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(
+        strategyBody({
+          name: 'Excessive take profit',
+          definition: excessiveTakeProfit,
+        }),
+      )
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              field: 'definition.risk.take_profit.value',
+              reason: expect.stringContaining('RISK_VALUE_OUT_OF_RANGE'),
+            }),
+          ]),
+        );
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
       .send(strategyBody({ definition: [] }))
       .expect(400)
       .expect((res) => {
         expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(res.body.fieldErrors).toEqual([
+          {
+            field: 'definition',
+            reason: 'INVALID_DEFINITION: Definition must be a non-null object.',
+          },
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({ ...strategyBody(), definition: null })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual([
+          expect.objectContaining({
+            field: 'definition',
+            reason: expect.stringContaining('INVALID_DEFINITION'),
+          }),
+        ]);
+      });
+
+    const missingDefinition = strategyBody() as Record<string, unknown>;
+    delete missingDefinition.definition;
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(missingDefinition)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual([
+          expect.objectContaining({
+            field: 'definition',
+            reason: expect.stringContaining('INVALID_DEFINITION'),
+          }),
+        ]);
       });
 
     await request(app.getHttpServer())

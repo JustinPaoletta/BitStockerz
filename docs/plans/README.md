@@ -5,7 +5,7 @@ Index of implementation contracts after Milestone 1. “Ready” means a develop
 | Sprint | Plan | Depends on | Readiness | Purpose |
 |--------|------|------------|-----------|---------|
 | 2.1 | [sprint-2-1-strategy-persistence-versioning.md](./sprint-2-1-strategy-persistence-versioning.md) | Milestone 1 | Implemented locally (verified; unmerged) | Strategy schema + versioning persistence for Strategy Lab. |
-| 2.2 | [sprint-2-2-indicators-rule-schema.md](./sprint-2-2-indicators-rule-schema.md) | 2.1 | Ready | Indicator catalog and entry/exit/SL/TP rule schema. |
+| 2.2 | [sprint-2-2-indicators-rule-schema.md](./sprint-2-2-indicators-rule-schema.md) | 2.1 | Implemented locally (verified; unmerged in PR #9) | Indicator catalog and entry/exit/SL/TP rule schema. |
 | 2.3 | [sprint-2-3-strategy-crud-validation.md](./sprint-2-3-strategy-crud-validation.md) | 2.2 | Ready | Strategy CRUD APIs, validation, and human-readable summaries. |
 | 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Ready | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
 | 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Ready | Backtest run/result/trades/equity storage and strategy version pinning. |

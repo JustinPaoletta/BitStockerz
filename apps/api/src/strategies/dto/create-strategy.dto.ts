@@ -1,8 +1,7 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
 import {
-  IsDefined,
+  Allow,
   IsIn,
-  IsObject,
   IsString,
   MaxLength,
   MinLength,
@@ -60,8 +59,9 @@ export class CreateStrategyDto {
   @IsIn(STRATEGY_SYMBOL_SCOPES)
   symbol_scope?: StrategySymbolScope;
 
-  @IsDefined()
-  @IsObject()
+  // The pure schema validator owns all definition shape/content errors so
+  // clients receive stable codes and definition-relative field paths.
+  @Allow()
   definition!: StrategyDefinition;
 }
 

@@ -1,12 +1,12 @@
 # Sprint 2.1 — Strategy Persistence & Versioning
 
-**Status:** Implemented and locally verified (seed + MySQL, July 26, 2026); pending PR/merge
+**Status:** Implemented and locally verified (seed + MySQL, July 26, 2026); included in draft PR #9
 
-**Roadmap marker:** Implementation complete locally; `START HERE` moved to Sprint 2.2
+**Roadmap marker:** Implementation complete locally; Sprint 2.2 is also complete and `START HERE` is Sprint 2.3
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning`
 
-**PR base:** `main` (Sprint 1.4 is merged at `2d6d35e`)
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (now also includes Sprint 2.2)
 
 **Overview:** Replace the unauthenticated `POST /strategies` stub with durable strategy metadata + immutable version rows. Ship schema/migration, Prisma models, seed/in-memory stores, and a minimal authenticated create/get path that proves versioning — full CRUD and validation land in Sprint 2.3; indicator/rule JSON shape lands in Sprint 2.2.
 
@@ -270,7 +270,7 @@ Docs: ROADMAP (distinguish local verification from merged delivery and keep `STA
 - [x] User tenancy: always filter by `userId` ([Security.md](../product/requirements/Security.md))
 - [x] Seed/DB parity for create/get
 - [x] RFC 7807 errors only; no stack traces
-- [ ] Conventional Commit: `feat: add strategy persistence and versioning`
+- [x] Conventional Commit: `feat: add strategy persistence and versioning`
 
 ---
 
@@ -351,9 +351,9 @@ Docs: ROADMAP (distinguish local verification from merged delivery and keep `STA
 - [x] Migration applies; seed mode works without MySQL
 - [x] Stub replaced with authenticated create + get
 - [x] build / lint / test / test:cov (≥90%) / test:e2e pass
-- [x] Docs synced; ROADMAP marks 2.1 locally verified/pending merge and moves `START HERE` to 2.2
-- [x] Manual testing section with curl examples
-- [ ] Commit/push/PR (requires explicit delivery instruction)
+- [x] Docs synced; ROADMAP marks 2.1–2.2 locally verified/pending merge and moves `START HERE` to 2.3
+- [x] One self-contained pre-merge manual checklist with curl examples
+- [x] Committed, pushed, and included in draft PR #9
 
 ---
 

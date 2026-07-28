@@ -1,9 +1,9 @@
 # Sprint 2.3 — Strategy CRUD & Validation
 
 **Status:** Plan ready (not started)  
-**Roadmap marker:** after Sprint 2.2 completes  
+**Roadmap marker:** `START HERE — July 27, 2026`
 **Branch (when implementing):** `feat/sprint-2-3-strategy-crud-validation`  
-**PR base:** `feat/sprint-2-2-indicators-rule-schema` (or `main` if merged)
+**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` after it merges)
 
 **Overview:** Complete the Strategy Lab HTTP surface: list, get, update (new version), soft-delete, validate endpoint, and human-readable summary. Exit criterion: users can create and manage valid strategies ready for backtesting (Milestone 3).
 

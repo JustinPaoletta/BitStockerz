@@ -1,3 +1,5 @@
+import type { StrategyDefinition } from './definition/strategy-definition.types';
+
 export const STRATEGY_ASSET_TYPES = ['EQUITY', 'CRYPTO'] as const;
 export const STRATEGY_TIMEFRAMES = ['1d', '1h'] as const;
 export const STRATEGY_SYMBOL_SCOPES = ['SINGLE'] as const;
@@ -5,7 +7,7 @@ export const STRATEGY_SYMBOL_SCOPES = ['SINGLE'] as const;
 export type StrategyAssetType = (typeof STRATEGY_ASSET_TYPES)[number];
 export type StrategyTimeframe = (typeof STRATEGY_TIMEFRAMES)[number];
 export type StrategySymbolScope = (typeof STRATEGY_SYMBOL_SCOPES)[number];
-export type StrategyDefinition = Record<string, unknown>;
+export type { StrategyDefinition } from './definition/strategy-definition.types';
 
 export interface CreateStrategyInput {
   name: string;

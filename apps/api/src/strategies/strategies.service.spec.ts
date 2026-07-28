@@ -4,6 +4,7 @@ import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AuditService } from '../observability/audit.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { StrategyDefinition } from './definition/strategy-definition.types';
 import {
   normalizeNameForUniqueness,
   StrategiesService,
@@ -15,6 +16,47 @@ const OTHER_USER_ID = '00000000-0000-4000-8000-000000000002';
 const STRATEGY_ID = '00000000-0000-4000-8000-000000000010';
 const CREATED_AT = new Date('2026-07-25T12:00:00.000Z');
 
+function validDefinition(): StrategyDefinition {
+  return {
+    indicators: [
+      {
+        id: 'sma',
+        type: 'SMA',
+        params: { period: 20 },
+        source: 'close',
+      },
+    ],
+    entry: {
+      logic: 'AND',
+      conditions: [
+        {
+          left: { indicator: 'sma' },
+          op: 'gt',
+          right: { literal: 100 },
+        },
+      ],
+    },
+    exit: {
+      logic: 'AND',
+      conditions: [
+        {
+          left: { indicator: 'sma' },
+          op: 'lt',
+          right: { literal: 90 },
+        },
+      ],
+    },
+    risk: {
+      stop_loss: { type: 'percent', value: 2 },
+      take_profit: { type: 'percent', value: 500 },
+    },
+  };
+}
+
+function invalidDefinition(value: unknown): StrategyDefinition {
+  return value as StrategyDefinition;
+}
+
 function validInput(
   overrides: Partial<CreateStrategyInput> = {},
 ): CreateStrategyInput {
@@ -22,7 +64,7 @@ function validInput(
     name: 'Momentum',
     asset_type: 'EQUITY',
     timeframe: '1d',
-    definition: { indicators: [] },
+    definition: validDefinition(),
     ...overrides,
   };
 }
@@ -51,7 +93,7 @@ describe('StrategiesService', () => {
       USER_ID,
       validInput({
         name: '  Momentum  ',
-        definition: { nested: { period: 20 } },
+        definition: validDefinition(),
       }),
     );
 
@@ -63,7 +105,7 @@ describe('StrategiesService', () => {
       timeframe: '1d',
       is_active: true,
       version_number: 1,
-      definition: { nested: { period: 20 } },
+      definition: validDefinition(),
     });
     expect(created.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -77,9 +119,9 @@ describe('StrategiesService', () => {
       },
     });
 
-    (created.definition.nested as { period: number }).period = 99;
+    created.definition.indicators[0].params.period = 99;
     await expect(service.getById(USER_ID, created.id)).resolves.toMatchObject({
-      definition: { nested: { period: 20 } },
+      definition: validDefinition(),
     });
   });
 
@@ -168,30 +210,32 @@ describe('StrategiesService', () => {
     {
       name: 'array definition',
       input: validInput({
-        definition: [] as unknown as Record<string, unknown>,
+        definition: invalidDefinition([]),
       }),
       field: 'definition',
     },
     {
       name: 'non-JSON definition value',
       input: validInput({
-        definition: { period: undefined },
+        definition: invalidDefinition({ period: undefined }),
       }),
-      field: 'definition',
+      field: 'definition.period',
     },
     {
       name: 'non-finite definition number',
       input: validInput({
-        definition: { period: Number.POSITIVE_INFINITY },
+        definition: invalidDefinition({
+          period: Number.POSITIVE_INFINITY,
+        }),
       }),
-      field: 'definition',
+      field: 'definition.period',
     },
     {
       name: 'non-plain definition object',
       input: validInput({
-        definition: { created_at: new Date() },
+        definition: invalidDefinition({ created_at: new Date() }),
       }),
-      field: 'definition',
+      field: 'definition.created_at',
     },
     {
       name: 'unsupported asset type',
@@ -223,26 +267,46 @@ describe('StrategiesService', () => {
     const { prisma, authService, audit } = createDependencies();
     const service = new StrategiesService(prisma, authService, audit);
 
-    await expect(service.create(USER_ID, input)).rejects.toMatchObject({
+    const creation = service.create(USER_ID, input);
+    await expect(creation).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
-      fieldErrors: [expect.objectContaining({ field })],
     });
+    await expect(creation).rejects.toHaveProperty(
+      'fieldErrors',
+      expect.arrayContaining([expect.objectContaining({ field })]),
+    );
   });
 
   it('accepts repeated non-cyclic object references in internal definitions', async () => {
     const shared = { period: 20 };
+    const definition = validDefinition();
+    definition.indicators = [
+      {
+        id: 'first',
+        type: 'SMA',
+        params: shared,
+        source: 'close',
+      },
+      {
+        id: 'second',
+        type: 'SMA',
+        params: shared,
+        source: 'close',
+      },
+    ];
+    definition.entry.conditions[0].left = { indicator: 'first' };
+    definition.exit.conditions[0].left = { indicator: 'second' };
     const { prisma, authService, audit } = createDependencies();
     const service = new StrategiesService(prisma, authService, audit);
 
     await expect(
-      service.create(
-        USER_ID,
-        validInput({ definition: { first: shared, second: shared } }),
-      ),
+      service.create(USER_ID, validInput({ definition })),
     ).resolves.toMatchObject({
       definition: {
-        first: { period: 20 },
-        second: { period: 20 },
+        indicators: [
+          expect.objectContaining({ params: { period: 20 } }),
+          expect.objectContaining({ params: { period: 20 } }),
+        ],
       },
     });
   });
@@ -253,12 +317,19 @@ describe('StrategiesService', () => {
     const { prisma, authService, audit } = createDependencies();
     const service = new StrategiesService(prisma, authService, audit);
 
-    await expect(
-      service.create(USER_ID, validInput({ definition })),
-    ).rejects.toMatchObject({
+    const creation = service.create(
+      USER_ID,
+      validInput({ definition: invalidDefinition(definition) }),
+    );
+    await expect(creation).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
-      fieldErrors: [expect.objectContaining({ field: 'definition' })],
     });
+    await expect(creation).rejects.toHaveProperty(
+      'fieldErrors',
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'definition.self' }),
+      ]),
+    );
   });
 
   it('creates a nested strategy version through Prisma', async () => {
@@ -278,7 +349,7 @@ describe('StrategiesService', () => {
           id: 1,
           strategyId: STRATEGY_ID,
           versionNumber: 1,
-          definitionJson: { indicators: [] },
+          definitionJson: validDefinition(),
           createdAt: CREATED_AT,
         },
       ],
@@ -303,7 +374,7 @@ describe('StrategiesService', () => {
           versions: {
             create: expect.objectContaining({
               versionNumber: 1,
-              definitionJson: { indicators: [] },
+              definitionJson: validDefinition(),
             }),
           },
         }),

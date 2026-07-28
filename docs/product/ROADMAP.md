@@ -9,14 +9,14 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — July 26, 2026
+## Current delivery state — July 27, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
 | Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
-| Sprint 2.1 | Implementation complete locally; pending PR/merge | Seed and MySQL verification passed, including restart persistence and owner isolation. |
-| Sprint 2.2 | **START HERE — ready for development** | Implement on `feat/sprint-2-2-indicators-rule-schema`, based on the Sprint 2.1 branch until 2.1 merges. |
-| Sprints 2.3–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 2.1–2.2 | Implementation complete locally; draft PR #9 | Stacked in one PR; seed and MySQL verification cover persistence, restart ownership, public catalog, schema validation, and the 500% TP ceiling. |
+| Sprint 2.3 | **START HERE — ready for development** | Build CRUD, validation endpoint, and summaries on top of the locally verified 2.2 contract. |
+| Sprints 3.1–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
@@ -124,7 +124,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 **Stories**
 - #4.1.1 – Strategy schema
 - #4.1.2 – Strategy versioning
-- Status: Implementation complete locally (verified in seed and MySQL modes July 26, 2026); pending PR/merge
+- Status: Implementation complete locally (verified in seed and MySQL modes July 26, 2026); included in draft PR #9
 
 **Exit**
 - Authenticated strategy creation persists metadata and immutable version 1
@@ -132,7 +132,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ---
 
-### Sprint 2.2 – Indicators & Rule Schema (START HERE — July 26, 2026)
+### Sprint 2.2 – Indicators & Rule Schema
 
 **Implementation plan:** [docs/plans/sprint-2-2-indicators-rule-schema.md](../plans/sprint-2-2-indicators-rule-schema.md) · [all sprint plans](../plans/README.md)
 
@@ -143,11 +143,11 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #4.3.3 – Exit rules (AND-only)
 - #4.4.1 – Stop loss configuration
 - #4.4.2 – Take profit configuration
-- Status: Ready for development; not started
+- Status: Implementation complete locally (verified July 27, 2026); stacked with Sprint 2.1 in draft PR #9
 
 ---
 
-### Sprint 2.3 – Strategy CRUD & Validation
+### Sprint 2.3 – Strategy CRUD & Validation (START HERE — July 27, 2026)
 
 **Implementation plan:** [docs/plans/sprint-2-3-strategy-crud-validation.md](../plans/sprint-2-3-strategy-crud-validation.md)
 
@@ -159,6 +159,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #4.5.5 – Delete strategy
 - #4.6.1 – Strategy validation endpoint
 - #4.6.2 – Human-readable strategy summary
+- Status: Ready for development; not started
 
 **Exit**
 - Users can create and manage valid strategies

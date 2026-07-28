@@ -35,7 +35,7 @@ describe('CreateStrategyDto', () => {
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
 
-  it('requires a non-empty name and a definition object', async () => {
+  it('requires a non-empty name while deferring definition shape to the schema validator', async () => {
     const dto = toDto({
       name: '   ',
       asset_type: 'EQUITY',
@@ -44,12 +44,10 @@ describe('CreateStrategyDto', () => {
     });
 
     const errors = await validate(dto);
-    expect(errors.map((error) => error.property)).toEqual(
-      expect.arrayContaining(['name', 'definition']),
-    );
+    expect(errors.map((error) => error.property)).toEqual(['name']);
   });
 
-  it('rejects an omitted or null definition', async () => {
+  it('defers omitted and null definitions to the schema validator', async () => {
     const omitted = toDto({
       name: 'Missing',
       asset_type: 'EQUITY',
@@ -62,12 +60,8 @@ describe('CreateStrategyDto', () => {
       definition: null,
     });
 
-    expect((await validate(omitted)).map((error) => error.property)).toContain(
-      'definition',
-    );
-    expect(
-      (await validate(nullDefinition)).map((error) => error.property),
-    ).toContain('definition');
+    await expect(validate(omitted)).resolves.toHaveLength(0);
+    await expect(validate(nullDefinition)).resolves.toHaveLength(0);
   });
 
   it('rejects unsupported enum values and overlong names', async () => {

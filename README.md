@@ -8,8 +8,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surface: `apps/api`
-- Delivery state: Milestones 0–1 complete; Sprint 2.1 implemented and locally verified pending PR/merge
-- Next ready sprint: 2.2 Indicators & Rule Schema
+- Delivery state: Milestones 0–1 and Sprints 2.1–2.2 implemented and locally verified in draft PR #9
+- Next ready sprint: 2.3 Strategy CRUD & Validation
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -27,7 +27,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 - Product definition and implementation planning for the BitStockerz platform.
 - Database design, migration planning, lifecycle policy, and API inventory work.
-- A NestJS API under `apps/api`, including auth, WebAuthn, market-data symbols/candles, jobs/ingestion, observability, and owner-scoped strategy persistence/versioning.
+- A NestJS API under `apps/api`, including auth, WebAuthn, market-data symbols/candles, jobs/ingestion, observability, owner-scoped strategy persistence/versioning, and a canonical strategy rule schema with public indicator catalog.
 
 ## Tech Stack
 
@@ -94,7 +94,8 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 
 - Start database: `./scripts/docker-mysql.sh start`
 - Apply migrations: `npm --prefix apps/api run db:deploy`
-- Manual curl tests: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
+- Required pre-merge manual checklist for PR #9: [docs/manual-testing/PRE_MERGE_CHECKLIST.md](./docs/manual-testing/PRE_MERGE_CHECKLIST.md)
+- Full curl reference: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## Testing & Quality Gates
 
@@ -118,10 +119,11 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable subset through Sprint 2.1)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 2.2; Sprint 2.2 adds no migration)
 - [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
 - [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
+- [docs/manual-testing/PRE_MERGE_CHECKLIST.md](./docs/manual-testing/PRE_MERGE_CHECKLIST.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## License & Access

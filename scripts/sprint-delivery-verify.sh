@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–2.1 verification.
+# End-to-end Sprint 1.2–2.2 verification.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)

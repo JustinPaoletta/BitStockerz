@@ -1,10 +1,10 @@
 # Sprint 2.2 — Indicators & Rule Schema
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** `START HERE — July 26, 2026`
+**Status:** Implemented and locally verified; included in draft PR #9
+**Roadmap marker:** Implementation complete; `START HERE` moved to Sprint 2.3 on July 27, 2026
 
-**Branch (when implementing):** `feat/sprint-2-2-indicators-rule-schema`  
-**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` (or `main` if 2.1 merged)
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked with Sprint 2.1 at the owner's request)
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main`
 
 **Overview:** Lock the canonical strategy `definition_json` schema (indicators, AND-only entry/exit conditions, stop-loss / take-profit) and ship a public indicator catalog endpoint. No full CRUD yet — validation helpers are built here so Sprint 2.3 can expose them over HTTP. Pure TypeScript types + validators; no new DB tables.
 
@@ -111,14 +111,14 @@ type Condition = {
 ```
 
 - MVP supports `type: "percent"` only (percent of entry price)
-- `value` must be `> 0` and `≤ 50` for SL, `≤ 200` for TP (JC-5)
+- `value` must be `> 0` and `≤ 50` for SL, `≤ 500` for TP (owner override to JC-5)
 - Both SL and TP **required** in MVP definitions (JC-6)
 - Optional future: `type: "atr"` — not in catalog this sprint
 
 ### Cross-cutting definition rules
 
 - Top-level required keys: `indicators`, `entry`, `exit`, `risk`
-- `indicators[]`: each `{ id, type, params, source }` where `source` default `close`; `id` unique within definition; `type` ∈ catalog
+- `indicators[]`: each `{ id, type, params, source }`; `source` is required in persisted definitions, the catalog tells clients to default it to `close`, `id` is unique within the definition, and `type` is in the catalog
 - `indicators` contains at most 20 entries; `id` is 1–64 characters matching `^[A-Za-z][A-Za-z0-9_-]*$`
 - SMA/EMA `period` integer 2–200; RSI `period` integer 2–100
 - Indicator refs in conditions must exist in `indicators[]`
@@ -266,13 +266,13 @@ Contract tests must also cover duplicate ids, unknown keys, array/object confusi
 
 ## Best-practice checklist
 
-- [ ] Schema-as-code: single source of truth for types + validator
-- [ ] Pure validator unit-tested without Nest testing module
-- [ ] Stable error `code` strings for field errors (`UNKNOWN_INDICATOR`, `OR_NOT_SUPPORTED`, …)
-- [ ] Catalog params drive future Angular forms ([API_Inventory](../database/API_Inventory.md))
-- [ ] Do not compute indicators yet — schema only
-- [ ] Align ops with what engine can evaluate in 3.1 (no “looks good in JSON” ops)
-- [ ] Conventional Commit: `feat: add strategy indicator catalog and definition schema`
+- [x] Schema-as-code: single source of truth for types + validator
+- [x] Pure validator unit-tested without Nest testing module
+- [x] Stable error `code` strings for field errors (`UNKNOWN_INDICATOR`, `OR_NOT_SUPPORTED`, …)
+- [x] Catalog params drive future Angular forms ([API_Inventory](../database/API_Inventory.md))
+- [x] Do not compute indicators yet — schema only
+- [x] Align ops with what engine can evaluate in 3.1 (no “looks good in JSON” ops)
+- [x] Conventional Commit: `feat: add strategy indicator catalog and definition schema`
 
 **Indicator math library (decision for later 3.1):** Implement SMA/EMA/RSI as small pure functions matching this schema; do not add `technicalindicators` unless JC-8 is explicitly reversed.
 
@@ -327,8 +327,8 @@ Contract tests must also cover duplicate ids, unknown keys, array/object confusi
 
 ### JC-5 — Percent bounds
 
-**Decision:** SL `(0, 50]`, TP `(0, 200]`.  
-**Why:** Prevent absurd configs; still allow wide TP experiments.  
+**Decision:** SL `(0, 50]`, TP `(0, 500]` (owner override recorded July 27, 2026).
+**Why:** Prevent invalid/non-positive configs while supporting the requested wider TP experiments.
 **Discuss if:** Tighter product limits.
 
 ### JC-6 — SL/TP required
@@ -372,12 +372,12 @@ Contract tests must also cover duplicate ids, unknown keys, array/object confusi
 
 ## Definition of done
 
-- [ ] Branched from 2.1
-- [ ] Catalog endpoint live; definition validator integrated on create
-- [ ] AC written for all six stories
-- [ ] Gates green (build/lint/test/cov/e2e)
-- [ ] Docs + ROADMAP → START HERE Sprint 2.3
-- [ ] PR opened
+- [x] Stacked on the Sprint 2.1 branch in the same PR, per owner direction
+- [x] Catalog endpoint live; definition validator integrated on create
+- [x] AC written for all six stories
+- [x] Gates green (build/lint/test/cov/e2e plus seed/MySQL smoke verification)
+- [x] Docs + ROADMAP → START HERE Sprint 2.3
+- [x] Included in draft PR #9
 
 ---
 

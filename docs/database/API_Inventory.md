@@ -11,7 +11,8 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 2.1**:
+The runnable API in `apps/api` currently implements through **Sprint 2.2**
+(Sprints 2.1–2.2 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -22,7 +23,7 @@ The runnable API in `apps/api` currently ships through **Sprint 2.1**:
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
-| Strategy persistence | Shipped (2.1 partial) | Authenticated `POST /strategies` and owner-only `GET /strategies/:id`; full definition validation and CRUD remain planned for 2.2–2.3 |
+| Strategy Lab | Implemented (2.1–2.2 partial) | Authenticated create/owner get, immutable version 1, public indicator catalog, and canonical definition validation; remaining CRUD/validate/summary endpoints are Sprint 2.3 |
 | Trading | Planned | Described below; not implemented yet |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
@@ -53,7 +54,9 @@ Sections marked **(Planned)** below are design targets from the MVP stories — 
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search, candle reads). Both shipped strategy endpoints require a bearer session.
+- All endpoints require authentication unless explicitly stated (e.g. health
+  checks, symbol lookup/search, candle reads, and the strategy indicator
+  catalog). Strategy create and owner reads require a bearer session.
 
 ### 0.1 Error code catalog
 
@@ -361,14 +364,19 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 4. Strategy Lab APIs (#4) (Partial: Sprint 2.1 shipped)
+## 4. Strategy Lab APIs (#4) (Partial: Sprints 2.1–2.2 implemented)
 
-### 4.1 Indicators (Planned for Sprint 2.2)
+### 4.1 Indicators
 
 **GET `/strategies/indicators`**
 
-- Response: catalog of supported indicators:
-  - e.g. `[{ key: "SMA", display_name: "Simple Moving Average", params: {...} }, ...]`
+- Auth: public.
+- Response: `{ indicators }` with code-defined entries in `SMA`, `EMA`, `RSI` order.
+- Each entry has exactly `key`, `display_name`, `description`, `params`,
+  `sources`, and `default_source`.
+- Every current indicator has one integer `period` parameter. SMA/EMA allow
+  2–200 with default 20 and sources `open|high|low|close`; RSI allows 2–100
+  with default 14 and source `close`. All default to source `close`.
 
 ---
 
@@ -383,9 +391,31 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `asset_type`: `EQUITY` or `CRYPTO`
   - `timeframe`: `1d` or `1h`; equity currently requires `1d`
   - `symbol_scope?`: only `SINGLE`; defaults to `SINGLE`
-  - `definition`: required non-null, non-array JSON object; opaque until Sprint 2.2
+  - `definition`: required canonical strategy definition:
+    - exactly `indicators`, `entry`, `exit`, and `risk` at the top level
+    - `indicators`: at most 20 unique entries, each exactly
+      `{ id, type, params: { period }, source }`; ids are 1–64 characters
+      matching `^[A-Za-z][A-Za-z0-9_-]*$`; `type`, parameter bounds, and
+      sources must match the catalog; `source` is explicit in persisted JSON
+    - `entry` and `exit`: exactly `{ logic: "AND", conditions }`, with 1–10
+      conditions each
+    - each condition is exactly `{ left, op, right }`; each operand contains
+      exactly one of `{ indicator }`, `{ price }`, or `{ literal }`
+    - operators are `gt|gte|lt|lte|eq|crosses_above|crosses_below`; crossover
+      conditions require at least one indicator/price operand, and indicator
+      operands must reference a declared id
+    - `risk`: exactly `{ stop_loss, take_profit }`; both rules are required,
+      have `{ type: "percent", value }`, and use bounds `(0, 50]` for stop loss
+      and `(0, 500]` for take profit
+    - unknown keys, array/object confusion, duplicate ids, unsupported values,
+      and non-finite numbers are rejected
 - Behavior:
   - Atomically creates strategy + immutable initial version (`version_number: 1`).
+  - Runs the pure canonical definition validator before either in-memory or
+    MySQL persistence. Definition failures return `400 VALIDATION_ERROR`;
+    `fieldErrors[].field` is `definition` for root-shape errors or begins with
+    `definition.` for nested errors, and `reason` begins with a stable
+    validator code such as `OR_NOT_SUPPORTED:`.
   - Emits `strategy.created` audit metadata.
   - Duplicate normalized name for the same user returns `409 CONFLICT`.
 - Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, created_at, updated_at }`.

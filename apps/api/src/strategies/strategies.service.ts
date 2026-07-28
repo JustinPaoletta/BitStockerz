@@ -5,6 +5,7 @@ import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuditService } from '../observability/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StrategyDefinitionValidator } from './definition/strategy-definition.validator';
 import {
   STRATEGY_ASSET_TYPES,
   STRATEGY_TIMEFRAMES,
@@ -105,7 +106,8 @@ export class StrategiesService {
           versions: {
             create: {
               versionNumber: 1,
-              definitionJson: input.definition as Prisma.InputJsonObject,
+              definitionJson:
+                input.definition as unknown as Prisma.InputJsonObject,
               createdAt: now,
             },
           },
@@ -244,15 +246,25 @@ function assertCreateInput(input: NormalizedCreateStrategyInput): void {
     throw validationError('name', 'name must be between 1 and 255 characters');
   }
 
-  if (
-    !input.definition ||
-    typeof input.definition !== 'object' ||
-    Array.isArray(input.definition) ||
-    !isJsonObject(input.definition)
-  ) {
+  const definitionValidation = StrategyDefinitionValidator.validate(
+    input.definition,
+  );
+  if (!definitionValidation.is_valid) {
+    throw new DomainError(
+      ErrorCode.VALIDATION_ERROR,
+      'Strategy definition is invalid.',
+      400,
+      definitionValidation.errors.map((error) => ({
+        field: error.path ? `definition.${error.path}` : 'definition',
+        reason: `${error.code}: ${error.message}`,
+      })),
+    );
+  }
+
+  if (!isJsonObject(input.definition)) {
     throw validationError(
       'definition',
-      'definition must be a non-null JSON-compatible object',
+      'definition must be a JSON-compatible object',
     );
   }
 
@@ -271,7 +283,7 @@ function assertCreateInput(input: NormalizedCreateStrategyInput): void {
   }
 }
 
-function isJsonObject(value: Record<string, unknown>): boolean {
+function isJsonObject(value: unknown): boolean {
   const stack: Array<{ value: unknown; exiting: boolean }> = [
     { value, exiting: false },
   ];
@@ -379,7 +391,7 @@ function fromPrismaStrategy(
     updatedAt: record.updatedAt,
     versions: record.versions.map((version) => ({
       versionNumber: version.versionNumber,
-      definition: version.definitionJson as StrategyDefinition,
+      definition: version.definitionJson as unknown as StrategyDefinition,
       createdAt: version.createdAt,
     })),
   };
