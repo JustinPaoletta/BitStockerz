@@ -30,7 +30,7 @@ function buildTransport(config: LoggingConfig): TransportConfig {
     };
   }
 
-  if (config.nodeEnv === 'production') {
+  if (config.nodeEnv !== 'development') {
     return undefined;
   }
 

@@ -52,6 +52,36 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     title: 'Strategy validation error',
     defaultDetail: 'The strategy definition is invalid.',
   },
+  [ErrorCode.BACKTEST_INVALID_DEFINITION]: {
+    httpStatus: 400,
+    typeSuffix: 'backtest-invalid-definition',
+    title: 'Invalid backtest definition',
+    defaultDetail: 'The backtest definition is invalid.',
+  },
+  [ErrorCode.BACKTEST_INSUFFICIENT_BARS]: {
+    httpStatus: 400,
+    typeSuffix: 'backtest-insufficient-bars',
+    title: 'Insufficient backtest bars',
+    defaultDetail: 'The backtest does not have enough bars to run.',
+  },
+  [ErrorCode.BACKTEST_BAR_LIMIT_EXCEEDED]: {
+    httpStatus: 400,
+    typeSuffix: 'backtest-bar-limit-exceeded',
+    title: 'Backtest bar limit exceeded',
+    defaultDetail: 'The backtest contains too many bars.',
+  },
+  [ErrorCode.BACKTEST_RESOURCE_LIMIT_EXCEEDED]: {
+    httpStatus: 400,
+    typeSuffix: 'backtest-resource-limit-exceeded',
+    title: 'Backtest resource limit exceeded',
+    defaultDetail: 'The backtest exceeds its resource limits.',
+  },
+  [ErrorCode.BACKTEST_TIMEOUT]: {
+    httpStatus: 504,
+    typeSuffix: 'backtest-timeout',
+    title: 'Backtest timed out',
+    defaultDetail: 'The backtest exceeded its execution deadline.',
+  },
   [ErrorCode.CONFLICT]: {
     httpStatus: 409,
     typeSuffix: 'conflict',

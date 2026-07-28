@@ -2,7 +2,7 @@
 
 **Status:** Implemented and locally verified (seed + MySQL, July 26, 2026); included in draft PR #9
 
-**Roadmap marker:** Implementation complete locally; Sprint 2.2 is also complete and `START HERE` is Sprint 2.3
+**Roadmap marker:** Implementation complete locally; Sprints 2.2–3.1 are also complete and `START HERE` is Sprint 3.2
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning`
 

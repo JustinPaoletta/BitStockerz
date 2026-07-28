@@ -9,6 +9,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 3.1 pure backtest engine core with deterministic SMA/EMA/RSI
+  computation, AND-rule evaluation, long-only trade simulation, stop-first
+  intrabar SL/TP handling, equity curves, summary metrics, and nullable Sharpe.
+- A thin injectable `BacktestEngineService`, fail-fast backtest configuration,
+  cooperative monotonic deadlines, caller cancellation, bar/series-cell
+  limits, stable `BACKTEST_*` domain codes, and a logical data-only sandbox.
+- Hand-computed indicator/rule/risk tests, an 80-bar frozen SMA-cross fixture,
+  and a one-year daily performance fixture for the sub-two-second NFR.
 - Sprint 2.3 complete owner-scoped Strategy Lab CRUD: offset-paged active list,
   partial metadata updates, immutable definition versions/history, soft delete,
   and bounded update/delete audit events in seed and MySQL modes.
@@ -35,6 +43,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- PR #9 documentation and the canonical manual checklist now cover Sprints
+  2.1–3.1; Sprint 3.2 Backtest Persistence is the next implementation target.
 - Strategy create/get responses now include deterministic summaries; definition
   validation failures use the strategy-specific validation code.
 - Strategy creation now rejects non-canonical definitions before persistence with deterministic definition-rooted RFC 7807 field paths and stable validator codes.

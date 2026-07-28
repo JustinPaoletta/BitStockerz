@@ -28,6 +28,7 @@ Dependencies:
 - Completed in Sprint 0.1 (February 19, 2026): #8.6.2 – Health and readiness endpoints for core services
 - Completed in Sprint 1.3 (July 11, 2026): #8.1.1 – Job model & lifecycle, #8.1.2 – Synchronous executor, #8.1.3 – Job timeout handling, #8.6.1 – Scheduled jobs
 - Completed in Sprint 1.4 (July 24, 2026): #8.4.2 – Performance metrics foundation, #8.4.3 – Audit trail
+- Completed in Sprint 3.1 (July 28, 2026): #8.2.1 – Logical execution sandbox boundaries, #8.2.2 – Runtime and memory limits per backtest
 
 ---
 
@@ -54,7 +55,24 @@ Acceptance criteria:
 ## Epic 8.2 – Engine Hosting & Resource Limits
 
 ### Story 8.2.1 – Execution sandbox boundaries
+Acceptance criteria:
+- Strategy definitions remain data-only JSON; the engine never evaluates user
+  code or accesses Prisma, HTTP, filesystem, or environment variables.
+- The pure core is wrapped by an injectable Nest service configured through
+  `AppConfigService`.
+- This is explicitly a logical in-process sandbox, not OS-level isolation.
+- BullMQ, worker threads, dynamic `Function`, and `eval` are outside Sprint 3.1.
+
 ### Story 8.2.2 – Runtime & memory limits per backtest
+Acceptance criteria:
+- Defaults are 10,000 bars, 250,000
+  `bars × max(1, indicator_count)` series cells, and a 5,000 ms timeout.
+- Oversized inputs fail before indicator allocation with distinct bar/resource
+  codes; caller-provided limits may tighten but never raise configured caps.
+- External cancellation and a monotonic deadline are checked cooperatively at
+  least every 64 loop iterations, so synchronous CPU work does not rely only on
+  an event-loop timer.
+- A frozen one-year daily fixture completes under the two-second compute NFR.
 
 ---
 

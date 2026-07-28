@@ -18,6 +18,11 @@ describe('loadAppConfig', () => {
       staleCryptoHourlyMs: 7_200_000,
     });
     expect(config.metrics.enabled).toBe(true);
+    expect(config.backtest).toEqual({
+      timeoutMs: 5_000,
+      maxBars: 10_000,
+      maxSeriesCells: 250_000,
+    });
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
       challengeTtlSeconds: 300,
@@ -72,6 +77,9 @@ describe('loadAppConfig', () => {
       MARKET_DATA_STALE_CRYPTO_DAILY_MS: '108000000',
       MARKET_DATA_STALE_CRYPTO_HOURLY_MS: '3600000',
       METRICS_ENABLED: 'false',
+      BACKTEST_TIMEOUT_MS: '7500',
+      BACKTEST_MAX_BARS: '20000',
+      BACKTEST_MAX_SERIES_CELLS: '500000',
     });
 
     expect(config.server).toEqual({
@@ -84,6 +92,11 @@ describe('loadAppConfig', () => {
       staleCryptoHourlyMs: 3_600_000,
     });
     expect(config.metrics.enabled).toBe(false);
+    expect(config.backtest).toEqual({
+      timeoutMs: 7_500,
+      maxBars: 20_000,
+      maxSeriesCells: 500_000,
+    });
     expect(config.logging).toEqual({
       level: 'warn',
       nodeEnv: 'production',
@@ -201,6 +214,16 @@ describe('loadAppConfig', () => {
     }).toThrow(/Invalid configuration/);
   });
 
+  it('rejects invalid backtest limit configuration', () => {
+    expect(() => {
+      loadAppConfig({
+        BACKTEST_TIMEOUT_MS: '99',
+        BACKTEST_MAX_BARS: '0',
+        BACKTEST_MAX_SERIES_CELLS: 'unbounded',
+      });
+    }).toThrow(/Invalid configuration/);
+  });
+
   it('accepts comma-separated webauthn origins', () => {
     const config = loadAppConfig({
       WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com,http://localhost:4200',
@@ -279,6 +302,11 @@ describe('AppConfigService', () => {
       staleCryptoHourlyMs: 7_200_000,
     });
     expect(service.metrics).toEqual({ enabled: true });
+    expect(service.backtest).toEqual({
+      timeoutMs: 5_000,
+      maxBars: 10_000,
+      maxSeriesCells: 250_000,
+    });
     expect(service.jobs).toEqual({
       timeoutMs: 30000,
       schedulerEnabled: false,

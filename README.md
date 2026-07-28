@@ -8,8 +8,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surface: `apps/api`
-- Delivery state: Milestones 0–1 and Sprints 2.1–2.3 implemented and locally verified in draft PR #9
-- Next ready sprint: 3.1 Backtest Engine Core
+- Delivery state: Milestones 0–1 and Sprints 2.1–3.1 implemented and locally verified in draft PR #9
+- Next ready sprint: 3.2 Backtest Persistence
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -29,7 +29,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Database design, migration planning, lifecycle policy, and API inventory work.
 - A NestJS API under `apps/api`, including auth, WebAuthn, market-data
   symbols/candles, jobs/ingestion, observability, and complete owner-scoped
-  Strategy Lab CRUD/version history/validation/summaries.
+  Strategy Lab CRUD/version history/validation/summaries, plus the pure
+  Backtest Engine Core.
 
 ## Tech Stack
 
@@ -87,6 +88,7 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData` (can point at `/api/market-data/health`). |
 | `MARKET_DATA_STALE_EQUITY_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | Domain health staleness thresholds (defaults 48h / 36h / 2h). |
 | `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
+| `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine deadline and allocation guards (defaults `5000` / `10000` / `250000`). |
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
 | `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging (see Observability.md). |
 

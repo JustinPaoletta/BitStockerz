@@ -11,8 +11,8 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 2.3**
-(Sprints 2.1–2.3 are locally verified in draft PR #9):
+The runnable API in `apps/api` currently implements through **Sprint 3.1**
+(Sprints 2.1–3.1 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -24,6 +24,7 @@ The runnable API in `apps/api` currently implements through **Sprint 2.3**
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
 | Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
+| Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use; no HTTP or persistence yet |
 | Trading | Planned | Described below; not implemented yet |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
@@ -481,7 +482,13 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 5. Backtesting APIs (#5) (Planned)
+## 5. Backtesting APIs (#5) (HTTP planned; engine core implemented)
+
+Sprint 3.1 implements the internal `BacktestModule`,
+`BacktestEngineService`, and pure `runBacktest` contract. It accepts a validated
+strategy definition plus chronological OHLCV bars and returns closed trades,
+one equity point per bar, summary metrics, and bounded diagnostics. It has no
+HTTP controller or persistence yet; those remain Sprints 3.2–3.3.
 
 ### 5.1 Backtest Runs
 
@@ -688,13 +695,12 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, `ObservabilityModule`, and `StrategiesModule`, plus controllers for health and error-test.
+**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`, and the controller-free `BacktestModule`, plus controllers for health and error-test.
 
 **Planned as domains grow:**
 
 - `UserModule` / `AccountModule` (or keep under Auth)
 - `TradingModule`
-- `BacktestModule`
 - `AiModule` (Kernel)
 - `DashboardModule` (thin)
 - `HealthModule` / `CoreModule` (if extracted from AppModule)

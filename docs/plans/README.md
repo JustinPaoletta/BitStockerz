@@ -7,8 +7,8 @@ Index of implementation contracts after Milestone 1. “Ready” means a develop
 | 2.1 | [sprint-2-1-strategy-persistence-versioning.md](./sprint-2-1-strategy-persistence-versioning.md) | Milestone 1 | Implemented locally (verified; unmerged) | Strategy schema + versioning persistence for Strategy Lab. |
 | 2.2 | [sprint-2-2-indicators-rule-schema.md](./sprint-2-2-indicators-rule-schema.md) | 2.1 | Implemented locally (verified; unmerged in PR #9) | Indicator catalog and entry/exit/SL/TP rule schema. |
 | 2.3 | [sprint-2-3-strategy-crud-validation.md](./sprint-2-3-strategy-crud-validation.md) | 2.2 | Implemented locally (verified; unmerged in PR #9) | Strategy CRUD APIs, validation, and human-readable summaries. |
-| 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Ready | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
-| 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Ready | Backtest run/result/trades/equity storage and strategy version pinning. |
+| 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Implemented locally (verified; unmerged in PR #9) | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
+| 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | **START HERE — Ready** | Backtest run/result/trades/equity storage and strategy version pinning. |
 | 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | Ready | Run/list/detail APIs, bar limits, diagnostics. |
 | 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Ready | Angular equity-curve chart and trades table for backtest results. |
 | 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | Ready | Default paper account, positions table, cash balance updates. |

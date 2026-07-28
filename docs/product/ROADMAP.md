@@ -14,9 +14,9 @@ Assumptions:
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
 | Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
-| Sprints 2.1–2.3 | Implementation complete locally; draft PR #9 | One stacked PR covers persistence, the rule schema/500% TP ceiling, full CRUD/history, dry-run validation, deterministic summaries, audits, and seed/MySQL restart verification. |
-| Sprint 3.1 | **START HERE — ready for development** | Build the pure backtest engine on the completed Strategy Lab contract after PR #9 review. |
-| Sprints 3.2–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 2.1–3.1 | Implementation complete locally; draft PR #9 | One stacked PR covers Strategy Lab persistence/schema/CRUD plus the deterministic, resource-bounded backtest engine core and its golden fixtures. |
+| Sprint 3.2 | **START HERE — ready for development** | Persist runs, results, trades, and equity points while pinning the immutable strategy version. |
+| Sprints 3.3–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
@@ -168,7 +168,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ## Milestone 3 – Backtesting Engine (Critical Path)
 
-### Sprint 3.1 – Backtest Engine Core (START HERE — July 28, 2026)
+### Sprint 3.1 – Backtest Engine Core
 
 **Implementation plan:** [docs/plans/sprint-3-1-backtest-engine-core.md](../plans/sprint-3-1-backtest-engine-core.md)
 
@@ -180,11 +180,15 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #5.2.5 – Stop loss / take profit handling
 - #8.2.1 – Execution sandbox boundaries
 - #8.2.2 – Runtime & memory limits per backtest
-- Status: Ready for development; not started
+- Status: Implementation complete locally (verified July 28, 2026); stacked with Sprints 2.1–2.3 in draft PR #9
+
+**Exit**
+- Deterministic in-memory engine returns closed trades, one equity point per
+  bar, summary metrics, and bounded diagnostics without DB or HTTP.
 
 ---
 
-### Sprint 3.2 – Backtest Persistence
+### Sprint 3.2 – Backtest Persistence (START HERE — July 28, 2026)
 
 **Implementation plan:** [docs/plans/sprint-3-2-backtest-persistence.md](../plans/sprint-3-2-backtest-persistence.md)
 
@@ -193,6 +197,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #5.1.2 – Backtest result storage
 - #5.1.3 – Trades & equity curve storage
 - #5.6.1 – Strategy version pinning
+- Status: Ready for development; not started
 
 ---
 

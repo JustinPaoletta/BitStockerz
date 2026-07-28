@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–2.3 verification.
+# End-to-end Sprint 1.2–3.1 verification. Sprint 3.1 is exercised by the
+# unit/coverage gates because it intentionally has no HTTP or persistence path.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)

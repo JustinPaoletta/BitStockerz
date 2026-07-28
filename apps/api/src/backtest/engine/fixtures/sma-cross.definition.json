@@ -1,0 +1,40 @@
+{
+  "indicators": [
+    {
+      "id": "fast",
+      "type": "SMA",
+      "params": { "period": 3 },
+      "source": "close"
+    },
+    {
+      "id": "slow",
+      "type": "SMA",
+      "params": { "period": 5 },
+      "source": "close"
+    }
+  ],
+  "entry": {
+    "logic": "AND",
+    "conditions": [
+      {
+        "left": { "indicator": "fast" },
+        "op": "crosses_above",
+        "right": { "indicator": "slow" }
+      }
+    ]
+  },
+  "exit": {
+    "logic": "AND",
+    "conditions": [
+      {
+        "left": { "indicator": "fast" },
+        "op": "crosses_below",
+        "right": { "indicator": "slow" }
+      }
+    ]
+  },
+  "risk": {
+    "stop_loss": { "type": "percent", "value": 5 },
+    "take_profit": { "type": "percent", "value": 500 }
+  }
+}

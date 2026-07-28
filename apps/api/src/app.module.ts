@@ -23,6 +23,7 @@ import { MarketDataModule } from './market-data/market-data.module';
 import { MetricsInterceptor } from './observability/metrics.interceptor';
 import { ObservabilityModule } from './observability/observability.module';
 import { StrategiesModule } from './strategies/strategies.module';
+import { BacktestModule } from './backtest/backtest.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { StrategiesModule } from './strategies/strategies.module';
     JobsModule,
     ObservabilityModule,
     StrategiesModule,
+    BacktestModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],

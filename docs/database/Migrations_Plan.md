@@ -146,7 +146,9 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
-- No new tables yet. This sprint is engine logic only, operating in memory.
+- Implemented July 28, 2026 with no migration.
+- No new tables required. The pure engine and thin Nest adapter operate only
+  on caller-supplied definitions and bars.
 
 ---
 

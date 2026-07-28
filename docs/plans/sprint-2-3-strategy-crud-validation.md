@@ -1,7 +1,7 @@
 # Sprint 2.3 — Strategy CRUD & Validation
 
 **Status:** Implemented locally and verified (July 28, 2026); unmerged in draft PR #9
-**Roadmap marker:** Completed locally; `START HERE` moved to Sprint 3.1
+**Roadmap marker:** Completed locally; Sprint 3.1 is also complete and `START HERE` is Sprint 3.2
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked PR #9)
 **PR base:** `main`
 

@@ -1,9 +1,9 @@
 # Sprint 3.2 — Backtest Persistence
 
 **Status:** Plan ready (not started)  
-**Roadmap marker:** Milestone 3 / Sprint 3.2  
+**Roadmap marker:** `START HERE — July 28, 2026`
 **Branch:** `feat/sprint-3-2-backtest-persistence`  
-**PR base:** `feat/sprint-3-1-backtest-engine-core`
+**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` once it merges)
 
 **Overview:** Persist backtest runs, summary results, trades, and equity points per [DDL/04_backtesting.sql](../database/DDL/04_backtesting.sql), including a soft-pin to `strategy_versions.id` for reproducibility. Wire a repository/service layer that works with Prisma when `DATABASE_URL` is set and an in-memory store when it is not — mirroring jobs/auth patterns. No public HTTP API yet (Sprint 3.3); expose internal `BacktestsService` methods that 3.3 controllers and the job handler will call.
 

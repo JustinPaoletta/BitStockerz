@@ -42,6 +42,15 @@ describe('buildPinoLoggerOptions', () => {
     expect(options.pinoHttp?.transport).toBeUndefined();
   });
 
+  it('disables worker-backed pretty transport in tests', () => {
+    const options = buildPinoLoggerOptions({
+      ...baseConfig,
+      nodeEnv: 'test',
+    });
+
+    expect(options.pinoHttp?.transport).toBeUndefined();
+  });
+
   it('uses file transport when configured', () => {
     const options = buildPinoLoggerOptions({
       ...baseConfig,

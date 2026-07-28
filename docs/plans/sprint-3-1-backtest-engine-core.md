@@ -1,9 +1,9 @@
 # Sprint 3.1 — Backtest Engine Core
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** `START HERE — July 28, 2026`
-**Branch:** `feat/sprint-3-1-backtest-engine-core`  
-**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` once it merges)
+**Status:** Implemented locally and verified (unmerged in PR #9)
+**Roadmap marker:** Completed locally — July 28, 2026
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked at the owner's request)
+**PR base:** `main` via combined draft PR #9
 
 **Overview:** Ship a pure, in-process backtest engine that evaluates a Milestone 2 strategy definition against a bar series: indicators → rule evaluation → long-only trade simulation with SL/TP, plus hard wall-clock and bar-count guardrails. No HTTP routes and no persistence tables in this sprint — callers are unit tests and a thin Nest injectable used by Sprint 3.2/3.3. Target NFR: 1 year of daily bars for one symbol completes in under 2 seconds.
 
@@ -72,7 +72,7 @@ These criteria are binding for this sprint. Sync them into [MVP_05](../product/s
   - `signal?: AbortSignal` for cooperative cancel/timeout
   - `limits?: { maxBars?: number; timeoutMs?: number; maxSeriesCells?: number }`
 - `BacktestEngineOutput` includes:
-  - `trades[]` — closed trades only (entry/exit time & price, side=`long`, qty, pnl_abs, pnl_pct)
+  - `trades[]` — closed trades only (`entryTime`, `exitTime`, prices, `side="long"`, `quantity`, `pnlAbs`, `pnlPct`; Sprint 3.2 maps these to snake-case DDL columns)
   - `equityCurve[]` — `{ ts, equity }` exactly one mark-to-market point per processed bar
   - `metrics` — `finalEquity`, `totalReturnPct`, `maxDrawdownPct`, `winRatePct`, `numTrades`, `avgWinPct`, `avgLossPct`, `sharpeRatio: number | null`
   - `diagnostics` — `{ barsProcessed, durationMs, indicatorsComputed, signalsFired }`
@@ -85,6 +85,8 @@ These criteria are binding for this sprint. Sync them into [MVP_05](../product/s
 
 - Support indicator types from Strategy Lab: `SMA`, `EMA`, `RSI` with `params.period` and `source` ∈ `open|high|low|close` (default `close`). Do not add `volume` unless the 2.2 catalog/schema is changed in the same PR.
 - Pure module: `computeIndicators(definition.indicators, bars) → Record<indicatorId, Array<number | null>>` aligned 1:1 with bar index; warmup bars are `null`.
+- Wilder RSI first becomes available at index `period` because it needs
+  `period` price changes (`period + 1` bars); an all-flat seed resolves to 50.
 - Invalid period (`<= 0`, non-integer) or unknown type → throw `DomainError(ErrorCode.BACKTEST_INVALID_DEFINITION)` (see JC-4). Strategy write/validate endpoints continue using `STRATEGY_VALIDATION_ERROR`.
 - Unit tests: SMA period 3 on known series; EMA seed behavior documented; RSI bounds `[0,100]` after warmup.
 
@@ -282,6 +284,7 @@ flowchart TB
    - percentages are percentage points (`12.5`, not `0.125`);
    - max drawdown is a non-negative magnitude;
    - no trades → win rate / avg win / avg loss = `0`;
+   - average loss remains a negative percentage;
    - Sharpe is non-annualized mean per-bar return divided by sample standard deviation (`rf=0`), `null` for fewer than two returns or zero variance (JC-7).
 
 ### 6. Sandbox limits (#8.2.1, #8.2.2)
@@ -318,16 +321,16 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 
 ## Best-practice checklist
 
-- [ ] Pure functions for indicators / rules / sim / metrics (unit-testable without Nest)
-- [ ] No user-code execution; definition JSON only ([Node security guidance](https://nodejs.org/en/learn/getting-started/security-best-practices))
-- [ ] Cooperative `AbortSignal` timeout ([AbortSignal.timeout](https://nodejs.org/docs/latest/api/globals.html#abortsignaltimeoutmilliseconds))
-- [ ] Config fail-fast via `AppConfigService`
-- [ ] RFC 7807 codes registered even before HTTP surface
-- [ ] Golden fixtures for regression (no DB)
-- [ ] NFR path: microbench or timed unit test for ~252 daily bars &lt; 2s
-- [ ] Conventional Commits (`feat: add backtest engine core`)
-- [ ] Coverage ≥ 90% on new engine files
-- [ ] No BullMQ / no Prisma models / no Angular
+- [x] Pure functions for indicators / rules / sim / metrics (unit-testable without Nest)
+- [x] No user-code execution; definition JSON only ([Node security guidance](https://nodejs.org/en/learn/getting-started/security-best-practices))
+- [x] Cooperative `AbortSignal` timeout ([AbortSignal.timeout](https://nodejs.org/docs/latest/api/globals.html#abortsignaltimeoutmilliseconds))
+- [x] Config fail-fast via `AppConfigService`
+- [x] RFC 7807 codes registered even before HTTP surface
+- [x] Golden fixtures for regression (no DB)
+- [x] NFR path: timed 365-daily-bar fixture &lt; 2s
+- [x] Conventional Commit prepared (`feat: add backtest engine core`)
+- [x] Coverage ≥ 90% on new engine files
+- [x] No BullMQ / no Prisma models / no Angular
 
 ---
 
@@ -421,14 +424,14 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 
 ## Definition of done
 
-- [ ] Branched from Sprint 2.3 (or `main` post-merge)
-- [ ] Adopted defaults and resource/timeout semantics implemented as written
-- [ ] #5.2.1–#5.2.5 and #8.2.1–#8.2.2 implemented per AC
-- [ ] No Prisma migrations in this sprint
-- [ ] Golden fixture tests green; timeout/bar-limit tests green
-- [ ] build / lint / test / test:cov (≥90%) pass
-- [ ] Docs synced; ROADMAP/stories updated
-- [ ] PR opened against correct base
+- [x] Stacked on the completed Sprint 2.3 branch in PR #9
+- [x] Adopted defaults and resource/timeout semantics implemented as written
+- [x] #5.2.1–#5.2.5 and #8.2.1–#8.2.2 implemented per AC
+- [x] No Prisma migrations in this sprint
+- [x] Golden fixture tests green; timeout/bar-limit tests green
+- [x] build / lint / test / test:cov (≥90%) pass
+- [x] Docs synced; ROADMAP/stories updated
+- [x] Existing PR #9 targets the correct `main` base
 
 ---
 

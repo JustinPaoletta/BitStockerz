@@ -1,9 +1,11 @@
 # PR #9 Pre-Merge Manual Checklist
 
-This is the single required manual-test document for
+This is the single required pre-merge test document for
 [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9). It covers the
-human-visible behavior added by Sprints 2.1–2.3. Automated unit, coverage, e2e,
-seed-smoke, and MySQL-smoke gates are intentionally not duplicated here.
+human-visible behavior added by Sprints 2.1–2.3 and the automated-only engine
+surface added by Sprint 3.1. General unit, coverage, e2e, seed-smoke, and
+MySQL-smoke gates are not duplicated except for the focused 3.1 command needed
+to sign off a sprint that intentionally has no HTTP or UI surface.
 
 Run every command from the repository root. Prerequisites are Node.js
 `24.11.1`, npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep
@@ -476,6 +478,32 @@ Keep Terminal B and its variables open.
    ```
 
 - [ ] Latest version 3 and immutable version 1 both survive an API restart.
+
+## 12. Verify the Sprint 3.1 engine-only surface
+
+Sprint 3.1 intentionally adds **no HTTP route, database table, or UI**. There is
+therefore no additional curl or visual workflow to perform manually. Run the
+focused deterministic suite from the repository root:
+
+```bash
+npm --prefix apps/api test -- --runInBand backtest
+```
+
+Expected:
+
+- 8 test suites and 54 tests pass.
+- The frozen 80-bar SMA-cross fixture matches its exact trades and metrics.
+- The 365-bar daily fixture completes under two seconds.
+- Coverage includes signal-close fills, 100% long sizing, stop-first SL/TP,
+  the 500% take-profit threshold, no same-bar re-entry, forced final close,
+  malformed/unsorted bars, invalid definitions, cancellation, deadlines, and
+  bar/series-cell limits.
+
+Do not look for `/api/backtests` yet: persistence arrives in Sprint 3.2 and the
+HTTP execution surface in Sprint 3.3.
+
+- [ ] Focused Sprint 3.1 suite passes 8 suites / 54 tests with no snapshots.
+- [ ] Reviewer confirms no backtest HTTP route or migration was expected in 3.1.
 
 ## Sign-off
 

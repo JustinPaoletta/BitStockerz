@@ -21,7 +21,7 @@ Choose the smallest relevant test set:
 | Symbols or candle reads | Sections 3–7 |
 | Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
 | Observability or audit | Section 10 |
-| Strategy CRUD, persistence, versioning, validation, summaries, or rule schema | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
+| Strategy CRUD, persistence, versioning, validation, summaries, rule schema, or Sprint 3.1 engine core | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
