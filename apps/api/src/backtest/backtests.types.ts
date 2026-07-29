@@ -58,6 +58,7 @@ export interface BacktestResultRecord {
 }
 
 export interface BacktestTradeRecord {
+  id?: number;
   symbolId: number;
   entryTime: Date;
   exitTime: Date;
@@ -67,6 +68,23 @@ export interface BacktestTradeRecord {
   quantity: string;
   pnlAbs: string;
   pnlPct: string;
+}
+
+export interface BacktestTradesPage {
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface BacktestRunDetailPage extends BacktestRunDetail {
+  tradesPage: BacktestTradesPage;
+}
+
+export interface BacktestRunListPage {
+  items: BacktestRunSummary[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 export interface BacktestEquityPointRecord {

@@ -127,6 +127,43 @@ describe('BacktestsRepository', () => {
     await expect(
       repository.listForUser(USER_ID, { limit: 1, offset: 1 }),
     ).resolves.toMatchObject([{ run: { id: RUN_ID } }]);
+
+    await expect(
+      repository.listPageForUser(USER_ID, { limit: 1, offset: 0 }),
+    ).resolves.toMatchObject({
+      limit: 1,
+      offset: 0,
+      hasMore: true,
+      items: [{ run: { id: '00000000-0000-4000-8000-000000000021' } }],
+    });
+    await expect(
+      repository.findDetailPageForUser(RUN_ID, OTHER_USER_ID, 1, 0),
+    ).resolves.toBeNull();
+  });
+
+  it('paginates in-memory trades with stable ids and has-more metadata', async () => {
+    const repository = memoryRepository();
+    await repository.createRun(runRecord());
+    await repository.markRunning(RUN_ID, USER_ID, CREATED_AT);
+    const completion = completionRecord();
+    completion.trades.push({
+      ...completion.trades[0],
+      entryTime: new Date('2026-07-28T20:01:30.000Z'),
+      exitTime: new Date('2026-07-28T20:01:45.000Z'),
+    });
+    await repository.completeRun(RUN_ID, USER_ID, completion);
+    await expect(
+      repository.findDetailPageForUser(RUN_ID, USER_ID, 1, 0),
+    ).resolves.toMatchObject({
+      trades: [{ id: 1 }],
+      tradesPage: { limit: 1, offset: 0, hasMore: true },
+    });
+    await expect(
+      repository.findDetailPageForUser(RUN_ID, USER_ID, 1, 1),
+    ).resolves.toMatchObject({
+      trades: [{ id: 2 }],
+      tradesPage: { limit: 1, offset: 1, hasMore: false },
+    });
   });
 
   it('creates, finds, and lists owner-scoped records with Prisma', async () => {

@@ -32,6 +32,15 @@ export interface SymbolSearchInput {
   limit?: number;
 }
 
+export interface BacktestBarsInput {
+  symbolId: number;
+  assetType: AssetType;
+  timeframe: CryptoInterval;
+  start: Date;
+  end: Date;
+  limit: number;
+}
+
 export interface EquityCandlesInput {
   symbol: string;
   start: string;

@@ -22,6 +22,8 @@ describe('loadAppConfig', () => {
       timeoutMs: 5_000,
       maxBars: 10_000,
       maxSeriesCells: 250_000,
+      rateLimitWindowMs: 60_000,
+      rateLimitMaxRequests: 10,
     });
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
@@ -80,6 +82,8 @@ describe('loadAppConfig', () => {
       BACKTEST_TIMEOUT_MS: '7500',
       BACKTEST_MAX_BARS: '20000',
       BACKTEST_MAX_SERIES_CELLS: '500000',
+      BACKTEST_RATE_LIMIT_WINDOW_MS: '45000',
+      BACKTEST_RATE_LIMIT_MAX_REQUESTS: '8',
     });
 
     expect(config.server).toEqual({
@@ -96,6 +100,8 @@ describe('loadAppConfig', () => {
       timeoutMs: 7_500,
       maxBars: 20_000,
       maxSeriesCells: 500_000,
+      rateLimitWindowMs: 45_000,
+      rateLimitMaxRequests: 8,
     });
     expect(config.logging).toEqual({
       level: 'warn',
@@ -220,6 +226,8 @@ describe('loadAppConfig', () => {
         BACKTEST_TIMEOUT_MS: '99',
         BACKTEST_MAX_BARS: '0',
         BACKTEST_MAX_SERIES_CELLS: 'unbounded',
+        BACKTEST_RATE_LIMIT_WINDOW_MS: '999',
+        BACKTEST_RATE_LIMIT_MAX_REQUESTS: '0',
       });
     }).toThrow(/Invalid configuration/);
   });
@@ -306,6 +314,8 @@ describe('AppConfigService', () => {
       timeoutMs: 5_000,
       maxBars: 10_000,
       maxSeriesCells: 250_000,
+      rateLimitWindowMs: 60_000,
+      rateLimitMaxRequests: 10,
     });
     expect(service.jobs).toEqual({
       timeoutMs: 30000,

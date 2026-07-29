@@ -173,6 +173,7 @@ and are exercised by the MySQL persistence smoke gate.
 
 **Migrations**
 
+- Implemented July 28, 2026 with no migration.
 - No new tables.  
 - Sprint 3.2 already provides required list index
   `idx_backtests_user_created`; add further indexes only if profiling justifies
@@ -184,7 +185,8 @@ and are exercised by the MySQL persistence smoke gate.
 
 **Migrations**
 
-- No schema changes.
+- Implemented July 28, 2026 with no migration.
+- No schema changes; `apps/web` consumes the Sprint 3.3 HTTP contracts.
 
 ---
 

@@ -12,7 +12,10 @@
 
 ## 3. Rate Limiting
 - WebAuthn options/verify and OAuth start endpoints are rate-limited (`AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS`; defaults 60s / 30 requests). Dev shortcuts `POST /auth/register` and `POST /auth/login` are not rate-limited today.
-- Backtest execution rate-limited per user (planned with backtesting)
+- `POST /api/backtests` is rate-limited per authenticated user
+  (`BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS`;
+  defaults 60s / 10 requests). Backtest list/detail reads are not rate-limited
+  by this guard.
 
 ## 4. Secrets Management
 - API keys stored in environment variables

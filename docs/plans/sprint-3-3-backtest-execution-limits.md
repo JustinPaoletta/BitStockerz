@@ -1,9 +1,9 @@
 # Sprint 3.3 — Backtest Execution & Limits
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** `START HERE — July 28, 2026`
-**Branch:** `feat/sprint-3-3-backtest-execution-limits`  
-**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` once it merges)
+**Status:** Implemented and locally verified July 28, 2026; unmerged in draft PR #9
+**Roadmap marker:** Complete locally; Sprint 4.1 is `START HERE`
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (combined PR #9)
+**PR base:** `main`
 
 **Overview:** Expose authenticated HTTP APIs to run, list, and inspect backtests per [API_Inventory §5](../database/API_Inventory.md), executing synchronously through the existing jobs infrastructure (`backtest_run` job type + `JobExecutorService`). Enforce bar-count limits, wall-clock timeout, per-user rate limits, and structured diagnostics/logging. No new tables; verify the required predecessor index. After this sprint the API alone can demo Strategy → Backtest → Results (JSON).
 
@@ -316,16 +316,16 @@ npm --prefix apps/api run test:e2e
 
 ## Best-practice checklist
 
-- [ ] RFC 7807 via DomainError for all failure modes
-- [ ] Auth on every backtest route
-- [ ] Per-user POST rate limit ([Security.md](../product/requirements/Security.md))
-- [ ] Sync job execution consistent with Sprint 1.3
-- [ ] Config-only limits (no magic numbers in handler)
-- [ ] Structured logs with `requestId` ([nestjs-pino](https://github.com/iamolegga/nestjs-pino))
-- [ ] Metrics cardinality-safe (`backtest` domain, not per-symbol labels)
-- [ ] E2E seed-mode path without MySQL
-- [ ] Conventional Commits (`feat: add backtest run list and detail apis`)
-- [ ] Coverage ≥ 90%; no casual ignore patterns
+- [x] RFC 7807 via DomainError for all failure modes
+- [x] Auth on every backtest route
+- [x] Per-user POST rate limit ([Security.md](../product/requirements/Security.md))
+- [x] Sync job execution consistent with Sprint 1.3
+- [x] Config-only limits (no magic numbers in handler)
+- [x] Structured logs with `requestId` ([nestjs-pino](https://github.com/iamolegga/nestjs-pino))
+- [x] Metrics cardinality-safe (`backtest` domain, not per-symbol labels)
+- [x] E2E seed-mode path without MySQL
+- [x] Conventional Commit included in combined PR #9
+- [x] Coverage ≥ 90%; no casual ignore patterns
 
 ---
 
@@ -411,13 +411,13 @@ npm --prefix apps/api run test:e2e
 
 ## Definition of done
 
-- [ ] Branched from Sprint 3.2
-- [ ] #5.3.1–#5.3.3 and #5.5.1–#5.5.2 done per AC
-- [ ] No new tables; the required Sprint 3.2 `idx_backtests_user_created` index is verified
-- [ ] E2E covers POST success, list, detail, 401, bar-limit 400, rate-limit 429
-- [ ] build / lint / test / test:cov (≥90%) / test:e2e pass
-- [ ] Security.md + API_Inventory + manual testing updated
-- [ ] PR opened against Sprint 3.2 base
+- [x] Stacked on the branch containing Sprint 3.2
+- [x] #5.3.1–#5.3.3 and #5.5.1–#5.5.2 done per AC
+- [x] No new tables; the required Sprint 3.2 `idx_backtests_user_created` index is verified
+- [x] E2E covers POST success, list, detail, 401, ownership, bar-limit 400, and rate-limit 429
+- [x] build / lint / test / test:cov (≥90%) / test:e2e pass
+- [x] Security.md + API_Inventory + manual testing updated
+- [x] Added to combined draft PR #9 against `main`
 
 ---
 

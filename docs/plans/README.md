@@ -9,9 +9,9 @@ Index of implementation contracts after Milestone 1. “Ready” means a develop
 | 2.3 | [sprint-2-3-strategy-crud-validation.md](./sprint-2-3-strategy-crud-validation.md) | 2.2 | Implemented locally (verified; unmerged in PR #9) | Strategy CRUD APIs, validation, and human-readable summaries. |
 | 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Implemented locally (verified; unmerged in PR #9) | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
 | 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Implemented locally (verified; unmerged in PR #9) | Backtest run/result/trades/equity storage and strategy version pinning. |
-| 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | **START HERE — Ready** | Run/list/detail APIs, bar limits, diagnostics. |
-| 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Ready | Angular equity-curve chart and trades table for backtest results. |
-| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | Ready | Default paper account, positions table, cash balance updates. |
+| 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | Implemented locally (verified; unmerged in PR #9) | Run/list/detail APIs, bar limits, diagnostics. |
+| 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Implemented locally (verified; unmerged in PR #9) | Angular equity-curve chart and trades table for backtest results. |
+| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | **START HERE — Ready** | Default paper account, positions table, cash balance updates. |
 | 4.2 | [sprint-4-2-orders-executions.md](./sprint-4-2-orders-executions.md) | 4.1 | Ready | Order schema, market orders, executions, risk limits, idempotency. |
 | 4.3 | [sprint-4-3-trading-views.md](./sprint-4-3-trading-views.md) | 4.2 | Ready | Positions/portfolio/orders/history APIs and trading domain errors. |
 | 5.1 | [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md) | 4.3 + 3.4 web scaffold | Ready | Angular shell/nav/dashboard route + symbol search. |

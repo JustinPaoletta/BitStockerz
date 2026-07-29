@@ -18,7 +18,10 @@ Dependencies:
 - Completed in Sprint 3.1 (July 28, 2026): #5.2.1–#5.2.5.
 - Completed locally in Sprint 3.2 (July 28, 2026): #5.1.1–#5.1.3
   and #5.6.1; included in draft PR #9.
-- HTTP execution APIs and result UI remain planned for Sprints 3.3–3.4.
+- Completed locally in Sprint 3.3 (July 28, 2026): #5.3.1–#5.3.3 and
+  #5.5.1–#5.5.2; included in draft PR #9.
+- Completed locally in Sprint 3.4 (July 28, 2026): #5.4.1–#5.4.2 and the thin
+  Angular scaffold needed to demo them; included in draft PR #9.
 
 ---
 
@@ -129,22 +132,64 @@ Acceptance criteria:
 ## Epic 5.3 – Backtest Execution APIs
 
 ### Story 5.3.1 – Run backtest
+Acceptance criteria:
+- Authenticated `POST /api/backtests` validates the owned active strategy,
+  immutable version pin, symbol/timeframe, strict inclusive date range, and
+  cent-exact positive initial equity.
+- It creates a linked `backtest_run` job, executes synchronously through the
+  jobs executor, loads real seed/Prisma bars, persists terminal output, and
+  returns `200 { run, results }` without the full curve/trades payload.
+- Known validation, bar/resource, timeout, and state failures retain stable
+  `BACKTEST_*` RFC 7807 codes and leave no orphaned dependent result rows.
+
 ### Story 5.3.2 – List backtest runs
+Acceptance criteria:
+- Authenticated owner-only list supports strategy, normalized symbol, status,
+  limit, and offset filters with `created_at DESC, id ASC` ordering.
+- Items contain summary metrics and strategy/symbol display data but omit the
+  full trades and equity curve.
+
 ### Story 5.3.3 – Backtest detail view
+Acceptance criteria:
+- Authenticated owner-only detail returns run metadata, nullable results,
+  stable-id paged trades, `trades_page`, and the complete ordered equity curve.
+- Invalid ids fail validation; missing and cross-owner ids both return
+  `BACKTEST_NOT_FOUND`.
 
 ---
 
 ## Epic 5.4 – Backtest Results UI
 
 ### Story 5.4.1 – Equity curve chart
+Acceptance criteria:
+- Angular renders the complete API equity curve with real time/equity axes,
+  loading, failure, empty, and responsive states.
+- Decimal strings are converted to finite chart numbers only at the client
+  mapper boundary and the chart instance is disposed on teardown.
+
 ### Story 5.4.2 – Trades table
+Acceptance criteria:
+- A semantic table renders entry/exit, price, quantity, absolute/percentage
+  P&L, and positive/negative styling from API rows.
+- “Load more” follows `trades_page.has_more`, advances by loaded row count, and
+  de-duplicates by stable trade id.
 
 ---
 
 ## Epic 5.5 – Performance & Limits
 
 ### Story 5.5.1 – Bar count limits
+Acceptance criteria:
+- A conservative date-span precheck rejects obviously oversized requests and
+  the job handler independently enforces the actual loaded-row limit.
+- Indicator series allocation remains subject to the engine series-cell cap.
+
 ### Story 5.5.2 – Logging & diagnostics
+Acceptance criteria:
+- Bounded response/job diagnostics include counts and duration without full
+  strategies, bars, trades, or curves.
+- Metrics classify completed, failed, and timed-out backtests; structured logs
+  and audit metadata contain identifiers and bounded summaries only.
 
 ---
 

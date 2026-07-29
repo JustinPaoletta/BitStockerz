@@ -7,9 +7,9 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Type: private product monorepo
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
-- Current runnable surface: `apps/api`
-- Delivery state: Milestones 0–1 and Sprints 2.1–3.2 implemented and locally verified in draft PR #9
-- Next ready sprint: 3.3 Backtest Execution & Limits
+- Current runnable surfaces: `apps/api` and `apps/web`
+- Delivery state: Milestones 0–1 and Sprints 2.1–3.4 implemented and locally verified in draft PR #9
+- Next ready sprint: 4.1 Accounts & Positions
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -30,17 +30,23 @@ A private BitStockerz monorepo that combines product and database documentation 
 - A NestJS API under `apps/api`, including auth, WebAuthn, market-data
   symbols/candles, jobs/ingestion, observability, and complete owner-scoped
   Strategy Lab CRUD/version history/validation/summaries, plus the pure
-  Backtest Engine Core and owner-scoped run/result/trade/equity persistence.
+  Backtest Engine Core, owner-scoped run/result/trade/equity persistence, and
+  authenticated run/list/detail execution APIs with limits and diagnostics.
+- An Angular app under `apps/web` with the Sprint 3.4 thin authenticated shell,
+  dev login/register flow, backtest list/run/detail screens, Lightweight Charts
+  equity curve, paged trades table, responsive layout, and API proxy.
 
 ## Tech Stack
 
 - Root tooling: npm, Husky, and commitlint
 - API app: NestJS 11, TypeScript, Jest, Pino, and WebAuthn foundations
+- Web app: Angular 21.2, TypeScript, Vitest, ESLint, and Lightweight Charts 5.2
 - Database planning: Prisma schema plus SQL documentation and migration notes
 
 ## Repository Layout
 
 - `apps/api` NestJS API implementation
+- `apps/web` Angular SPA implementation
 - `docs/product` product roadmap, MVP, UX flows, and stories
 - `docs/database` schema, migration, lifecycle, and API design docs
 - `docs/manual-testing` curl-based API smoke test guide
@@ -55,10 +61,13 @@ A private BitStockerz monorepo that combines product and database documentation 
 ## Local Setup
 
 1. Install root dependencies with `npm install`.
-2. Install API dependencies with `npm --prefix apps/api install`.
+2. Install API and web dependencies with `npm --prefix apps/api install` and
+   `npm --prefix apps/web install`.
 3. **(Recommended)** Start local MySQL and apply migrations — see [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
 4. Start the API with `npm --prefix apps/api run start:dev` (defaults to `http://localhost:4000/api`).
-5. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
+5. In another terminal, start the Angular app with `npm run web:start`, then
+   open `http://localhost:4200`.
+6. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
 
 ## Common Commands
 
@@ -70,6 +79,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `npm --prefix apps/api run test:cov` runs unit tests with **90%** global coverage gates.
 - `npm --prefix apps/api run test:e2e` runs the API end-to-end suite (seed mode; see `apps/api/test/setup-e2e.ts`).
 - `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
+- `npm run web:start` starts Angular on port 4200 with `/api` proxied to the API.
+- `npm run web:build`, `npm run web:lint`, and `npm run web:test` run the web gates.
 - `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests against an already-running API; it honors an exported `DATABASE_URL` but does not load `.env` itself.
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
 - `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, verifies a transactional backtest run/result/trade/equity round trip and post-restart ownership remap, ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
@@ -89,6 +100,7 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `MARKET_DATA_STALE_EQUITY_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | Domain health staleness thresholds (defaults 48h / 36h / 2h). |
 | `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine deadline and allocation guards (defaults `5000` / `10000` / `250000`). |
+| `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS` | Per-user `POST /api/backtests` rate limit (defaults `60000` / `10`). |
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
 | `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging (see Observability.md). |
 
@@ -103,7 +115,8 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 
 ## Testing & Quality Gates
 
-- API-focused releases should run `build`, `lint`, `test`, `test:cov`, and `test:e2e` from `apps/api`, or `./scripts/sprint-delivery-verify.sh verify` from the repo root.
+- Run `./scripts/sprint-delivery-verify.sh verify` for API and web build, lint,
+  unit, coverage/e2e, audit, and seed HTTP smoke gates.
 - Unit tests enforce **90%** global coverage (`branches`, `functions`, `lines`, `statements`).
 - E2E tests always run in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so they do not depend on a local MySQL instance.
 - `./scripts/sprint-delivery-verify.sh verify` starts the API for smoke tests in seed mode (clears `DATABASE_URL` for that process). Use `KEEP_DATABASE_URL=1` to run smoke against MySQL using `DATABASE_URL` from `apps/api/.env`.
@@ -123,7 +136,7 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 3.2)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 3.4; Sprints 3.3–3.4 add no tables)
 - [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
 - [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)

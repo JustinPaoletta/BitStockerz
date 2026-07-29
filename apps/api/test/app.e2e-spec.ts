@@ -1768,3 +1768,272 @@ describe('Market data health and metrics (e2e)', () => {
       });
   });
 });
+
+describe('Backtest execution APIs (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function register(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  function definition() {
+    return {
+      indicators: [
+        {
+          id: 'fast',
+          type: 'SMA',
+          params: { period: 2 },
+          source: 'close',
+        },
+      ],
+      entry: {
+        logic: 'AND',
+        conditions: [
+          {
+            left: { price: 'close' },
+            op: 'gt',
+            right: { literal: 0 },
+          },
+        ],
+      },
+      exit: {
+        logic: 'AND',
+        conditions: [
+          {
+            left: { price: 'close' },
+            op: 'lt',
+            right: { literal: 0 },
+          },
+        ],
+      },
+      risk: {
+        stop_loss: { type: 'percent', value: 2 },
+        take_profit: { type: 'percent', value: 500 },
+      },
+    };
+  }
+
+  it('runs synchronously and serves owner-scoped summaries and paginated details', async () => {
+    const owner = await register('backtest-owner@example.com');
+    const other = await register('backtest-other@example.com');
+    const authorization = `Bearer ${owner}`;
+    const strategy = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Backtest E2E',
+        asset_type: 'EQUITY',
+        timeframe: '1d',
+        definition: definition(),
+      })
+      .expect(201);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: strategy.body.id,
+        symbol: 'aapl',
+        timeframe: '1d',
+        start_date: SEED_EQUITY_SAMPLE.start,
+        end_date: SEED_EQUITY_SAMPLE.end,
+      });
+    if (created.status !== 200) {
+      throw new Error(JSON.stringify(created.body));
+    }
+
+    expect(created.body).toMatchObject({
+      run: {
+        strategy_id: strategy.body.id,
+        symbol: 'AAPL',
+        timeframe: '1d',
+        initial_equity: '10000.00',
+        status: 'completed',
+        job_id: expect.any(String),
+        diagnostics: {
+          bars_processed: 5,
+          duration_ms: expect.any(Number),
+          indicators_computed: 1,
+          signals_fired: expect.any(Number),
+        },
+      },
+      results: {
+        final_equity: expect.any(String),
+        num_trades: expect.any(Number),
+      },
+    });
+    const runId = created.body.run.id as string;
+
+    await request(app.getHttpServer())
+      .get('/api/backtests?symbol=AAPL&status=completed&limit=1&offset=0')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          limit: 1,
+          offset: 0,
+          has_more: false,
+          items: [
+            {
+              id: runId,
+              strategy_name: 'Backtest E2E',
+              symbol: 'AAPL',
+              status: 'completed',
+              total_return_pct: expect.any(String),
+            },
+          ],
+        });
+        expect(response.body.items[0].trades).toBeUndefined();
+        expect(response.body.items[0].equity_curve).toBeUndefined();
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/backtests/${runId}?trades_limit=1&trades_offset=0`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.run.id).toBe(runId);
+        expect(response.body.trades.length).toBeLessThanOrEqual(1);
+        expect(response.body.trades_page).toEqual({
+          limit: 1,
+          offset: 0,
+          has_more: false,
+        });
+        expect(response.body.equity_curve).toHaveLength(5);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/backtests/${runId}`)
+      .set('Authorization', `Bearer ${other}`)
+      .expect(404)
+      .expect((response) => {
+        expect(response.body.code).toBe('BACKTEST_NOT_FOUND');
+      });
+  });
+
+  it('rejects bad requests before a run is created and protects every route', async () => {
+    const token = await register('backtest-errors@example.com');
+    const authorization = `Bearer ${token}`;
+    await request(app.getHttpServer()).get('/api/backtests').expect(401);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .send({})
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: crypto.randomUUID(),
+        symbol: 'AAPL',
+        timeframe: '1d',
+        start_date: SEED_EQUITY_SAMPLE.end,
+        end_date: SEED_EQUITY_SAMPLE.start,
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get('/api/backtests')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.items).toEqual([]);
+      });
+  });
+});
+
+describe('Backtest execution limits (e2e)', () => {
+  const originalMaxBars = process.env.BACKTEST_MAX_BARS;
+  const originalRateMax = process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS;
+  let app: INestApplication<App>;
+
+  afterEach(async () => {
+    if (app) {
+      await app.close();
+    }
+    if (originalMaxBars === undefined) delete process.env.BACKTEST_MAX_BARS;
+    else process.env.BACKTEST_MAX_BARS = originalMaxBars;
+    if (originalRateMax === undefined)
+      delete process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS;
+    else process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS = originalRateMax;
+  });
+
+  async function boot(): Promise<string> {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: `${crypto.randomUUID()}@example.com` })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  it('maps an impossible date span to BACKTEST_BAR_LIMIT_EXCEEDED', async () => {
+    process.env.BACKTEST_MAX_BARS = '1';
+    const token = await boot();
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        strategy_id: crypto.randomUUID(),
+        symbol: 'AAPL',
+        timeframe: '1d',
+        start_date: '2026-01-01',
+        end_date: '2026-01-03',
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.code).toBe('BACKTEST_BAR_LIMIT_EXCEEDED');
+      });
+  });
+
+  it('rate-limits POST only and leaves list reads available', async () => {
+    process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS = '1';
+    const token = await boot();
+    const authorization = `Bearer ${token}`;
+    const body = {
+      strategy_id: crypto.randomUUID(),
+      symbol: 'AAPL',
+      timeframe: '1d',
+      start_date: SEED_EQUITY_SAMPLE.start,
+      end_date: SEED_EQUITY_SAMPLE.end,
+    };
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(429)
+      .expect((response) => {
+        expect(response.body.code).toBe('RATE_LIMITED');
+      });
+    await request(app.getHttpServer())
+      .get('/api/backtests')
+      .set('Authorization', authorization)
+      .expect(200);
+  });
+});

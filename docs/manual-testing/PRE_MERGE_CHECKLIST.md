@@ -2,11 +2,12 @@
 
 This is the single required pre-merge test document for
 [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9). It covers the
-human-visible behavior added by Sprints 2.1–2.3 and the automated-only engine
-surface added by Sprint 3.1, plus the internal persistence surface added by
-Sprint 3.2. General unit, coverage, e2e, seed-smoke, and MySQL-smoke gates are
-not duplicated except for the focused 3.1/3.2 commands needed to sign off
-sprints that intentionally have no HTTP or UI surface.
+human-visible behavior added by Sprints 2.1–2.3 and 3.3–3.4, plus the
+automated-only Sprint 3.1 engine and Sprint 3.2 internal persistence surface.
+It is the only manual test document required for this PR. General unit,
+coverage, e2e, seed-smoke, and MySQL-smoke gates are not duplicated except for
+the focused 3.1/3.2 commands needed to sign off sprints that intentionally had
+no HTTP or UI surface.
 
 Run every command from the repository root. Prerequisites are Node.js
 `24.11.1`, npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep
@@ -500,8 +501,8 @@ Expected:
   malformed/unsorted bars, invalid definitions, cancellation, deadlines, and
   bar/series-cell limits.
 
-Do not look for `/api/backtests` yet: Sprint 3.2 provides only the internal
-persistence service; the HTTP execution surface arrives in Sprint 3.3.
+At the Sprint 3.1 boundary there was no `/api/backtests` route. Sections 14–15
+below test the HTTP and UI surfaces subsequently added by Sprints 3.3–3.4.
 
 - [ ] Focused Sprint 3.1 suite passes 8 suites / 54 tests with no snapshots.
 - [ ] Reviewer confirms no backtest HTTP route or migration was expected in 3.1.
@@ -566,6 +567,308 @@ blocker.
 - [ ] MySQL persistence smoke prints its PASS line and exits with status `0`.
 - [ ] Reviewer confirms no `/api/backtests` route or UI was expected in 3.2.
 
+## 14. Verify Sprint 3.3 backtest execution APIs
+
+Keep the MySQL API running after Section 13. In Terminal B, ingest the rolling
+AAPL fixture window, create a fresh deterministic backtest strategy, and derive
+the exact test dates from the stored bars:
+
+```bash
+INGEST_CODE=$(curl -s -o /tmp/bitstockerz-backtest-ingest.json \
+  -w '%{http_code}' -X POST "$BASE_URL/market-data/ingestion/equity" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL"}')
+test "$INGEST_CODE" = 201
+jq -e '.status == "completed" and .payload.imported_equity_bars >= 40' \
+  /tmp/bitstockerz-backtest-ingest.json
+
+BACKTEST_DEFINITION=$(jq -cn '{
+  indicators:[
+    {id:"fast",type:"SMA",params:{period:2},source:"close"}
+  ],
+  entry:{
+    logic:"AND",
+    conditions:[
+      {left:{price:"close"},op:"gt",right:{literal:0}}
+    ]
+  },
+  exit:{
+    logic:"AND",
+    conditions:[
+      {left:{price:"close"},op:"lt",right:{literal:0}}
+    ]
+  },
+  risk:{
+    stop_loss:{type:"percent",value:2},
+    take_profit:{type:"percent",value:500}
+  }
+}')
+
+BACKTEST_STRATEGY_BODY=$(jq -cn --argjson definition "$BACKTEST_DEFINITION" '{
+  name:("PR 9 Backtest " + (now | floor | tostring)),
+  asset_type:"EQUITY",
+  timeframe:"1d",
+  definition:$definition
+}')
+BACKTEST_STRATEGY_CODE=$(curl -s \
+  -o /tmp/bitstockerz-backtest-strategy.json \
+  -w '%{http_code}' -X POST "$BASE_URL/strategies" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$BACKTEST_STRATEGY_BODY")
+test "$BACKTEST_STRATEGY_CODE" = 201
+BACKTEST_STRATEGY_ID=$(jq -r '.id' \
+  /tmp/bitstockerz-backtest-strategy.json)
+
+curl -s \
+  "$BASE_URL/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&order=desc&limit=40" \
+  -o /tmp/bitstockerz-backtest-bars.json
+jq -e 'length >= 40 and .[0].date > .[-1].date' \
+  /tmp/bitstockerz-backtest-bars.json
+BACKTEST_START=$(jq -r '.[-1].date' /tmp/bitstockerz-backtest-bars.json)
+BACKTEST_END=$(jq -r '.[0].date' /tmp/bitstockerz-backtest-bars.json)
+```
+
+Run synchronously and inspect the compact response:
+
+```bash
+BACKTEST_BODY=$(jq -cn \
+  --arg strategy "$BACKTEST_STRATEGY_ID" \
+  --arg start "$BACKTEST_START" \
+  --arg end "$BACKTEST_END" '{
+    strategy_id:$strategy,
+    symbol:"AAPL",
+    timeframe:"1d",
+    start_date:$start,
+    end_date:$end,
+    initial_equity:10000
+  }')
+BACKTEST_CODE=$(curl -s -o /tmp/bitstockerz-backtest-run.json \
+  -w '%{http_code}' -X POST "$BASE_URL/backtests" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$BACKTEST_BODY")
+test "$BACKTEST_CODE" = 200
+BACKTEST_RUN_ID=$(jq -r '.run.id' /tmp/bitstockerz-backtest-run.json)
+
+jq -e --arg strategy "$BACKTEST_STRATEGY_ID" '
+  .run.strategy_id == $strategy and
+  .run.strategy_version_id > 0 and
+  .run.symbol == "AAPL" and
+  .run.timeframe == "1d" and
+  .run.initial_equity == "10000.00" and
+  .run.status == "completed" and
+  (.run.job_id | type) == "string" and
+  (.run.diagnostics.bars_processed >= 40) and
+  (.run.diagnostics.duration_ms | type) == "number" and
+  (.results.final_equity | type) == "string" and
+  (.results.total_return_pct | type) == "string" and
+  (.results.num_trades | type) == "number" and
+  (has("trades") | not) and
+  (has("equity_curve") | not)
+' /tmp/bitstockerz-backtest-run.json
+```
+
+Expected: HTTP `200`, a completed linked job, bounded diagnostics, decimal
+strings, and no full trade/curve arrays in the POST response.
+
+Verify list filters and the paged detail contract:
+
+```bash
+LIST_CODE=$(curl -s -o /tmp/bitstockerz-backtest-list.json \
+  -w '%{http_code}' \
+  "$BASE_URL/backtests?symbol=aapl&status=completed&limit=1&offset=0" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+test "$LIST_CODE" = 200
+jq -e --arg run "$BACKTEST_RUN_ID" '
+  .limit == 1 and .offset == 0 and
+  .items[0].id == $run and
+  .items[0].strategy_name != null and
+  .items[0].symbol == "AAPL" and
+  (.items[0].total_return_pct | type) == "string" and
+  (.items[0] | has("trades") | not) and
+  (.items[0] | has("equity_curve") | not)
+' /tmp/bitstockerz-backtest-list.json
+
+DETAIL_CODE=$(curl -s -o /tmp/bitstockerz-backtest-detail.json \
+  -w '%{http_code}' \
+  "$BASE_URL/backtests/$BACKTEST_RUN_ID?trades_limit=1&trades_offset=0" \
+  -H "Authorization: Bearer $OWNER_TOKEN")
+test "$DETAIL_CODE" = 200
+jq -e --arg run "$BACKTEST_RUN_ID" '
+  .run.id == $run and
+  (.equity_curve | length) >= 40 and
+  .trades_page.limit == 1 and
+  .trades_page.offset == 0 and
+  (.trades | length) <= 1 and
+  all(.trades[];
+    (.id | type) == "number" and
+    (.entry_price | type) == "string" and
+    (.pnl_abs | type) == "string")
+' /tmp/bitstockerz-backtest-detail.json
+```
+
+Verify authentication, ownership, and conservative bar-limit failures:
+
+```bash
+UNAUTH_BACKTEST_CODE=$(curl -s \
+  -o /tmp/bitstockerz-backtest-unauth.json \
+  -w '%{http_code}' "$BASE_URL/backtests")
+test "$UNAUTH_BACKTEST_CODE" = 401
+jq -e '.code == "UNAUTHORIZED"' \
+  /tmp/bitstockerz-backtest-unauth.json
+
+BACKTEST_OTHER_TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"backtest-other-$(date +%s)@example.com\"}" \
+  | jq -r '.access_token')
+CROSS_OWNER_BACKTEST_CODE=$(curl -s \
+  -o /tmp/bitstockerz-backtest-cross-owner.json \
+  -w '%{http_code}' "$BASE_URL/backtests/$BACKTEST_RUN_ID" \
+  -H "Authorization: Bearer $BACKTEST_OTHER_TOKEN")
+test "$CROSS_OWNER_BACKTEST_CODE" = 404
+jq -e '.code == "BACKTEST_NOT_FOUND"' \
+  /tmp/bitstockerz-backtest-cross-owner.json
+
+OVERSIZE_BODY=$(jq -cn --arg strategy "$BACKTEST_STRATEGY_ID" '{
+  strategy_id:$strategy,
+  symbol:"AAPL",
+  timeframe:"1d",
+  start_date:"1900-01-01",
+  end_date:"2099-12-31"
+}')
+OVERSIZE_CODE=$(curl -s -o /tmp/bitstockerz-backtest-oversize.json \
+  -w '%{http_code}' -X POST "$BASE_URL/backtests" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$OVERSIZE_BODY")
+test "$OVERSIZE_CODE" = 400
+jq -e '.code == "BACKTEST_BAR_LIMIT_EXCEEDED"' \
+  /tmp/bitstockerz-backtest-oversize.json
+
+# Make the next UI-launched run exercise the explicit no-trades state while
+# preserving the completed version-1 run above as the real table case.
+NO_TRADE_DEFINITION=$(jq -cn '{
+  indicators:[
+    {id:"fast",type:"SMA",params:{period:2},source:"close"}
+  ],
+  entry:{
+    logic:"AND",
+    conditions:[
+      {left:{price:"close"},op:"lt",right:{literal:0}}
+    ]
+  },
+  exit:{
+    logic:"AND",
+    conditions:[
+      {left:{price:"close"},op:"gt",right:{literal:0}}
+    ]
+  },
+  risk:{
+    stop_loss:{type:"percent",value:2},
+    take_profit:{type:"percent",value:500}
+  }
+}')
+NO_TRADE_VERSION_CODE=$(curl -s \
+  -o /tmp/bitstockerz-backtest-no-trade-version.json \
+  -w '%{http_code}' -X PUT \
+  "$BASE_URL/strategies/$BACKTEST_STRATEGY_ID" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$NO_TRADE_DEFINITION" \
+    '{definition:$definition}')")
+test "$NO_TRADE_VERSION_CODE" = 200
+jq -e '.version_number == 2' \
+  /tmp/bitstockerz-backtest-no-trade-version.json
+```
+
+Finally, with the default `10` requests / `60` seconds rate configuration,
+verify that only the POST execution surface is throttled. Use a fresh account
+so earlier requests do not affect the count:
+
+```bash
+RATE_TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"backtest-rate-$(date +%s)@example.com\"}" \
+  | jq -r '.access_token')
+for REQUEST_NUMBER in $(seq 1 11); do
+  RATE_CODE=$(curl -s -o /tmp/bitstockerz-backtest-rate.json \
+    -w '%{http_code}' -X POST "$BASE_URL/backtests" \
+    -H "Authorization: Bearer $RATE_TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d '{}')
+  if test "$REQUEST_NUMBER" -le 10; then
+    test "$RATE_CODE" = 400
+  else
+    test "$RATE_CODE" = 429
+  fi
+done
+jq -e '.code == "RATE_LIMITED"' /tmp/bitstockerz-backtest-rate.json
+
+curl -s "$BASE_URL/backtests" \
+  -H "Authorization: Bearer $RATE_TOKEN" \
+  | jq -e '.items == []'
+```
+
+- [ ] POST completes through a linked job and returns bounded summary data.
+- [ ] Owner list and detail expose the canonical shape, full curve, and stable trade ids.
+- [ ] Unauthenticated, cross-owner, bar-limit, and rate-limit responses use the expected stable codes.
+- [ ] A rate-limited user can still read their backtest list.
+
+## 15. Verify the Sprint 3.4 Angular backtest UI
+
+Keep the API running. In **Terminal C**, install and start the web app:
+
+```bash
+npm --prefix apps/web ci
+npm run web:start
+```
+
+Open `http://localhost:4200` in a browser and complete this sequence:
+
+1. Confirm the protected root redirects to `/login`. Register a fresh
+   throwaway email, confirm the empty `/backtests` state and **Create the first
+   run** CTA, then log out.
+2. Enter the value of `$OWNER_EMAIL` from Terminal B and choose **Log in**.
+   The owner was re-registered after the API restart in Section 11.
+3. Confirm `/backtests` shows the AAPL run from Section 14 with strategy name,
+   completed status, return, drawdown, and trade count.
+4. Open that run. Confirm the UTC date range matches
+   `$BACKTEST_START`–`$BACKTEST_END`, the six metric cards have finite values,
+   the equity curve has real time/equity axes, and the trades section renders
+   a semantic table or its explicit no-trades state.
+5. Open **Run backtest** and first use the valid-but-missing strategy id
+   `00000000-0000-4000-8000-000000000000`; confirm a readable API error remains
+   on the form. Replace it with `$BACKTEST_STRATEGY_ID`, use AAPL / 1 day /
+   `$BACKTEST_START` / `$BACKTEST_END` / 10000, and submit. The button must show
+   `Running…`, disable duplicate submission, and navigate to the new detail
+   page on success. If execution is too fast to observe the loading label,
+   temporarily select Slow 3G in browser network throttling and repeat.
+6. The new version-2 run must show metrics and the explicit **No trades were
+   generated for this run** state. Return to `/backtests`; both the original
+   one-trade version-1 run and new zero-trade run must be present. If a result has more
+   than 500 trades, **Load more trades** must append without duplicate rows and
+   disappear once `trades_page.has_more` becomes false. This control is
+   intentionally absent for the supplied one-trade smoke strategy.
+7. Resize the browser to 390 × 844. Confirm header/nav wrap cleanly, the run
+   form becomes one column, metric cards remain readable, the chart stays
+   within the viewport, and the trades table scrolls horizontally instead of
+   widening the page.
+8. In browser developer tools, confirm there are no console errors or failed
+   API requests during list, run, detail, and resize.
+9. Choose **Log out**. Confirm the token is removed and a direct visit to a
+   backtest detail URL redirects to `/login` with no protected data rendered.
+
+The checked-in contract fixture used by the mapper unit test is
+`docs/manual-testing/fixtures/backtest-detail.example.json`; it is reference
+data, not a substitute for this live MySQL/browser workflow.
+
+- [ ] Login → list → run → detail is fully demoable against the live API.
+- [ ] Metrics, chart, trade/no-trade state, and UTC dates match the API result.
+- [ ] Desktop and 390px mobile layouts have no clipping or page-width overflow.
+- [ ] Browser console/network remain clean and logout protects deep links.
+
 ## Sign-off
 
 Merge only when every box above is checked. Record a failure on PR #9 with the
@@ -574,5 +877,5 @@ section number, HTTP response, and relevant API log excerpt.
 Cleanup:
 
 ```bash
-rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart}.json
+rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart,backtest-ingest,backtest-strategy,backtest-bars,backtest-run,backtest-list,backtest-detail,backtest-unauth,backtest-cross-owner,backtest-oversize,backtest-no-trade-version,backtest-rate}.json
 ```

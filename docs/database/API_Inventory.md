@@ -11,8 +11,9 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 3.2**
-(Sprints 2.1–3.2 are locally verified in draft PR #9):
+The runnable API in `apps/api` currently implements through **Sprint 3.3**,
+and `apps/web` implements the Sprint 3.4 consumer
+(Sprints 2.1–3.4 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -25,7 +26,9 @@ The runnable API in `apps/api` currently implements through **Sprint 3.2**
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
 | Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
 | Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use |
-| Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads; HTTP remains planned for 3.3 |
+| Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads |
+| Backtest execution APIs | Implemented (3.3) | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit |
+| Backtest UI | Implemented (3.4) | Angular list/run/detail flow, metrics, complete equity chart, and stable-id paged trades table |
 | Trading | Planned | Described below; not implemented yet |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, backtest runs, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
@@ -91,13 +94,13 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
   details are available and contains `{ field, reason }` entries.
 
 Domain-specific additions are owned by their implementation sprints and are
-canonical for later clients. Sprint 2.3 codes are implemented; later rows are
-planned:
+canonical for later clients. Sprint 2.3 and Backtesting codes are implemented;
+later rows are planned:
 
 | Owner | Codes |
 | --- | --- |
 | Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
-| Sprints 3.1–3.3 | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
+| Sprints 3.1–3.3 (implemented) | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
 | Sprints 4.1–4.3 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
 | Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
@@ -490,7 +493,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 5. Backtesting APIs (#5) (HTTP planned; engine and persistence implemented)
+## 5. Backtesting APIs (#5) (implemented through Sprint 3.3)
 
 Sprint 3.1 implements the internal `BacktestModule`,
 `BacktestEngineService`, and pure `runBacktest` contract. It accepts a validated
@@ -509,9 +512,13 @@ recomputed from those fixed-scale detail rows after the raw engine summary is
 validated exactly, before rounding. Latest pins enforce current strategy
 timeframe; explicit internal
 historical pins persist their supplied valid timeframe because strategy
-versions snapshot definitions, not mutable metadata. There is still no
-`/api/backtests` controller; the HTTP/job execution surface below remains
-planned for Sprint 3.3.
+versions snapshot definitions, not mutable metadata.
+
+Sprint 3.3 adds the authenticated `BacktestsController`, DTO validation,
+POST-only per-user rate guard, `backtest_run` handler, market-data batch reads,
+job cancellation/deadlines, actual and conservative limits, terminal cleanup,
+stable failures, diagnostics, metrics, structured logs, and bounded audit
+metadata. Sprint 3.4 consumes these routes from `apps/web`.
 
 ### 5.1 Backtest Runs
 
@@ -531,6 +538,13 @@ planned for Sprint 3.3.
   - Synchronously executes job (MVP).
   - Enforces bar-count, series-cell, and cooperative deadline limits.
 - Response `200`: `{ run, results }`; full trades/equity remain on detail.
+- Date-only values normalize to inclusive UTC day boundaries. Timestamp values
+  must carry `Z` or an explicit offset and `end_date` must be after
+  `start_date`.
+- `initial_equity` defaults to `10000` and must be positive with at most two
+  decimal places.
+- Rate limit: per authenticated user, POST only; defaults to 10 requests per
+  60 seconds via `BACKTEST_RATE_LIMIT_*`.
 
 **GET `/backtests`**
 
@@ -542,6 +556,8 @@ planned for Sprint 3.3.
   - `offset?` (default 0, max 10,000)
 - Response: `{ items, limit, offset, has_more }` for the current user, ordered
   `created_at DESC, id ASC`.
+- Each item includes `strategy_name`, symbol text, status/lifecycle fields, and
+  available summary metrics, but not trades or equity points.
 
 **GET `/backtests/:id`**
 
@@ -553,6 +569,7 @@ planned for Sprint 3.3.
   - `trades[]`
   - `trades_page: { limit, offset, has_more }`
   - `equity_curve[]` – `{ timestamp, equity }`
+- Missing and cross-owner ids both return `404 BACKTEST_NOT_FOUND`.
 
 ---
 
@@ -718,7 +735,10 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`, and the controller-free `BacktestModule`, plus controllers for health and error-test.
+**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`,
+`MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`,
+and `BacktestModule`, including its authenticated run/list/detail controller,
+plus controllers for health and error-test.
 
 **Planned as domains grow:**
 

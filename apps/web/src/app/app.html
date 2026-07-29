@@ -1,0 +1,22 @@
+<header class="site-header">
+  <a class="brand" routerLink="/backtests" aria-label="BitStockerz home">
+    <span class="brand-mark">BS</span>
+    <span>BitStockerz</span>
+  </a>
+  @if (tokens.hasToken()) {
+    <nav aria-label="Primary navigation">
+      <a
+        routerLink="/backtests"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        Backtests
+      </a>
+      <a routerLink="/strategies" routerLinkActive="active">Strategies</a>
+      <button class="button ghost small" type="button" (click)="logout()">Log out</button>
+    </nav>
+  }
+</header>
+<main>
+  <router-outlet />
+</main>

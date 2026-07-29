@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–3.2 verification. Sprint 3.1 is exercised by the
-# unit/coverage gates; Sprint 3.2 additionally runs an isolated MySQL
-# persistence round trip because neither sprint has a public HTTP surface.
+# End-to-end Sprint 1.2–3.4 verification. Sprint 3.1 is exercised by the
+# unit/coverage gates, Sprint 3.2 has an isolated MySQL persistence round trip,
+# Sprint 3.3 is covered by e2e + HTTP smoke, and Sprint 3.4 adds web gates.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)
@@ -111,6 +111,10 @@ verify_all() {
   run_gate "test" npm --prefix apps/api run test
   run_gate "test:cov" npm --prefix apps/api run test:cov
   run_gate "test:e2e" env NODE_ENV=test DATABASE_URL= npm --prefix apps/api run test:e2e
+  run_gate "web:build" npm run web:build
+  run_gate "web:lint" npm run web:lint
+  run_gate "web:test" npm run web:test
+  run_gate "web:audit" npm --prefix apps/web audit
 
   log "=== Phase: smoke tests ==="
   if [[ -n "${KEEP_DATABASE_URL:-}" ]]; then

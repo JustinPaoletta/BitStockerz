@@ -1,6 +1,8 @@
 # BitStockerz API – Manual Testing Guide
 
-Use this guide to smoke-test the runnable API in `apps/api` after local changes. All paths below are prefixed with `/api` and assume the server listens on port **4000** (override with `PORT`).
+Use this guide to smoke-test the runnable API in `apps/api` after local
+changes. All API paths below are prefixed with `/api` and assume port **4000**
+(override with `PORT`). The Sprint 3.4 Angular app runs on port **4200**.
 
 For PR #9, use the single required
 [pre-merge manual checklist](./PRE_MERGE_CHECKLIST.md). It is self-contained
@@ -21,7 +23,7 @@ Choose the smallest relevant test set:
 | Symbols or candle reads | Sections 3–7 |
 | Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
 | Observability or audit | Section 10 |
-| Strategy CRUD, persistence, versioning, validation, summaries, rule schema, Sprint 3.1 engine core, or Sprint 3.2 backtest persistence | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
+| Strategy CRUD/versioning/validation, Sprint 3.1 engine, Sprint 3.2 persistence, Sprint 3.3 backtest APIs, or Sprint 3.4 Angular UI | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -35,6 +37,7 @@ Run all setup commands from the repository root.
 ```bash
 npm ci
 npm --prefix apps/api ci
+npm --prefix apps/web ci
 ```
 
 ### Start in seed mode — Terminal A
@@ -76,14 +79,21 @@ Stop any API already running in Terminal A before using this path; the verifier 
 From the repository root:
 
 ```bash
-# Seed mode: build + lint + unit + coverage + e2e + HTTP smoke
+# Seed mode: API/web build + lint + unit + coverage/e2e + audit + HTTP smoke
 ./scripts/sprint-delivery-verify.sh verify
 
-# MySQL mode: the same gates + migrations + backtest persistence + ingestion + restart persistence
+# MySQL mode: the same gates + migrations + persistence + ingestion + restart checks
 KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ```
 
-Each command must exit with status `0`, with every gate marked `GATE PASS` and the smoke summary reporting `0 failed`. Default `verify` clears `DATABASE_URL` for its smoke API even when `apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from `apps/api/.env`, deploys migrations, verifies a transactional backtest-persistence round trip, ingests the current rolling fixture window, and verifies strategy ownership after an API restart.
+Each command must exit with status `0`, with every gate marked `GATE PASS` and
+the smoke summary reporting `0 failed`. The verifier includes web build, lint,
+unit, and audit gates plus a real Sprint 3.3 HTTP run/list/detail smoke flow.
+Default `verify` clears `DATABASE_URL` for its smoke API even when
+`apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from
+`apps/api/.env`, deploys migrations, verifies a transactional
+backtest-persistence round trip, ingests the current rolling fixture window,
+and verifies strategy ownership after an API restart.
 
 Standalone smoke tests require an API already running on port `4000`. Match the assertion mode to the API you started:
 

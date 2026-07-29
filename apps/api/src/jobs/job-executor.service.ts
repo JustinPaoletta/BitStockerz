@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { DomainError } from '../common/errors/domain-error';
+import { ERROR_CATALOG } from '../common/errors/error-catalog';
+import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
 import { AuditService } from '../observability/audit.service';
 import type { JobTerminalStatus } from '../observability/metrics.service';
@@ -35,6 +38,10 @@ export class JobExecutorService {
     if (!handler) {
       const failed = await this.jobsService.updateJob(jobId, {
         status: 'failed',
+        payload: {
+          ...job.payload,
+          error_code: ErrorCode.INTERNAL_ERROR,
+        },
         errorMessage: `No handler registered for job_type ${job.jobType}.`,
         finishedAt: new Date(),
       });
@@ -58,12 +65,15 @@ export class JobExecutorService {
       this.observeTerminal(completed, startedAt.getTime());
       return completed;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Job execution failed.';
-      const status = message.includes('timed out') ? 'timed_out' : 'failed';
+      const failure = normalizeJobFailure(error);
+      const status = failure.timedOut ? 'timed_out' : 'failed';
       const failed = await this.jobsService.updateJob(jobId, {
         status,
-        errorMessage: message,
+        payload: {
+          ...job.payload,
+          ...(failure.code ? { error_code: failure.code } : {}),
+        },
+        errorMessage: failure.message,
         finishedAt: new Date(),
       });
       this.observeTerminal(failed, startedAt.getTime());
@@ -102,14 +112,30 @@ export class JobExecutorService {
     handler: JobHandler,
     job: JobRecord,
   ): Promise<JobPayload> {
-    const timeoutMs = this.config.jobs.timeoutMs;
+    const timeoutMs =
+      job.jobType === 'backtest_run'
+        ? this.config.backtest.timeoutMs
+        : this.config.jobs.timeoutMs;
+    const controller = new AbortController();
+    const deadlineAtMs = performance.now() + timeoutMs;
 
     return new Promise<JobPayload>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Job ${job.id} timed out after ${timeoutMs}ms.`));
+        const timeoutError =
+          job.jobType === 'backtest_run'
+            ? new DomainError(ErrorCode.BACKTEST_TIMEOUT)
+            : new JobTimeoutError();
+        controller.abort(timeoutError);
+        reject(timeoutError);
       }, timeoutMs);
 
-      handler(job)
+      Promise.resolve()
+        .then(() =>
+          handler(job, {
+            signal: controller.signal,
+            deadlineAtMs,
+          }),
+        )
         .then((result) => {
           clearTimeout(timer);
           resolve(result);
@@ -119,5 +145,44 @@ export class JobExecutorService {
           reject(error instanceof Error ? error : new Error(String(error)));
         });
     });
+  }
+}
+
+function normalizeJobFailure(error: unknown): {
+  code?: ErrorCode;
+  message: string;
+  timedOut: boolean;
+} {
+  if (error instanceof DomainError) {
+    const response = error.getResponse() as { message?: string };
+    return {
+      code: error.code,
+      message:
+        response.message ??
+        ERROR_CATALOG[error.code].defaultDetail ??
+        'Job execution failed.',
+      timedOut: error.code === ErrorCode.BACKTEST_TIMEOUT,
+    };
+  }
+  if (error instanceof JobTimeoutError) {
+    return {
+      message: 'Job execution timed out.',
+      timedOut: true,
+    };
+  }
+
+  return {
+    code: ErrorCode.INTERNAL_ERROR,
+    message:
+      ERROR_CATALOG[ErrorCode.INTERNAL_ERROR].defaultDetail ??
+      'Job execution failed.',
+    timedOut: false,
+  };
+}
+
+class JobTimeoutError extends Error {
+  constructor() {
+    super('Job execution timed out.');
+    this.name = 'JobTimeoutError';
   }
 }

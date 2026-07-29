@@ -14,9 +14,9 @@ Assumptions:
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
 | Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
-| Sprints 2.1–3.2 | Implementation complete locally; draft PR #9 | One stacked PR covers Strategy Lab, the deterministic resource-bounded engine, and transactional backtest run/result/trade/equity persistence with immutable version pins. |
-| Sprint 3.3 | **START HERE — ready for development** | Expose authenticated run/list/detail APIs and connect persistence to jobs, market data, limits, diagnostics, metrics, and audit. |
-| Sprints 3.4–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 2.1–3.4 | Implementation complete locally; draft PR #9 | One stacked PR covers Strategy Lab, the deterministic resource-bounded engine, transactional persistence, authenticated backtest execution/list/detail APIs, and the thin Angular results app. |
+| Sprint 4.1 | **START HERE — ready for development** | Add the default paper account, positions, cash-balance updates, ownership boundaries, and valuation rules. |
+| Sprints 4.2–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
@@ -218,7 +218,15 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #5.3.3 – Backtest details API
 - #5.5.1 – Bar count limits
 - #5.5.2 – Logging & diagnostics
-- Status: **START HERE — ready for development**
+- Status: Implementation complete locally (verified July 28, 2026); stacked
+  with Sprints 2.1–3.2 in draft PR #9
+
+**Exit**
+- Authenticated users can synchronously run a backtest through the jobs
+  executor, list owned runs, and read paged trades plus the complete equity
+  curve.
+- Bar/series/time limits, POST-only per-user rate limits, stable RFC 7807
+  failures, bounded diagnostics, metrics, logs, and audit metadata are enforced.
 
 ---
 
@@ -229,6 +237,12 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 **Stories**
 - #5.4.1 – Equity curve chart
 - #5.4.2 – Trades table
+- Status: Implementation complete locally (verified with build, lint, unit,
+  API regression, desktop browser, and 390px mobile browser checks July 28,
+  2026); stacked with Sprints 2.1–3.3 in draft PR #9
+- Note: Sprint 3.4 owns the thin Angular 21.2.19 scaffold compatible with the
+  repository's pinned Node 24.11.1. Sprint 5.1 extends it rather than
+  re-scaffolding.
 
 **Exit**
 - Strategy → Backtest → Results fully demoable
@@ -238,6 +252,8 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 ## Milestone 4 – Paper Trading
 
 ### Sprint 4.1 – Accounts & Positions
+
+**Status: START HERE — ready for development**
 
 **Implementation plan:** [docs/plans/sprint-4-1-accounts-positions.md](../plans/sprint-4-1-accounts-positions.md)
 

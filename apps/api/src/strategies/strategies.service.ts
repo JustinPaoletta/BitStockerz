@@ -327,6 +327,90 @@ export class StrategiesService {
     };
   }
 
+  /**
+   * Resolves the immutable version already pinned to a run. Soft-deleting the
+   * strategy must not make an accepted backtest job impossible to finish.
+   */
+  async resolvePinnedVersionForRun(
+    userId: string,
+    strategyId: string,
+    strategyVersionId: number,
+  ): Promise<OwnedStrategyVersion> {
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      const record = await this.prisma.strategy.findFirst({
+        where: { id: strategyId, userId },
+        select: {
+          id: true,
+          assetType: true,
+          timeframe: true,
+          versions: {
+            where: { id: strategyVersionId },
+            take: 1,
+            select: {
+              id: true,
+              versionNumber: true,
+              definitionJson: true,
+            },
+          },
+        },
+      });
+      const version = record?.versions[0];
+      if (!record || !version) {
+        throw strategyVersionIdNotFoundError(strategyId, strategyVersionId);
+      }
+      return {
+        strategyId: record.id,
+        strategyVersionId: version.id,
+        versionNumber: version.versionNumber,
+        assetType: record.assetType as StrategyAssetType,
+        timeframe: record.timeframe as StrategyTimeframe,
+        definition: structuredClone(
+          version.definitionJson as unknown as StrategyDefinition,
+        ),
+      };
+    }
+
+    const record = this.findInMemory(userId, strategyId);
+    const version = record?.versions.find(
+      (candidate) => candidate.id === strategyVersionId,
+    );
+    if (!record || !version) {
+      throw strategyVersionIdNotFoundError(strategyId, strategyVersionId);
+    }
+    return {
+      strategyId: record.id,
+      strategyVersionId: version.id,
+      versionNumber: version.versionNumber,
+      assetType: record.assetType,
+      timeframe: record.timeframe,
+      definition: structuredClone(version.definition),
+    };
+  }
+
+  async getOwnedStrategyNames(
+    userId: string,
+    strategyIds: string[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(strategyIds)];
+    if (ids.length === 0) {
+      return new Map();
+    }
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      const records = await this.prisma.strategy.findMany({
+        where: { userId, id: { in: ids } },
+        select: { id: true, name: true },
+      });
+      return new Map(records.map((record) => [record.id, record.name]));
+    }
+    return new Map(
+      [...this.inMemoryStrategies.values()]
+        .filter((record) => record.userId === userId && ids.includes(record.id))
+        .map((record) => [record.id, record.name]),
+    );
+  }
+
   private async createWithPrisma(
     userId: string,
     id: string,

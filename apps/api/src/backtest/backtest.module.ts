@@ -4,9 +4,14 @@ import { AppConfigModule } from '../config/app-config.module';
 import { JobsModule } from '../jobs/jobs.module';
 import { MarketDataModule } from '../market-data/market-data.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ObservabilityModule } from '../observability/observability.module';
 import { StrategiesModule } from '../strategies/strategies.module';
+import { BacktestJobHandler } from './backtest-job.handler';
+import { BacktestRateLimitGuard } from './backtest-rate-limit.guard';
+import { BacktestsHttpService } from './backtests-http.service';
 import { BacktestsRepository } from './backtests.repository';
 import { BacktestsService } from './backtests.service';
+import { BacktestsController } from './backtests.controller';
 import { BacktestEngineService } from './engine/backtest-engine.service';
 import { StrategyVersionPinningService } from './strategy-version-pinning';
 
@@ -20,11 +25,16 @@ import { StrategyVersionPinningService } from './strategy-version-pinning';
     AuthModule,
     JobsModule,
     MarketDataModule,
+    ObservabilityModule,
     PrismaModule,
     StrategiesModule,
   ],
+  controllers: [BacktestsController],
   providers: [
+    BacktestJobHandler,
+    BacktestRateLimitGuard,
     BacktestEngineService,
+    BacktestsHttpService,
     BacktestsRepository,
     BacktestsService,
     StrategyVersionPinningService,

@@ -20,6 +20,8 @@ import type {
   BacktestCompletionRecord,
   BacktestEquityPointRecord,
   BacktestRunDetail,
+  BacktestRunDetailPage,
+  BacktestRunListPage,
   BacktestRunRecord,
   BacktestRunSummary,
   BacktestTradeRecord,
@@ -175,6 +177,70 @@ export class BacktestsService {
     return this.repository.listForUser(userId, resolveListFilters(filters));
   }
 
+  async getRunPage(
+    runId: string,
+    userId: string,
+    tradesLimit = 500,
+    tradesOffset = 0,
+  ): Promise<BacktestRunDetailPage | null> {
+    assertIdentity('runId', runId);
+    assertIdentity('userId', userId);
+    if (
+      !Number.isSafeInteger(tradesLimit) ||
+      tradesLimit < 1 ||
+      tradesLimit > 1000
+    ) {
+      throw backtestValidationError(
+        'trades_limit',
+        'trades_limit must be an integer between 1 and 1000.',
+      );
+    }
+    if (
+      !Number.isSafeInteger(tradesOffset) ||
+      tradesOffset < 0 ||
+      tradesOffset > 100_000
+    ) {
+      throw backtestValidationError(
+        'trades_offset',
+        'trades_offset must be an integer between 0 and 100000.',
+      );
+    }
+    await this.auth.ensureUserPersisted(userId);
+    return this.repository.findDetailPageForUser(
+      runId,
+      userId,
+      tradesLimit,
+      tradesOffset,
+    );
+  }
+
+  async listRunPage(
+    userId: string,
+    filters: ListBacktestFilters = {},
+  ): Promise<BacktestRunListPage> {
+    assertIdentity('userId', userId);
+    await this.auth.ensureUserPersisted(userId);
+    return this.repository.listPageForUser(userId, resolveListFilters(filters));
+  }
+
+  async ensureTerminalFailure(
+    runId: string,
+    userId: string,
+    error: { code: string; message: string },
+  ): Promise<void> {
+    const current = await this.repository.findRunForUser(runId, userId);
+    if (
+      !current ||
+      ['completed', 'failed', 'timed_out'].includes(current.status)
+    ) {
+      return;
+    }
+    if (current.status === 'pending') {
+      await this.markRunning(runId, userId, current.jobId);
+    }
+    await this.failRun(runId, userId, error);
+  }
+
   async getTrades(
     runId: string,
     userId: string,
@@ -231,10 +297,10 @@ function assertCreateInput(input: CreateBacktestRunInput): void {
   }
   assertDate('startDate', input.startDate);
   assertDate('endDate', input.endDate);
-  if (input.startDate.getTime() > input.endDate.getTime()) {
+  if (input.startDate.getTime() >= input.endDate.getTime()) {
     throw backtestValidationError(
       'endDate',
-      'endDate must be on or after startDate.',
+      'endDate must be after startDate.',
     );
   }
   if (
@@ -420,13 +486,13 @@ function mapCompletion(
       `trades[${index}].quantity`,
       { positive: true },
     );
-    const pnlAbs = toPersistedDecimal(
+    const reportedPnlAbs = toPersistedDecimal(
       trade.pnlAbs,
       18,
       8,
       `trades[${index}].pnlAbs`,
     );
-    const pnlPct = toPersistedDecimal(
+    const reportedPnlPct = toPersistedDecimal(
       trade.pnlPct,
       9,
       4,
@@ -443,7 +509,16 @@ function mapCompletion(
       .times(100)
       .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
       .toFixed(4);
-    if (pnlAbs !== expectedPnlAbs || pnlPct !== expectedPnlPct) {
+    const pnlAbsDifference = new Prisma.Decimal(reportedPnlAbs)
+      .minus(expectedPnlAbs)
+      .abs();
+    const pnlPctDifference = new Prisma.Decimal(reportedPnlPct)
+      .minus(expectedPnlPct)
+      .abs();
+    if (
+      pnlAbsDifference.greaterThan('0.0000001') ||
+      pnlPctDifference.greaterThan('0.0001')
+    ) {
       throw backtestOutputError(
         `Trade ${index} P&L does not match its prices and quantity.`,
       );
@@ -457,8 +532,8 @@ function mapCompletion(
       entryPrice,
       exitPrice,
       quantity,
-      pnlAbs,
-      pnlPct,
+      pnlAbs: expectedPnlAbs,
+      pnlPct: expectedPnlPct,
     };
   });
 

@@ -1,9 +1,9 @@
 # Sprint 3.4 — Backtest UI
 
-**Status:** Plan ready (not started)  
+**Status:** Implemented and locally verified July 28, 2026; unmerged in draft PR #9
 **Roadmap marker:** Milestone 3 / Sprint 3.4 (ROADMAP exit: Strategy → Backtest → Results fully demoable)  
-**Branch:** `feat/sprint-3-4-backtest-ui`  
-**PR base:** `feat/sprint-3-3-backtest-execution-limits`
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (combined PR #9)
+**PR base:** `main`
 
 **Overview:** Deliver the backtest results visualization surface — equity curve chart and trades table — against the Sprint 3.3 APIs. This sprint pulls forward the minimal Angular application shell needed for the feature; Sprint 5.1 extends that same app. The checked-in API fixture supports offline UI work but is not a substitute for shipping #5.4.1/#5.4.2.
 
@@ -236,16 +236,16 @@ npm --prefix apps/web run lint
 
 ## Best-practice checklist
 
-- [ ] Soft-dep on minimal Angular shell decided and documented (JC-1)
-- [ ] TradingView Lightweight Charts for equity ([docs](https://www.tradingview.com/lightweight-charts/))
-- [ ] No Chart.js / no React
-- [ ] Auth token on all backtest API calls
-- [ ] Pure mappers unit-tested (timestamp → chart time)
-- [ ] Failed/empty states without console errors
-- [ ] CORS/proxy documented for local demo
-- [ ] Contract fixture checked in
-- [ ] Conventional Commits (`feat: add backtest equity chart and trades table`)
-- [ ] ROADMAP 5.1 shell stories adjusted to avoid double scaffold
+- [x] Soft-dep on minimal Angular shell decided and documented (JC-1)
+- [x] TradingView Lightweight Charts for equity ([docs](https://www.tradingview.com/lightweight-charts/))
+- [x] No Chart.js / no React
+- [x] Auth token on all backtest API calls
+- [x] Pure mappers unit-tested (timestamp → chart time)
+- [x] Failed/empty states without console errors
+- [x] CORS/proxy documented for local demo
+- [x] Contract fixture checked in
+- [x] Conventional Commit included in combined PR #9
+- [x] ROADMAP 5.1 shell stories adjusted to avoid double scaffold
 
 ---
 
@@ -344,14 +344,21 @@ npm --prefix apps/web run lint
 
 ## Definition of done
 
-- [ ] Minimal Angular shell exists in `apps/web` and is documented as owned by 3.4
-- [ ] #5.4.1 and #5.4.2 implemented per AC
-- [ ] No DB migrations
-- [ ] Demo path: login → run/list → detail with chart + table
-- [ ] `apps/web` build passes; API tests still green
-- [ ] Manual testing section + fixture JSON committed
-- [ ] Sprint 5.1 shell work de-duplicated in docs
-- [ ] PR opened against Sprint 3.3 base
+- [x] Minimal Angular shell exists in `apps/web` and is documented as owned by 3.4
+- [x] #5.4.1 and #5.4.2 implemented per AC
+- [x] No DB migrations
+- [x] Demo path: login → run/list → detail with chart + table
+- [x] `apps/web` build/lint/unit gates pass; API tests remain green
+- [x] Desktop and 390px mobile browser flows pass without console errors
+- [x] Manual testing section + fixture JSON committed
+- [x] Sprint 5.1 shell work de-duplicated in docs
+- [x] Added to combined draft PR #9 against `main`
+
+**Implementation record:** The scaffold pins Angular CLI/build 21.2.19 and
+Angular 21.2.x. Angular 22.0.8 was evaluated but requires Node 24.15 or newer,
+while this repository intentionally pins Node 24.11.1; Angular 21 is therefore
+the newest compatible supported line for this PR. Lightweight Charts 5.2 is
+used through its current `addSeries(LineSeries, …)` API.
 
 ---
 

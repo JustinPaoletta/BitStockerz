@@ -46,6 +46,16 @@
 | Milestone 4 trading + Milestone 2–3 APIs | planned | Not required for 5.1 shell; widgets need them in 5.2 |
 | Monorepo root | `package.json` | Add workspace scripts for `apps/web` |
 
+**Implemented predecessor state (Sprint 3.4):** `apps/web` now pins Angular
+CLI/build 21.2.19 with Angular 21.2.x, standalone routing, global shell/nav
+styling, `sessionStorage` token handling, a bearer interceptor, token-presence
+route protection, login/register demo flow, `/strategies` placeholder, and
+functional `/backtests`, `/backtests/new`, and `/backtests/:id` screens.
+Sprint 5.1 must preserve those backtest routes. Its auth work hardens the
+existing guard by validating `/auth/me` and centralizing 401/logout handling;
+its UI work adds dashboard/trade destinations, the full user menu, and symbol
+search.
+
 ---
 
 ## Acceptance criteria (implementation contract)
@@ -182,9 +192,11 @@ apps/web/
 
 1. Normally `apps/web` exists from 3.4: reuse auth/API client and add shell/nav/dashboard routes without rewriting backtest feature modules.
 2. If unexpectedly missing, generate with npm/Angular CLI (standalone, routing, CSS + variables) and follow the fallback version rule above.
-3. Pin Node/Angular versions in `apps/web/package.json`; add root scripts: `web:start`, `web:build`, `web:test`.
-4. `environment.ts` / `environment.development.ts` with `apiBaseUrl: 'http://localhost:4000/api'`.
-5. Ensure `.gitignore` covers `apps/web/node_modules`, `.angular`.
+3. Preserve the Node 24.11.1 engine and Angular 21.2.x toolchain committed by
+   Sprint 3.4; upgrades belong in a separate explicit change.
+4. Reuse the relative `/api` client base and `apps/web/proxy.conf.json` from
+   Sprint 3.4 rather than introducing an absolute local URL.
+5. Preserve the root web scripts and `.gitignore` coverage already in place.
 
 ### 2. Auth client foundation
 

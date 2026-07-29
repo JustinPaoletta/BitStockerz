@@ -98,7 +98,45 @@ describe('JobExecutorService', () => {
     const result = await executor.execute(job.id);
 
     expect(result.status).toBe('timed_out');
-    expect(result.errorMessage).toContain('timed out');
+    expect(result.errorMessage).toBe('Job execution timed out.');
+    expect(result.payload.error_code).toBeUndefined();
+  });
+
+  it('uses the backtest timeout code only for backtest jobs', async () => {
+    const jobsService = createJobsService(new PrismaService(createConfig()));
+    const executor = new JobExecutorService(
+      jobsService,
+      createConfig({
+        backtest: {
+          timeoutMs: 20,
+          maxBars: 10_000,
+          maxSeriesCells: 250_000,
+          rateLimitWindowMs: 60_000,
+          rateLimitMaxRequests: 10,
+        },
+      }),
+      createMetricsMock(),
+      createAuditMock(),
+    );
+    executor.registerHandler(
+      'backtest_run',
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({}), 100);
+        }),
+    );
+    const job = await jobsService.createJob({
+      jobType: 'backtest_run',
+      userId: 'user-1',
+    });
+
+    const result = await executor.execute(job.id);
+
+    expect(result.status).toBe('timed_out');
+    expect(result.errorMessage).toBe(
+      'The backtest exceeded its execution deadline.',
+    );
+    expect(result.payload.error_code).toBe('BACKTEST_TIMEOUT');
   });
 
   it('marks jobs failed when no handler is registered', async () => {
@@ -139,7 +177,8 @@ describe('JobExecutorService', () => {
     const result = await executor.execute(job.id);
 
     expect(result.status).toBe('failed');
-    expect(result.errorMessage).toBe('boom');
+    expect(result.errorMessage).toBe('An unexpected error occurred.');
+    expect(result.payload.error_code).toBe('INTERNAL_ERROR');
   });
 
   it('marks jobs failed when handlers reject with non-error values', async () => {
@@ -163,7 +202,8 @@ describe('JobExecutorService', () => {
     const result = await executor.execute(job.id);
 
     expect(result.status).toBe('failed');
-    expect(result.errorMessage).toBe('bad-string');
+    expect(result.errorMessage).toBe('An unexpected error occurred.');
+    expect(result.payload.error_code).toBe('INTERNAL_ERROR');
   });
 
   it('returns jobs that are not pending without re-running', async () => {

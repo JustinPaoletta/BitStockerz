@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BitStockerz API smoke tests — logs pass/fail per scenario.
-# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|2.3|all] [--base-url URL]
+# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|2.3|3.3|all] [--base-url URL]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -624,6 +624,133 @@ run_sprint_21_restart() {
   fi
 }
 
+run_sprint_33() {
+  log "=== Sprint 3.3 — backtest execution, list, and detail APIs ==="
+
+  local email="backtest-smoke-$(date +%s)-$$@example.com"
+  http_json POST "/auth/register" "{\"email\":\"$email\",\"display_name\":\"Backtest Smoke\"}"
+  if [[ "$HTTP_CODE" != "201" ]]; then
+    record_fail "3.3 auth register" "http=$HTTP_CODE"
+    return 1
+  fi
+  local backtest_token
+  backtest_token="$(echo "$HTTP_BODY" | jq -r '.access_token')"
+  if [[ -z "$backtest_token" || "$backtest_token" == "null" ]]; then
+    record_fail "3.3 auth register" "missing access_token"
+    return 1
+  fi
+  record_pass "3.3 auth register"
+
+  local tmp
+  tmp="$(mktemp)"
+  local code
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $backtest_token" \
+    -H 'Content-Type: application/json' \
+    -d '{"symbol":"AAPL"}' \
+    "$BASE_URL/market-data/ingestion/equity")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "201" ]] &&
+    echo "$HTTP_BODY" | jq -e '.status == "completed" and .payload.imported_equity_bars >= 40' >/dev/null 2>&1; then
+    record_pass "3.3 AAPL bars available"
+  else
+    record_fail "3.3 AAPL ingestion" "http=$code body=$(echo "$HTTP_BODY" | head -c 200)"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  local definition
+  definition='{"indicators":[{"id":"fast","type":"SMA","params":{"period":2},"source":"close"}],"entry":{"logic":"AND","conditions":[{"left":{"price":"close"},"op":"gt","right":{"literal":0}}]},"exit":{"logic":"AND","conditions":[{"left":{"price":"close"},"op":"lt","right":{"literal":0}}]},"risk":{"stop_loss":{"type":"percent","value":2},"take_profit":{"type":"percent","value":500}}}'
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $backtest_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --argjson definition "$definition" \
+      '{name:"Backtest Smoke Strategy",asset_type:"EQUITY",timeframe:"1d",definition:$definition}')" \
+    "$BASE_URL/strategies")"
+  HTTP_BODY="$(cat "$tmp")"
+  local strategy_id
+  strategy_id="$(echo "$HTTP_BODY" | jq -r '.id')"
+  if [[ "$code" == "201" && -n "$strategy_id" && "$strategy_id" != "null" ]]; then
+    record_pass "3.3 create backtest strategy"
+  else
+    record_fail "3.3 create backtest strategy" "http=$code body=$(echo "$HTTP_BODY" | head -c 200)"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  http_json GET "/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&order=desc&limit=40"
+  local start_date
+  local end_date
+  start_date="$(echo "$HTTP_BODY" | jq -r '.[-1].date')"
+  end_date="$(echo "$HTTP_BODY" | jq -r '.[0].date')"
+  if [[ "$HTTP_CODE" != "200" || "$start_date" == "null" || "$end_date" == "null" ]]; then
+    record_fail "3.3 resolve candle range" "http=$HTTP_CODE"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer $backtest_token" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -cn --arg strategy "$strategy_id" --arg start "$start_date" --arg end "$end_date" \
+      '{strategy_id:$strategy,symbol:"AAPL",timeframe:"1d",start_date:$start,end_date:$end,initial_equity:10000}')" \
+    "$BASE_URL/backtests")"
+  HTTP_BODY="$(cat "$tmp")"
+  local run_id
+  run_id="$(echo "$HTTP_BODY" | jq -r '.run.id')"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg strategy "$strategy_id" \
+    '.run.strategy_id == $strategy and .run.status == "completed" and
+     .run.symbol == "AAPL" and (.run.job_id | type) == "string" and
+     (.run.diagnostics.bars_processed >= 2) and
+     (.results.final_equity | type) == "string" and
+     (.results.num_trades | type) == "number"' >/dev/null 2>&1; then
+    record_pass "3.3 synchronous backtest execution"
+  else
+    record_fail "3.3 synchronous backtest execution" "http=$code body=$(echo "$HTTP_BODY" | head -c 300)"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $backtest_token" \
+    "$BASE_URL/backtests?symbol=AAPL&status=completed&limit=1&offset=0")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg run "$run_id" \
+    '.items[0].id == $run and .limit == 1 and .offset == 0 and
+     (.items[0] | has("trades") | not) and
+     (.items[0] | has("equity_curve") | not)' >/dev/null 2>&1; then
+    record_pass "3.3 owner-scoped backtest list"
+  else
+    record_fail "3.3 backtest list" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" \
+    -H "Authorization: Bearer $backtest_token" \
+    "$BASE_URL/backtests/$run_id?trades_limit=1&trades_offset=0")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg run "$run_id" \
+    '.run.id == $run and (.equity_curve | length) >= 2 and
+     .trades_page.limit == 1 and .trades_page.offset == 0 and
+     (.trades | length) <= 1 and
+     (all(.trades[]; (.id | type) == "number"))' >/dev/null 2>&1; then
+    record_pass "3.3 paginated backtest detail"
+  else
+    record_fail "3.3 backtest detail" "http=$code"
+  fi
+
+  code="$(curl -s -o "$tmp" -w "%{http_code}" "$BASE_URL/backtests")"
+  HTTP_BODY="$(cat "$tmp")"
+  if [[ "$code" == "401" ]] && echo "$HTTP_BODY" | jq -e '.code == "UNAUTHORIZED"' >/dev/null 2>&1; then
+    record_pass "3.3 unauthenticated backtest list rejected"
+  else
+    record_fail "3.3 unauthenticated backtest list" "http=$code"
+  fi
+  rm -f "$tmp"
+}
+
 run_db_persisted_candles() {
   # Only when the caller already exported DATABASE_URL (e.g. KEEP_DATABASE_URL=1).
   # Do not reload apps/api/.env here: default verify starts the API in seed mode
@@ -654,6 +781,7 @@ main() {
     1.2) run_sprint_12 ;;
     1.3) run_sprint_13; run_db_persisted_candles ;;
     2.1|2.2|2.3) run_sprint_21 ;;
+    3.3) run_sprint_33 ;;
     2.1-restart|2.3-restart) run_sprint_21_restart ;;
     all)
       if [[ -n "${DATABASE_URL:-}" ]]; then
@@ -669,8 +797,9 @@ main() {
         run_db_persisted_candles
       fi
       run_sprint_21
+      run_sprint_33
       ;;
-    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, 2.3, or all)" >&2; exit 1 ;;
+    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, 2.3, 3.3, or all)" >&2; exit 1 ;;
   esac
 
   log "=== Summary: $PASS passed, $FAIL failed, $SKIP skipped ==="

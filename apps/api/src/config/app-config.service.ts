@@ -38,6 +38,8 @@ const DEFAULT_STALE_CRYPTO_HOURLY_MS = 7_200_000; // 2h
 const DEFAULT_BACKTEST_TIMEOUT_MS = 5_000;
 const DEFAULT_BACKTEST_MAX_BARS = 10_000;
 const DEFAULT_BACKTEST_MAX_SERIES_CELLS = 250_000;
+const DEFAULT_BACKTEST_RATE_LIMIT_WINDOW_MS = 60_000;
+const DEFAULT_BACKTEST_RATE_LIMIT_MAX_REQUESTS = 10;
 
 export interface ServerConfig {
   port: number;
@@ -99,6 +101,8 @@ export interface BacktestConfig {
   timeoutMs: number;
   maxBars: number;
   maxSeriesCells: number;
+  rateLimitWindowMs: number;
+  rateLimitMaxRequests: number;
 }
 
 export interface AppConfig {
@@ -508,6 +512,22 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     10_000_000,
     errors,
   );
+  const backtestRateLimitWindowMs = parseInteger(
+    'BACKTEST_RATE_LIMIT_WINDOW_MS',
+    env.BACKTEST_RATE_LIMIT_WINDOW_MS,
+    DEFAULT_BACKTEST_RATE_LIMIT_WINDOW_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const backtestRateLimitMaxRequests = parseInteger(
+    'BACKTEST_RATE_LIMIT_MAX_REQUESTS',
+    env.BACKTEST_RATE_LIMIT_MAX_REQUESTS,
+    DEFAULT_BACKTEST_RATE_LIMIT_MAX_REQUESTS,
+    1,
+    10_000,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
@@ -566,6 +586,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       timeoutMs: backtestTimeoutMs,
       maxBars: backtestMaxBars,
       maxSeriesCells: backtestMaxSeriesCells,
+      rateLimitWindowMs: backtestRateLimitWindowMs,
+      rateLimitMaxRequests: backtestRateLimitMaxRequests,
     },
   };
 }

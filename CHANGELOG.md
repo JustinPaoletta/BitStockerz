@@ -9,6 +9,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 3.4 Angular 21.2 web app with a thin authenticated shell, dev
+  login/register flow, backtest list and launch screens, result metrics,
+  Lightweight Charts 5.2 equity curve, stable-id paged trades table,
+  responsive styling, API proxy, contract fixture, mapper tests, and
+  build/lint/unit/browser verification.
+- Sprint 3.3 authenticated `POST/GET /api/backtests` run/list/detail APIs,
+  synchronous `backtest_run` job handling, immutable strategy replay, batched
+  market-data loading, actual and conservative bar limits, cooperative
+  cancellation/deadlines, stable terminal errors, diagnostics, metrics,
+  structured logs, bounded audit events, POST-only per-user rate limiting, and
+  seed/MySQL-compatible owner isolation.
 - Sprint 3.2 Prisma models and ordered migrations for backtest runs, one-to-one
   results, trades, equity points, and the deferred nullable jobs foreign key.
 - Owner-scoped backtest persistence services with immutable strategy-version
@@ -59,8 +70,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
-- PR #9 documentation and the canonical manual checklist now cover Sprints
-  2.1–3.2; Sprint 3.3 Backtest Execution & Limits is the next implementation
+- PR #9 documentation and its single canonical manual checklist now cover
+  Sprints 2.1–3.4; Sprint 4.1 Accounts & Positions is the next implementation
   target.
 - Stale-user auth remapping now preserves owned backtest runs along with jobs,
   strategies, audit events, and credentials.

@@ -63,6 +63,48 @@ describe('BacktestsService', () => {
     ).resolves.toMatchObject([{ run: { id: run.id } }]);
   });
 
+  it('provides validated list/detail pages and idempotent terminal cleanup', async () => {
+    const { service } = createService();
+    const run = await service.createRun(createInput());
+    await expect(
+      service.listRunPage(USER_ID, { limit: 1, offset: 0 }),
+    ).resolves.toMatchObject({
+      items: [{ run: { id: run.id } }],
+      limit: 1,
+      offset: 0,
+      hasMore: false,
+    });
+    await expect(
+      service.getRunPage(run.id, USER_ID, 0, 0),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+    await expect(
+      service.getRunPage(run.id, USER_ID, 1, 100_001),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+
+    await service.ensureTerminalFailure(run.id, USER_ID, {
+      code: ErrorCode.BACKTEST_TIMEOUT,
+      message: 'deadline',
+    });
+    await expect(
+      service.getRunPage(run.id, USER_ID, 1, 0),
+    ).resolves.toMatchObject({
+      run: { status: 'timed_out' },
+      tradesPage: { limit: 1, offset: 0, hasMore: false },
+    });
+    await expect(
+      service.ensureTerminalFailure(run.id, USER_ID, {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'late',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.ensureTerminalFailure(crypto.randomUUID(), USER_ID, {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'missing',
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('pins requested versions while enforcing latest-version timeframe metadata', async () => {
     const { service, resolve, requireActiveSymbolById } = createService();
     await service.createRun({

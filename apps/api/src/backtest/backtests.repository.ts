@@ -16,6 +16,8 @@ import type {
   BacktestCompletionRecord,
   BacktestFailureRecord,
   BacktestRunDetail,
+  BacktestRunDetailPage,
+  BacktestRunListPage,
   BacktestRunRecord,
   BacktestRunSummary,
   BacktestStatus,
@@ -111,6 +113,64 @@ export class BacktestsRepository {
     return aggregate?.run.userId === userId ? toDetail(aggregate) : null;
   }
 
+  async findDetailPageForUser(
+    runId: string,
+    userId: string,
+    tradesLimit: number,
+    tradesOffset: number,
+  ): Promise<BacktestRunDetailPage | null> {
+    if (this.prisma.isEnabled) {
+      const record = await this.prisma.backtestRun.findFirst({
+        where: { id: runId, userId },
+        include: {
+          result: true,
+          trades: {
+            orderBy: [{ entryTime: 'asc' }, { id: 'asc' }],
+            skip: tradesOffset,
+            take: tradesLimit + 1,
+          },
+          equityPoints: {
+            orderBy: [{ timestamp: 'asc' }, { id: 'asc' }],
+          },
+        },
+      });
+      if (!record) {
+        return null;
+      }
+      const detail = fromPrismaDetail({
+        ...record,
+        trades: record.trades.slice(0, tradesLimit),
+      });
+      return {
+        ...detail,
+        tradesPage: {
+          limit: tradesLimit,
+          offset: tradesOffset,
+          hasMore: record.trades.length > tradesLimit,
+        },
+      };
+    }
+
+    const aggregate = this.inMemoryRuns.get(runId);
+    if (!aggregate || aggregate.run.userId !== userId) {
+      return null;
+    }
+    return {
+      ...toDetail({
+        ...aggregate,
+        trades: aggregate.trades.slice(
+          tradesOffset,
+          tradesOffset + tradesLimit,
+        ),
+      }),
+      tradesPage: {
+        limit: tradesLimit,
+        offset: tradesOffset,
+        hasMore: aggregate.trades.length > tradesOffset + tradesLimit,
+      },
+    };
+  }
+
   async listForUser(
     userId: string,
     filters: ResolvedListBacktestFilters,
@@ -155,6 +215,22 @@ export class BacktestsRepository {
         run: clone(run),
         result: result ? clone(result) : null,
       }));
+  }
+
+  async listPageForUser(
+    userId: string,
+    filters: ResolvedListBacktestFilters,
+  ): Promise<BacktestRunListPage> {
+    const records = await this.listForUser(userId, {
+      ...filters,
+      limit: filters.limit + 1,
+    });
+    return {
+      items: records.slice(0, filters.limit),
+      limit: filters.limit,
+      offset: filters.offset,
+      hasMore: records.length > filters.limit,
+    };
   }
 
   async markRunning(
@@ -223,7 +299,10 @@ export class BacktestsRepository {
         finishedAt: clone(completion.finishedAt),
       },
       result: clone(completion.result),
-      trades: clone(completion.trades),
+      trades: clone(completion.trades).map((trade, index) => ({
+        id: index + 1,
+        ...trade,
+      })),
       equityCurve: clone(completion.equityCurve),
     };
     this.inMemoryRuns.set(runId, next);
@@ -445,6 +524,7 @@ function fromPrismaDetail(record: PrismaBacktestRunDetail): BacktestRunDetail {
   return {
     ...fromPrismaSummary(record),
     trades: record.trades.map((trade) => ({
+      id: trade.id,
       symbolId: trade.symbolId,
       entryTime: trade.entryTime,
       exitTime: trade.exitTime,
@@ -466,7 +546,10 @@ function toDetail(aggregate: BacktestAggregateRecord): BacktestRunDetail {
   return {
     run: clone(aggregate.run),
     result: aggregate.result ? clone(aggregate.result) : null,
-    trades: clone(aggregate.trades),
+    trades: clone(aggregate.trades).map((trade, index) => ({
+      id: trade.id ?? index + 1,
+      ...trade,
+    })),
     equityCurve: clone(aggregate.equityCurve),
   };
 }

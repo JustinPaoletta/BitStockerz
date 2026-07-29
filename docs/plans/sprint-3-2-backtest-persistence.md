@@ -2,11 +2,11 @@
 
 **Status:** Implemented and locally verified (seed + MySQL, July 28, 2026); included in draft PR #9
 
-**Roadmap marker:** Implementation complete locally; `START HERE` is Sprint 3.3
+**Roadmap marker:** Implementation complete locally; Sprints 3.3–3.4 are also complete and `START HERE` is Sprint 4.1
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked at the owner's request)
 
-**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.2)
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.4)
 
 **Overview:** Persist backtest runs, summary results, trades, and equity points per [DDL/04_backtesting.sql](../database/DDL/04_backtesting.sql), including a soft-pin to `strategy_versions.id` for reproducibility. Wire a repository/service layer that works with Prisma when `DATABASE_URL` is set and an in-memory store when it is not — mirroring jobs/auth patterns. No public HTTP API yet (Sprint 3.3); expose internal `BacktestsService` methods that 3.3 controllers and the job handler will call.
 

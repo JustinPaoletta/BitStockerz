@@ -125,6 +125,39 @@ describe('StrategiesService', () => {
     });
   });
 
+  it('resolves pinned soft-deleted versions and historical names in memory', async () => {
+    const { prisma, authService, audit } = createDependencies();
+    const service = new StrategiesService(prisma, authService, audit);
+    const created = await service.create(USER_ID, validInput());
+    const pinned = await service.resolveOwnedVersion(USER_ID, created.id);
+    await service.delete(USER_ID, created.id);
+
+    await expect(
+      service.resolvePinnedVersionForRun(
+        USER_ID,
+        created.id,
+        pinned.strategyVersionId,
+      ),
+    ).resolves.toMatchObject({
+      strategyId: created.id,
+      strategyVersionId: pinned.strategyVersionId,
+      definition: validDefinition(),
+    });
+    await expect(
+      service.getOwnedStrategyNames(USER_ID, [created.id, created.id]),
+    ).resolves.toEqual(new Map([[created.id, 'Momentum']]));
+    await expect(service.getOwnedStrategyNames(USER_ID, [])).resolves.toEqual(
+      new Map(),
+    );
+    await expect(
+      service.resolvePinnedVersionForRun(
+        OTHER_USER_ID,
+        created.id,
+        pinned.strategyVersionId,
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.STRATEGY_VERSION_NOT_FOUND });
+  });
+
   it('reserves case- and accent-insensitive names for each user', async () => {
     const { prisma, authService, audit } = createDependencies();
     const service = new StrategiesService(prisma, authService, audit);
@@ -1216,6 +1249,47 @@ describe('StrategiesService', () => {
     await expect(
       service.validate(USER_ID, { strategy_id: STRATEGY_ID }),
     ).resolves.toMatchObject({ is_valid: true, summary: expect.any(String) });
+    expect(authService.ensureUserPersisted).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('resolves pinned versions and names through owner-scoped Prisma reads', async () => {
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: STRATEGY_ID,
+        assetType: 'EQUITY',
+        timeframe: '1d',
+        versions: [
+          {
+            id: 5,
+            versionNumber: 2,
+            definitionJson: validDefinition(),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ id: STRATEGY_ID, versions: [] });
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ id: STRATEGY_ID, name: 'Momentum' }]);
+    const { prisma, authService, audit } = createDependencies({
+      isEnabled: true,
+      strategy: { findFirst, findMany },
+    });
+    const service = new StrategiesService(prisma, authService, audit);
+
+    await expect(
+      service.resolvePinnedVersionForRun(USER_ID, STRATEGY_ID, 5),
+    ).resolves.toMatchObject({
+      strategyVersionId: 5,
+      versionNumber: 2,
+      definition: validDefinition(),
+    });
+    await expect(
+      service.getOwnedStrategyNames(USER_ID, [STRATEGY_ID]),
+    ).resolves.toEqual(new Map([[STRATEGY_ID, 'Momentum']]));
+    await expect(
+      service.resolvePinnedVersionForRun(USER_ID, STRATEGY_ID, 99),
+    ).rejects.toMatchObject({ code: ErrorCode.STRATEGY_VERSION_NOT_FOUND });
     expect(authService.ensureUserPersisted).toHaveBeenCalledWith(USER_ID);
   });
 

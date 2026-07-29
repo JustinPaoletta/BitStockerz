@@ -309,6 +309,120 @@ describe('MarketDataService', () => {
     });
   });
 
+  it('batch-resolves seed symbols, including inactive historical symbols', async () => {
+    const service = createService();
+    await expect(service.getSymbolsByIds([])).resolves.toEqual([]);
+    await expect(service.getSymbolsByIds([1, 1, 999])).resolves.toMatchObject([
+      { id: 1, symbol: 'AAPL' },
+    ]);
+  });
+
+  it('loads bounded ascending seed bars for every supported backtest series', async () => {
+    const service = createService();
+    const equity = await service.getBacktestBars({
+      symbolId: 1,
+      assetType: 'EQUITY',
+      timeframe: '1d',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    const daily = await service.getBacktestBars({
+      symbolId: 4,
+      assetType: 'CRYPTO',
+      timeframe: '1d',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    const hourly = await service.getBacktestBars({
+      symbolId: 4,
+      assetType: 'CRYPTO',
+      timeframe: '1h',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    for (const bars of [equity, daily, hourly]) {
+      expect(bars).toHaveLength(3);
+      expect(bars[0]).toEqual({
+        ts: expect.any(Date),
+        open: expect.any(Number),
+        high: expect.any(Number),
+        low: expect.any(Number),
+        close: expect.any(Number),
+        volume: expect.any(Number),
+      });
+      expect(bars[0].ts.getTime()).toBeLessThan(bars[1].ts.getTime());
+    }
+    await expect(
+      service.getBacktestBars({
+        symbolId: 1,
+        assetType: 'EQUITY',
+        timeframe: '1h',
+        start: new Date(0),
+        end: new Date(),
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('loads batch symbols and backtest bars from Prisma when enabled', async () => {
+    const symbol = {
+      id: 4,
+      symbol: 'BTC-USD',
+      name: 'Bitcoin',
+      assetType: 'CRYPTO',
+      exchange: null,
+      currency: 'USD',
+      baseAsset: 'BTC',
+      quoteAsset: 'USD',
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const dailyBar = {
+      symbolId: 4,
+      date: new Date('2026-01-01T00:00:00Z'),
+      open: 1,
+      high: 2,
+      low: 0.5,
+      close: 1.5,
+      volume: 10,
+    };
+    const hourlyBar = {
+      ...dailyBar,
+      timestamp: dailyBar.date,
+    };
+    const prisma = {
+      isEnabled: true,
+      symbol: { findMany: jest.fn().mockResolvedValue([symbol]) },
+      equityDailyBar: { findMany: jest.fn().mockResolvedValue([dailyBar]) },
+      cryptoDailyBar: { findMany: jest.fn().mockResolvedValue([dailyBar]) },
+      cryptoHourlyBar: { findMany: jest.fn().mockResolvedValue([hourlyBar]) },
+    } as unknown as PrismaService;
+    const service = createService(prisma);
+    await expect(service.getSymbolsByIds([4])).resolves.toMatchObject([
+      { id: 4, is_active: false },
+    ]);
+    for (const [assetType, timeframe] of [
+      ['EQUITY', '1d'],
+      ['CRYPTO', '1d'],
+      ['CRYPTO', '1h'],
+    ] as const) {
+      await expect(
+        service.getBacktestBars({
+          symbolId: 4,
+          assetType,
+          timeframe,
+          start: new Date('2026-01-01T00:00:00Z'),
+          end: new Date('2026-01-02T00:00:00Z'),
+          limit: 5,
+        }),
+      ).resolves.toHaveLength(1);
+    }
+  });
+
   describe('candles', () => {
     it('returns seeded equity candles in ascending order by default', async () => {
       const service = createService();
