@@ -8,8 +8,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surface: `apps/api`
-- Delivery state: Milestones 0–1 and Sprints 2.1–3.1 implemented and locally verified in draft PR #9
-- Next ready sprint: 3.2 Backtest Persistence
+- Delivery state: Milestones 0–1 and Sprints 2.1–3.2 implemented and locally verified in draft PR #9
+- Next ready sprint: 3.3 Backtest Execution & Limits
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -30,7 +30,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 - A NestJS API under `apps/api`, including auth, WebAuthn, market-data
   symbols/candles, jobs/ingestion, observability, and complete owner-scoped
   Strategy Lab CRUD/version history/validation/summaries, plus the pure
-  Backtest Engine Core.
+  Backtest Engine Core and owner-scoped run/result/trade/equity persistence.
 
 ## Tech Stack
 
@@ -72,7 +72,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 - `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
 - `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests against an already-running API; it honors an exported `DATABASE_URL` but does not load `.env` itself.
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
-- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
+- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, verifies a transactional backtest run/result/trade/equity round trip and post-restart ownership remap, ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
 
 ## Environment & Configuration
 
@@ -123,7 +123,7 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 2.2; Sprint 2.2 adds no migration)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 3.2)
 - [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
 - [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)

@@ -16,7 +16,8 @@ Dependencies:
 ## Status
 
 - Completed in Sprint 3.1 (July 28, 2026): #5.2.1–#5.2.5.
-- Planned next in Sprint 3.2: #5.1.1–#5.1.3 and #5.6.1.
+- Completed locally in Sprint 3.2 (July 28, 2026): #5.1.1–#5.1.3
+  and #5.6.1; included in draft PR #9.
 - HTTP execution APIs and result UI remain planned for Sprints 3.3–3.4.
 
 ---
@@ -24,8 +25,51 @@ Dependencies:
 ## Epic 5.1 – Backtest Run Model & Persistence
 
 ### Story 5.1.1 – Backtest run schema
+Acceptance criteria:
+- Prisma and MySQL store owner, strategy, immutable strategy-version, symbol,
+  timeframe, inclusive date range, fixed-scale initial equity, optional job,
+  bounded error, and lifecycle timestamps.
+- Status transitions are compare-and-set and owner-scoped:
+  `pending → running → completed|failed|timed_out`; terminal rows cannot be
+  rewritten and wrong-owner access behaves as not found.
+- The jobs foreign key is nullable with `ON DELETE SET NULL`; user, strategy,
+  strategy-version, and symbol parents use `ON DELETE RESTRICT`.
+- The same internal service contract works in seed mode with copy-on-write
+  records and isolated read results.
+- Run creation rejects inactive/unknown or strategy-asset-incompatible symbols,
+  unsupported symbol/timeframe combinations, sub-cent initial equity, and
+  optional job links not owned by the run owner in both database modes.
+- Owner-scoped reads and lifecycle writes first reattach the current
+  process-local auth id so completed history remains visible after restart.
+
 ### Story 5.1.2 – Backtest result storage
+Acceptance criteria:
+- A completed run has exactly one result row containing fixed-scale equity,
+  return, drawdown, win-rate, average win/loss, nullable Sharpe, and integer
+  trade count.
+- Completion changes run state and writes the result plus all dependent rows in
+  one Prisma transaction; seed mode swaps one fully cloned aggregate.
+- Failed and timed-out runs store a catalog-safe bounded error on the run and
+  have no result, trade, or equity rows.
+- Engine-output decimals are rounded half-up and range-checked against their
+  target columns; initial equity must already be cent-exact. Values are
+  returned internally as fixed-scale strings.
+
 ### Story 5.1.3 – Trades & equity curve storage
+Acceptance criteria:
+- Closed long trades persist symbol, ordered entry/exit times, fixed-scale
+  prices/quantity/P&L, and cascade when an admin deletes the owning run.
+- Equity points persist in strictly ascending time order with fixed-scale
+  non-negative equity and cascade with the run.
+- Prisma writes use batches of at most 500 dependent rows and reads are stable
+  by timestamp plus row id.
+- The persistence boundary rejects malformed, unsorted, mismatched-symbol,
+  non-finite, or internally inconsistent engine output before any dependent
+  data is committed.
+- First/last curve equity must match the run's initial equity/result final
+  equity, trade P&L must match price/quantity, and every persisted summary
+  metric is recomputed from the fixed-scale rows after the raw supplied summary
+  is validated exactly against the raw trades/equity curve.
 
 ---
 
@@ -107,3 +151,15 @@ Acceptance criteria:
 ## Epic 5.6 – Reproducibility
 
 ### Story 5.6.1 – Strategy version pinning
+Acceptance criteria:
+- Every run stores both its owned strategy id and a non-null immutable
+  `strategy_versions.id`.
+- Omitting an explicit version id pins the latest version; supplying one
+  requires that exact version to belong to the active owned strategy.
+- Latest-version runs enforce the strategy's current timeframe. Explicit
+  internal historical pins persist the caller's valid timeframe so definition
+  replay remains possible after current metadata changes; compatible symbol
+  asset type and supported market-data timeframe are still required.
+- Creating later strategy versions never changes an existing run's pin.
+- Pin resolution is internal and owner-scoped; database version ids are not
+  added to the existing Strategy Lab HTTP response.

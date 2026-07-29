@@ -1,7 +1,7 @@
 # Sprint 2.2 — Indicators & Rule Schema
 
 **Status:** Implemented and locally verified; included in draft PR #9
-**Roadmap marker:** Implementation complete; Sprints 2.3–3.1 are also complete and `START HERE` is Sprint 3.2
+**Roadmap marker:** Implementation complete; Sprints 2.3–3.2 are also complete and `START HERE` is Sprint 3.3
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked with Sprint 2.1 at the owner's request)
 **PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main`

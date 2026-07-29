@@ -9,6 +9,8 @@ import type { BacktestEngineInput, EngineBar } from './backtest-engine.types';
 
 describe('BacktestEngineService', () => {
   const config = {
+    server: { nodeEnv: 'test' },
+    dependencies: { databaseUrl: undefined },
     backtest: {
       timeoutMs: 5_000,
       maxBars: 2,

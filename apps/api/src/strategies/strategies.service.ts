@@ -12,6 +12,7 @@ import {
   STRATEGY_TIMEFRAMES,
   type CreateStrategyInput,
   type HistoricalStrategyResponse,
+  type OwnedStrategyVersion,
   type StrategyAssetType,
   type StrategyDefinition,
   type StrategyDefinitionValidationError,
@@ -41,6 +42,7 @@ const MAX_UPDATE_TRANSACTION_ATTEMPTS = 2;
 export class StrategiesService {
   private readonly inMemoryStrategies = new Map<string, StrategyRecord>();
   private readonly inMemoryNameKeys = new Set<string>();
+  private nextInMemoryVersionId = 1;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -246,6 +248,85 @@ export class StrategiesService {
     return validateDefinitionForResponse(definition);
   }
 
+  /**
+   * Internal owner-scoped reader for consumers that must pin an immutable
+   * strategy version without exposing database ids through the HTTP API.
+   */
+  async resolveOwnedVersion(
+    userId: string,
+    strategyId: string,
+    explicitVersionId?: number,
+  ): Promise<OwnedStrategyVersion> {
+    if (this.prisma.isEnabled) {
+      await this.authService.ensureUserPersisted(userId);
+      const record = await this.prisma.strategy.findFirst({
+        where: { id: strategyId, userId, isActive: true },
+        select: {
+          id: true,
+          assetType: true,
+          timeframe: true,
+          versions: {
+            ...(explicitVersionId === undefined
+              ? {}
+              : { where: { id: explicitVersionId } }),
+            orderBy: { versionNumber: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              versionNumber: true,
+              definitionJson: true,
+            },
+          },
+        },
+      });
+      if (!record) {
+        throw strategyNotFoundError(strategyId);
+      }
+      const version = record.versions[0];
+      if (!version) {
+        if (explicitVersionId !== undefined) {
+          throw strategyVersionIdNotFoundError(strategyId, explicitVersionId);
+        }
+        throw strategyNotFoundError(strategyId);
+      }
+      return {
+        strategyId: record.id,
+        strategyVersionId: version.id,
+        versionNumber: version.versionNumber,
+        assetType: record.assetType as StrategyAssetType,
+        timeframe: record.timeframe as StrategyTimeframe,
+        definition: structuredClone(
+          version.definitionJson as unknown as StrategyDefinition,
+        ),
+      };
+    }
+
+    const record = this.findInMemory(userId, strategyId);
+    if (!record || !record.isActive) {
+      throw strategyNotFoundError(strategyId);
+    }
+    const version =
+      explicitVersionId === undefined
+        ? record.versions[0]
+        : record.versions.find(
+            (candidate) => candidate.id === explicitVersionId,
+          );
+    if (!version) {
+      if (explicitVersionId !== undefined) {
+        throw strategyVersionIdNotFoundError(strategyId, explicitVersionId);
+      }
+      throw strategyNotFoundError(strategyId);
+    }
+    return {
+      strategyId: record.id,
+      strategyVersionId: version.id,
+      versionNumber: version.versionNumber,
+      assetType: record.assetType,
+      timeframe: record.timeframe,
+      definition: structuredClone(version.definition),
+    };
+  }
+
   private async createWithPrisma(
     userId: string,
     id: string,
@@ -317,6 +398,7 @@ export class StrategiesService {
       updatedAt: now,
       versions: [
         {
+          id: this.nextInMemoryVersionId++,
           versionNumber: 1,
           definition: structuredClone(input.definition),
           createdAt: now,
@@ -470,6 +552,7 @@ export class StrategiesService {
     const now = new Date();
     if (input.hasDefinition) {
       record.versions.unshift({
+        id: this.nextInMemoryVersionId++,
         versionNumber: requireLatestVersion(record).versionNumber + 1,
         definition: structuredClone(input.definition as StrategyDefinition),
         createdAt: now,
@@ -531,6 +614,7 @@ export class StrategiesService {
       });
       if (historicalVersion) {
         result.versions.push({
+          id: historicalVersion.id,
           versionNumber: historicalVersion.versionNumber,
           definition:
             historicalVersion.definitionJson as unknown as StrategyDefinition,
@@ -895,6 +979,16 @@ function strategyVersionNotFoundError(
   );
 }
 
+function strategyVersionIdNotFoundError(
+  id: string,
+  versionId: number,
+): DomainError {
+  return new DomainError(
+    ErrorCode.STRATEGY_VERSION_NOT_FOUND,
+    `Strategy version ${versionId} does not belong to strategy ${id}.`,
+  );
+}
+
 function buildNameKey(userId: string, name: string): string {
   return `${userId}\u0000${normalizeNameForUniqueness(name)}`;
 }
@@ -930,6 +1024,7 @@ function fromPrismaStrategy(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     versions: record.versions.map((version) => ({
+      id: version.id,
       versionNumber: version.versionNumber,
       definition: version.definitionJson as unknown as StrategyDefinition,
       createdAt: version.createdAt,

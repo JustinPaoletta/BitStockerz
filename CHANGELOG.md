@@ -9,6 +9,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 3.2 Prisma models and ordered migrations for backtest runs, one-to-one
+  results, trades, equity points, and the deferred nullable jobs foreign key.
+- Owner-scoped backtest persistence services with immutable strategy-version
+  pinning, pending/running/terminal compare-and-set transitions, transactional
+  MySQL completion, copy-on-write seed parity, deterministic reads, 500-row
+  inserts, fixed-scale decimal serialization, strategy/symbol asset
+  compatibility, latest-vs-explicit timeframe handling, active-symbol and
+  owner-job validation, post-restart owner reattachment, and sanitized failure
+  records.
+- Focused persistence, race, rollback, ownership, malformed-output, precision,
+  and version-pinning tests plus a real-MySQL round-trip gate that verifies
+  dependent row counts, terminal immutability, and post-restart ownership.
+- Completion validates raw engine summaries exactly before rounding, then
+  recomputes the stored summary from the fixed-scale trade/equity rows so
+  returned details remain internally consistent; run creation rejects initial
+  equity with sub-cent precision.
 - Sprint 3.1 pure backtest engine core with deterministic SMA/EMA/RSI
   computation, AND-rule evaluation, long-only trade simulation, stop-first
   intrabar SL/TP handling, equity curves, summary metrics, and nullable Sharpe.
@@ -44,7 +60,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Changed
 
 - PR #9 documentation and the canonical manual checklist now cover Sprints
-  2.1–3.1; Sprint 3.2 Backtest Persistence is the next implementation target.
+  2.1–3.2; Sprint 3.3 Backtest Execution & Limits is the next implementation
+  target.
+- Stale-user auth remapping now preserves owned backtest runs along with jobs,
+  strategies, audit events, and credentials.
+- Patched root commit-tooling transitive dependencies `fast-uri` and `js-yaml`;
+  root and API production/full-development audits report zero vulnerabilities.
 - Strategy create/get responses now include deterministic summaries; definition
   validation failures use the strategy-specific validation code.
 - Strategy creation now rejects non-canonical definitions before persistence with deterministic definition-rooted RFC 7807 field paths and stable validator codes.

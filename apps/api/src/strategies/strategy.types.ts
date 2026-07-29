@@ -38,9 +38,19 @@ export interface ValidateStrategyInput {
 }
 
 export interface StrategyVersionRecord {
+  id: number;
   versionNumber: number;
   definition: StrategyDefinition;
   createdAt: Date;
+}
+
+export interface OwnedStrategyVersion {
+  strategyId: string;
+  strategyVersionId: number;
+  versionNumber: number;
+  assetType: StrategyAssetType;
+  timeframe: StrategyTimeframe;
+  definition: StrategyDefinition;
 }
 
 export interface StrategyRecord {

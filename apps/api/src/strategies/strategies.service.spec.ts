@@ -512,6 +512,116 @@ describe('StrategiesService', () => {
     });
   });
 
+  it('resolves latest and explicit immutable version ids in memory', async () => {
+    const { prisma, authService, audit } = createDependencies();
+    const service = new StrategiesService(prisma, authService, audit);
+    const created = await service.create(USER_ID, validInput());
+    const versionTwoDefinition = validDefinition();
+    versionTwoDefinition.indicators[0].params.period = 21;
+    await service.update(USER_ID, created.id, {
+      definition: versionTwoDefinition,
+    });
+
+    await expect(
+      service.resolveOwnedVersion(USER_ID, created.id),
+    ).resolves.toMatchObject({
+      strategyId: created.id,
+      strategyVersionId: 2,
+      versionNumber: 2,
+      assetType: 'EQUITY',
+      timeframe: '1d',
+      definition: versionTwoDefinition,
+    });
+    await expect(
+      service.resolveOwnedVersion(USER_ID, created.id, 1),
+    ).resolves.toMatchObject({
+      strategyVersionId: 1,
+      versionNumber: 1,
+      definition: validDefinition(),
+    });
+    await expect(
+      service.resolveOwnedVersion(OTHER_USER_ID, created.id),
+    ).rejects.toMatchObject({ code: ErrorCode.STRATEGY_NOT_FOUND });
+    await expect(
+      service.resolveOwnedVersion(USER_ID, created.id, 999),
+    ).rejects.toMatchObject({
+      code: ErrorCode.STRATEGY_VERSION_NOT_FOUND,
+    });
+  });
+
+  it('resolves one owner-scoped Prisma version id without exposing it over HTTP', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: STRATEGY_ID,
+      assetType: 'EQUITY',
+      timeframe: '1d',
+      versions: [
+        {
+          id: 7,
+          versionNumber: 3,
+          definitionJson: validDefinition(),
+        },
+      ],
+    });
+    const { prisma, authService, audit } = createDependencies({
+      isEnabled: true,
+      strategy: { findFirst },
+    });
+    const service = new StrategiesService(prisma, authService, audit);
+
+    await expect(
+      service.resolveOwnedVersion(USER_ID, STRATEGY_ID, 7),
+    ).resolves.toMatchObject({
+      strategyVersionId: 7,
+      versionNumber: 3,
+      assetType: 'EQUITY',
+    });
+    expect(authService.ensureUserPersisted).toHaveBeenCalledWith(USER_ID);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: STRATEGY_ID, userId: USER_ID, isActive: true },
+      select: {
+        id: true,
+        assetType: true,
+        timeframe: true,
+        versions: {
+          where: { id: 7 },
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            versionNumber: true,
+            definitionJson: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('distinguishes a missing owned strategy from a missing explicit version id', async () => {
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: STRATEGY_ID,
+        assetType: 'EQUITY',
+        timeframe: '1d',
+        versions: [],
+      });
+    const { prisma, authService, audit } = createDependencies({
+      isEnabled: true,
+      strategy: { findFirst },
+    });
+    const service = new StrategiesService(prisma, authService, audit);
+
+    await expect(
+      service.resolveOwnedVersion(USER_ID, STRATEGY_ID),
+    ).rejects.toMatchObject({ code: ErrorCode.STRATEGY_NOT_FOUND });
+    await expect(
+      service.resolveOwnedVersion(USER_ID, STRATEGY_ID, 7),
+    ).rejects.toMatchObject({
+      code: ErrorCode.STRATEGY_VERSION_NOT_FOUND,
+    });
+  });
+
   it('treats missing Prisma rows and rows without versions as STRATEGY_NOT_FOUND', async () => {
     const findFirst = jest
       .fn()

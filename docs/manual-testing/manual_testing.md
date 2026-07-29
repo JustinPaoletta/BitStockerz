@@ -21,7 +21,7 @@ Choose the smallest relevant test set:
 | Symbols or candle reads | Sections 3–7 |
 | Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
 | Observability or audit | Section 10 |
-| Strategy CRUD, persistence, versioning, validation, summaries, rule schema, or Sprint 3.1 engine core | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
+| Strategy CRUD, persistence, versioning, validation, summaries, rule schema, Sprint 3.1 engine core, or Sprint 3.2 backtest persistence | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -66,8 +66,8 @@ Expected: migrations apply successfully and `/api/health/ready` reports the data
 
 | Mode | When | Behavior |
 | --- | --- | --- |
-| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, metrics, and audit events live in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies, and strategy versions persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; job/strategy creation upserts a minimal `users` row for foreign keys. |
+| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, metrics, and audit events live in process. Data resets on API restart. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, and backtest runs/results/trades/equity points persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; job/strategy creation upserts a minimal `users` row for foreign keys. |
 
 ### Automated alternative
 
@@ -79,11 +79,11 @@ From the repository root:
 # Seed mode: build + lint + unit + coverage + e2e + HTTP smoke
 ./scripts/sprint-delivery-verify.sh verify
 
-# MySQL mode: the same gates + migrations + ingestion + restart persistence
+# MySQL mode: the same gates + migrations + backtest persistence + ingestion + restart persistence
 KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ```
 
-Each command must exit with status `0`, with every gate marked `GATE PASS` and the smoke summary reporting `0 failed`. Default `verify` clears `DATABASE_URL` for its smoke API even when `apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from `apps/api/.env`, deploys migrations, ingests the current rolling fixture window, and verifies strategy ownership after an API restart.
+Each command must exit with status `0`, with every gate marked `GATE PASS` and the smoke summary reporting `0 failed`. Default `verify` clears `DATABASE_URL` for its smoke API even when `apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from `apps/api/.env`, deploys migrations, verifies a transactional backtest-persistence round trip, ingests the current rolling fixture window, and verifies strategy ownership after an API restart.
 
 Standalone smoke tests require an API already running on port `4000`. Match the assertion mode to the API you started:
 

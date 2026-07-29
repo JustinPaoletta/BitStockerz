@@ -11,8 +11,8 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 3.1**
-(Sprints 2.1–3.1 are locally verified in draft PR #9):
+The runnable API in `apps/api` currently implements through **Sprint 3.2**
+(Sprints 2.1–3.2 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -24,10 +24,11 @@ The runnable API in `apps/api` currently implements through **Sprint 3.1**
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
 | Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
-| Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use; no HTTP or persistence yet |
+| Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use |
+| Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads; HTTP remains planned for 3.3 |
 | Trading | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, backtest runs, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
@@ -72,6 +73,13 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 | STRATEGY_NOT_FOUND | 404 | strategy-not-found | Strategy not found |
 | STRATEGY_VERSION_NOT_FOUND | 404 | strategy-version-not-found | Strategy version not found |
 | STRATEGY_VALIDATION_ERROR | 400 | strategy-validation | Strategy validation error |
+| BACKTEST_INVALID_DEFINITION | 400 | backtest-invalid-definition | Invalid backtest definition |
+| BACKTEST_INSUFFICIENT_BARS | 400 | backtest-insufficient-bars | Insufficient backtest bars |
+| BACKTEST_BAR_LIMIT_EXCEEDED | 400 | backtest-bar-limit-exceeded | Backtest bar limit exceeded |
+| BACKTEST_RESOURCE_LIMIT_EXCEEDED | 400 | backtest-resource-limit-exceeded | Backtest resource limit exceeded |
+| BACKTEST_TIMEOUT | 504 | backtest-timeout | Backtest timed out |
+| BACKTEST_NOT_FOUND | 404 | backtest-not-found | Backtest not found |
+| BACKTEST_INVALID_STATE | 409 | backtest-invalid-state | Invalid backtest state |
 | CONFLICT | 409 | conflict | Conflict |
 | RATE_LIMITED | 429 | rate-limited | Rate limited |
 | INTERNAL_ERROR | 500 | internal | Internal server error |
@@ -482,13 +490,28 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 ---
 
-## 5. Backtesting APIs (#5) (HTTP planned; engine core implemented)
+## 5. Backtesting APIs (#5) (HTTP planned; engine and persistence implemented)
 
 Sprint 3.1 implements the internal `BacktestModule`,
 `BacktestEngineService`, and pure `runBacktest` contract. It accepts a validated
 strategy definition plus chronological OHLCV bars and returns closed trades,
-one equity point per bar, summary metrics, and bounded diagnostics. It has no
-HTTP controller or persistence yet; those remain Sprints 3.2–3.3.
+one equity point per bar, summary metrics, and bounded diagnostics.
+
+Sprint 3.2 adds the internal owner-scoped `BacktestsService` and
+`BacktestsRepository`. They create pending runs with immutable owned strategy
+version pins, compare-and-set lifecycle states, and transactionally persist one
+result plus ordered trades/equity points in MySQL (copy-on-write in seed mode).
+Active strategy-asset-compatible symbols and optional owner-scoped jobs are
+validated consistently, and owner operations reattach process-local auth ids
+after restart. Initial equity must already be cent-exact. Other decimal-backed
+values are fixed-scale strings at this boundary, and stored summary metrics are
+recomputed from those fixed-scale detail rows after the raw engine summary is
+validated exactly, before rounding. Latest pins enforce current strategy
+timeframe; explicit internal
+historical pins persist their supplied valid timeframe because strategy
+versions snapshot definitions, not mutable metadata. There is still no
+`/api/backtests` controller; the HTTP/job execution surface below remains
+planned for Sprint 3.3.
 
 ### 5.1 Backtest Runs
 

@@ -14,6 +14,7 @@ Update this table when a sprint ships. Pattern: `feat/sprint-{milestone}-{sprint
 | 2.2 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 | 2.3 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 | 3.1 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
+| 3.2 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 
 **Stacked PR rule:** Sprint N+1 PR targets the branch for Sprint N. After Sprint N merges to `main`, Sprint N+1 rebases or merges `main`, then targets `main`.
 

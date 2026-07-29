@@ -2,11 +2,11 @@
 
 **Status:** Implemented and locally verified (seed + MySQL, July 26, 2026); included in draft PR #9
 
-**Roadmap marker:** Implementation complete locally; Sprints 2.2–3.1 are also complete and `START HERE` is Sprint 3.2
+**Roadmap marker:** Implementation complete locally; Sprints 2.2–3.2 are also complete and `START HERE` is Sprint 3.3
 
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning`
 
-**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.1)
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.2)
 
 **Overview:** Replace the unauthenticated `POST /strategies` stub with durable strategy metadata + immutable version rows. Ship schema/migration, Prisma models, seed/in-memory stores, and a minimal authenticated create/get path that proves versioning — full CRUD and validation land in Sprint 2.3; indicator/rule JSON shape lands in Sprint 2.2.
 

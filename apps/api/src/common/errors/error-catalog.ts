@@ -82,6 +82,18 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     title: 'Backtest timed out',
     defaultDetail: 'The backtest exceeded its execution deadline.',
   },
+  [ErrorCode.BACKTEST_NOT_FOUND]: {
+    httpStatus: 404,
+    typeSuffix: 'backtest-not-found',
+    title: 'Backtest not found',
+    defaultDetail: 'The requested backtest was not found.',
+  },
+  [ErrorCode.BACKTEST_INVALID_STATE]: {
+    httpStatus: 409,
+    typeSuffix: 'backtest-invalid-state',
+    title: 'Invalid backtest state',
+    defaultDetail: 'The backtest cannot perform that state transition.',
+  },
   [ErrorCode.CONFLICT]: {
     httpStatus: 409,
     typeSuffix: 'conflict',

@@ -399,6 +399,11 @@ export class AuthService {
         data: { userId: input.nextUserId },
       });
 
+      await tx.backtestRun.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
       await tx.webAuthnCredential.updateMany({
         where: { userId: input.previousUserId },
         data: { userId: input.nextUserId },

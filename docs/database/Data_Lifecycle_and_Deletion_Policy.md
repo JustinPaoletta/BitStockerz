@@ -93,16 +93,19 @@ It is authoritative for **cascade vs soft delete** decisions and complements the
 ### backtest_runs
 - **Delete type:** No user deletion
 - **Behavior:** Immutable historical simulation
-- **Cascade:** RESTRICT (admin-only cleanup)
+- **Parent FK rules:** User, strategy, strategy version, and symbol use
+  `ON DELETE RESTRICT`; optional job uses `ON DELETE SET NULL`
+- **Admin cleanup:** Deleting a run cascades only to its result, trades, and
+  equity points
 
 ### backtest_results
 - **Delete type:** Dependent on backtest_runs
-- **Cascade:** OPTIONAL CASCADE from backtest_runs
+- **Cascade:** `ON DELETE CASCADE` from backtest_runs
 
 ### backtest_trades
 ### backtest_equity_points
 - **Delete type:** Dependent on backtest_runs
-- **Cascade:** OPTIONAL CASCADE from backtest_runs
+- **Cascade:** `ON DELETE CASCADE` from backtest_runs
 
 ---
 

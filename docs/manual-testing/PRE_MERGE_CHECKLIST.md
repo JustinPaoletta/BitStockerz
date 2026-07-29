@@ -3,9 +3,10 @@
 This is the single required pre-merge test document for
 [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9). It covers the
 human-visible behavior added by Sprints 2.1–2.3 and the automated-only engine
-surface added by Sprint 3.1. General unit, coverage, e2e, seed-smoke, and
-MySQL-smoke gates are not duplicated except for the focused 3.1 command needed
-to sign off a sprint that intentionally has no HTTP or UI surface.
+surface added by Sprint 3.1, plus the internal persistence surface added by
+Sprint 3.2. General unit, coverage, e2e, seed-smoke, and MySQL-smoke gates are
+not duplicated except for the focused 3.1/3.2 commands needed to sign off
+sprints that intentionally have no HTTP or UI surface.
 
 Run every command from the repository root. Prerequisites are Node.js
 `24.11.1`, npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep
@@ -486,7 +487,7 @@ therefore no additional curl or visual workflow to perform manually. Run the
 focused deterministic suite from the repository root:
 
 ```bash
-npm --prefix apps/api test -- --runInBand backtest
+npm --prefix apps/api test -- --runInBand backtest/engine
 ```
 
 Expected:
@@ -499,11 +500,71 @@ Expected:
   malformed/unsorted bars, invalid definitions, cancellation, deadlines, and
   bar/series-cell limits.
 
-Do not look for `/api/backtests` yet: persistence arrives in Sprint 3.2 and the
-HTTP execution surface in Sprint 3.3.
+Do not look for `/api/backtests` yet: Sprint 3.2 provides only the internal
+persistence service; the HTTP execution surface arrives in Sprint 3.3.
 
 - [ ] Focused Sprint 3.1 suite passes 8 suites / 54 tests with no snapshots.
 - [ ] Reviewer confirms no backtest HTTP route or migration was expected in 3.1.
+
+## 13. Verify the Sprint 3.2 persistence-only surface
+
+Sprint 3.2 intentionally adds **no HTTP route or UI**. Its manual sign-off is
+therefore one focused seed/unit command plus one real-MySQL round trip. Keep
+MySQL running; the second command can run while the API from Terminal A is
+running because it uses unique fixtures and cleans them in a `finally` block.
+
+From the repository root, run:
+
+```bash
+npm --prefix apps/api test -- --runInBand \
+  backtest-decimals \
+  backtests.repository \
+  backtests.service \
+  strategy-version-pinning \
+  strategies.service \
+  auth.service \
+  prisma.service
+```
+
+Expected:
+
+- 7 test suites and 166 tests pass with no snapshots.
+- Coverage includes latest/explicit immutable version pins, cross-owner
+  isolation, pending/running/terminal compare-and-set races, transactional
+  dependent writes, 500-row batching, copy-on-write seed parity, decimal
+  boundaries, exact-cent initial capital, strategy/symbol/timeframe
+  compatibility, deterministic ordering, sanitized failures, historical-pin
+  replay after metadata drift, and malformed engine output, including trade
+  P&L, sub-storage-step summary-metric contradictions, and fixed-scale summary
+  recomputation.
+
+Then load only the local database URL and run the isolated persistence gate:
+
+```bash
+source scripts/lib/load-api-env.sh
+load_database_url_from_api_env "$PWD/apps/api"
+NODE_ENV=development \
+INGESTION_SCHEDULER_ENABLED=false \
+LOG_LEVEL=silent \
+  npm --prefix apps/api run test:mysql:backtest
+```
+
+Expected final line:
+
+```text
+Backtest MySQL persistence smoke PASS: round-trip, terminal immutability, and post-restart ownership remap verified.
+```
+
+That gate creates a user, symbol, strategy/version, run, result, trade, and two
+equity points; reads them back through `BacktestsService`; confirms exact
+dependent table counts; rejects a second terminal write; restarts the Nest
+application; re-registers the same email; proves list/detail remap and retain
+the completed run; and deletes all of its fixtures. A failure is a merge
+blocker.
+
+- [ ] Focused Sprint 3.2 suite passes 7 suites / 166 tests with no snapshots.
+- [ ] MySQL persistence smoke prints its PASS line and exits with status `0`.
+- [ ] Reviewer confirms no `/api/backtests` route or UI was expected in 3.2.
 
 ## Sign-off
 

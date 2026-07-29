@@ -1,7 +1,7 @@
 # Sprint 3.1 — Backtest Engine Core
 
 **Status:** Implemented locally and verified (unmerged in PR #9)
-**Roadmap marker:** Completed locally — July 28, 2026
+**Roadmap marker:** Completed locally — July 28, 2026; Sprint 3.2 is also complete and `START HERE` is Sprint 3.3
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked at the owner's request)
 **PR base:** `main` via combined draft PR #9
 

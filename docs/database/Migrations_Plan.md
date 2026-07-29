@@ -154,30 +154,18 @@ Run after Sprint 1 migrations.
 
 ## Sprint 3.2 – Backtest Persistence
 
-**Migrations**
+**Implemented July 28, 2026**
 
-1. `V0300__create_backtest_runs.sql`  
-   - Creates: `backtest_runs`  
-   - Source: `DDL/04_backtesting.sql` (table definition only; FK to `jobs` added later via `V0330__add_fk_backtest_runs_job.sql`).
+| Prisma migration folder | Conceptual migrations | Effect |
+| --- | --- | --- |
+| `20260728213000_sprint_3_2_backtest_tables` | V0300–V0303 | Creates `backtest_runs` (including nullable `job_id` without its FK), `backtest_results`, `backtest_trades`, and `backtest_equity_points` in FK-safe order with all required indexes and cascade/restrict rules. |
+| `20260728213100_sprint_3_2_backtest_runs_job_fk` | V0330 | Adds `fk_backtest_runs_job` to `jobs.id` with `ON DELETE SET NULL ON UPDATE CASCADE`. |
 
-2. `V0301__create_backtest_results.sql`  
-   - Creates: `backtest_results`  
-   - Source: `DDL/04_backtesting.sql`
-
-3. `V0302__create_backtest_trades.sql`  
-   - Creates: `backtest_trades`  
-   - Source: `DDL/04_backtesting.sql`
-
-4. `V0303__create_backtest_equity_points.sql`  
-   - Creates: `backtest_equity_points`  
-   - Source: `DDL/04_backtesting.sql`
-
-5. `V0330__add_fk_backtest_runs_job.sql`  
-   - Alters: `backtest_runs` to add FK to `jobs.id` (`ON DELETE SET NULL`).  
-   - Source: `DDL/04_backtesting.sql` (constraint only).
-
-Note: If your migration tool requires strict FK ordering with `jobs`, ensure `V0130__create_jobs.sql` runs before `V0330__add_fk_backtest_runs_job.sql`.  
-If you prefer, you can omit the FK initially and add `V0330` later once jobs exist.
+The two-folder packaging preserves the conceptual DDL traceability while
+keeping table creation atomic and the deferred jobs constraint independently
+auditable. Sprint 1.3's jobs migration is already earlier in the runnable
+Prisma history. Both migrations apply with `npm --prefix apps/api run db:deploy`
+and are exercised by the MySQL persistence smoke gate.
 
 ---
 
@@ -186,7 +174,9 @@ If you prefer, you can omit the FK initially and add `V0330` later once jobs exi
 **Migrations**
 
 - No new tables.  
-- Optional: add indexes if profiling requires it (e.g., `idx_backtests_user_created`).
+- Sprint 3.2 already provides required list index
+  `idx_backtests_user_created`; add further indexes only if profiling justifies
+  a separate migration.
 
 ---
 

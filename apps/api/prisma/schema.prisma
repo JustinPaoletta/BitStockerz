@@ -1,6 +1,6 @@
 // BitStockerz API Prisma schema
-// Sprint 2.1 adds strategies and immutable strategy_versions on top of the
-// Sprint 1.4 jobs, auth, OHLCV, and audit tables.
+// Sprint 3.2 adds immutable backtest runs/results/trades/equity points on top
+// of the Sprint 2.1 strategy and Sprint 1.x platform tables.
 
 generator client {
   provider = "prisma-client-js"
@@ -21,6 +21,7 @@ model User {
   jobs                Job[]
   auditEvents         AuditEvent[]
   strategies          Strategy[]
+  backtestRuns        BacktestRun[]
 
   @@map("users")
 }
@@ -50,7 +51,8 @@ model Job {
   startedAt    DateTime? @map("started_at")
   finishedAt   DateTime? @map("finished_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  backtestRuns BacktestRun[]
 
   @@index([userId, createdAt])
   @@index([jobType, status])
@@ -84,8 +86,9 @@ model Strategy {
   createdAt   DateTime @map("created_at")
   updatedAt   DateTime @map("updated_at")
 
-  user     User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  versions StrategyVersion[]
+  user         User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  versions     StrategyVersion[]
+  backtestRuns BacktestRun[]
 
   @@unique([userId, name], map: "uq_strategies_user_name")
   @@index([userId], map: "idx_strategies_user")
@@ -99,7 +102,8 @@ model StrategyVersion {
   definitionJson Json     @map("definition_json")
   createdAt      DateTime @map("created_at")
 
-  strategy Strategy @relation(fields: [strategyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  strategy     Strategy      @relation(fields: [strategyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  backtestRuns BacktestRun[]
 
   @@unique([strategyId, versionNumber], map: "uq_strategy_versions")
   @@index([strategyId], map: "idx_strategy_versions_strategy")
@@ -122,6 +126,8 @@ model Symbol {
   equityDailyBars  EquityDailyBar[]
   cryptoDailyBars  CryptoDailyBar[]
   cryptoHourlyBars CryptoHourlyBar[]
+  backtestRuns     BacktestRun[]
+  backtestTrades   BacktestTrade[]
 
   @@index([assetType])
   @@map("symbols")
@@ -182,4 +188,88 @@ model CryptoHourlyBar {
   @@unique([symbolId, timestamp])
   @@index([symbolId, timestamp])
   @@map("crypto_hourly_bars")
+}
+
+model BacktestRun {
+  id                String    @id @db.Char(36)
+  userId            String    @map("user_id") @db.Char(36)
+  strategyId        String    @map("strategy_id") @db.Char(36)
+  strategyVersionId Int       @map("strategy_version_id") @db.UnsignedInt
+  symbolId          Int       @map("symbol_id") @db.UnsignedInt
+  timeframe         String    @db.VarChar(8)
+  startDate         DateTime  @map("start_date")
+  endDate           DateTime  @map("end_date")
+  initialEquity     Decimal   @map("initial_equity") @db.Decimal(18, 2)
+  status            String    @db.VarChar(16)
+  jobId             String?   @map("job_id") @db.Char(36)
+  errorMessage      String?   @map("error_message") @db.Text
+  createdAt         DateTime  @map("created_at")
+  updatedAt         DateTime  @map("updated_at")
+  startedAt         DateTime? @map("started_at")
+  finishedAt        DateTime? @map("finished_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  strategy        Strategy        @relation(fields: [strategyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  strategyVersion StrategyVersion @relation(fields: [strategyVersionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  symbol          Symbol          @relation(fields: [symbolId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  job             Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  result       BacktestResult?
+  trades       BacktestTrade[]
+  equityPoints BacktestEquityPoint[]
+
+  @@index([userId, createdAt], map: "idx_backtests_user_created")
+  @@index([strategyId], map: "idx_backtests_strategy")
+  @@index([symbolId], map: "idx_backtests_symbol")
+  @@map("backtest_runs")
+}
+
+model BacktestResult {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  backtestRunId  String   @unique(map: "uq_backtest_results_run") @map("backtest_run_id") @db.Char(36)
+  finalEquity    Decimal  @map("final_equity") @db.Decimal(18, 2)
+  totalReturnPct Decimal  @map("total_return_pct") @db.Decimal(9, 4)
+  maxDrawdownPct Decimal  @map("max_drawdown_pct") @db.Decimal(9, 4)
+  winRatePct     Decimal  @map("win_rate_pct") @db.Decimal(9, 4)
+  numTrades      Int      @map("num_trades")
+  avgWinPct      Decimal  @map("avg_win_pct") @db.Decimal(9, 4)
+  avgLossPct     Decimal  @map("avg_loss_pct") @db.Decimal(9, 4)
+  sharpeRatio    Decimal? @map("sharpe_ratio") @db.Decimal(9, 4)
+
+  run BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("backtest_results")
+}
+
+model BacktestTrade {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  backtestRunId String   @map("backtest_run_id") @db.Char(36)
+  symbolId      Int      @map("symbol_id") @db.UnsignedInt
+  entryTime     DateTime @map("entry_time")
+  exitTime      DateTime @map("exit_time")
+  side          String   @db.VarChar(8)
+  entryPrice    Decimal  @map("entry_price") @db.Decimal(18, 8)
+  exitPrice     Decimal  @map("exit_price") @db.Decimal(18, 8)
+  quantity      Decimal  @db.Decimal(18, 8)
+  pnlAbs        Decimal  @map("pnl_abs") @db.Decimal(18, 8)
+  pnlPct        Decimal  @map("pnl_pct") @db.Decimal(9, 4)
+
+  run    BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  symbol Symbol      @relation(fields: [symbolId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([backtestRunId, entryTime], map: "idx_backtest_trades_run_entry")
+  @@index([symbolId], map: "idx_backtest_trades_symbol")
+  @@map("backtest_trades")
+}
+
+model BacktestEquityPoint {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  backtestRunId String   @map("backtest_run_id") @db.Char(36)
+  timestamp     DateTime @map("ts")
+  equity        Decimal  @db.Decimal(18, 2)
+
+  run BacktestRun @relation(fields: [backtestRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([backtestRunId, timestamp], map: "idx_backtest_equity_run_ts")
+  @@map("backtest_equity_points")
 }

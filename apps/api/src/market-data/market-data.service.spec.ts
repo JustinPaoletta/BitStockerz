@@ -100,6 +100,50 @@ describe('MarketDataService', () => {
     }
   });
 
+  it('resolves only active seed symbols by internal id', async () => {
+    const service = createService();
+
+    await expect(service.requireActiveSymbolById(1)).resolves.toMatchObject({
+      id: 1,
+      symbol: 'AAPL',
+      is_active: true,
+    });
+    await expect(service.requireActiveSymbolById(99)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+
+  it('resolves only active Prisma symbols by internal id', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: 7,
+        symbol: 'NVDA',
+        name: 'NVIDIA',
+        assetType: 'EQUITY',
+        exchange: 'NASDAQ',
+        currency: 'USD',
+        baseAsset: null,
+        quoteAsset: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .mockResolvedValueOnce(null);
+    const service = createService({
+      isEnabled: true,
+      symbol: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.requireActiveSymbolById(7)).resolves.toMatchObject({
+      id: 7,
+      symbol: 'NVDA',
+    });
+    await expect(service.requireActiveSymbolById(8)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+
   it('searches seeded symbols by symbol, name, and asset type', async () => {
     const service = createService();
 

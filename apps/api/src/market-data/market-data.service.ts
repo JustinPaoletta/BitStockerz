@@ -110,6 +110,32 @@ export class MarketDataService {
     return toSymbolResponse(record);
   }
 
+  async requireActiveSymbolById(symbolId: number): Promise<SymbolResponse> {
+    let record: SymbolRecord | undefined;
+    if (this.prisma.isEnabled) {
+      const prismaRecord = await this.prisma.symbol.findUnique({
+        where: { id: symbolId },
+      });
+      record =
+        prismaRecord?.isActive === true
+          ? fromPrismaSymbol(prismaRecord)
+          : undefined;
+    } else {
+      record = SEED_SYMBOLS.find(
+        (candidate) => candidate.id === symbolId && candidate.isActive,
+      );
+    }
+
+    if (!record) {
+      throw new DomainError(
+        ErrorCode.NOT_FOUND,
+        `Symbol id ${symbolId} was not found.`,
+      );
+    }
+
+    return toSymbolResponse(record);
+  }
+
   async searchSymbols(input: SymbolSearchInput): Promise<SymbolResponse[]> {
     const query = input.q?.trim() ?? '';
     const limit = clampLimit(input.limit);

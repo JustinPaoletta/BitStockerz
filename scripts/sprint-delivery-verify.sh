@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–3.1 verification. Sprint 3.1 is exercised by the
-# unit/coverage gates because it intentionally has no HTTP or persistence path.
+# End-to-end Sprint 1.2–3.2 verification. Sprint 3.1 is exercised by the
+# unit/coverage gates; Sprint 3.2 additionally runs an isolated MySQL
+# persistence round trip because neither sprint has a public HTTP surface.
 # Usage:
 #   ./scripts/sprint-delivery-verify.sh verify          # gates + smoke only
 #   KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify  # smoke + MySQL checks (reads apps/api/.env)
@@ -117,6 +118,11 @@ verify_all() {
     if [[ -n "${DATABASE_URL:-}" ]]; then
       log "Smoke DB checks enabled (DATABASE_URL loaded for persistence test)"
       run_gate "db:deploy" npm --prefix apps/api run db:deploy
+      run_gate "backtest:persistence:mysql" env \
+        NODE_ENV=development \
+        INGESTION_SCHEDULER_ENABLED=false \
+        LOG_LEVEL=silent \
+        npm --prefix apps/api run test:mysql:backtest
       STRATEGY_STATE_FILE="$(mktemp)"
     else
       log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"

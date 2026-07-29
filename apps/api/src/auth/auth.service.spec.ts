@@ -113,6 +113,7 @@ describe('AuthService', () => {
     const updateManyJobs = jest.fn().mockResolvedValue({ count: 2 });
     const updateManyAuditEvents = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyStrategies = jest.fn().mockResolvedValue({ count: 0 });
+    const updateManyBacktestRuns = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
     const transaction = jest.fn(async (fn) =>
       fn({
@@ -120,6 +121,7 @@ describe('AuthService', () => {
         job: { updateMany: updateManyJobs },
         auditEvent: { updateMany: updateManyAuditEvents },
         strategy: { updateMany: updateManyStrategies },
+        backtestRun: { updateMany: updateManyBacktestRuns },
         webAuthnCredential: { updateMany: updateManyCredentials },
       }),
     );
@@ -163,6 +165,10 @@ describe('AuthService', () => {
       data: { userId: result.user.id },
     });
     expect(updateManyStrategies).toHaveBeenCalledWith({
+      where: { userId: staleUserId },
+      data: { userId: result.user.id },
+    });
+    expect(updateManyBacktestRuns).toHaveBeenCalledWith({
       where: { userId: staleUserId },
       data: { userId: result.user.id },
     });

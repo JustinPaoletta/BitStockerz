@@ -1,9 +1,9 @@
 # Sprint 3.3 — Backtest Execution & Limits
 
 **Status:** Plan ready (not started)  
-**Roadmap marker:** Milestone 3 / Sprint 3.3  
+**Roadmap marker:** `START HERE — July 28, 2026`
 **Branch:** `feat/sprint-3-3-backtest-execution-limits`  
-**PR base:** `feat/sprint-3-2-backtest-persistence`
+**PR base:** `feat/sprint-2-1-strategy-persistence-versioning` while combined PR #9 is open (or `main` once it merges)
 
 **Overview:** Expose authenticated HTTP APIs to run, list, and inspect backtests per [API_Inventory §5](../database/API_Inventory.md), executing synchronously through the existing jobs infrastructure (`backtest_run` job type + `JobExecutorService`). Enforce bar-count limits, wall-clock timeout, per-user rate limits, and structured diagnostics/logging. No new tables; verify the required predecessor index. After this sprint the API alone can demo Strategy → Backtest → Results (JSON).
 
