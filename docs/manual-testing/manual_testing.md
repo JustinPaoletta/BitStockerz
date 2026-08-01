@@ -111,6 +111,12 @@ The standalone smoke script does not load `.env`; it honors an already-exported 
 
 Authenticated bearer token required for job, ingestion, and strategy endpoints.
 
+Generated API reference while the server is running:
+
+- Swagger UI: `http://localhost:4000/api/docs`
+- OpenAPI JSON: `http://localhost:4000/api/openapi.json`
+- OpenAPI YAML: `http://localhost:4000/api/openapi.yaml`
+
 ---
 
 ## Section 1 – Health & readiness (Sprint 0.1)

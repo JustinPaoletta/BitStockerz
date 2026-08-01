@@ -35,6 +35,12 @@ Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fi
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
+For the generated contract covering shipped routes, run the API and open
+`http://localhost:4000/api/docs`. Machine-readable OpenAPI 3.0 documents are
+served at `/api/openapi.json` and `/api/openapi.yaml`. This inventory remains
+the source for design rationale and planned APIs; planned routes are not added
+to the generated contract until they ship.
+
 ---
 
 ## 0. Conventions

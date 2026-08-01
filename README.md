@@ -69,6 +69,25 @@ A private BitStockerz monorepo that combines product and database documentation 
    open `http://localhost:4200`.
 6. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
 
+## API Documentation
+
+With the API running, the generated contract is available at:
+
+- Interactive Swagger UI: `http://localhost:4000/api/docs`
+- OpenAPI JSON: `http://localhost:4000/api/openapi.json`
+- OpenAPI YAML: `http://localhost:4000/api/openapi.yaml`
+
+Swagger UI supports live requests and persists the bearer token entered through
+**Authorize** for the current browser session. Obtain a development token from
+`POST /api/auth/register`, or use a passkey/OAuth flow. Test-only hello and
+forced-error routes are intentionally excluded from the public contract.
+
+The generated contract is the machine-readable source of truth for shipped
+HTTP routes. The [master API inventory](./docs/database/API_Inventory.md)
+provides design context and clearly labels future routes; the
+[manual testing guide](./docs/manual-testing/manual_testing.md) contains
+end-to-end curl workflows.
+
 ## Common Commands
 
 - `npm run prepare` installs Husky hooks for the repo.

@@ -1,16 +1,19 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import {
   AUTH_TOKEN_REQUEST_KEY,
   AuthGuard,
   type AuthenticatedRequest,
 } from '../auth/auth.guard';
 import { AuthService } from '../auth/auth.service';
+import { ApiEndpoint, apiSchemaRef } from '../docs/openapi.decorators';
 import { AuditService } from '../observability/audit.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
 import type { JobPayload } from './jobs.types';
 
+@ApiTags('Market Data Ingestion')
 @Controller('market-data/ingestion')
 @UseGuards(AuthGuard)
 export class IngestionController {
@@ -22,6 +25,31 @@ export class IngestionController {
   ) {}
 
   @Post('equity')
+  @ApiBody({
+    required: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        symbol: {
+          type: 'string',
+          description:
+            'Optional active equity ticker. Omit to import all fixtures.',
+          example: 'AAPL',
+        },
+      },
+    },
+  })
+  @ApiEndpoint({
+    summary: 'Import equity daily fixtures',
+    description:
+      'Runs the deterministic equity fixture importer and upserts bars when MySQL is enabled.',
+    status: 201,
+    authenticated: true,
+    responseDescription: 'Completed equity import job.',
+    responseSchema: apiSchemaRef('Job'),
+    errors: [400, 401, 404, 500, 504],
+  })
   async importEquity(
     @Req() request: AuthenticatedRequest,
     @Body() body: Pick<CreateJobDto, 'symbol'>,
@@ -44,6 +72,36 @@ export class IngestionController {
   }
 
   @Post('crypto')
+  @ApiBody({
+    required: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        symbol: {
+          type: 'string',
+          description:
+            'Optional active crypto pair. Omit to import all fixtures.',
+          example: 'BTC-USD',
+        },
+        intervals: {
+          type: 'array',
+          description: 'Intervals to import. Omit to import both.',
+          items: { type: 'string', enum: ['1d', '1h'] },
+        },
+      },
+    },
+  })
+  @ApiEndpoint({
+    summary: 'Import crypto fixtures',
+    description:
+      'Runs the deterministic crypto fixture importer and upserts daily/hourly bars when MySQL is enabled.',
+    status: 201,
+    authenticated: true,
+    responseDescription: 'Completed crypto import job.',
+    responseSchema: apiSchemaRef('Job'),
+    errors: [400, 401, 404, 500, 504],
+  })
   async importCrypto(
     @Req() request: AuthenticatedRequest,
     @Body() body: Pick<CreateJobDto, 'symbol' | 'intervals'>,

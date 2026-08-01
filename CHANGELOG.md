@@ -9,6 +9,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Generated OpenAPI 3.0 JSON/YAML and interactive Swagger UI for every shipped
+  product route, including bearer authorization, request constraints, response
+  schemas, RFC 7807 errors, live request support, and contract-coverage tests.
 - Sprint 3.4 Angular 21.2 web app with a thin authenticated shell, dev
   login/register flow, backtest list and launch screens, result metrics,
   Lightweight Charts 5.2 equity curve, stable-id paged trades table,

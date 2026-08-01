@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
 import { AppLogger } from './common/logging/app-logger';
 import { AppConfigService } from './config/app-config.service';
+import { configureOpenApi } from './docs/openapi';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -20,6 +21,7 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(app.get(GlobalHttpExceptionFilter));
+  configureOpenApi(app);
   await app.listen(config.server.port);
 }
 void bootstrap();

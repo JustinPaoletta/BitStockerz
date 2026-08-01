@@ -15,6 +15,7 @@ const createMockApp = (port = 4000) => ({
 });
 
 const createMock = jest.fn();
+const mockConfigureOpenApi = jest.fn();
 
 jest.mock('@nestjs/core', () => ({
   NestFactory: {
@@ -22,10 +23,15 @@ jest.mock('@nestjs/core', () => ({
   },
 }));
 
+jest.mock('./docs/openapi', () => ({
+  configureOpenApi: mockConfigureOpenApi,
+}));
+
 describe('bootstrap', () => {
   beforeEach(() => {
     jest.resetModules();
     createMock.mockReset();
+    mockConfigureOpenApi.mockReset();
   });
 
   it('boots the app with global pipes, filters, and logger', async () => {
@@ -55,6 +61,7 @@ describe('bootstrap', () => {
       ),
     ).toBe(true);
     expect(mockApp.listen).toHaveBeenCalledWith(4567);
+    expect(mockConfigureOpenApi).toHaveBeenCalledWith(mockApp);
     expect(mockApp.useGlobalPipes).toHaveBeenCalledTimes(1);
     const pipeArg = mockApp.useGlobalPipes.mock.calls[0][0];
     expect(pipeArg).toBeDefined();
