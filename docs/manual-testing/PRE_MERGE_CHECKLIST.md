@@ -9,6 +9,10 @@ coverage, e2e, seed-smoke, and MySQL-smoke gates are not duplicated except for
 the focused 3.1/3.2 commands needed to sign off sprints that intentionally had
 no HTTP or UI surface.
 
+**Execution record:** All checks below passed on 2026-08-01 against commit
+`b2b9c9a`, using live MySQL and a real Chromium browser. The checked boxes are
+the PR #9 acceptance record; rerun the commands if the implementation changes.
+
 Run every command from the repository root. Prerequisites are Node.js
 `24.11.1`, npm, `curl`, `jq`, and Docker Desktop. Use two terminals and keep
 Terminal B open through the restart check.
@@ -35,7 +39,7 @@ curl -s "$BASE_URL/health/ready" | jq -e '.checks.database.status == "up"'
 Expected: `true`. Stop if the database is not `up`; later persistence checks
 would otherwise prove only in-memory behavior.
 
-- [ ] API starts in MySQL mode and readiness reports the database `up`.
+- [x] API starts in MySQL mode and readiness reports the database `up`.
 
 ## 2. Verify the public indicator catalog
 
@@ -61,7 +65,7 @@ jq -e '
 
 Expected: `true`.
 
-- [ ] Catalog is public and exposes the exact SMA/EMA/RSI contract.
+- [x] Catalog is public and exposes the exact SMA/EMA/RSI contract.
 
 ## 3. Register an owner and create a canonical strategy
 
@@ -128,8 +132,8 @@ jq -e --argjson expected "$DEFINITION" --arg summary "$EXPECTED_SUMMARY" '
 Expected: both assertions pass. This proves that exactly `500` is accepted and
 that the summary is deterministic.
 
-- [ ] Create returns `201`, immutable version 1, exact JSON, and exact summary.
-- [ ] A take-profit value of exactly `500%` is accepted and displayed.
+- [x] Create returns `201`, immutable version 1, exact JSON, and exact summary.
+- [x] A take-profit value of exactly `500%` is accepted and displayed.
 
 ## 4. Verify dry-run validation
 
@@ -197,9 +201,9 @@ jq -e '.code == "STRATEGY_VALIDATION_ERROR"' \
 Expected: validation returns `200` for both valid and invalid definitions and
 does not create a strategy. Only an invalid request envelope returns `400`.
 
-- [ ] Inline and persisted validation return the same deterministic summary.
-- [ ] Invalid rules return structured errors and `summary: null` without writes.
-- [ ] Both/neither validation inputs return `STRATEGY_VALIDATION_ERROR`.
+- [x] Inline and persisted validation return the same deterministic summary.
+- [x] Invalid rules return structured errors and `summary: null` without writes.
+- [x] Both/neither validation inputs return `STRATEGY_VALIDATION_ERROR`.
 
 ## 5. Verify list shape and default paging
 
@@ -221,7 +225,7 @@ jq -e --arg id "$STRATEGY_ID" '
 
 Expected: `true`; list items do not contain the potentially large definition.
 
-- [ ] Owner list uses the documented envelope and lightweight item shape.
+- [x] Owner list uses the documented envelope and lightweight item shape.
 
 ## 6. Verify metadata updates and immutable definition versions
 
@@ -302,10 +306,10 @@ jq -e '.code == "STRATEGY_VERSION_NOT_FOUND"' \
   /tmp/bitstockerz-history-missing.json
 ```
 
-- [ ] Metadata-only changes preserve version 1 and `description: null` clears it.
-- [ ] Each present definition appends a version, including an identical repeat.
-- [ ] Version 1 remains readable with current metadata and historical markers.
-- [ ] A missing version returns `STRATEGY_VERSION_NOT_FOUND`.
+- [x] Metadata-only changes preserve version 1 and `description: null` clears it.
+- [x] Each present definition appends a version, including an identical repeat.
+- [x] Version 1 remains readable with current metadata and historical markers.
+- [x] A missing version returns `STRATEGY_VERSION_NOT_FOUND`.
 
 ## 7. Verify stable validation errors
 
@@ -346,8 +350,8 @@ test "$BAD_PAGE_CODE" = 400
 jq -e '.code == "VALIDATION_ERROR"' /tmp/bitstockerz-bad-page.json
 ```
 
-- [ ] `500.01%` is rejected with the exact nested path and strategy code.
-- [ ] Empty updates and out-of-bounds paging return generic request validation.
+- [x] `500.01%` is rejected with the exact nested path and strategy code.
+- [x] Empty updates and out-of-bounds paging return generic request validation.
 
 ## 8. Verify ownership isolation
 
@@ -374,7 +378,7 @@ jq -e '.code == "STRATEGY_NOT_FOUND"' /tmp/bitstockerz-other-validate.json
 
 Expected: cross-user reads and validation expose the same not-found response.
 
-- [ ] Another user receives `404 STRATEGY_NOT_FOUND` without existence leakage.
+- [x] Another user receives `404 STRATEGY_NOT_FOUND` without existence leakage.
 
 ## 9. Verify soft delete semantics
 
@@ -418,8 +422,8 @@ curl -s "$BASE_URL/strategies" \
   jq -e --arg id "$DELETE_ID" 'all(.items[]; .id != $id)'
 ```
 
-- [ ] Delete returns an empty `204`; repeated delete returns strategy not found.
-- [ ] Deleted strategies disappear from list/get and keep their names reserved.
+- [x] Delete returns an empty `204`; repeated delete returns strategy not found.
+- [x] Deleted strategies disappear from list/get and keep their names reserved.
 
 ## 10. Verify bounded audit metadata
 
@@ -439,7 +443,7 @@ contain only `name` and `strategy_id`; updated payloads contain only
 must not appear. If Docker credentials or the container name differ, adjust the
 command.
 
-- [ ] Create, update, and delete audit rows exist with bounded metadata only.
+- [x] Create, update, and delete audit rows exist with bounded metadata only.
 
 ## 11. Verify persistence across an API restart
 
@@ -479,7 +483,7 @@ Keep Terminal B and its variables open.
    ' /tmp/bitstockerz-history-restart.json
    ```
 
-- [ ] Latest version 3 and immutable version 1 both survive an API restart.
+- [x] Latest version 3 and immutable version 1 both survive an API restart.
 
 ## 12. Verify the Sprint 3.1 engine-only surface
 
@@ -504,8 +508,8 @@ Expected:
 At the Sprint 3.1 boundary there was no `/api/backtests` route. Sections 14–15
 below test the HTTP and UI surfaces subsequently added by Sprints 3.3–3.4.
 
-- [ ] Focused Sprint 3.1 suite passes 8 suites / 54 tests with no snapshots.
-- [ ] Reviewer confirms no backtest HTTP route or migration was expected in 3.1.
+- [x] Focused Sprint 3.1 suite passes 8 suites / 54 tests with no snapshots.
+- [x] Reviewer confirms no backtest HTTP route or migration was expected in 3.1.
 
 ## 13. Verify the Sprint 3.2 persistence-only surface
 
@@ -529,7 +533,7 @@ npm --prefix apps/api test -- --runInBand \
 
 Expected:
 
-- 7 test suites and 166 tests pass with no snapshots.
+- 7 test suites and 170 tests pass with no snapshots.
 - Coverage includes latest/explicit immutable version pins, cross-owner
   isolation, pending/running/terminal compare-and-set races, transactional
   dependent writes, 500-row batching, copy-on-write seed parity, decimal
@@ -563,9 +567,9 @@ application; re-registers the same email; proves list/detail remap and retain
 the completed run; and deletes all of its fixtures. A failure is a merge
 blocker.
 
-- [ ] Focused Sprint 3.2 suite passes 7 suites / 166 tests with no snapshots.
-- [ ] MySQL persistence smoke prints its PASS line and exits with status `0`.
-- [ ] Reviewer confirms no `/api/backtests` route or UI was expected in 3.2.
+- [x] Focused Sprint 3.2 suite passes 7 suites / 170 tests with no snapshots.
+- [x] MySQL persistence smoke prints its PASS line and exits with status `0`.
+- [x] Reviewer confirms no `/api/backtests` route or UI was expected in 3.2.
 
 ## 14. Verify Sprint 3.3 backtest execution APIs
 
@@ -811,10 +815,10 @@ curl -s "$BASE_URL/backtests" \
   | jq -e '.items == []'
 ```
 
-- [ ] POST completes through a linked job and returns bounded summary data.
-- [ ] Owner list and detail expose the canonical shape, full curve, and stable trade ids.
-- [ ] Unauthenticated, cross-owner, bar-limit, and rate-limit responses use the expected stable codes.
-- [ ] A rate-limited user can still read their backtest list.
+- [x] POST completes through a linked job and returns bounded summary data.
+- [x] Owner list and detail expose the canonical shape, full curve, and stable trade ids.
+- [x] Unauthenticated, cross-owner, bar-limit, and rate-limit responses use the expected stable codes.
+- [x] A rate-limited user can still read their backtest list.
 
 ## 15. Verify the Sprint 3.4 Angular backtest UI
 
@@ -855,8 +859,11 @@ Open `http://localhost:4200` in a browser and complete this sequence:
    form becomes one column, metric cards remain readable, the chart stays
    within the viewport, and the trades table scrolls horizontally instead of
    widening the page.
-8. In browser developer tools, confirm there are no console errors or failed
-   API requests during list, run, detail, and resize.
+8. After confirming the deliberate missing-strategy error in step 5, clear the
+   browser console and network log. Confirm there are no console errors or
+   unexpected failed API requests during the successful list, run, detail, and
+   resize flow. The earlier `POST /api/backtests` `404` is expected test
+   evidence, not a failure of this clean pass.
 9. Choose **Log out**. Confirm the token is removed and a direct visit to a
    backtest detail URL redirects to `/login` with no protected data rendered.
 
@@ -864,10 +871,10 @@ The checked-in contract fixture used by the mapper unit test is
 `docs/manual-testing/fixtures/backtest-detail.example.json`; it is reference
 data, not a substitute for this live MySQL/browser workflow.
 
-- [ ] Login → list → run → detail is fully demoable against the live API.
-- [ ] Metrics, chart, trade/no-trade state, and UTC dates match the API result.
-- [ ] Desktop and 390px mobile layouts have no clipping or page-width overflow.
-- [ ] Browser console/network remain clean and logout protects deep links.
+- [x] Login → list → run → detail is fully demoable against the live API.
+- [x] Metrics, chart, trade/no-trade state, and UTC dates match the API result.
+- [x] Desktop and 390px mobile layouts have no clipping or page-width overflow.
+- [x] Browser console/network remain clean and logout protects deep links.
 
 ## Sign-off
 
