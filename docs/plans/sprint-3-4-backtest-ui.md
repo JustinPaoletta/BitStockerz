@@ -366,7 +366,10 @@ This does not change the original sequencing decision or Sprint 3.4 scope.
 Angular 21.2.x. Angular 22.0.8 was evaluated but requires Node 24.15 or newer,
 while this repository intentionally pins Node 24.11.1; Angular 21 is therefore
 the newest compatible supported line for this PR. Lightweight Charts 5.2 is
-used through its current `addSeries(LineSeries, …)` API.
+used through its current `addSeries(LineSeries, …)` API. The trades table's
+minimum-width rules are scoped beneath `.table-wrap` so they cannot resize the
+chart library's internal layout table; this was reverified at 390 × 844 on
+August 1, 2026.
 
 ---
 

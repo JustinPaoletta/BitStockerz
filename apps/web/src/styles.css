@@ -213,27 +213,27 @@ select:focus {
 .table-wrap {
   overflow-x: auto;
 }
-table {
+.table-wrap table {
   border-collapse: collapse;
   min-width: 850px;
   width: 100%;
 }
-th,
-td {
+.table-wrap th,
+.table-wrap td {
   border-bottom: 1px solid var(--border);
   padding: 0.85rem 0.7rem;
   text-align: right;
   white-space: nowrap;
 }
-th {
+.table-wrap th {
   color: var(--muted);
   font-size: 0.7rem;
   text-transform: uppercase;
 }
-th:first-child,
-th:nth-child(2),
-td:first-child,
-td:nth-child(2) {
+.table-wrap th:first-child,
+.table-wrap th:nth-child(2),
+.table-wrap td:first-child,
+.table-wrap td:nth-child(2) {
   text-align: left;
 }
 .text-link {

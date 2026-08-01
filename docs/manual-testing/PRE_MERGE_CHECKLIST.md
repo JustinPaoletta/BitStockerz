@@ -936,6 +936,12 @@ data, not a substitute for this live MySQL/browser workflow.
 - [x] Desktop and 390px mobile layouts have no clipping or page-width overflow.
 - [x] Browser console/network remain clean and logout protects deep links.
 
+Responsive verification was repeated at 390 × 844 on August 1, 2026 after
+scoping the trades-table CSS selectors. This prevents the table's 850px
+minimum width from affecting Lightweight Charts' internal layout table; the
+chart matches its 312px container, the trades table remains independently
+scrollable, and the 390px document has no horizontal overflow.
+
 ## 16. Verify generated OpenAPI and Swagger UI
 
 Keep the API running and use Terminal B to verify both machine-readable

@@ -238,7 +238,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #5.4.1 – Equity curve chart
 - #5.4.2 – Trades table
 - Status: Implementation complete locally (verified with build, lint, unit,
-  API regression, desktop browser, and 390px mobile browser checks July 28,
+  API regression, desktop browser, and 390px mobile browser checks August 1,
   2026); stacked with Sprints 2.1–3.3 in draft PR #9
 - Note: Sprint 3.4 owns the thin Angular 21.2.19 scaffold compatible with the
   repository's pinned Node 24.11.1. Sprint 5.1 extends it rather than
