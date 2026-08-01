@@ -851,10 +851,9 @@ Open `http://localhost:4200` in a browser and complete this sequence:
    temporarily select Slow 3G in browser network throttling and repeat.
 6. The new version-2 run must show metrics and the explicit **No trades were
    generated for this run** state. Return to `/backtests`; both the original
-   one-trade version-1 run and new zero-trade run must be present. If a result has more
-   than 500 trades, **Load more trades** must append without duplicate rows and
-   disappear once `trades_page.has_more` becomes false. This control is
-   intentionally absent for the supplied one-trade smoke strategy.
+   one-trade version-1 run and new zero-trade run must be present. Complete the
+   required 501-trade pagination gate below; it is part of Sprint 3.4 acceptance
+   and is not deferred to a later roadmap item.
 7. Resize the browser to 390 × 844. Confirm header/nav wrap cleanly, the run
    form becomes one column, metric cards remain readable, the chart stays
    within the viewport, and the trades table scrolls horizontally instead of
@@ -867,12 +866,70 @@ Open `http://localhost:4200` in a browser and complete this sequence:
 9. Choose **Log out**. Confirm the token is removed and a direct visit to a
    backtest detail URL redirects to `/login` with no protected data rendered.
 
+### Required 501-trade pagination gate
+
+Use the completed `$BACKTEST_RUN_ID` from Section 14 as the ownership, result,
+and equity-curve source for an isolated local fixture. The helper refuses to
+overwrite an existing fixture, verifies all 501 rows after creation, and its
+cleanup relies on the fixture run's database cascades. In Terminal B:
+
+```bash
+PAGINATION_RUN_ID=50100000-0000-4000-8000-000000000009
+./scripts/backtest-pagination-fixture.sh cleanup
+./scripts/backtest-pagination-fixture.sh create "$BACKTEST_RUN_ID"
+
+curl -s \
+  "$BASE_URL/backtests/$PAGINATION_RUN_ID?trades_limit=500&trades_offset=0" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -o /tmp/bitstockerz-pagination-page1.json
+curl -s \
+  "$BASE_URL/backtests/$PAGINATION_RUN_ID?trades_limit=500&trades_offset=500" \
+  -H "Authorization: Bearer $OWNER_TOKEN" \
+  -o /tmp/bitstockerz-pagination-page2.json
+
+jq -s -e '
+  (.[0].results.num_trades == 501) and
+  (.[0].trades | length) == 500 and
+  (.[0].trades_page == {limit:500,offset:0,has_more:true}) and
+  (.[1].trades | length) == 1 and
+  (.[1].trades_page == {limit:500,offset:500,has_more:false}) and
+  ([.[].trades[].id] | length) == 501 and
+  ([.[].trades[].id] | unique | length) == 501
+' /tmp/bitstockerz-pagination-page1.json \
+  /tmp/bitstockerz-pagination-page2.json
+```
+
+Before opening the fixture, clear the browser console and network log. While
+logged in as `$OWNER_EMAIL`, visit
+`http://localhost:4200/backtests/50100000-0000-4000-8000-000000000009`, then
+confirm all of the following:
+
+1. The detail page initially says **500 loaded**, renders 500 table rows, and
+   shows **Load more trades**.
+2. Selecting **Load more trades** sends one successful request with
+   `trades_limit=500&trades_offset=500`.
+3. The page then says **501 loaded**, renders 501 unique rows, and removes the
+   button because `has_more` is false.
+4. The browser console has no errors and the two detail requests both return
+   HTTP `200`.
+
+Remove only the isolated fixture after the browser check:
+
+```bash
+./scripts/backtest-pagination-fixture.sh cleanup
+```
+
+The append/deduplication/button-removal behavior also has a component
+regression test in `backtest-detail.page.spec.ts` and is exercised by
+`npm run web:test`.
+
 The checked-in contract fixture used by the mapper unit test is
 `docs/manual-testing/fixtures/backtest-detail.example.json`; it is reference
 data, not a substitute for this live MySQL/browser workflow.
 
 - [x] Login → list → run → detail is fully demoable against the live API.
 - [x] Metrics, chart, trade/no-trade state, and UTC dates match the API result.
+- [x] The required 501-trade fixture loads 500 + 1 unique rows and removes the pagination control.
 - [x] Desktop and 390px mobile layouts have no clipping or page-width overflow.
 - [x] Browser console/network remain clean and logout protects deep links.
 
@@ -884,5 +941,6 @@ section number, HTTP response, and relevant API log excerpt.
 Cleanup:
 
 ```bash
-rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart,backtest-ingest,backtest-strategy,backtest-bars,backtest-run,backtest-list,backtest-detail,backtest-unauth,backtest-cross-owner,backtest-oversize,backtest-no-trade-version,backtest-rate}.json
+./scripts/backtest-pagination-fixture.sh cleanup
+rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart,backtest-ingest,backtest-strategy,backtest-bars,backtest-run,backtest-list,backtest-detail,backtest-unauth,backtest-cross-owner,backtest-oversize,backtest-no-trade-version,backtest-rate,pagination-page1,pagination-page2}.json
 ```
