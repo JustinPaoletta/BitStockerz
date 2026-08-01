@@ -3,11 +3,11 @@
 This is the single required pre-merge test document for
 [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9). It covers the
 human-visible behavior added by Sprints 2.1–2.3 and 3.3–3.4, plus the
-automated-only Sprint 3.1 engine and Sprint 3.2 internal persistence surface.
-It is the only manual test document required for this PR. General unit,
-coverage, e2e, seed-smoke, and MySQL-smoke gates are not duplicated except for
-the focused 3.1/3.2 commands needed to sign off sprints that intentionally had
-no HTTP or UI surface.
+automated-only Sprint 3.1 engine, Sprint 3.2 internal persistence surface, and
+the generated OpenAPI/Swagger follow-up. It is the only manual test document
+required for this PR. General unit, coverage, e2e, seed-smoke, and MySQL-smoke
+gates are not duplicated except for the focused commands needed to sign off
+surfaces that have no separate HTTP or UI workflow.
 
 **Execution record:** All checks below passed on 2026-08-01 against commit
 `b2b9c9a`, using live MySQL and a real Chromium browser. The checked boxes are
@@ -933,6 +933,57 @@ data, not a substitute for this live MySQL/browser workflow.
 - [x] Desktop and 390px mobile layouts have no clipping or page-width overflow.
 - [x] Browser console/network remain clean and logout protects deep links.
 
+## 16. Verify generated OpenAPI and Swagger UI
+
+Keep the API running and use Terminal B to verify both machine-readable
+formats. The assertions deliberately cover route inclusion/exclusion, bearer
+security, exact backtest list/detail schemas, and the trade-pagination contract:
+
+```bash
+curl -fsS "$BASE_URL/openapi.json" \
+  -o /tmp/bitstockerz-openapi.json
+curl -fsS "$BASE_URL/openapi.yaml" \
+  -o /tmp/bitstockerz-openapi.yaml
+
+jq -e '
+  .openapi == "3.0.0" and
+  (.paths | has("/api") | not) and
+  (.paths | has("/api/error-test/{path}") | not) and
+  .paths["/api/backtests/{id}"].get.security ==
+    [{"bearer-session":[]}] and
+  (.paths["/api/backtests/{id}"].get.parameters |
+    any(.name == "trades_limit" and .in == "query" and
+      .schema.default == 500 and .schema.maximum == 1000)) and
+  (.paths["/api/backtests/{id}"].get.parameters |
+    any(.name == "trades_offset" and .in == "query" and
+      .schema.default == 0 and .schema.maximum == 100000)) and
+  .components.schemas.BacktestList.properties.items.items["$ref"] ==
+    "#/components/schemas/BacktestListItem" and
+  (.components.schemas.BacktestListItem.allOf[1].required |
+    index("strategy_name")) != null and
+  (.components.schemas.BacktestRun.properties |
+    has("strategy_name") | not) and
+  .components.schemas.BacktestDetail.properties.trades_page.required ==
+    ["limit","offset","has_more"] and
+  .components.schemas.BacktestDetail.properties.trades_page.properties.offset.maximum ==
+    100000
+' /tmp/bitstockerz-openapi.json
+
+grep -Eq '^openapi: 3\.0\.0$' /tmp/bitstockerz-openapi.yaml
+```
+
+Open `http://localhost:4000/api/docs` in a real browser and confirm:
+
+1. The page title is **BitStockerz API Docs**, the **Authorize** control is
+   present, and the Backtests tag lists the run, list, and detail operations.
+2. Expand **GET `/api/backtests/{id}`**. It shows the required UUID path value,
+   optional `trades_limit` and `trades_offset` query inputs, bearer security,
+   and the documented `200`, `400`, `401`, `404`, and `500` responses.
+3. The browser console has no errors and the JSON/YAML endpoints return HTTP
+   `200`.
+
+- [x] Generated JSON/YAML and the live Swagger UI expose the exact shipped backtest pagination contract.
+
 ## Sign-off
 
 Merge only when every box above is checked. Record a failure on PR #9 with the
@@ -942,5 +993,6 @@ Cleanup:
 
 ```bash
 ./scripts/backtest-pagination-fixture.sh cleanup
-rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart,backtest-ingest,backtest-strategy,backtest-bars,backtest-run,backtest-list,backtest-detail,backtest-unauth,backtest-cross-owner,backtest-oversize,backtest-no-trade-version,backtest-rate,pagination-page1,pagination-page2}.json
+rm -f /tmp/bitstockerz-{indicators,strategy-create,validate-valid,validate-persisted,validate-invalid,validate-xor,strategy-list,update-metadata,update-v2,update-v3,history-v1,history-missing,bad-tp,empty-update,bad-page,other-read,other-validate,delete-create,delete,delete-again,reserved-name,strategy-restart,history-restart,backtest-ingest,backtest-strategy,backtest-bars,backtest-run,backtest-list,backtest-detail,backtest-unauth,backtest-cross-owner,backtest-oversize,backtest-no-trade-version,backtest-rate,pagination-page1,pagination-page2,openapi}.json
+rm -f /tmp/bitstockerz-openapi.yaml
 ```

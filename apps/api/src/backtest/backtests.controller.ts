@@ -79,7 +79,7 @@ export class BacktestsController {
   @ApiEndpoint({
     summary: 'Read backtest run details',
     description:
-      'Returns run metadata, results, a page of trades, and the complete equity curve. Missing and cross-owner IDs are indistinguishable.',
+      'Returns run metadata, results, an explicitly paged trade list ordered by entry_time then stable trade id, and the complete equity curve. When trades_page.has_more is true, advance trades_offset by the number of rows already loaded. Missing and cross-owner IDs are indistinguishable.',
     authenticated: true,
     responseDescription: 'Owned backtest run details.',
     responseSchema: apiSchemaRef('BacktestDetail'),

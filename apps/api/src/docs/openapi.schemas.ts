@@ -534,7 +534,6 @@ export const API_SCHEMAS: OpenApiSchemas = {
       id: stringId,
       strategy_id: stringId,
       strategy_version_id: { type: 'integer', minimum: 1 },
-      strategy_name: { type: 'string' },
       symbol: { type: 'string' },
       timeframe: { type: 'string', enum: ['1d', '1h'] },
       start_date: timestamp,
@@ -551,10 +550,22 @@ export const API_SCHEMAS: OpenApiSchemas = {
       updated_at: timestamp,
       started_at: timestamp,
       finished_at: timestamp,
-      total_return_pct: decimal,
-      max_drawdown_pct: decimal,
-      num_trades: { type: 'integer', minimum: 0 },
     },
+  },
+  BacktestListItem: {
+    allOf: [
+      { $ref: '#/components/schemas/BacktestRun' },
+      {
+        type: 'object',
+        required: ['strategy_name'],
+        properties: {
+          strategy_name: { type: 'string' },
+          total_return_pct: decimal,
+          max_drawdown_pct: decimal,
+          num_trades: { type: 'integer', minimum: 0 },
+        },
+      },
+    ],
   },
   BacktestResult: {
     type: 'object',
@@ -594,7 +605,7 @@ export const API_SCHEMAS: OpenApiSchemas = {
     properties: {
       items: {
         type: 'array',
-        items: { $ref: '#/components/schemas/BacktestRun' },
+        items: { $ref: '#/components/schemas/BacktestListItem' },
       },
       limit: { type: 'integer', minimum: 1, maximum: 100 },
       offset: { type: 'integer', minimum: 0 },
@@ -609,6 +620,8 @@ export const API_SCHEMAS: OpenApiSchemas = {
       results: { $ref: '#/components/schemas/BacktestResult' },
       trades: {
         type: 'array',
+        description:
+          'Ordered by entry_time ascending, then stable trade id ascending.',
         items: {
           type: 'object',
           required: [
@@ -639,11 +652,16 @@ export const API_SCHEMAS: OpenApiSchemas = {
       },
       trades_page: {
         type: 'object',
+        description:
+          'Pagination metadata for trades. When has_more is true, request the next page by advancing trades_offset by the number of rows already loaded.',
         required: ['limit', 'offset', 'has_more'],
         properties: {
           limit: { type: 'integer', minimum: 1, maximum: 1000 },
-          offset: { type: 'integer', minimum: 0 },
-          has_more: { type: 'boolean' },
+          offset: { type: 'integer', minimum: 0, maximum: 100000 },
+          has_more: {
+            type: 'boolean',
+            description: 'True when another ordered trade page is available.',
+          },
         },
       },
       equity_curve: {

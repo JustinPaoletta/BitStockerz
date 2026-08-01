@@ -572,9 +572,12 @@ metadata. Sprint 3.4 consumes these routes from `apps/web`.
 - Response:
   - `run` metadata
   - `results` (summary metrics)
-  - `trades[]`
+  - `trades[]`, ordered by `entry_time ASC, id ASC`
   - `trades_page: { limit, offset, has_more }`
   - `equity_curve[]` – `{ timestamp, equity }`
+- When `trades_page.has_more` is true, request the next page by advancing
+  `trades_offset` by the number of trade rows already loaded. Stable trade ids
+  allow clients to de-duplicate defensively while appending.
 - Missing and cross-owner ids both return `404 BACKTEST_NOT_FOUND`.
 
 ---

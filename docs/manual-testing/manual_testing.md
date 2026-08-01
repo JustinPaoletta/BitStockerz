@@ -117,6 +117,10 @@ Generated API reference while the server is running:
 - OpenAPI JSON: `http://localhost:4000/api/openapi.json`
 - OpenAPI YAML: `http://localhost:4000/api/openapi.yaml`
 
+For PR #9, the required generated-contract and live Swagger UI assertions are
+recorded in Section 16 of the
+[pre-merge manual checklist](./PRE_MERGE_CHECKLIST.md).
+
 ---
 
 ## Section 1 – Health & readiness (Sprint 0.1)

@@ -114,7 +114,11 @@ Contract stability requirements for UI:
 
 If any rename is required, fix in 3.3 follow-up **before** UI merge — do not fork field names in the client.
 
-OpenAPI (optional stretch): annotate Nest controllers with `@nestjs/swagger` only if already chosen elsewhere; otherwise keep inventory + example JSON as source of truth (JC-6).
+OpenAPI was not a Sprint 3.4 blocker (JC-6). A later cross-cutting PR #9
+follow-up added generated OpenAPI JSON/YAML and Swagger UI after the UI contract
+was implemented. The generated document is now the machine-readable contract
+for shipped routes; the inventory retains design rationale and planned routes,
+and the checked-in example remains a client-mapper fixture.
 
 ---
 
@@ -307,11 +311,15 @@ npm --prefix apps/web run lint
 **Why:** Prevents silent truncation.  
 **Discuss before implement if:** Product guarantees trades always &lt; 1000 for MVP demos.
 
-### JC-6 — No Swagger requirement
+### JC-6 — Swagger was not a Sprint 3.4 requirement
 
 **Decision:** Do not block 3.4 on `@nestjs/swagger`; use inventory + checked-in fixture JSON.  
 **Why:** Inventory is already canonical; Swagger is orthogonal.  
 **Discuss before implement if:** Client generation is mandated org-wide.
+
+**Post-sprint implementation note:** Generated OpenAPI 3.0 JSON/YAML and an
+interactive Swagger UI subsequently shipped as an orthogonal PR #9 follow-up.
+This does not change the original sequencing decision or Sprint 3.4 scope.
 
 ### JC-7 — Dev login for Milestone 3 demo
 

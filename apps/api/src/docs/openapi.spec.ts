@@ -137,6 +137,89 @@ describe('OpenAPI contract', () => {
     }
   });
 
+  it('documents the exact backtest list and trade-pagination contracts', () => {
+    const document = configureOpenApi(app);
+
+    expect(document.paths['/api/backtests/{id}']?.get).toMatchObject({
+      description: expect.stringContaining('entry_time'),
+      parameters: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'trades_limit',
+          in: 'query',
+          required: false,
+          schema: expect.objectContaining({
+            type: 'integer',
+            minimum: 1,
+            maximum: 1000,
+            default: 500,
+          }),
+        }),
+        expect.objectContaining({
+          name: 'trades_offset',
+          in: 'query',
+          required: false,
+          schema: expect.objectContaining({
+            type: 'integer',
+            minimum: 0,
+            maximum: 100000,
+            default: 0,
+          }),
+        }),
+      ]),
+    });
+    expect(document.components?.schemas?.BacktestRun).toMatchObject({
+      properties: expect.not.objectContaining({
+        strategy_name: expect.anything(),
+        total_return_pct: expect.anything(),
+        max_drawdown_pct: expect.anything(),
+        num_trades: expect.anything(),
+      }),
+    });
+    expect(document.components?.schemas?.BacktestListItem).toMatchObject({
+      allOf: [
+        { $ref: '#/components/schemas/BacktestRun' },
+        {
+          type: 'object',
+          required: ['strategy_name'],
+          properties: {
+            strategy_name: { type: 'string' },
+            total_return_pct: expect.any(Object),
+            max_drawdown_pct: expect.any(Object),
+            num_trades: { type: 'integer', minimum: 0 },
+          },
+        },
+      ],
+    });
+    expect(document.components?.schemas?.BacktestList).toMatchObject({
+      properties: {
+        items: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/BacktestListItem' },
+        },
+      },
+    });
+    expect(document.components?.schemas?.BacktestDetail).toMatchObject({
+      properties: {
+        trades: {
+          description: expect.stringContaining('entry_time ascending'),
+        },
+        trades_page: {
+          required: ['limit', 'offset', 'has_more'],
+          properties: {
+            limit: { type: 'integer', minimum: 1, maximum: 1000 },
+            offset: { type: 'integer', minimum: 0, maximum: 100000 },
+            has_more: {
+              type: 'boolean',
+              description: expect.stringContaining(
+                'another ordered trade page',
+              ),
+            },
+          },
+        },
+      },
+    });
+  });
+
   it('serves interactive, JSON, and YAML documentation', async () => {
     configureOpenApi(app);
     await app.init();
