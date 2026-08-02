@@ -58,7 +58,7 @@
 ### #3.2.1 – Order schema
 
 - Prisma models + migrations for `orders` and `executions` matching DDL.
-- Columns used: `id` (UUID), `paper_account_id`, `symbol_id`, `side` (`BUY`|`SELL`), `quantity` `DECIMAL(18,8)`, `order_type` (`MARKET` only), `status` (`PENDING`|`FILLED`|`REJECTED`|`CANCELLED`), `avg_fill_price`, `reject_reason`, `client_order_id`, `requested_at`, `filled_at`.
+- Columns used: `id` (UUID), `paper_account_id`, `symbol_id`, `side` (`BUY`|`SELL`), `quantity` `DECIMAL(18,8)`, `order_type` (`MARKET` only), `status` (`PENDING`|`FILLED`|`REJECTED`|`CANCELLED`), `avg_fill_price` `DECIMAL(20,8)`, `reject_reason`, `client_order_id`, `requested_at`, `filled_at`.
 - Unique `(paper_account_id, client_order_id)` — MySQL allows multiple NULLs; application treats missing `client_order_id` as non-idempotent.
 - Seed mode: in-memory order/execution stores keyed by account.
 
@@ -84,7 +84,7 @@
 ### #3.3.1 – Execution records
 
 - One execution per filled market order (full fill).
-- Fields: UUID `id`, `order_id`, `paper_account_id`, `symbol_id`, `side`, `quantity`, `price`, `executed_at`.
+- Fields: UUID `id`, `order_id`, `paper_account_id`, `symbol_id`, `side`, `quantity`, `price` `DECIMAL(20,8)`, `executed_at`.
 - Notional for API later = `quantity * price` (computed, not stored).
 - Unit tests: execution created iff FILLED; none on REJECTED.
 

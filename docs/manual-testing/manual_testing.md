@@ -916,13 +916,16 @@ LOG_LEVEL=silent \
 Expected terminal line:
 
 ```text
-Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, valuation, history, and restart ownership remap verified.
+Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and restart ownership remap verified.
 ```
 
 This gate creates isolated rows, sends two concurrent requests with the same
-client id, proves one execution, restarts the Nest application context,
-re-registers the same email, proves the account/cash/position/history survived
-the user-id remap, and removes its fixtures.
+client id, and proves one execution. It also fills a fractional order at the
+maximum `DECIMAL(18,6)` market-data price and verifies that `avg_cost`,
+`avg_fill_price`, and execution `price` retain it in MySQL. Finally, it restarts
+the Nest application context, re-registers the same email, proves the
+account/cash/position/history survived the user-id remap, and removes its
+fixtures.
 
 ### Section 12 regression checklist
 
@@ -940,6 +943,7 @@ the user-id remap, and removes its fixtures.
 | 10 | Numeric quantity / missing auth | `400 VALIDATION_ERROR` / `401 UNAUTHORIZED` |
 | 11 | Seed automated smoke | `--sprint 4`: 15 passed, 0 failed |
 | 12 | MySQL persistence gate | PASS including concurrent replay and restart remap |
+| 13 | Maximum market-data price | Fractional fill persists in all trading price columns |
 
 ### Cleanup
 

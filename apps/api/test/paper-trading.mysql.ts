@@ -16,6 +16,7 @@ async function main(): Promise<void> {
   let app: INestApplicationContext | undefined;
   let currentUserId: string | undefined;
   let symbolId: number | undefined;
+  let highPriceSymbolId: number | undefined;
   let email: string | undefined;
   try {
     app = await NestFactory.createApplicationContext(AppModule, {
@@ -138,6 +139,66 @@ async function main(): Promise<void> {
       2,
     );
 
+    const highPriceSymbol = await prisma.symbol.create({
+      data: {
+        symbol: `ZTRD-${crypto.randomUUID().slice(0, 11)}`.toUpperCase(),
+        name: 'Paper Trading High Price Boundary Symbol',
+        assetType: 'EQUITY',
+        exchange: 'TEST',
+        currency: 'USD',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    highPriceSymbolId = highPriceSymbol.id;
+    const highPrice = '999999999999.999999';
+    await prisma.equityDailyBar.create({
+      data: {
+        symbolId: highPriceSymbol.id,
+        date: today,
+        open: highPrice,
+        high: highPrice,
+        low: highPrice,
+        close: highPrice,
+        volume: 1,
+        provider: 'mysql-smoke-price-boundary',
+        createdAt: new Date(),
+      },
+    });
+
+    const highPriceBuy = await orders.placeMarketOrder(currentUserId, {
+      symbol: highPriceSymbol.symbol,
+      side: 'BUY',
+      quantity: '0.00000001',
+      clientOrderId: `mysql-high-price-${suffix}`,
+    });
+    assert.equal(highPriceBuy.order.status, 'FILLED');
+    assert.equal(highPriceBuy.order.avg_fill_price, '999999999999.99999900');
+    const highPricePosition = await prisma.position.findUniqueOrThrow({
+      where: {
+        paperAccountId_symbolId: {
+          paperAccountId: account.id,
+          symbolId: highPriceSymbol.id,
+        },
+      },
+    });
+    assert.equal(
+      highPricePosition.avgCost.toFixed(8),
+      highPriceBuy.order.avg_fill_price,
+    );
+    const highPriceExecution = await prisma.execution.findFirstOrThrow({
+      where: { orderId: highPriceBuy.order.id },
+    });
+    assert.equal(
+      highPriceExecution.price.toFixed(8),
+      highPriceBuy.order.avg_fill_price,
+    );
+    assert.equal(
+      (await accounts.getForUser(currentUserId)).cashBalance.toFixed(2),
+      '89400.00',
+    );
+
     const originalAccountId = account.id;
     await app.close();
     app = undefined;
@@ -153,7 +214,7 @@ async function main(): Promise<void> {
     currentUserId = restarted.user.id;
     const restartedAccount = await accounts.getForUser(currentUserId);
     assert.equal(restartedAccount.id, originalAccountId);
-    assert.equal(restartedAccount.cashBalance.toFixed(2), '99400.00');
+    assert.equal(restartedAccount.cashBalance.toFixed(2), '89400.00');
     assert.equal(
       (await views.listPositions(currentUserId)).positions[0]?.quantity,
       '6.00000000',
@@ -168,9 +229,19 @@ async function main(): Promise<void> {
       ).executions.length,
       2,
     );
+    assert.equal(
+      (
+        await orders.listExecutions(currentUserId, {
+          symbol: highPriceSymbol.symbol,
+          limit: 20,
+          offset: 0,
+        })
+      ).executions[0]?.price,
+      '999999999999.99999900',
+    );
 
     process.stdout.write(
-      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, valuation, history, and restart ownership remap verified.\n',
+      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and restart ownership remap verified.\n',
     );
   } finally {
     if (app) {
@@ -207,6 +278,14 @@ async function main(): Promise<void> {
               where: { symbolId },
             });
             await transaction.symbol.deleteMany({ where: { id: symbolId } });
+          }
+          if (highPriceSymbolId) {
+            await transaction.equityDailyBar.deleteMany({
+              where: { symbolId: highPriceSymbolId },
+            });
+            await transaction.symbol.deleteMany({
+              where: { id: highPriceSymbolId },
+            });
           }
         });
       }

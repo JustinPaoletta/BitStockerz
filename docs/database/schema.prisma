@@ -290,7 +290,7 @@ model Order {
   quantity       Decimal  @db.Decimal(18, 8)
   orderType      String   @map("order_type") @db.VarChar(16)
   status         String   @db.VarChar(16)
-  avgFillPrice   Decimal? @map("avg_fill_price") @db.Decimal(18, 8)
+  avgFillPrice   Decimal? @map("avg_fill_price") @db.Decimal(20, 8)
   rejectReason   String?  @map("reject_reason") @db.VarChar(255)
   clientOrderId  String?  @map("client_order_id") @db.VarChar(64)
   requestedAt    DateTime @map("requested_at")
@@ -313,7 +313,7 @@ model Execution {
   symbolId       Int      @map("symbol_id") @db.UnsignedInt
   side           String   @db.VarChar(8)
   quantity       Decimal  @db.Decimal(18, 8)
-  price          Decimal  @db.Decimal(18, 8)
+  price          Decimal  @db.Decimal(20, 8)
   executedAt     DateTime @map("executed_at")
 
   order   Order        @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -330,7 +330,7 @@ model Position {
   paperAccountId Int      @map("paper_account_id") @db.UnsignedInt
   symbolId       Int      @map("symbol_id") @db.UnsignedInt
   quantity       Decimal  @db.Decimal(18, 8)
-  avgCost        Decimal  @map("avg_cost") @db.Decimal(18, 8)
+  avgCost        Decimal  @map("avg_cost") @db.Decimal(20, 8)
   updatedAt      DateTime @map("updated_at")
 
   account PaperAccount @relation(fields: [paperAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)

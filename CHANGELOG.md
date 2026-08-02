@@ -9,6 +9,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- Widened paper-trading average-cost and fill-price columns to
+  `DECIMAL(20,8)` so every `DECIMAL(18,6)` market close can be persisted
+  without a MySQL out-of-range failure.
 - Scoped trades-table CSS so its intentional 850px scroll surface no longer
   resizes and clips Lightweight Charts' internal table at mobile widths.
 

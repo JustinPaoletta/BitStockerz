@@ -85,7 +85,9 @@ These criteria are binding for this sprint. Sync them into MVP_01 and MVP_03 in 
   - Zero quantity → delete row so 4.3 “non-zero positions” is natural (JC-9).
 - Unique `(paper_account_id, symbol_id)`.
 - Unit tests: open, add, reduce, close, insufficient quantity, decimal qty (prep for JC-3 in 4.2).
-- Weighted average cost rounds once to 8 decimal places with `ROUND_HALF_UP`; partial sells leave `avg_cost` unchanged.
+- Weighted average cost rounds once to 8 decimal places with `ROUND_HALF_UP`
+  and is stored as `DECIMAL(20,8)`, preserving the 12-integer-digit range of
+  market-data prices; partial sells leave `avg_cost` unchanged.
 
 ### #3.3.3 – Cash balance updates
 
