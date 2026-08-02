@@ -5,7 +5,7 @@
 **Branch (when implementing):** `feat/sprint-7-1-polish-caching`  
 **PR base:** `feat/sprint-6-3-backtest-intelligence` (or `main` if Milestone 6 merged)
 
-**Overview:** Add in-process TTL caching for hot candle/symbol reads, define provider-fallback guardrails (circuit-breaker style interface) even if live vendor is still seed-backed, and apply UX/perf refinements across API + Angular. Prefer a simple custom TTL cache service over introducing `@nestjs/cache-manager` unless complexity demands it (JC-1).
+**Overview:** Add in-process TTL caching for hot candle/symbol reads, define provider-fallback guardrails (circuit-breaker style interface) even if live vendor is still seed-backed, and apply UX/perf refinements across API + Angular. Use a simple custom TTL cache service; do not introduce `@nestjs/cache-manager` unless JC-1 is explicitly reversed.
 
 ---
 
@@ -45,18 +45,23 @@
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #2.5.1 – In-memory cache
 
-- Introduce `TtlCacheService` (Map + expiry) **or** thin wrapper around `node-cache` — JC-1 recommends custom Map+TTL to avoid Nest cache-manager complexity.
+- Introduce a custom `TtlCacheService` (Map + expiry + deterministic LRU) per JC-1.
 - Cache keys for:
   - Symbol search / lookup responses (short TTL, e.g. 60s).
   - Equity/crypto candle range queries (TTL e.g. 30–120s; include symbol, interval, start, end, order, limit in key).
 - Config: `CACHE_ENABLED` (default true), `CACHE_CANDLES_TTL_MS`, `CACHE_SYMBOLS_TTL_MS`, `CACHE_MAX_ENTRIES` (evict LRU or clear oldest).
 - On ingestion success for a symbol: invalidate candle keys for that symbol (prefix delete).
-- Unit tests: hit/miss, expiry, invalidation, max-entry eviction.
-- Metrics (optional): increment `cache_hit` / `cache_miss` on `MetricsService` if easy.
+- Cache keys use a canonical serializer over normalized symbol/query, asset type, interval, inclusive UTC range, order, and limit; never rely on object property order or raw user casing.
+- `getOrLoad` coalesces concurrent identical misses. Cache successful empty arrays, but never cache thrown errors/rejections.
+- Cached values are treated as immutable (freeze in tests/development or return defensive copies) so one caller cannot corrupt another response.
+- LRU semantics: successful `get` refreshes recency; insert over capacity evicts exactly the least-recently-used entry; expired entries are removed lazily plus bounded opportunistic sweep.
+- Invalidation runs only after ingestion’s DB transaction commits and deletes every interval/range key for the affected symbol.
+- Unit tests: hit/miss, fake-clock expiry, concurrent miss coalescing, failed-loader retry, mutation isolation, prefix invalidation, and exact LRU eviction.
+- Required cardinality-safe metrics: hit, miss, load_error, eviction by cache namespace only (`symbols`/`candles`), never by symbol/key.
 - Seed mode and DB mode both benefit (cache sits above data source).
 
 ### #2.5.2 – Provider fallback guardrails
@@ -72,12 +77,15 @@ interface MarketDataProvider {
 ```
 
 - Implementations: `SeedMarketDataProvider` (existing seed path), future `LiveMarketDataProvider`.
-- `ProviderRouter` / guardrails:
-  - Prefer live when configured + healthy.
-  - On live failure (timeout, 5xx, circuit open): fall back to seed/DB last-known; record audit/metric `market_data.provider_fallback`.
+- `ProviderRouter` is used by ingestion, not the public read path. Public reads remain local DB/seed reads behind the cache.
+- Provider guardrails:
+  - Prefer live ingestion when configured + healthy.
+  - On transient live failure (timeout, 429, 5xx, network, circuit open): retain/serve last-known DB bars and record `market_data.provider_fallback`. Synthetic seed data is fallback only when Prisma is disabled in development/test; production never substitutes seed prices.
   - Circuit breaker: after **N** consecutive failures (default 3), open for **cooldown** (e.g. 60s); half-open single probe.
+- One breaker state per live provider + feed type. Count transient provider failures only; validation/configuration errors fail immediately and do not trip the circuit. Any successful probe resets the consecutive-failure count.
+- In half-open state, permit one in-flight probe; concurrent calls use last-known data without launching more probes.
 - If live vendor **not** wired this sprint: ship interface + Seed provider + breaker unit tests with a fake failing live adapter; document “live adapter plugs in here”.
-- Never return 500 solely because live is down if seed/DB can serve (#2.5.2 spirit).
+- Never return 500 solely because live is down if local DB data can satisfy the read. Health reports degraded/stale honestly.
 - Health endpoint may expose `provider: { active, circuit: "closed"|"open" }` (non-breaking additive field).
 
 ### UX / performance refinements
@@ -98,9 +106,10 @@ interface MarketDataProvider {
 ```json
 {
   "provider": {
-    "active": "seed",
+    "configured": "seed",
+    "last_success_at": "2026-07-25T15:00:00.000Z",
     "circuit": "closed",
-    "last_error": null
+    "last_error_code": null
   }
 }
 ```
@@ -128,18 +137,20 @@ flowchart TB
   Ctrl[CandlesController / SymbolsController]
   MDS[MarketDataService]
   Cache[TtlCacheService]
+  Local[(Prisma bars or dev/test seed)]
+  Ingest[IngestionService]
   Router[ProviderRouter]
   Live[LiveProvider optional]
-  Seed[SeedProvider]
-  DB[(Prisma bars)]
+  Seed[Dev/test SeedProvider]
 
   Ctrl --> MDS
   MDS --> Cache
-  Cache -->|miss| Router
+  Cache -->|miss| Local
+  Ingest --> Router
   Router --> Live
-  Router -->|fallback| Seed
-  Router --> DB
-  Ingest[IngestionService] -->|invalidate| Cache
+  Router -->|dev/test fallback only| Seed
+  Ingest -->|persist| Local
+  Ingest -->|after commit invalidate| Cache
 ```
 
 ### Proposed file layout
@@ -170,8 +181,8 @@ apps/api/src/config/app-config.service.ts
 
 ### 2. TtlCacheService (#2.5.1)
 
-1. `get/set/delete/deleteByPrefix/clear` with Date.now() expiry.
-2. Bound size; deterministic tests with fake clock.
+1. `get/set/getOrLoad/delete/deleteByPrefix/clear` with injected monotonic clock.
+2. Deterministic LRU, immutable-value policy, in-flight promise map, and bounded size.
 
 ### 3. Wire cache into reads
 
@@ -181,7 +192,7 @@ apps/api/src/config/app-config.service.ts
 
 ### 4. Provider guardrails (#2.5.2)
 
-1. Extract provider interface from ingestion/read paths carefully (minimize churn).
+1. Extract provider interface from ingestion only; do not route public reads to a vendor.
 2. Circuit breaker pure module + tests.
 3. Fake live provider fails → fallback seed/DB.
 4. Document plugging real vendor (keys, rate limits) for post-MVP or late 7.1 if key available.
@@ -226,14 +237,14 @@ apps/api/src/config/app-config.service.ts
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Live market data vendor + API key | Real fallback path | ⏭ Seed + fake live breaker tests | ⏭ stubbed |
-| 2 | Cache TTL defaults | Freshness vs load | ⏭ 60s candles/symbols | ⏭ stubbed |
-| 3 | `@nestjs/cache-manager` vs custom | Dep surface | ⏭ Custom Map+TTL (JC-1) | ⏭ recommended |
-| 4 | UX polish list | Scope | ⏭ Only dashboard double-fetch + obvious bugs | ⏭ stubbed |
+| 1 | Live market data vendor + API key | Real provider path | Fake live breaker tests + dev/test seed; production retains DB data | External prerequisite only for real vendor adapter |
+| 2 | Cache TTL defaults | Freshness vs load | 60s candles/symbols | Adopted |
+| 3 | `@nestjs/cache-manager` vs custom | Dep surface | Custom Map+TTL+LRU (JC-1) | Adopted |
+| 4 | UX polish list | Scope | Dashboard duplicate-fetch fixes + issues already filed before sprint start | Adopted; freeze issue list at kickoff |
 
 ---
 
@@ -242,7 +253,7 @@ apps/api/src/config/app-config.service.ts
 | ID | Decision | Why | Discuss before implement if |
 |----|----------|-----|-----------------------------|
 | **JC-1** | **Simple in-process `TtlCacheService`** (Map+TTL), not `@nestjs/cache-manager` | Fewer deps; sufficient for single Node process; easy invalidation by prefix | Team already standardized on cache-manager |
-| **JC-2** | Live vendor **optional** this sprint; **guardrails interface required** | ROADMAP historically deferred vendor; stories still need fallback design | Vendor chosen and key ready — then wire thin adapter |
+| **JC-2** | Live vendor **optional** this sprint; **guardrails interface required**; production never falls back to synthetic seed data | ROADMAP historically deferred vendor; fake prices must not masquerade as production fallback | Vendor chosen and key ready — then wire thin adapter |
 | **JC-3** | Default TTLs **60s**; invalidate on ingestion | Balances NFR freshness with read amplification | Need longer cache for heavy backtests |
 | **JC-4** | Circuit breaker in-process (not Redis) | Matches single-region always-on API assumption | Moving to serverless multi-instance (7.2 Option B) |
 
@@ -264,8 +275,8 @@ apps/api/src/config/app-config.service.ts
 ## Definition of done
 
 - [ ] Candle/symbol reads cached with TTL + invalidation
-- [ ] Provider fallback/circuit interface tested (live optional)
-- [ ] Config documented; metrics/audit optional hooks present
+- [ ] Provider fallback/circuit interface tested on ingestion path (live optional; no production seed fallback)
+- [ ] Config documented; cache/fallback metrics and audit hooks present
 - [ ] Manual testing covers hit + fallback
 - [ ] PR: `feat: add market data ttl cache and provider guardrails`
 

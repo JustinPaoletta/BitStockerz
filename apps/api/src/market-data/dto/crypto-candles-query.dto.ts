@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 import type { CandleOrder, CryptoInterval } from '../market-data.types';
 import { isValidDateOnly, isValidIsoDateTime } from './candle-query-validation';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 @ValidatorConstraint({ name: 'isCryptoCandleBoundary', async: false })
 class IsCryptoCandleBoundaryConstraint implements ValidatorConstraintInterface {
@@ -68,6 +69,7 @@ class IsCryptoCandleRangeConstraint implements ValidatorConstraintInterface {
 }
 
 export class CryptoCandlesQueryDto {
+  @ApiProperty({ example: 'BTC-USD', description: 'Active crypto pair.' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
@@ -75,18 +77,34 @@ export class CryptoCandlesQueryDto {
   @IsNotEmpty()
   symbol!: string;
 
+  @ApiProperty({ enum: ['1d', '1h'] })
   @IsIn(['1d', '1h'])
   interval!: CryptoInterval;
 
+  @ApiProperty({
+    example: '2026-01-01',
+    description: 'YYYY-MM-DD for 1d, or ISO 8601 with a timezone for 1h.',
+  })
   @IsString()
   @Validate(IsCryptoCandleBoundaryConstraint)
   start!: string;
 
+  @ApiProperty({
+    example: '2026-12-31',
+    description:
+      'Inclusive YYYY-MM-DD for 1d, or inclusive ISO 8601 timestamp with a timezone for 1h.',
+  })
   @IsString()
   @Validate(IsCryptoCandleBoundaryConstraint)
   @Validate(IsCryptoCandleRangeConstraint)
   end!: string;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 5000,
+    default: 5000,
+  })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     value === undefined ? undefined : Number(value),
@@ -96,6 +114,7 @@ export class CryptoCandlesQueryDto {
   @Max(5000)
   limit?: number;
 
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
   @IsOptional()
   @IsIn(['asc', 'desc'])
   order?: CandleOrder;

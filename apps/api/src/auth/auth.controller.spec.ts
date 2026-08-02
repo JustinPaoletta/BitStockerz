@@ -321,8 +321,8 @@ describe('AuthController', () => {
       audit,
     );
 
-    expect(() =>
-      controller.me({} as unknown as AuthenticatedRequest),
-    ).toThrow('Authentication is required.');
+    expect(() => controller.me({} as unknown as AuthenticatedRequest)).toThrow(
+      'Authentication is required.',
+    );
   });
 });

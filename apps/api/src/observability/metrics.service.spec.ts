@@ -15,8 +15,11 @@ describe('MetricsService', () => {
     service.recordJob('equity_daily_import', 'completed', 80);
     service.recordJob('equity_daily_import', 'failed', 12);
     service.recordJob('crypto_import', 'timed_out', 50);
+    service.recordBacktest('completed', 125);
+    service.recordBacktest('failed', 40);
     service.recordError('market_data');
     service.recordError('jobs');
+    service.recordError('backtest');
     service.recordError('unknown');
 
     const snapshot = service.snapshot(new Date('2026-07-24T00:00:00.000Z'));
@@ -27,8 +30,12 @@ describe('MetricsService', () => {
     expect(snapshot.jobs.by_type.equity_daily_import.completed).toBe(1);
     expect(snapshot.jobs.by_type.equity_daily_import.failed).toBe(1);
     expect(snapshot.jobs.by_type.crypto_import.timed_out).toBe(1);
+    expect(snapshot.backtests.completed).toBe(1);
+    expect(snapshot.backtests.failed).toBe(1);
+    expect(snapshot.backtests.duration_ms.max).toBe(125);
     expect(snapshot.errors_by_domain.market_data).toBe(1);
     expect(snapshot.errors_by_domain.jobs).toBe(1);
+    expect(snapshot.errors_by_domain.backtest).toBe(1);
     expect(snapshot.errors_by_domain.unknown).toBe(1);
   });
 
@@ -36,19 +43,24 @@ describe('MetricsService', () => {
     const service = new MetricsService(createConfig(false));
     service.recordHttp(5, true);
     service.recordJob('crypto_import', 'failed', 12);
+    service.recordBacktest('timed_out', 20);
     service.recordError('auth');
 
     const snapshot = service.snapshot();
     expect(snapshot.http.request_count).toBe(0);
     expect(snapshot.jobs.by_type).toEqual({});
+    expect(snapshot.backtests.completed).toBe(0);
+    expect(snapshot.backtests.duration_ms.count).toBe(0);
     expect(snapshot.errors_by_domain.auth).toBe(0);
   });
 
   it('resets state for tests', () => {
     const service = new MetricsService(createConfig());
     service.recordHttp(1, false);
+    service.recordBacktest('completed', 5);
     service.resetForTests();
     expect(service.snapshot().http.request_count).toBe(0);
+    expect(service.snapshot().backtests.completed).toBe(0);
   });
 
   it('bounds http duration samples to the ring-buffer capacity', () => {

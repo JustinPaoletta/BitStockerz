@@ -1,9 +1,12 @@
 # Sprint 3.2 — Backtest Persistence
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** Milestone 3 / Sprint 3.2  
-**Branch:** `feat/sprint-3-2-backtest-persistence`  
-**PR base:** `feat/sprint-3-1-backtest-engine-core`
+**Status:** Implemented and locally verified (seed + MySQL, July 28, 2026); included in draft PR #9
+
+**Roadmap marker:** Implementation complete locally; Sprints 3.3–3.4 are also complete and `START HERE` is Sprint 4.1
+
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked at the owner's request)
+
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.4)
 
 **Overview:** Persist backtest runs, summary results, trades, and equity points per [DDL/04_backtesting.sql](../database/DDL/04_backtesting.sql), including a soft-pin to `strategy_versions.id` for reproducibility. Wire a repository/service layer that works with Prisma when `DATABASE_URL` is set and an in-memory store when it is not — mirroring jobs/auth patterns. No public HTTP API yet (Sprint 3.3); expose internal `BacktestsService` methods that 3.3 controllers and the job handler will call.
 
@@ -51,7 +54,7 @@
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### #5.1.1 – Backtest run schema
 
@@ -62,6 +65,13 @@
 - FKs to `users`, `strategies`, `strategy_versions`, `symbols` with `ON DELETE RESTRICT`.
 - `job_id` column present from first migration **nullable without FK**, then `V0330`-equivalent migration adds FK to `jobs(id)` `ON DELETE SET NULL` ([Migrations_Plan](../database/Migrations_Plan.md)).
 - In-memory store mirrors fields when `prisma.isEnabled === false`.
+- Active, strategy-asset-compatible `symbol_id` and optional owner-scoped
+  `job_id` are validated before creation in both database modes; stale
+  references return stable not-found domain errors instead of raw FK failures.
+- `initial_equity` must already fit its two-decimal storage scale; sub-cent
+  inputs are rejected rather than silently changing the engine's capital base.
+- Every owner-scoped read/write re-runs auth persistence attachment in MySQL so
+  post-restart same-email identity remapping keeps historical runs visible.
 - Unit tests: create run row / in-memory record; reject missing required fields at service layer.
 
 ### #5.1.2 – Backtest result storage
@@ -69,8 +79,12 @@
 - Table/model `backtest_results` with columns per DDL: `final_equity`, `total_return_pct`, `max_drawdown_pct`, `win_rate_pct`, `num_trades`, `avg_win_pct`, `avg_loss_pct`, `sharpe_ratio` (nullable).
 - Unique constraint on `backtest_run_id` (one result per run).
 - `ON DELETE CASCADE` from run.
-- Service method `saveResult(runId, metrics)` upserts only when run is terminal `completed` (failed runs store `error_message` on run, no result row — JC-3).
-- Decimal/number serialization: persist with Prisma `Decimal` / string as existing money patterns; API layer in 3.3 returns numbers.
+- Service method creates one result only as part of `completeRun`; it never upserts or updates a completed result (failed runs store `error_message` on run, no result row — JC-3).
+- Decimal serialization: persist with Prisma `Decimal`; the API layer in 3.3 returns decimal-backed fields as strings per the repository-wide contract.
+- Validate the engine-supplied metrics exactly against the raw trades/equity
+  curve before rounding, then recompute the stored summary from the fixed-scale
+  persisted rows. This catches sub-storage-step engine regressions while
+  keeping result metrics consistent with detail rows at decimal boundaries.
 
 ### #5.1.3 – Trades & equity curve storage
 
@@ -86,7 +100,16 @@
 
 - Every run **must** set `strategy_version_id` at creation time (NOT NULL).
 - Pinning rule (JC-4): when creating a run from `strategy_id` only, resolve **latest** `version_number` for that strategy and store that version’s id + copy nothing else (definition is joined via FK).
+- The owner-scoped version read is the create operation's pin linearization
+  point. A strategy update that overlaps the remaining symbol/job validation
+  may create a newer version without mutating the already selected immutable
+  pin; a later, non-overlapping create resolves that newer version.
 - Optional explicit `strategy_version_id` in internal create input (3.3 may expose later); if provided, must belong to `strategy_id`.
+- Strategy versions intentionally pin the immutable definition only. A
+  latest-version run must match the strategy's current timeframe. An internal
+  explicit historical-version run uses and persists its caller-supplied valid
+  timeframe, allowing replay after current metadata changes; symbol asset type
+  compatibility and available equity/crypto timeframe constraints still apply.
 - Re-running the same strategy after a new version does **not** mutate prior runs (immutability).
 - Attempt to delete/soft-delete a strategy that has runs: existing M2 soft-delete (`is_active`) remains; hard delete blocked by FK RESTRICT.
 - Unit test: two versions → run pins v1 when requested; default pins v2 (latest).
@@ -102,20 +125,29 @@
 ```ts
 // apps/api/src/backtest/backtests.service.ts
 createRun(input: CreateBacktestRunInput): Promise<BacktestRunRecord>
-markRunning(runId: string, jobId?: string): Promise<void>
-completeRun(runId: string, output: BacktestEngineOutput): Promise<void>
-failRun(runId: string, error: { code: string; message: string }): Promise<void>
+markRunning(runId: string, userId: string, jobId?: string): Promise<void>
+completeRun(runId: string, userId: string, output: BacktestEngineOutput): Promise<void>
+failRun(runId: string, userId: string, error: { code: string; message: string }): Promise<void>
 getRun(runId: string, userId: string): Promise<BacktestRunDetail | null>
 listRuns(userId: string, filters: ListBacktestFilters): Promise<BacktestRunSummary[]>
 ```
 
-`completeRun` is transactional when Prisma enabled:
+`CreateBacktestRunInput` includes `userId`. Job handlers carry both `backtest_run_id` and `user_id` from the already-authorized run context; there is no public/system overload that mutates a run by id alone.
 
-1. Update run → `completed`, `finished_at`
+`completeRun` is transactional when Prisma enabled and copy-on-write atomic in memory:
+
+1. Compare-and-set run from `running` → `completed`, set `finished_at`
 2. Insert `backtest_results`
 3. Insert trades + equity points
 
-On failure mid-persist: mark run `failed` with message; do not leave orphan result without trades (transaction rollback).
+On failure mid-persist, the transaction rolls back to `running`; a separate best-effort `failRun` transition stores a bounded public message (max 2,000 characters, no stack/SQL/definition) and `finished_at`. Log if that second transition fails. Never leave an orphan result without trades/equity.
+
+Completion rejects output whose first/last equity points disagree with the
+run/result, whose trade P&L disagrees with price/quantity, or whose supplied
+summary metrics differ at all from the raw trades/equity curve. It then derives
+the stored summary from the rounded rows that will actually be returned.
+
+Allowed transitions are `pending → running → completed|failed|timed_out`. Terminal states are immutable; repeat or out-of-order transitions throw `BACKTEST_INVALID_STATE`.
 
 ### Errors (service throws DomainError)
 
@@ -123,7 +155,7 @@ On failure mid-persist: mark run `failed` with message; do not leave orphan resu
 |------|------|
 | `BACKTEST_NOT_FOUND` | Unknown id / wrong user |
 | `BACKTEST_INVALID_STATE` | complete/fail on non-runnable status |
-| `STRATEGY_NOT_FOUND` | Pin resolution failed (reuse M2 code if present) |
+| `STRATEGY_NOT_FOUND` | Pin resolution failed |
 | `STRATEGY_VERSION_NOT_FOUND` | Explicit version mismatch |
 | `INTERNAL_ERROR` | Unexpected DB errors |
 
@@ -157,9 +189,9 @@ flowchart TB
 
   API -.-> BS
   JH -.-> BS
+  JH -.-> ENG
   BS --> BR
   BS --> PIN
-  BS --> ENG
   BR --> PR
   BR --> MEM
 ```
@@ -169,11 +201,8 @@ flowchart TB
 | Path | Role |
 |------|------|
 | `apps/api/prisma/schema.prisma` | `BacktestRun`, `BacktestResult`, `BacktestTrade`, `BacktestEquityPoint` |
-| `apps/api/prisma/migrations/2026XXXX_sprint_3_2_backtest_runs/` | V0300 |
-| `apps/api/prisma/migrations/2026XXXX_sprint_3_2_backtest_results/` | V0301 — or single combined migration (JC-1) |
-| `apps/api/prisma/migrations/2026XXXX_sprint_3_2_backtest_trades/` | V0302 |
-| `apps/api/prisma/migrations/2026XXXX_sprint_3_2_backtest_equity_points/` | V0303 |
-| `apps/api/prisma/migrations/2026XXXX_sprint_3_2_backtest_runs_job_fk/` | V0330 FK |
+| `apps/api/prisma/migrations/20260728213000_sprint_3_2_backtest_tables/` | One migration creates runs, results, trades, and equity points in FK-safe order (conceptual V0300–V0303) |
+| `apps/api/prisma/migrations/20260728213100_sprint_3_2_backtest_runs_job_fk/` | V0330 jobs FK |
 | `apps/api/src/backtest/backtests.service.ts` | Orchestration |
 | `apps/api/src/backtest/backtests.repository.ts` | Prisma + memory |
 | `apps/api/src/backtest/backtests.types.ts` | Records / filters |
@@ -231,12 +260,12 @@ model BacktestRun {
 
 1. Write AC into MVP_05 (#5.1.1–5.1.3, #5.6.1).
 2. Decide single vs split Prisma migrations (JC-1 default: **one** migration folder creating all four tables, second folder for jobs FK — fewer deploy steps while matching conceptual V0300–V0330 in comments).
-3. `npm --prefix apps/api run db:migrate` locally; document folder names in Migrations_Plan.
+3. Apply both committed migrations with `npm --prefix apps/api run db:deploy`; document their exact folder names in Migrations_Plan.
 
 ### 2. Repository + in-memory (#5.1.1–5.1.3)
 
-1. Implement `BacktestsRepository` with `createRun`, `updateStatus`, `insertResult`, `insertTrades`, `insertEquity`, `findByIdForUser`, `listForUser`.
-2. In-memory map keyed by run id; secondary index by userId.
+1. Implement `BacktestsRepository` with `createRun`, owner-scoped compare-and-set status transitions, transactional result/trade/equity inserts, owner detail reads, and filtered lists.
+2. In-memory map keyed by run id with owner filtering; complete uses a copy-on-write aggregate swap so injected failures cannot leave partial arrays.
 3. Map engine trades → DDL rows (`side: "long"`).
 
 ### 3. Version pinning (#5.6.1)
@@ -248,7 +277,9 @@ model BacktestRun {
 ### 4. BacktestsService orchestration
 
 1. `createRun` → pending + pinned version.
-2. Helper used by tests: `runAndPersist` loads bars from a test double (not market-data HTTP), calls engine, `completeRun`.
+2. Integration-style tests call the 3.1 engine with fixture bars, then pass
+   its output to `completeRun`; production bar loading/job orchestration stays
+   in Sprint 3.3.
 3. Do **not** register job type yet if it forces HTTP — optional internal hook only (JC-5).
 
 ### 5. Tests
@@ -265,7 +296,6 @@ npm --prefix apps/api run build
 npm --prefix apps/api run lint
 npm --prefix apps/api run test
 npm --prefix apps/api run test:cov
-# Optional:
 KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ```
 
@@ -281,16 +311,16 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ## Best-practice checklist
 
-- [ ] DDL-faithful Prisma models ([Prisma Migrate](https://www.prisma.io/docs/orm/prisma-migrate))
-- [ ] Transactional `completeRun` ([interactive transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
-- [ ] FK to `jobs` added in dedicated migration after column exists
-- [ ] In-memory parity when `DATABASE_URL` unset
-- [ ] Strategy version soft-pin immutable on run
-- [ ] No HTTP controllers this sprint
-- [ ] DomainError codes for not-found / invalid state
-- [ ] Conventional Commits (`feat: persist backtest runs and results`)
-- [ ] Coverage ≥ 90% on new persistence files
-- [ ] Lifecycle: runs immutable; dependents CASCADE
+- [x] DDL-faithful Prisma models ([Prisma Migrate](https://www.prisma.io/docs/orm/prisma-migrate))
+- [x] Transactional `completeRun` ([interactive transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
+- [x] FK to `jobs` added in dedicated migration after column exists
+- [x] In-memory parity when `DATABASE_URL` unset
+- [x] Strategy version soft-pin immutable on run
+- [x] No HTTP controllers this sprint
+- [x] DomainError codes for not-found / invalid state
+- [x] Conventional Commits (`feat: persist backtest runs and results`)
+- [x] Coverage ≥ 90% on new persistence files
+- [x] Lifecycle: runs immutable; dependents CASCADE
 
 ---
 
@@ -300,21 +330,21 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 |------|------------|
 | Equity curve row explosion (hourly multi-year) | Batch inserts; bar limits enforced in 3.3; consider downsampling later (out of scope) |
 | Migration order vs `jobs` FK | Follow Migrations_Plan: tables first, `V0330` FK second |
-| Decimal precision drift | Use Prisma Decimal; compare in tests via `Number` with fixed eps |
-| Strategy module API incomplete | Depend on 2.3; add thin query in backtest module only if needed |
+| Decimal precision drift | Reject sub-cent initial capital, round engine output half-up with Prisma Decimal, recompute stored summaries from rounded detail rows, and compare fixed-scale strings |
+| Strategy module read API unavailable | 2.3 must export the owner-scoped strategy/version reader; do not bypass ownership with direct Prisma in backtests |
 | Partial writes without transactions | Require `$transaction` when Prisma enabled |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | One vs many migration folders | Deploy noise vs conceptual V030x | ⏭ One tables migration + one FK migration | ⏭ stubbed |
-| 2 | Persist results on `failed`? | Schema allows no result | ⏭ No result row on failure | ⏭ stubbed |
-| 3 | Default pin = latest version | Reproducibility UX | ⏭ Latest `version_number` | ⏭ stubbed |
-| 4 | Equity point per bar vs trade-only | Storage size | ⏭ Per bar (engine output) | ⏭ stubbed |
-| 5 | Register `backtest_run` job type now? | Couples to 3.3 | ⏭ Defer job type to 3.3 | ⏭ stubbed |
+| 1 | One vs many migration folders | Deploy noise vs conceptual V030x | One tables migration + one FK migration | Adopted |
+| 2 | Persist results on `failed`? | Schema allows no result | No result row on failure | Adopted |
+| 3 | Default pin = latest version | Reproducibility UX | Latest `version_number` | Adopted |
+| 4 | Equity point per bar vs trade-only | Storage size | Per bar (engine output) | Adopted |
+| 5 | Register `backtest_run` job type now? | Couples to 3.3 | Defer job type to 3.3 | Adopted |
 
 ---
 
@@ -374,14 +404,14 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ## Definition of done
 
-- [ ] Branched from Sprint 3.1
-- [ ] Dev gates resolved or stubbed
-- [ ] #5.1.1–#5.1.3 and #5.6.1 implemented per AC
-- [ ] Migrations apply cleanly (`db:migrate` / `db:deploy`)
-- [ ] In-memory and Prisma paths covered by tests
-- [ ] build / lint / test / test:cov (≥90%) pass
-- [ ] Docs + branch map updated
-- [ ] PR opened against `feat/sprint-3-1-backtest-engine-core` (or `main` if stacked merges)
+- [x] Stacked on the owner-selected combined Sprints 2.1–3.1 branch
+- [x] Adopted persistence defaults and state-transition contract implemented as written
+- [x] #5.1.1–#5.1.3 and #5.6.1 implemented per AC
+- [x] Migrations apply cleanly with `db:deploy`
+- [x] In-memory and Prisma paths covered by tests
+- [x] build / lint / test / test:cov (≥90%) pass
+- [x] Docs + branch map updated
+- [x] Included in draft PR #9 against `main`
 
 ---
 

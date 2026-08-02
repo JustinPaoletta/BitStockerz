@@ -13,17 +13,14 @@ export class JobHandlersService {
     private readonly executor: JobExecutorService,
     private readonly config: AppConfigService,
   ) {
-    this.executor.registerHandler(
-      'equity_daily_import',
-      this.handleEquityImport.bind(this),
+    this.executor.registerHandler('equity_daily_import', (job) =>
+      this.handleEquityImport(job),
     );
-    this.executor.registerHandler(
-      'crypto_import',
-      this.handleCryptoImport.bind(this),
+    this.executor.registerHandler('crypto_import', (job) =>
+      this.handleCryptoImport(job),
     );
-    this.executor.registerHandler(
-      'market_data_scheduled',
-      this.handleScheduledImport.bind(this),
+    this.executor.registerHandler('market_data_scheduled', (job) =>
+      this.handleScheduledImport(job),
     );
   }
 

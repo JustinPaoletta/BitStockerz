@@ -3,6 +3,13 @@
 This document defines **how data is deleted, retained, or archived** in BitStockerz.
 It is authoritative for **cascade vs soft delete** decisions and complements the ERD.
 
+This is the full-MVP target policy. In the current runnable API through Sprint
+3.4, account-deletion and retention/purge jobs are not exposed, paper-trading
+and AI tables are not migrated, and authentication state remains in memory.
+Implemented strategy and backtest foreign-key/cascade behavior matches the
+rules below; `apps/api/prisma/schema.prisma` and its migrations remain the
+authority for what exists in the runnable database today.
+
 ---
 
 ## Core Principles
@@ -93,16 +100,19 @@ It is authoritative for **cascade vs soft delete** decisions and complements the
 ### backtest_runs
 - **Delete type:** No user deletion
 - **Behavior:** Immutable historical simulation
-- **Cascade:** RESTRICT (admin-only cleanup)
+- **Parent FK rules:** User, strategy, strategy version, and symbol use
+  `ON DELETE RESTRICT`; optional job uses `ON DELETE SET NULL`
+- **Admin cleanup:** Deleting a run cascades only to its result, trades, and
+  equity points
 
 ### backtest_results
 - **Delete type:** Dependent on backtest_runs
-- **Cascade:** OPTIONAL CASCADE from backtest_runs
+- **Cascade:** `ON DELETE CASCADE` from backtest_runs
 
 ### backtest_trades
 ### backtest_equity_points
 - **Delete type:** Dependent on backtest_runs
-- **Cascade:** OPTIONAL CASCADE from backtest_runs
+- **Cascade:** `ON DELETE CASCADE` from backtest_runs
 
 ---
 

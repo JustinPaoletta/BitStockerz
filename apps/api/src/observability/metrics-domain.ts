@@ -17,5 +17,8 @@ export function classifyMetricsDomain(path: string): MetricsDomain {
   if (normalized.includes('/jobs')) {
     return 'jobs';
   }
+  if (normalized.includes('/backtests')) {
+    return 'backtest';
+  }
   return 'unknown';
 }

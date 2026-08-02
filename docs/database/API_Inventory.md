@@ -11,7 +11,9 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently ships through **Sprint 1.4**:
+The runnable API in `apps/api` currently implements through **Sprint 3.3**,
+and `apps/web` implements the Sprint 3.4 consumer
+(Sprints 2.1–3.4 are locally verified in draft PR #9):
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -22,11 +24,35 @@ The runnable API in `apps/api` currently ships through **Sprint 1.4**:
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
 | Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
-| Trading, strategies | Planned | Described below; not implemented yet. A dev-only stub at `POST /api/strategies` returns placeholder JSON and is not part of shipped scope. |
+| Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
+| Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use |
+| Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads |
+| Backtest execution APIs | Implemented (3.3) | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit |
+| Backtest UI | Implemented (3.4) | Angular list/run/detail flow, metrics, complete equity chart, and stable-id paged trades table |
+| Trading | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper remaps the stale MySQL user row and reassigns its jobs instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle
+fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory.
+Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
+`DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
+see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL
+(the `webauthn_credentials` table exists but is unused by the auth runtime
+today); persisted job, strategy, and backtest operations create or remap a
+minimal `users` row for foreign keys via `ensureUserPersisted`. If the same
+email is re-registered under a new in-memory user id, that helper atomically
+remaps the stale MySQL user row and reassigns its jobs, strategies, backtest
+runs, audit events, and credentials instead of deleting history. Ingestion
+upserts those seed OHLCV bars into bar tables when the database is enabled
+(re-run ingestion after an API restart if you need DB health to match the
+latest seed window).
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
+
+For the generated contract covering shipped routes, run the API and open
+`http://localhost:4000/api/docs`. Machine-readable OpenAPI 3.0 documents are
+served at `/api/openapi.json` and `/api/openapi.yaml`. This inventory remains
+the source for design rationale and planned APIs; planned routes are not added
+to the generated contract until they ship.
 
 ---
 
@@ -52,7 +78,9 @@ Sections marked **(Planned)** below are design targets from the MVP stories — 
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health checks, symbol lookup/search, candle reads). The dev-only `POST /strategies` stub is also unauthenticated and is not part of shipped scope.
+- All endpoints require authentication unless explicitly stated (e.g. health
+  checks, symbol lookup/search, candle reads, and the strategy indicator
+  catalog). Strategy create and owner reads require a bearer session.
 
 ### 0.1 Error code catalog
 
@@ -64,6 +92,16 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 | UNAUTHORIZED | 401 | unauthorized | Unauthorized |
 | FORBIDDEN | 403 | forbidden | Forbidden |
 | NOT_FOUND | 404 | not-found | Not found |
+| STRATEGY_NOT_FOUND | 404 | strategy-not-found | Strategy not found |
+| STRATEGY_VERSION_NOT_FOUND | 404 | strategy-version-not-found | Strategy version not found |
+| STRATEGY_VALIDATION_ERROR | 400 | strategy-validation | Strategy validation error |
+| BACKTEST_INVALID_DEFINITION | 400 | backtest-invalid-definition | Invalid backtest definition |
+| BACKTEST_INSUFFICIENT_BARS | 400 | backtest-insufficient-bars | Insufficient backtest bars |
+| BACKTEST_BAR_LIMIT_EXCEEDED | 400 | backtest-bar-limit-exceeded | Backtest bar limit exceeded |
+| BACKTEST_RESOURCE_LIMIT_EXCEEDED | 400 | backtest-resource-limit-exceeded | Backtest resource limit exceeded |
+| BACKTEST_TIMEOUT | 504 | backtest-timeout | Backtest timed out |
+| BACKTEST_NOT_FOUND | 404 | backtest-not-found | Backtest not found |
+| BACKTEST_INVALID_STATE | 409 | backtest-invalid-state | Invalid backtest state |
 | CONFLICT | 409 | conflict | Conflict |
 | RATE_LIMITED | 429 | rate-limited | Rate limited |
 | INTERNAL_ERROR | 500 | internal | Internal server error |
@@ -71,7 +109,19 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 - `type` is always `https://bitstockerz.dev/errors/{type suffix}`.
 - `instance` is the request path (no host), e.g. `/api/strategies`.
 - `requestId` is set from the `x-request-id` header when provided; otherwise the server generates a correlation ID. Use it for support and logs.
-- `fieldErrors` is only present for `VALIDATION_ERROR` and contains `{ field, reason }` entries.
+- `fieldErrors` is present for request/strategy validation errors when field
+  details are available and contains `{ field, reason }` entries.
+
+Domain-specific additions are owned by their implementation sprints and are
+canonical for later clients. Sprint 2.3 and Backtesting codes are implemented;
+later rows are planned:
+
+| Owner | Codes |
+| --- | --- |
+| Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
+| Sprints 3.1–3.3 (implemented) | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
+| Sprints 4.1–4.3 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
+| Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
 ### 0.2 Client examples
 
@@ -262,6 +312,8 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `sanity` — `{ checked, invalid, issues[] }` from a bounded sample
   - `source` — `seed` | `database`
 - Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
+- A daily bar covers its full UTC calendar day, so its `age_ms` starts at the
+  end of that day; hourly age starts at the recorded timestamp.
 - Freshness and `symbol_count_with_data` consider bars for **active** symbols only (`symbol.isActive`).
 - Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates. Live vendor feeds remain Sprint 7.1.
 
@@ -269,13 +321,19 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 **GET `/metrics`** (public)
 
-- In-process JSON summary (not Prometheus text): HTTP request/error counts + duration stats, job counts/durations by type, errors by domain.
+- In-process JSON summary (not Prometheus text): HTTP request/error counts and
+  duration stats, job counts/durations by type, backtest terminal
+  counts/durations, and errors by domain.
 - Cleared on process restart. Disable with `METRICS_ENABLED=false`.
 
 ### 2.8 Audit trail (implemented in Sprint 1.4)
 
 - No public list/query API in MVP.
-- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`.
+- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer
+  (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`,
+  `job.completed`, `job.failed`, `market_data.ingestion_requested`,
+  `strategy.created`, `strategy.updated`, `strategy.deleted`, and
+  `backtest.requested`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
@@ -289,31 +347,28 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 - Body:
   - `symbol`
   - `side` – BUY | SELL
-  - `quantity`
+  - `quantity` – positive decimal string
   - `client_order_id?`
 - Behavior:
-  - Validates symbol, cash/position, risk limits.
-  - Fills as market order using latest price from Market Data service.
-
-- Response:
-  - `order` object:
-    - `id`
-    - `symbol`
-    - `side`
-    - `quantity`
-    - `status` – PENDING | FILLED | REJECTED | CANCELLED
-    - `avg_fill_price?`
-    - `reject_reason?`
-    - `requested_at`
-    - `filled_at?`
+  - Validates symbol, cash/position, and risk limits.
+  - Fills synchronously as a market order using the latest eligible close.
+  - Atomically writes the terminal order, execution (for fills), cash, and position.
+  - Replaying the same `client_order_id` with the same normalized payload returns
+    the original order without another fill; a different payload returns `409 CONFLICT`.
+- Response `200`: `{ order }`, where `status` is `FILLED` or `REJECTED`.
+  Filled orders include `avg_fill_price` / `filled_at`; rejected orders include
+  the stable `reject_reason`. Business rejection is a terminal order, not an HTTP
+  validation error.
 
 **GET `/trading/orders`**
 
 - Query params:
   - `status?`
   - `symbol?`
-  - `limit?` (default 50)
-- Response: list of orders for current user’s paper account.
+  - `limit?` (default 50, max 200)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ orders, limit, offset, has_more }`, newest first by
+  `requested_at DESC, id ASC`.
 
 ---
 
@@ -323,14 +378,17 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 - Query params:
   - `symbol?`
-  - `limit?` (default 100)
-- Response: executions list:
-  - `{ executed_at, symbol, side, quantity, price, notional }`
+  - `limit?` (default 100, max 500)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ executions, limit, offset, has_more }`, newest first by
+  `executed_at DESC, id ASC`; each execution is
+  `{ executed_at, symbol, side, quantity, price, notional }`.
 
 **GET `/trading/positions`**
 
-- Returns all **non-zero** positions:
-  - `{ symbol, quantity, avg_cost }`
+- Returns `{ positions }` containing all **non-zero** positions in
+  `symbol ASC, position.id ASC` order. Each item is
+  `{ symbol, quantity, avg_cost }`.
 
 ---
 
@@ -343,19 +401,24 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `total_position_value`
   - `total_equity`
   - `unrealized_pnl_total`
+- All fields are 2-decimal strings. If any held symbol lacks an eligible close,
+  fail closed with `422 TRADING_NO_MARKET_PRICE`.
 
 ---
 
-## 4. Strategy Lab APIs (#4) (Planned)
-
-Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and returns placeholder JSON without auth or persistence. Do not treat it as the Strategy Lab API.
+## 4. Strategy Lab APIs (#4) (Sprints 2.1–2.3 implemented)
 
 ### 4.1 Indicators
 
 **GET `/strategies/indicators`**
 
-- Response: catalog of supported indicators:
-  - e.g. `[{ key: "SMA", display_name: "Simple Moving Average", params: {...} }, ...]`
+- Auth: public.
+- Response: `{ indicators }` with code-defined entries in `SMA`, `EMA`, `RSI` order.
+- Each entry has exactly `key`, `display_name`, `description`, `params`,
+  `sources`, and `default_source`.
+- Every current indicator has one integer `period` parameter. SMA/EMA allow
+  2–200 with default 20 and sources `open|high|low|close`; RSI allows 2–100
+  with default 14 and source `close`. All default to source `close`.
 
 ---
 
@@ -363,36 +426,79 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
 
 **POST `/strategies`**
 
+- Auth: required.
 - Body:
-  - `name`
-  - `description?`
-  - `asset_type`
-  - `timeframe`
-  - `definition` (full JSON: indicators, entry/exit, SL/TP)
+  - `name`: trimmed string, 1–255 characters; unique per user under database-style case/accent-insensitive comparison
+  - `description?`: string
+  - `asset_type`: `EQUITY` or `CRYPTO`
+  - `timeframe`: `1d` or `1h`; equity currently requires `1d`
+  - `symbol_scope?`: only `SINGLE`; defaults to `SINGLE`
+  - `definition`: required canonical strategy definition:
+    - exactly `indicators`, `entry`, `exit`, and `risk` at the top level
+    - `indicators`: at most 20 unique entries, each exactly
+      `{ id, type, params: { period }, source }`; ids are 1–64 characters
+      matching `^[A-Za-z][A-Za-z0-9_-]*$`; `type`, parameter bounds, and
+      sources must match the catalog; `source` is explicit in persisted JSON
+    - `entry` and `exit`: exactly `{ logic: "AND", conditions }`, with 1–10
+      conditions each
+    - each condition is exactly `{ left, op, right }`; each operand contains
+      exactly one of `{ indicator }`, `{ price }`, or `{ literal }`
+    - operators are `gt|gte|lt|lte|eq|crosses_above|crosses_below`; crossover
+      conditions require at least one indicator/price operand, and indicator
+      operands must reference a declared id
+    - `risk`: exactly `{ stop_loss, take_profit }`; both rules are required,
+      have `{ type: "percent", value }`, and use bounds `(0, 50]` for stop loss
+      and `(0, 500]` for take profit
+    - unknown keys, array/object confusion, duplicate ids, unsupported values,
+      and non-finite numbers are rejected
 - Behavior:
-  - Creates strategy + initial version.
+  - Atomically creates strategy + immutable initial version (`version_number: 1`).
+  - Runs the pure canonical definition validator before either in-memory or
+    MySQL persistence. Definition failures return
+    `400 STRATEGY_VALIDATION_ERROR`;
+    `fieldErrors[].field` is `definition` for root-shape errors or begins with
+    `definition.` for nested errors, and `reason` begins with a stable
+    validator code such as `OR_NOT_SUPPORTED:`.
+  - Emits `strategy.created` audit metadata.
+  - Duplicate normalized name for the same user returns `409 CONFLICT`.
+- Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, summary, created_at, updated_at }`.
 
 **PUT `/strategies/:id`**
 
-- Body:
-  - same as POST (or partial, depending on design)
+- Body: partial metadata (`name`, `description`, `asset_type`, `timeframe`) and
+  optional `definition`; `description: null` clears it and an empty body is invalid.
 - Behavior:
-  - Creates **new version**, updates metadata.
+  - Updates metadata. A present valid `definition` always appends the next
+    immutable version, even when identical; a metadata-only update does not.
+  - MySQL version allocation uses a serializable transaction and one bounded
+    write-conflict retry.
+  - Emits bounded `strategy.updated` audit metadata.
+- Response: latest version payload plus deterministic `summary`.
 
 **GET `/strategies`**
 
-- Response: strategies for current user:
-  - `{ id, name, asset_type, timeframe, created_at, updated_at, is_active }`
+- Query: `limit?` (default 50, max 100), `offset?` (default 0, max 10,000).
+- Response: `{ items, limit, offset, has_more }` for the current user’s active
+  strategies, ordered `updated_at DESC, id ASC`.
+- Each item is
+  `{ id, name, asset_type, timeframe, version_number, created_at, updated_at, is_active }`.
 
 **GET `/strategies/:id`**
 
+- Auth: required; only the owning user can read the strategy.
 - Response:
-  - metadata + latest version’s `definition`
-  - version number.
+  - Metadata + selected version’s `definition`, `version_number`, and deterministic
+    `summary`. Optional `?version=N` reads an immutable historical definition
+    and adds `version_created_at` plus `is_latest`.
+- Invalid UUID returns `400 VALIDATION_ERROR`; missing, inactive, or non-owned
+  ids return `404 STRATEGY_NOT_FOUND`; a missing selected version returns
+  `404 STRATEGY_VERSION_NOT_FOUND`.
 
 **DELETE `/strategies/:id`**
 
-- Soft delete: sets `is_active = false`.
+- Soft delete: sets `is_active = false` and returns `204` with no body. A repeated
+  delete returns `404 STRATEGY_NOT_FOUND`; the name remains reserved.
+- Emits bounded `strategy.deleted` audit metadata.
 
 ---
 
@@ -401,14 +507,43 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
 **POST `/strategies/validate`**
 
 - Body:
-  - `definition` OR `strategy_id`
+  - Exactly one of `definition` or `strategy_id`
 - Response:
   - `is_valid: boolean`
-  - `errors: string[]`
+  - `errors: [{ path, code, message }]`
+  - `summary: string | null`
+- Valid and invalid definitions return `200`; the endpoint never persists.
+- Both/neither fields return `400 STRATEGY_VALIDATION_ERROR`. Missing,
+  inactive, or non-owned `strategy_id` returns `404 STRATEGY_NOT_FOUND`.
 
 ---
 
-## 5. Backtesting APIs (#5) (Planned)
+## 5. Backtesting APIs (#5) (implemented through Sprint 3.3)
+
+Sprint 3.1 implements the internal `BacktestModule`,
+`BacktestEngineService`, and pure `runBacktest` contract. It accepts a validated
+strategy definition plus chronological OHLCV bars and returns closed trades,
+one equity point per bar, summary metrics, and bounded diagnostics.
+
+Sprint 3.2 adds the internal owner-scoped `BacktestsService` and
+`BacktestsRepository`. They create pending runs with immutable owned strategy
+version pins, compare-and-set lifecycle states, and transactionally persist one
+result plus ordered trades/equity points in MySQL (copy-on-write in seed mode).
+Active strategy-asset-compatible symbols and optional owner-scoped jobs are
+validated consistently, and owner operations reattach process-local auth ids
+after restart. Initial equity must already be cent-exact. Other decimal-backed
+values are fixed-scale strings at this boundary, and stored summary metrics are
+recomputed from those fixed-scale detail rows after the raw engine summary is
+validated exactly, before rounding. Latest pins enforce current strategy
+timeframe; explicit internal
+historical pins persist their supplied valid timeframe because strategy
+versions snapshot definitions, not mutable metadata.
+
+Sprint 3.3 adds the authenticated `BacktestsController`, DTO validation,
+POST-only per-user rate guard, `backtest_run` handler, market-data batch reads,
+job cancellation/deadlines, actual and conservative limits, terminal cleanup,
+stable failures, diagnostics, metrics, structured logs, and bounded audit
+metadata. Sprint 3.4 consumes these routes from `apps/web`.
 
 ### 5.1 Backtest Runs
 
@@ -421,14 +556,20 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
   - `start_date`
   - `end_date`
   - `initial_equity?`
+  - `strategy_version_id?`
 - Behavior:
-  - Creates `backtest_run` + job.
+  - Validates ownership and strategy/symbol/timeframe compatibility, pins a
+    strategy version, then creates a run + job.
   - Synchronously executes job (MVP).
-  - Enforces bar-count, timeout limits.
-
-- Response:
-  - `backtest_run` metadata
-  - `backtest_result` summary metrics
+  - Enforces bar-count, series-cell, and cooperative deadline limits.
+- Response `200`: `{ run, results }`; full trades/equity remain on detail.
+- Date-only values normalize to inclusive UTC day boundaries. Timestamp values
+  must carry `Z` or an explicit offset and `end_date` must be after
+  `start_date`.
+- `initial_equity` defaults to `10000` and must be positive with at most two
+  decimal places.
+- Rate limit: per authenticated user, POST only; defaults to 10 requests per
+  60 seconds via `BACKTEST_RATE_LIMIT_*`.
 
 **GET `/backtests`**
 
@@ -436,17 +577,27 @@ Dev-only stub (not shipped scope): `POST /strategies` exists in `apps/api` and r
   - `strategy_id?`
   - `symbol?`
   - `status?`
-  - `limit?` (default 50)
-- Response:
-  - List of backtests for current user.
+  - `limit?` (default 50, max 100)
+  - `offset?` (default 0, max 10,000)
+- Response: `{ items, limit, offset, has_more }` for the current user, ordered
+  `created_at DESC, id ASC`.
+- Each item includes `strategy_name`, symbol text, status/lifecycle fields, and
+  available summary metrics, but not trades or equity points.
 
 **GET `/backtests/:id`**
 
+- Query: `trades_limit?` (default 500, max 1000),
+  `trades_offset?` (default 0, max 100,000).
 - Response:
   - `run` metadata
   - `results` (summary metrics)
-  - `trades[]` (possibly paginated)
+  - `trades[]`, ordered by `entry_time ASC, id ASC`
+  - `trades_page: { limit, offset, has_more }`
   - `equity_curve[]` – `{ timestamp, equity }`
+- When `trades_page.has_more` is true, request the next page by advancing
+  `trades_offset` by the number of trade rows already loaded. Stable trade ids
+  allow clients to de-duplicate defensively while appending.
+- Missing and cross-owner ids both return `404 BACKTEST_NOT_FOUND`.
 
 ---
 
@@ -461,7 +612,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `strategy_id`
 - Response:
-  - `{ explanation: string, warnings?: string[] }`
+  - `{ disclaimer, confidence, ai_request_id, explanation, warnings }`
 
 ---
 
@@ -472,7 +623,8 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `strategy_id`
 - Response:
-  - `warnings: [{ severity: "LOW" | "MEDIUM" | "HIGH", message: string }]`
+  - `{ disclaimer, confidence, ai_request_id, warnings }`, where warnings are
+    `{ code, severity, message, evidence_paths }`
 
 ---
 
@@ -483,7 +635,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 - Body:
   - `backtest_run_id`
 - Response:
-  - `{ explanation: string, issues?: string[] }`
+  - `{ disclaimer, confidence, ai_request_id, explanation, issues }`
 
 ---
 
@@ -495,29 +647,22 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
   - `strategy_id`
   - `backtest_run_id?`
 - Response:
-  - `suggestions: [{ title: string, description: string }]`
+  - `{ disclaimer, confidence, ai_request_id, suggestions }`, where suggestions
+    are `{ code, title, description, evidence }`
 
 ---
 
-## 7. Dashboard / UI Aggregation APIs (#7) (Planned)
+## 7. Dashboard / UI Aggregation APIs (#7) (No new backend route planned)
 
-Most dashboard widgets reuse existing endpoints, but you may choose some light aggregations.
+Dashboard widgets make independent calls to the paper-account, trading, strategy,
+and backtest APIs so one failed widget does not fail the page.
 
-### 7.1 Dashboard Summary (optional helper)
+### 7.1 Dashboard Summary
 
-**GET `/dashboard/summary`**
-
-- Response:
-  - `portfolio_summary` (from `/trading/portfolio-summary`)
-  - recent `positions` (from `/trading/positions`)
-  - recent `strategies` (from `/strategies`)
-  - recent `backtests` (from `/backtests`)
-  - recent `trades` (from `/trading/executions`)
-- This can be implemented either as:
-  - a true aggregator, or
-  - handled client-side by calling each underlying API.
-
-If you want to keep the backend simpler, skip this and let the Angular app call the underlying APIs independently (as designed in #7).
+`GET /dashboard/summary` is intentionally skipped for MVP. Sprint 5.2 calls
+`/trading/portfolio-summary`, `/trading/positions`,
+`/strategies?limit=5&offset=0`, `/backtests?limit=5&offset=0`, and
+`/trading/executions?limit=5&offset=0` independently.
 
 ---
 
@@ -618,14 +763,15 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`, `MarketDataModule`, `JobsModule`, plus controllers for health, strategies stub, and error-test.
+**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`,
+`MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`,
+and `BacktestModule`, including its authenticated run/list/detail controller,
+plus controllers for health and error-test.
 
 **Planned as domains grow:**
 
 - `UserModule` / `AccountModule` (or keep under Auth)
 - `TradingModule`
-- `StrategyModule`
-- `BacktestModule`
 - `AiModule` (Kernel)
 - `DashboardModule` (thin)
 - `HealthModule` / `CoreModule` (if extracted from AppModule)

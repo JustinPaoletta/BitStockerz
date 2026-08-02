@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { GlobalHttpExceptionFilter } from '../src/common/errors/http-exception.filter';
 import { AppLogger } from '../src/common/logging/app-logger';
+import { AuditService } from '../src/observability/audit.service';
 import {
   SEED_CRYPTO_DAILY_SAMPLE,
   SEED_CRYPTO_HOURLY_SAMPLE,
@@ -185,9 +186,20 @@ describe('Error contract (e2e)', () => {
     expect((body.requestId as string).length).toBeGreaterThan(0);
   }
 
-  it('malformed request body returns 400 with VALIDATION_ERROR, fieldErrors, requestId', () => {
-    return request(app.getHttpServer())
+  async function registerAndGetToken(): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'error-contract@example.com' })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  it('malformed request body returns 400 with VALIDATION_ERROR, fieldErrors, requestId', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
       .post('/api/strategies')
+      .set('Authorization', `Bearer ${token}`)
       .set('Content-Type', 'application/json')
       .send({ invalid: 'body', name: 123 })
       .expect(400)
@@ -264,9 +276,12 @@ describe('Error contract (e2e)', () => {
       });
   });
 
-  it('all error responses have RFC 7807 base fields plus code and requestId', () => {
-    return request(app.getHttpServer())
+  it('all error responses have RFC 7807 base fields plus code and requestId', async () => {
+    const token = await registerAndGetToken();
+
+    await request(app.getHttpServer())
       .post('/api/strategies')
+      .set('Authorization', `Bearer ${token}`)
       .set('Content-Type', 'application/json')
       .send({})
       .expect(400)
@@ -552,6 +567,711 @@ describe('Auth limits and TTL (e2e)', () => {
       .expect((res) => {
         expect(res.body.code).toBe('UNAUTHORIZED');
       });
+  });
+});
+
+describe('Strategy persistence and versioning (e2e)', () => {
+  let app: INestApplication<App>;
+  let audit: AuditService;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+    audit = app.get(AuditService);
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function registerAndGetToken(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  function strategyBody(overrides: Record<string, unknown> = {}) {
+    return {
+      name: 'SMA Cross Long',
+      description: 'Fast/slow SMA cross',
+      asset_type: 'EQUITY',
+      timeframe: '1d',
+      definition: {
+        indicators: [
+          {
+            id: 'sma_fast',
+            type: 'SMA',
+            params: { period: 10 },
+            source: 'close',
+          },
+          {
+            id: 'sma_slow',
+            type: 'EMA',
+            params: { period: 30 },
+            source: 'close',
+          },
+        ],
+        entry: {
+          logic: 'AND',
+          conditions: [
+            {
+              left: { indicator: 'sma_fast' },
+              op: 'crosses_above',
+              right: { indicator: 'sma_slow' },
+            },
+          ],
+        },
+        exit: {
+          logic: 'AND',
+          conditions: [
+            {
+              left: { indicator: 'sma_fast' },
+              op: 'crosses_below',
+              right: { indicator: 'sma_slow' },
+            },
+          ],
+        },
+        risk: {
+          stop_loss: { type: 'percent', value: 2 },
+          take_profit: { type: 'percent', value: 500 },
+        },
+      },
+      ...overrides,
+    };
+  }
+
+  it('returns the exact public indicator catalog without authentication', async () => {
+    await request(app.getHttpServer())
+      .get('/api/strategies/indicators')
+      .expect(200)
+      .expect((res) => {
+        expect(
+          res.body.indicators.map((entry: { key: string }) => entry.key),
+        ).toEqual(['SMA', 'EMA', 'RSI']);
+        expect(res.body.indicators).toEqual([
+          expect.objectContaining({
+            key: 'SMA',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 200,
+                default: 20,
+              },
+            ],
+            sources: ['open', 'high', 'low', 'close'],
+            default_source: 'close',
+          }),
+          expect.objectContaining({
+            key: 'EMA',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 200,
+                default: 20,
+              },
+            ],
+          }),
+          expect.objectContaining({
+            key: 'RSI',
+            params: [
+              {
+                name: 'period',
+                type: 'integer',
+                min: 2,
+                max: 100,
+                default: 14,
+              },
+            ],
+            sources: ['close'],
+          }),
+        ]);
+      });
+  });
+
+  it('creates version one, audits it, and reads it back for the owner', async () => {
+    const token = await registerAndGetToken('strategist@example.com');
+    const authorization = `Bearer ${token}`;
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: '  SMA Cross Long  ' }))
+      .expect(201);
+
+    expect(createResponse.body).toMatchObject({
+      name: 'SMA Cross Long',
+      description: 'Fast/slow SMA cross',
+      asset_type: 'EQUITY',
+      symbol_scope: 'SINGLE',
+      timeframe: '1d',
+      is_active: true,
+      version_number: 1,
+      definition: strategyBody().definition,
+      summary:
+        'Buy when SMA(10) crosses above EMA(30). ' +
+        'Exit when SMA(10) crosses below EMA(30). ' +
+        'Stop loss 2%. Take profit 500%.',
+    });
+    expect(createResponse.body.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(
+      new Date(createResponse.body.created_at as string).toISOString(),
+    ).toBe(createResponse.body.created_at);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${createResponse.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual(createResponse.body);
+      });
+
+    expect(audit.getInMemoryEventsForTests()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'strategy.created',
+          payload: {
+            strategy_id: createResponse.body.id,
+            name: 'SMA Cross Long',
+          },
+        }),
+      ]),
+    );
+  });
+
+  it('enforces normalized name uniqueness per user and hides cross-user ids', async () => {
+    const ownerToken = await registerAndGetToken('owner@example.com');
+    const otherToken = await registerAndGetToken('other@example.com');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(strategyBody({ name: 'Café Momentum' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(strategyBody({ name: ' cafe momentum ' }))
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send(strategyBody({ name: 'CAFE MOMENTUM' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${createResponse.body.id as string}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+  });
+
+  it('matches MySQL Unicode name-conflict behavior in seed mode', async () => {
+    const token = await registerAndGetToken('unicode-owner@example.com');
+    const authorization = `Bearer ${token}`;
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Straße Momentum' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Strasse Momentum' }))
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+  });
+
+  it('supports owner-scoped list, update history, and soft delete', async () => {
+    const token = await registerAndGetToken('crud-owner@example.com');
+    const authorization = `Bearer ${token}`;
+    const first = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'First CRUD strategy' }))
+      .expect(201);
+    const second = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Second CRUD strategy' }))
+      .expect(201);
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const metadataUpdate = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({
+        name: '  Renamed CRUD strategy  ',
+        description: null,
+        asset_type: 'CRYPTO',
+        timeframe: '1h',
+      })
+      .expect(200);
+    expect(metadataUpdate.body).toMatchObject({
+      name: 'Renamed CRUD strategy',
+      description: null,
+      asset_type: 'CRYPTO',
+      timeframe: '1h',
+      version_number: 1,
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/strategies?limit=1&offset=0')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          limit: 1,
+          offset: 0,
+          has_more: true,
+          items: [expect.objectContaining({ id: first.body.id })],
+        });
+        expect(Object.keys(res.body.items[0]).sort()).toEqual(
+          [
+            'asset_type',
+            'created_at',
+            'id',
+            'is_active',
+            'name',
+            'timeframe',
+            'updated_at',
+            'version_number',
+          ].sort(),
+        );
+      });
+
+    const nextDefinition = structuredClone(strategyBody().definition) as {
+      indicators: Array<{ params: { period: number } }>;
+    };
+    nextDefinition.indicators[0].params.period = 11;
+    const versionTwo = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: nextDefinition })
+      .expect(200);
+    expect(versionTwo.body).toMatchObject({
+      version_number: 2,
+      definition: nextDefinition,
+      summary: expect.stringContaining('SMA(11)'),
+    });
+
+    const versionThree = await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: nextDefinition })
+      .expect(200);
+    expect(versionThree.body.version_number).toBe(3);
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=1`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          name: 'Renamed CRUD strategy',
+          version_number: 1,
+          definition: strategyBody().definition,
+          is_latest: false,
+          version_created_at: expect.any(String),
+        });
+      });
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=99`)
+      .set('Authorization', authorization)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VERSION_NOT_FOUND');
+      });
+
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(204)
+      .expect('');
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${second.body.id as string}`)
+      .set('Authorization', authorization)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Second CRUD strategy' }))
+      .expect(409);
+
+    expect(audit.getInMemoryEventsForTests()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'strategy.updated',
+          payload: expect.objectContaining({
+            strategy_id: first.body.id,
+            version_number: 3,
+          }),
+        }),
+        expect.objectContaining({
+          eventType: 'strategy.deleted',
+          payload: {
+            strategy_id: second.body.id,
+            name: 'Second CRUD strategy',
+          },
+        }),
+      ]),
+    );
+  });
+
+  it('dry-runs inline and persisted validation without side effects', async () => {
+    const ownerToken = await registerAndGetToken('validate-owner@example.com');
+    const otherToken = await registerAndGetToken('validate-other@example.com');
+    const authorization = `Bearer ${ownerToken}`;
+    const created = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'Validation target' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ definition: strategyBody().definition })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual({
+          is_valid: true,
+          errors: [],
+          summary:
+            'Buy when SMA(10) crosses above EMA(30). ' +
+            'Exit when SMA(10) crosses below EMA(30). ' +
+            'Stop loss 2%. Take profit 500%.',
+        });
+      });
+
+    const invalidDefinition = structuredClone(strategyBody().definition) as {
+      entry: { conditions: Array<{ op: string }> };
+    };
+    invalidDefinition.entry.conditions[0].op = 'unknown';
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ definition: invalidDefinition })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          is_valid: false,
+          errors: [
+            expect.objectContaining({
+              path: 'entry.conditions[0].op',
+              code: 'UNKNOWN_OPERATOR',
+            }),
+          ],
+          summary: null,
+        });
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', authorization)
+      .send({ strategy_id: created.body.id })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          is_valid: true,
+          errors: [],
+          summary: expect.any(String),
+        });
+      });
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ strategy_id: created.body.id })
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+
+    for (const body of [
+      {},
+      { definition: strategyBody().definition, strategy_id: created.body.id },
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/strategies/validate')
+        .set('Authorization', authorization)
+        .send(body)
+        .expect(400)
+        .expect((res) => {
+          expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+        });
+    }
+
+    await request(app.getHttpServer())
+      .get('/api/strategies')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.items).toHaveLength(1);
+      });
+    expect(
+      audit
+        .getInMemoryEventsForTests()
+        .filter((event) => event.eventType.startsWith('strategy.')),
+    ).toHaveLength(1);
+  });
+
+  it('returns stable errors for invalid CRUD requests and query bounds', async () => {
+    const token = await registerAndGetToken('crud-errors@example.com');
+    const authorization = `Bearer ${token}`;
+    const first = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'CRUD errors one' }))
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 'CRUD errors two' }))
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({})
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ name: 'crud errors two' })
+      .expect(409)
+      .expect((res) => {
+        expect(res.body.code).toBe('CONFLICT');
+      });
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${first.body.id as string}`)
+      .set('Authorization', authorization)
+      .send({ definition: [] })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get('/api/strategies?limit=101&offset=-1')
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${first.body.id as string}?version=0`)
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+  });
+
+  it('returns RFC 7807 validation errors for invalid strategy contracts', async () => {
+    const token = await registerAndGetToken('validation@example.com');
+    const authorization = `Bearer ${token}`;
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ timeframe: '1h' }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(
+        strategyBody({
+          name: 'Invalid OR',
+          definition: {
+            ...(strategyBody().definition as Record<string, unknown>),
+            entry: {
+              logic: 'OR',
+              conditions: [
+                {
+                  left: { price: 'close' },
+                  op: 'gt',
+                  right: { literal: 1 },
+                },
+              ],
+            },
+          },
+        }),
+      )
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+        expect(res.body.fieldErrors).toEqual(
+          expect.arrayContaining([
+            {
+              field: 'definition.entry.logic',
+              reason: 'OR_NOT_SUPPORTED: logic must be AND.',
+            },
+          ]),
+        );
+      });
+
+    const excessiveTakeProfit = structuredClone(strategyBody().definition) as {
+      risk: { take_profit: { value: number } };
+    };
+    excessiveTakeProfit.risk.take_profit.value = 500.01;
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(
+        strategyBody({
+          name: 'Excessive take profit',
+          definition: excessiveTakeProfit,
+        }),
+      )
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              field: 'definition.risk.take_profit.value',
+              reason: expect.stringContaining('RISK_VALUE_OUT_OF_RANGE'),
+            }),
+          ]),
+        );
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ definition: [] }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_VALIDATION_ERROR');
+        expect(res.body.fieldErrors).toEqual([
+          {
+            field: 'definition',
+            reason: 'INVALID_DEFINITION: Definition must be a non-null object.',
+          },
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({ ...strategyBody(), definition: null })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual([
+          expect.objectContaining({
+            field: 'definition',
+            reason: expect.stringContaining('INVALID_DEFINITION'),
+          }),
+        ]);
+      });
+
+    const missingDefinition = strategyBody() as Record<string, unknown>;
+    delete missingDefinition.definition;
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(missingDefinition)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.fieldErrors).toEqual([
+          expect.objectContaining({
+            field: 'definition',
+            reason: expect.stringContaining('INVALID_DEFINITION'),
+          }),
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({ ...strategyBody(), unexpected: true })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send(strategyBody({ name: 123, description: 456 }))
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/strategies/not-a-uuid')
+      .set('Authorization', authorization)
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+      });
+  });
+
+  it('requires authentication for strategy reads and writes', async () => {
+    const strategyId = crypto.randomUUID();
+
+    await request(app.getHttpServer())
+      .post('/api/strategies')
+      .send(strategyBody())
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/strategies/${strategyId}`)
+      .expect(401)
+      .expect((res) => {
+        expect(res.body.code).toBe('UNAUTHORIZED');
+      });
+
+    await request(app.getHttpServer()).get('/api/strategies').expect(401);
+    await request(app.getHttpServer())
+      .post('/api/strategies/validate')
+      .send({ definition: strategyBody().definition })
+      .expect(401);
+    await request(app.getHttpServer())
+      .put(`/api/strategies/${strategyId}`)
+      .send({ description: 'blocked' })
+      .expect(401);
+    await request(app.getHttpServer())
+      .delete(`/api/strategies/${strategyId}`)
+      .expect(401);
   });
 });
 
@@ -1046,5 +1766,274 @@ describe('Market data health and metrics (e2e)', () => {
         expect(res.body).toHaveProperty('errors_by_domain');
         expect(res.body.http.request_count).toBeGreaterThanOrEqual(1);
       });
+  });
+});
+
+describe('Backtest execution APIs (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function register(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  function definition() {
+    return {
+      indicators: [
+        {
+          id: 'fast',
+          type: 'SMA',
+          params: { period: 2 },
+          source: 'close',
+        },
+      ],
+      entry: {
+        logic: 'AND',
+        conditions: [
+          {
+            left: { price: 'close' },
+            op: 'gt',
+            right: { literal: 0 },
+          },
+        ],
+      },
+      exit: {
+        logic: 'AND',
+        conditions: [
+          {
+            left: { price: 'close' },
+            op: 'lt',
+            right: { literal: 0 },
+          },
+        ],
+      },
+      risk: {
+        stop_loss: { type: 'percent', value: 2 },
+        take_profit: { type: 'percent', value: 500 },
+      },
+    };
+  }
+
+  it('runs synchronously and serves owner-scoped summaries and paginated details', async () => {
+    const owner = await register('backtest-owner@example.com');
+    const other = await register('backtest-other@example.com');
+    const authorization = `Bearer ${owner}`;
+    const strategy = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Backtest E2E',
+        asset_type: 'EQUITY',
+        timeframe: '1d',
+        definition: definition(),
+      })
+      .expect(201);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: strategy.body.id,
+        symbol: 'aapl',
+        timeframe: '1d',
+        start_date: SEED_EQUITY_SAMPLE.start,
+        end_date: SEED_EQUITY_SAMPLE.end,
+      });
+    if (created.status !== 200) {
+      throw new Error(JSON.stringify(created.body));
+    }
+
+    expect(created.body).toMatchObject({
+      run: {
+        strategy_id: strategy.body.id,
+        symbol: 'AAPL',
+        timeframe: '1d',
+        initial_equity: '10000.00',
+        status: 'completed',
+        job_id: expect.any(String),
+        diagnostics: {
+          bars_processed: 5,
+          duration_ms: expect.any(Number),
+          indicators_computed: 1,
+          signals_fired: expect.any(Number),
+        },
+      },
+      results: {
+        final_equity: expect.any(String),
+        num_trades: expect.any(Number),
+      },
+    });
+    const runId = created.body.run.id as string;
+
+    await request(app.getHttpServer())
+      .get('/api/backtests?symbol=AAPL&status=completed&limit=1&offset=0')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          limit: 1,
+          offset: 0,
+          has_more: false,
+          items: [
+            {
+              id: runId,
+              strategy_name: 'Backtest E2E',
+              symbol: 'AAPL',
+              status: 'completed',
+              total_return_pct: expect.any(String),
+            },
+          ],
+        });
+        expect(response.body.items[0].trades).toBeUndefined();
+        expect(response.body.items[0].equity_curve).toBeUndefined();
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/backtests/${runId}?trades_limit=1&trades_offset=0`)
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.run.id).toBe(runId);
+        expect(response.body.trades.length).toBeLessThanOrEqual(1);
+        expect(response.body.trades_page).toEqual({
+          limit: 1,
+          offset: 0,
+          has_more: false,
+        });
+        expect(response.body.equity_curve).toHaveLength(5);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/backtests/${runId}`)
+      .set('Authorization', `Bearer ${other}`)
+      .expect(404)
+      .expect((response) => {
+        expect(response.body.code).toBe('BACKTEST_NOT_FOUND');
+      });
+  });
+
+  it('rejects bad requests before a run is created and protects every route', async () => {
+    const token = await register('backtest-errors@example.com');
+    const authorization = `Bearer ${token}`;
+    await request(app.getHttpServer()).get('/api/backtests').expect(401);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .send({})
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: crypto.randomUUID(),
+        symbol: 'AAPL',
+        timeframe: '1d',
+        start_date: SEED_EQUITY_SAMPLE.end,
+        end_date: SEED_EQUITY_SAMPLE.start,
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.code).toBe('VALIDATION_ERROR');
+      });
+    await request(app.getHttpServer())
+      .get('/api/backtests')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.items).toEqual([]);
+      });
+  });
+});
+
+describe('Backtest execution limits (e2e)', () => {
+  const originalMaxBars = process.env.BACKTEST_MAX_BARS;
+  const originalRateMax = process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS;
+  let app: INestApplication<App>;
+
+  afterEach(async () => {
+    if (app) {
+      await app.close();
+    }
+    if (originalMaxBars === undefined) delete process.env.BACKTEST_MAX_BARS;
+    else process.env.BACKTEST_MAX_BARS = originalMaxBars;
+    if (originalRateMax === undefined)
+      delete process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS;
+    else process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS = originalRateMax;
+  });
+
+  async function boot(): Promise<string> {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: `${crypto.randomUUID()}@example.com` })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  it('maps an impossible date span to BACKTEST_BAR_LIMIT_EXCEEDED', async () => {
+    process.env.BACKTEST_MAX_BARS = '1';
+    const token = await boot();
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        strategy_id: crypto.randomUUID(),
+        symbol: 'AAPL',
+        timeframe: '1d',
+        start_date: '2026-01-01',
+        end_date: '2026-01-03',
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.code).toBe('BACKTEST_BAR_LIMIT_EXCEEDED');
+      });
+  });
+
+  it('rate-limits POST only and leaves list reads available', async () => {
+    process.env.BACKTEST_RATE_LIMIT_MAX_REQUESTS = '1';
+    const token = await boot();
+    const authorization = `Bearer ${token}`;
+    const body = {
+      strategy_id: crypto.randomUUID(),
+      symbol: 'AAPL',
+      timeframe: '1d',
+      start_date: SEED_EQUITY_SAMPLE.start,
+      end_date: SEED_EQUITY_SAMPLE.end,
+    };
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(429)
+      .expect((response) => {
+        expect(response.body.code).toBe('RATE_LIMITED');
+      });
+    await request(app.getHttpServer())
+      .get('/api/backtests')
+      .set('Authorization', authorization)
+      .expect(200);
   });
 });

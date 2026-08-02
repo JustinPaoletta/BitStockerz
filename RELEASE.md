@@ -28,6 +28,17 @@ npm --prefix apps/api run test:cov
 npm --prefix apps/api run test:e2e
 ```
 
+For web-impacting releases, run:
+
+```bash
+npm run web:lint
+npm run web:test
+npm run web:build
+```
+
+Run `npm audit`, `npm --prefix apps/api audit`, and
+`npm --prefix apps/web audit` before releasing dependency changes.
+
 For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema docs stay consistent with the release notes.
 
 ## Release Checklist
@@ -38,9 +49,9 @@ For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema
 4. Create the release branch:
 
    ```bash
-   git checkout main
+   git switch main
    git pull --ff-only
-   git checkout -b release/vX.Y.Z
+   git switch -c release/vX.Y.Z
    ```
 
 5. Bump the root repository version without creating a tag yet:
@@ -54,7 +65,7 @@ For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema
 8. Commit the release branch changes:
 
    ```bash
-   git add package.json package-lock.json CHANGELOG.md README.md RELEASE.md docs apps/api
+   git add package.json package-lock.json CHANGELOG.md README.md RELEASE.md apps docs scripts
    git commit -m "chore(release): prepare vX.Y.Z"
    ```
 
@@ -62,7 +73,7 @@ For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema
 10. Tag the merge commit and push the tag:
 
    ```bash
-   git checkout main
+   git switch main
    git pull --ff-only
    git tag -a vX.Y.Z -m "Release vX.Y.Z"
    git push origin vX.Y.Z

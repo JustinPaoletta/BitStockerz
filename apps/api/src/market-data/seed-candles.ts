@@ -43,7 +43,10 @@ function buildEquityDailyBars(
   baseVolume: number,
 ): EquityDailyBarRecord[] {
   const bars: EquityDailyBarRecord[] = [];
-  const cursor = weekdayStartForCount(startOfUtcDay(SEED_ANCHOR), EQUITY_BAR_COUNT);
+  const cursor = weekdayStartForCount(
+    startOfUtcDay(SEED_ANCHOR),
+    EQUITY_BAR_COUNT,
+  );
 
   while (bars.length < EQUITY_BAR_COUNT) {
     const day = cursor.getUTCDay();
@@ -129,25 +132,29 @@ function buildCryptoHourlyBars(
 }
 
 function sampleEquityDates(symbolId: number, count: number) {
-  const dates = SEED_EQUITY_DAILY_BARS.filter((bar) => bar.symbolId === symbolId)
+  const dates = SEED_EQUITY_DAILY_BARS.filter(
+    (bar) => bar.symbolId === symbolId,
+  )
     .slice(0, count)
     .map((bar) => dateOnly(bar.date));
 
   return {
-    start: dates[0]!,
-    end: dates[dates.length - 1]!,
+    start: dates[0],
+    end: dates[dates.length - 1],
     dates,
   };
 }
 
 function sampleCryptoDailyDates(symbolId: number, count: number) {
-  const dates = SEED_CRYPTO_DAILY_BARS.filter((bar) => bar.symbolId === symbolId)
+  const dates = SEED_CRYPTO_DAILY_BARS.filter(
+    (bar) => bar.symbolId === symbolId,
+  )
     .slice(0, count)
     .map((bar) => dateOnly(bar.date));
 
   return {
-    start: dates[0]!,
-    end: dates[dates.length - 1]!,
+    start: dates[0],
+    end: dates[dates.length - 1],
     dates,
   };
 }
@@ -160,8 +167,8 @@ function sampleCryptoHourlyTimestamps(symbolId: number, count: number) {
     .map((bar) => bar.timestamp.toISOString());
 
   return {
-    start: timestamps[0]!,
-    end: timestamps[timestamps.length - 1]!,
+    start: timestamps[0],
+    end: timestamps[timestamps.length - 1],
     timestamps,
   };
 }

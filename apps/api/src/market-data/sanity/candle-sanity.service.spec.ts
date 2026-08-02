@@ -58,7 +58,9 @@ describe('CandleSanityService', () => {
   });
 
   it('flags non-finite volume', () => {
-    const issues = service.validateBar(validBar({ volume: Number.POSITIVE_INFINITY }));
+    const issues = service.validateBar(
+      validBar({ volume: Number.POSITIVE_INFINITY }),
+    );
     expect(issues).toHaveLength(1);
     expect(issues[0].code).toBe('NON_FINITE');
   });

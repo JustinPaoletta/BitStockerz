@@ -7,11 +7,13 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * Controller used only for error contract e2e tests.
  * Each route triggers a specific error code.
  */
+@ApiExcludeController()
 @Controller('error-test')
 export class ErrorTestController {
   @Get('unauthorized')

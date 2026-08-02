@@ -46,7 +46,7 @@ describe('HealthService', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
-    global.fetch = originalFetch as any;
+    global.fetch = originalFetch;
   });
 
   it('returns live ok payload', () => {
@@ -170,7 +170,7 @@ describe('HealthService', () => {
           this.emit('error', 'late-error');
         });
         return this;
-      } as any);
+      });
 
     const result = await (service as any).checkTcpDependency('127.0.0.1', 9999);
 
@@ -188,7 +188,7 @@ describe('HealthService', () => {
           this.emit('error', 'socket-failed');
         });
         return this;
-      } as any);
+      });
 
     const result = await (service as any).checkTcpDependency('127.0.0.1', 9999);
 

@@ -7,10 +7,7 @@ import {
 import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import {
-  METRICS_HTTP_RECORDED,
-  classifyMetricsDomain,
-} from './metrics-domain';
+import { METRICS_HTTP_RECORDED, classifyMetricsDomain } from './metrics-domain';
 import { MetricsService } from './metrics.service';
 
 type RequestWithMetrics = Request & {

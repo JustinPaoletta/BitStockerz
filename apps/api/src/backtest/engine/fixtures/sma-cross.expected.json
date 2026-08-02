@@ -1,0 +1,97 @@
+{
+  "trades": [
+    {
+      "entryTime": "2026-01-08T00:00:00.000Z",
+      "exitTime": "2026-01-16T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 99,
+      "exitPrice": 101,
+      "quantity": 101.01010101010101,
+      "pnlAbs": 202.02020202020202,
+      "pnlPct": 2.0202020202020203,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-01-22T00:00:00.000Z",
+      "exitTime": "2026-01-25T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 101,
+      "exitPrice": 98,
+      "quantity": 101.01010101010101,
+      "pnlAbs": -303.030303030303,
+      "pnlPct": -2.9702970297029703,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-01-28T00:00:00.000Z",
+      "exitTime": "2026-02-05T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 101,
+      "exitPrice": 103,
+      "quantity": 98.009800980098,
+      "pnlAbs": 196.019601960196,
+      "pnlPct": 1.9801980198019802,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-02-11T00:00:00.000Z",
+      "exitTime": "2026-02-14T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 103,
+      "exitPrice": 100,
+      "quantity": 98.009800980098,
+      "pnlAbs": -294.029402940294,
+      "pnlPct": -2.912621359223301,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-02-17T00:00:00.000Z",
+      "exitTime": "2026-02-25T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 103,
+      "exitPrice": 105,
+      "quantity": 95.15514658261942,
+      "pnlAbs": 190.31029316523885,
+      "pnlPct": 1.9417475728155338,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-03-03T00:00:00.000Z",
+      "exitTime": "2026-03-06T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 105,
+      "exitPrice": 102,
+      "quantity": 95.15514658261942,
+      "pnlAbs": -285.4654397478583,
+      "pnlPct": -2.857142857142857,
+      "symbolId": 1
+    },
+    {
+      "entryTime": "2026-03-09T00:00:00.000Z",
+      "exitTime": "2026-03-17T00:00:00.000Z",
+      "side": "long",
+      "entryPrice": 105,
+      "exitPrice": 107,
+      "quantity": 92.4364281088303,
+      "pnlAbs": 184.8728562176606,
+      "pnlPct": 1.9047619047619049,
+      "symbolId": 1
+    }
+  ],
+  "metrics": {
+    "finalEquity": 9890.697807644841,
+    "totalReturnPct": -1.0930219235515868,
+    "maxDrawdownPct": 7.608012481606644,
+    "winRatePct": 57.14285714285714,
+    "numTrades": 7,
+    "avgWinPct": 1.96172737939536,
+    "avgLossPct": -2.9133537486897096,
+    "sharpeRatio": -0.01652385099445389
+  },
+  "diagnostics": {
+    "barsProcessed": 80,
+    "durationMs": 0,
+    "indicatorsComputed": 2,
+    "signalsFired": 14
+  }
+}

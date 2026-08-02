@@ -5,7 +5,7 @@
 **Branch (when implementing):** `feat/sprint-5-1-shell-navigation`  
 **PR base:** `feat/sprint-4-3-trading-views` (stacked) → retarget `main` after 4.3 merges
 
-**Overview:** Establish the full authenticated Angular app shell + routing, land users on `/dashboard` with skeleton placeholders, and ship a reusable symbol-search component wrapping `GET /api/symbols/search`. If Sprint 3.4 already pulled forward a minimal `apps/web` scaffold (recommended), **extend** that app — do not re-scaffold. No dashboard widgets yet (Sprint 5.2). Backend aggregation endpoint is intentionally skipped.
+**Overview:** Extend the minimal `apps/web` scaffold owned by Sprint 3.4 into the full authenticated Angular shell + routing, land users on `/dashboard` with skeleton placeholders, and ship a reusable symbol-search component wrapping `GET /api/symbols/search`. Do not re-scaffold. No dashboard widgets yet (Sprint 5.2). Backend aggregation is intentionally skipped.
 
 ---
 
@@ -27,7 +27,7 @@
 |------|----------------|
 | Widget data (portfolio, strategies, backtests, trades) | Sprint 5.2 |
 | `GET /dashboard/summary` aggregator | Client-side parallel calls (JC-3); inventory recommends skip |
-| Strategy Lab / Backtest / Trade full pages | Stub routes with “coming soon” or empty outlets only |
+| Strategy Lab / Trade full pages | Sprint 5.3; this sprint owns functional route placeholders only |
 | Design system / component library (Material as product UI) | Prefer CSS variables + light shared styles (JC-2) |
 | SSR / Angular Universal | Static SPA for MVP (Sprint 7.2) |
 | OAuth redirect UX polish | Wire login path that already returns `access_token`; deep OAuth redirect hosting in 7.2 |
@@ -46,13 +46,23 @@
 | Milestone 4 trading + Milestone 2–3 APIs | planned | Not required for 5.1 shell; widgets need them in 5.2 |
 | Monorepo root | `package.json` | Add workspace scripts for `apps/web` |
 
+**Implemented predecessor state (Sprint 3.4):** `apps/web` now pins Angular
+CLI/build 21.2.19 with Angular 21.2.x, standalone routing, global shell/nav
+styling, `sessionStorage` token handling, a bearer interceptor, token-presence
+route protection, login/register demo flow, `/strategies` placeholder, and
+functional `/backtests`, `/backtests/new`, and `/backtests/:id` screens.
+Sprint 5.1 must preserve those backtest routes. Its auth work hardens the
+existing guard by validating `/auth/me` and centralizing 401/logout handling;
+its UI work adds dashboard/trade destinations, the full user menu, and symbol
+search.
+
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### #7.1.1 – Authenticated app shell
 
-- Ensure Angular app exists at `apps/web` on latest stable Angular **19+** at implement time (JC-1). If 3.4 already created it, upgrade/align versions only as needed — do not `ng new` over existing work.
+- Extend the exact Angular major and npm lockfile committed by Sprint 3.4. If the scaffold is unexpectedly absent, select the current stable Angular version compatible with the repository’s pinned Node version, pin it exactly in the lockfile, and record it in `apps/web/README.md` (JC-1).
 - Standalone components by default (no NgModules for feature UI).
 - Global layout after login includes:
   - Top nav: logo + app name “BitStockerz”
@@ -60,6 +70,7 @@
   - User menu: profile entry + logout
 - All app routes under the shell require authentication via functional `CanActivateFn`.
 - Unauthenticated users hitting protected routes redirect to `/login`.
+- A stored token is not sufficient proof: initial app bootstrap/guard resolves `GET /api/auth/me` once before activating protected routes. Invalid/expired tokens are cleared and redirected with an internal-only `returnUrl`.
 - Logout clears stored token and returns to `/login`.
 - Mobile: usable (nav collapses or wraps); perfection not required.
 - Brand tokens via CSS variables in a thin global stylesheet (no heavy design system).
@@ -74,9 +85,10 @@
 ### #2.4.2 – Reusable symbol search UI component
 
 - Standalone component (e.g. `SymbolSearchComponent`) usable from any route.
-- Calls `GET /api/symbols/search?q=&asset_type?&limit?` with debounce (≥200ms).
+- Calls `GET /api/symbols/search?q=&asset_type?&limit?` with a 250ms debounce, `distinctUntilChanged`, and `switchMap` cancellation. Empty trimmed input clears results without a request.
 - Shows results list (symbol, name/display if present, asset type); keyboard and click select emit selected symbol.
 - Handles empty query, empty results, and HTTP errors with inline messaging.
+- Implements combobox/listbox semantics: labelled input, arrow-key highlight, Enter select, Escape close, visible focus, and `aria-activedescendant`.
 - Unit tests with mocked `HttpClient`.
 - Demonstrated on dashboard (or a small Trade stub page) so QA can exercise it.
 
@@ -95,7 +107,7 @@ No new Nest endpoints. Angular consumes existing APIs:
 
 **Token storage (JC-4):** `sessionStorage` key `bs.access_token` (MVP). Interceptor reads it and sets `Authorization: Bearer <token>`.
 
-**CORS:** Document `CORS_ORIGIN` (or existing equivalent) must include `http://localhost:4200` for `ng serve`.
+**CORS:** Local `ng serve` uses the 3.4 `/api` proxy. Direct browser/e2e and deployed SPA origins use an explicit comma-separated allowlist config (final env name chosen once in API config, documented in `.env.example`); never use wildcard origins in production.
 
 **Skipped:** `GET /api/dashboard/summary` — widgets in 5.2 call domain APIs independently ([API_Inventory §7](../database/API_Inventory.md)).
 
@@ -178,19 +190,22 @@ apps/web/
 
 ### 1. Ensure `apps/web` exists (scaffold or extend)
 
-1. If `apps/web` missing: generate with Angular CLI (standalone, routing, CSS + variables).
-2. If Sprint 3.4 already scaffolded it: reuse auth/API client; add shell/nav/dashboard routes without rewriting backtest feature modules.
-3. Pin Node/Angular versions in `apps/web/package.json`; add root scripts: `web:start`, `web:build`, `web:test`.
-4. `environment.ts` / `environment.development.ts` with `apiBaseUrl: 'http://localhost:4000/api'`.
-5. Ensure `.gitignore` covers `apps/web/node_modules`, `.angular`.
+1. Normally `apps/web` exists from 3.4: reuse auth/API client and add shell/nav/dashboard routes without rewriting backtest feature modules.
+2. If unexpectedly missing, generate with npm/Angular CLI (standalone, routing, CSS + variables) and follow the fallback version rule above.
+3. Preserve the Node 24.11.1 engine and Angular 21.2.x toolchain committed by
+   Sprint 3.4; upgrades belong in a separate explicit change.
+4. Reuse the relative `/api` client base and `apps/web/proxy.conf.json` from
+   Sprint 3.4 rather than introducing an absolute local URL.
+5. Preserve the root web scripts and `.gitignore` coverage already in place.
 
 ### 2. Auth client foundation
 
 1. `TokenStorage` → `sessionStorage` (JC-4).
 2. `AuthService` signals: `accessToken`, `user`, `isAuthenticated`.
 3. Functional `authInterceptor` attaches Bearer token.
-4. Functional `authGuard`: if no token → `/login`; optional `GET /auth/me` to validate stale tokens.
-5. Login page (email/password or existing API login shape); logout clears storage.
+4. Functional async `authGuard`: no token → `/login`; unknown session state → await one deduplicated `GET /auth/me`; invalid token → clear + redirect.
+5. A 401 response interceptor clears auth state and redirects only from protected requests (never loops on login/register endpoints). Preserve only same-origin internal `returnUrl` values.
+6. Login page uses the existing API DTO shape; successful login returns to a valid `returnUrl` or `/dashboard`. Logout awaits the API call when possible but clears local state even if the network call fails.
 
 ### 3. App shell + routes
 
@@ -256,15 +271,15 @@ apps/web/
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Angular major version | Scaffold command / peer deps | ⏭ Latest stable 19+ at implement time | ⏭ recommended |
-| 2 | Login UX (password vs passkey-first) | Affects first screen | ⏭ Dev login + token storage; passkey UI stretch | ⏭ stubbed |
-| 3 | Brand colors / logo asset | Visual polish | ⏭ CSS vars with placeholder palette; logo text | ⏭ stubbed |
-| 4 | CORS env var name | API may need change | ⏭ Add/allow `http://localhost:4200` | ⏸ if CORS missing |
-| 5 | Base branch (4.3) | Stacked PR | Wait / stack on 4.3 | ⏸ until available |
+| 1 | Angular major version | Peer/toolchain compatibility | Reuse 3.4 exact version; fallback pins current compatible stable | Adopted |
+| 2 | Login UX (password vs passkey-first) | Affects first screen | Dev login + token storage; passkey UI stretch | Adopted |
+| 3 | Brand colors / logo asset | Visual polish | CSS vars with existing repo logo if usable; text fallback | Adopted |
+| 4 | Production CORS allowlist config | Browser deployment | Add one validated comma-separated allowlist env; local proxy remains default | Implementation prerequisite |
+| 5 | Base branch (4.3) | Stacked PR | Stack on 4.3 tip; retarget after merge | Sequencing prerequisite |
 
 ---
 
@@ -272,7 +287,7 @@ apps/web/
 
 | ID | Decision | Why | Discuss before implement if |
 |----|----------|-----|-----------------------------|
-| **JC-1** | Use **latest stable Angular 19+** (or current stable at implement time) | ROADMAP mandates Angular; stay on supported standalone/signals defaults | Org policy pins an older LTS |
+| **JC-1** | Reuse the **exact Angular version from 3.4**; only choose current compatible stable if the scaffold is missing | Prevents an upgrade from being hidden inside shell work while keeping a deterministic fallback | A separate upgrade/security ticket is approved |
 | **JC-2** | **CSS variables + minimal global styles**; no Material/CDK-as-product-UI | Avoid inventing a heavy design system for MVP | Design wants a specific component library |
 | **JC-3** | **Skip `GET /dashboard/summary`**; client-side independent calls in 5.2 | Matches API inventory recommendation and #7.5.1 resilience | Latency forces a BFF aggregator later |
 | **JC-4** | Store bearer token in **`sessionStorage`** (not `localStorage`) | Safer MVP default (clears with tab session); API already bearer-based | Product requires “stay logged in” across browser restarts |

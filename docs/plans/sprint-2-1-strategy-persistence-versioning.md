@@ -1,9 +1,12 @@
 # Sprint 2.1 — Strategy Persistence & Versioning
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** `START HERE — July 24, 2026`  
-**Branch (when implementing):** `feat/sprint-2-1-strategy-persistence-versioning`  
-**PR base:** `feat/sprint-1-4-data-health-observability` (until 1.4 merges; then `main`)
+**Status:** Implemented and locally verified (seed + MySQL, July 26, 2026); included in draft PR #9
+
+**Roadmap marker:** Implementation complete locally; Sprints 2.2–3.4 are also complete and `START HERE` is Sprint 4.1
+
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning`
+
+**PR:** [#9](https://github.com/JustinPaoletta/BitStockerz/pull/9), base `main` (combined Sprints 2.1–3.4)
 
 **Overview:** Replace the unauthenticated `POST /strategies` stub with durable strategy metadata + immutable version rows. Ship schema/migration, Prisma models, seed/in-memory stores, and a minimal authenticated create/get path that proves versioning — full CRUD and validation land in Sprint 2.3; indicator/rule JSON shape lands in Sprint 2.2.
 
@@ -46,22 +49,23 @@
 | Migration naming | `apps/api/prisma/migrations/YYYYMMDDHHMMSS_sprint_*` | Follow [Migrations_Plan](../database/Migrations_Plan.md) V0200/V0201 |
 | Coverage gate | `package.json` → **90%** | Prefer tests over ignore patterns |
 
-**Schema gap:** No `Strategy` / `StrategyVersion` models in `apps/api/prisma/schema.prisma` yet.
+**Implemented schema:** `Strategy` / `StrategyVersion` models and the `20260725120000_sprint_2_1_strategies` migration are present in the runnable Prisma schema.
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
-Stories are title-only today. Write these into MVP_04 during implementation **before** merge.
+These criteria are binding for this sprint. Sync them into MVP_04 in the implementation PR before merge.
 
 ### #4.1.1 – Strategy schema
 
 - Prisma models match [DDL/03_strategy_lab.sql](../database/DDL/03_strategy_lab.sql):
   - `strategies`: `id` (UUID), `user_id`, `name`, `description?`, `asset_type` (`EQUITY`|`CRYPTO`), `symbol_scope`, `timeframe` (`1d`|`1h`), `is_active`, timestamps
-  - Unique `(user_id, name)` among active strategies (see JC-1)
-- Migration folder `YYYYMMDDHHMMSS_sprint_2_1_strategies` creates both tables (or two sequential folders — see JC-2)
+  - Unique `(user_id, name)` across active and inactive rows; soft-delete does not release a name (see JC-1)
+- Migration folder `YYYYMMDDHHMMSS_sprint_2_1_strategies` creates both tables in DDL order (JC-2)
 - When `prisma.isEnabled === false`, an in-memory store mirrors the same fields and uniqueness rules
 - Creating a strategy requires authentication; unauthenticated → `401 UNAUTHORIZED`
+- Name uniqueness has DB/seed parity: trim for storage and compare case-insensitively to match the configured `utf8mb4_unicode_ci` collation
 
 ### #4.1.2 – Strategy versioning (MVP-light)
 
@@ -104,7 +108,7 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <token>` unl
 | `asset_type` | `EQUITY` \| `CRYPTO` |
 | `timeframe` | `1d` \| `1h` (`1h` only valid when `asset_type=CRYPTO` — see JC-3) |
 | `symbol_scope` | default `SINGLE` (only value in MVP) |
-| `definition` | object (required). **Opaque in 2.1** — structural validation is Sprint 2.2/2.3. Reject non-objects. |
+| `definition` | non-null, non-array object (required). **Opaque in 2.1** — structural validation is Sprint 2.2/2.3. |
 
 **Response `201`**
 
@@ -137,7 +141,7 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <token>` unl
 | Concern | Decision |
 |---------|----------|
 | Auth | Required; must own strategy |
-| Soft-deleted | `404 NOT_FOUND` if `is_active=false` or missing |
+| Soft-deleted | `404 STRATEGY_NOT_FOUND` if `is_active=false` or missing (upgraded by Sprint 2.3) |
 
 Same response shape as create (latest version). Cross-user id → `404` (no existence leak).
 
@@ -225,7 +229,7 @@ Use Prisma nested writes for create so strategy + v1 commit together ([Prisma ne
 
 1. `StrategiesService.create(userId, dto)` / `getById(userId, id)`.
 2. Prisma path: `ensureUserPersisted` → nested create.
-3. Memory path: `Map` keyed by id + uniqueness index `(userId, name)` for active rows.
+3. Memory path: `Map` keyed by id + case-folded uniqueness index `(userId, normalizedName)` across all rows.
 4. Generate UUID with existing project pattern (`crypto.randomUUID()`).
 
 ### 3. HTTP layer
@@ -233,11 +237,12 @@ Use Prisma nested writes for create so strategy + v1 commit together ([Prisma ne
 1. Guard controller; return `201` on create.
 2. Remove unauthenticated stub behavior.
 3. Map duplicate unique violation → `DomainError(ErrorCode.CONFLICT, ...)`.
+4. Validate `:id` as a UUID before service lookup; malformed ids return `400 VALIDATION_ERROR`.
 
 ### 4. Audit + metrics domain
 
-1. `audit.record({ eventType: 'strategy.created', userId, payload: { strategyId, name } })`.
-2. Optionally extend metrics error domain enum with `strategies` (if easy; else Milestone 3).
+1. `audit.record({ eventType: 'strategy.created', userId, payload: { strategy_id, name } })`.
+2. Keep metrics-domain expansion out of this sprint; audit coverage is required and metrics can be added with Strategy CRUD in 2.3 if an actual counter is defined.
 
 ### 5. Tests + docs
 
@@ -252,20 +257,20 @@ npm --prefix apps/api run test:e2e
 
 E2E (seed mode): register → login → `POST /strategies` → `GET /strategies/:id` → assert `version_number === 1`.
 
-Docs: ROADMAP (do **not** mark completed until shipped; leave START HERE until done), API_Inventory §4.2 partial, manual testing new section, CHANGELOG, reference branch map.
+Docs: ROADMAP (distinguish local verification from merged delivery and keep `START HERE` accurate), API_Inventory §4.2 partial, manual testing new section, CHANGELOG, reference branch map.
 
 ---
 
 ## Best-practice checklist
 
-- [ ] Feature module encapsulation ([NestJS modules](https://docs.nestjs.com/modules))
-- [ ] DTO validation via `class-validator` + global `ValidationPipe` ([NestJS pipes](https://docs.nestjs.com/pipes))
-- [ ] Nested create / `$transaction` for strategy + version atomicity ([Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
-- [ ] Soft-delete readiness via `is_active` (Prisma soft-delete patterns; hard `deletedAt` not in DDL — stick to DDL)
-- [ ] User tenancy: always filter by `userId` ([Security.md](../product/requirements/Security.md))
-- [ ] Seed/DB parity for create/get
-- [ ] RFC 7807 errors only; no stack traces
-- [ ] Conventional Commit: `feat: add strategy persistence and versioning`
+- [x] Feature module encapsulation ([NestJS modules](https://docs.nestjs.com/modules))
+- [x] DTO validation via `class-validator` + global `ValidationPipe` ([NestJS pipes](https://docs.nestjs.com/pipes))
+- [x] Nested create / `$transaction` for strategy + version atomicity ([Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
+- [x] Soft-delete readiness via `is_active` (Prisma soft-delete patterns; hard `deletedAt` not in DDL — stick to DDL)
+- [x] User tenancy: always filter by `userId` ([Security.md](../product/requirements/Security.md))
+- [x] Seed/DB parity for create/get
+- [x] RFC 7807 errors only; no stack traces
+- [x] Conventional Commit: `feat: add strategy persistence and versioning`
 
 ---
 
@@ -277,17 +282,17 @@ Docs: ROADMAP (do **not** mark completed until shipped; leave START HERE until d
 | Unique `(user_id, name)` vs soft-delete reuse | See JC-1 |
 | Opaque `definition: {}` allowed forever | 2.2/2.3 validation; 2.1 documents “store only” |
 | FK user missing in MySQL | `ensureUserPersisted` before insert |
-| Stacked on unmerged 1.4 | PR base = 1.4 branch until merge |
+| Predecessor contract drift after planning | Reverify Sprint 1.4 services and error conventions on current `main` before editing |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Unique name after soft-delete | DDL unique on `(user_id, name)` with no `deleted_at` | ⏭ Soft-delete keeps row; name stays reserved (JC-1) | ⏭ stubbed |
-| 2 | Allow empty `definition` in 2.1 | Validation arrives 2.2/2.3 | ⏭ Require object; allow `{}` | ⏭ stubbed |
-| 3 | Expose list API early | Nice for manual testing | ⏭ Only GET-by-id in 2.1 | ⏭ stubbed |
+| 1 | Unique name after soft-delete | DDL unique on `(user_id, name)` with no `deleted_at` | Soft-delete keeps row; name stays reserved (JC-1) | Adopted |
+| 2 | Allow empty `definition` in 2.1 | Validation arrives 2.2/2.3 | Require a non-array object; allow `{}` | Adopted |
+| 3 | Expose list API early | Nice for manual testing | Only GET-by-id in 2.1 | Adopted |
 
 ---
 
@@ -341,14 +346,15 @@ Docs: ROADMAP (do **not** mark completed until shipped; leave START HERE until d
 
 ## Definition of done
 
-- [ ] Branched from Sprint 1.4 (or `main` if merged)
-- [ ] #4.1.1 / #4.1.2 AC written and implemented
-- [ ] Migration applies; seed mode works without MySQL
-- [ ] Stub replaced with authenticated create + get
-- [ ] build / lint / test / test:cov (≥90%) / test:e2e pass
-- [ ] Docs synced; ROADMAP marks 2.1 completed and moves `START HERE` to 2.2
-- [ ] Manual testing section with curl examples
-- [ ] PR opened against prior sprint branch
+- [x] Branched from current `main` containing Sprint 1.4
+- [x] #4.1.1 / #4.1.2 AC written and implemented
+- [x] Migration applies; seed mode works without MySQL
+- [x] Stub replaced with authenticated create + get
+- [x] build / lint / test / test:cov (≥90%) / test:e2e pass
+- [x] Historical completion record: docs were synced and the roadmap marker
+  advanced to Sprint 2.3; the current marker is maintained in this plan header.
+- [x] One self-contained pre-merge manual checklist with curl examples
+- [x] Committed, pushed, and included in draft PR #9
 
 ---
 

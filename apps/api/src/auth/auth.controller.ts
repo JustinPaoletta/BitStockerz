@@ -7,9 +7,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuditService } from '../observability/audit.service';
+import { ApiEndpoint, apiSchemaRef } from '../docs/openapi.decorators';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { AUTH_TOKEN_REQUEST_KEY, AuthGuard } from './auth.guard';
 import type { AuthenticatedRequest } from './auth.guard';
@@ -24,6 +26,7 @@ import { WebAuthnLoginVerifyDto } from './dto/webauthn-login-verify.dto';
 import { WebAuthnRegisterOptionsDto } from './dto/webauthn-register-options.dto';
 import { WebAuthnRegisterVerifyDto } from './dto/webauthn-register-verify.dto';
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -32,6 +35,15 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @ApiEndpoint({
+    summary: 'Register a development user',
+    description:
+      'Development/testing shortcut that creates an in-memory user and opaque bearer session. Production clients should use passkeys or OAuth.',
+    status: 201,
+    responseDescription: 'User and bearer session created.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 409, 500],
+  })
   register(@Body() dto: RegisterDto) {
     const result = this.authService.register(dto.email, dto.display_name);
     this.auditAuth('auth.register', result);
@@ -39,6 +51,15 @@ export class AuthController {
   }
 
   @Post('login')
+  @ApiEndpoint({
+    summary: 'Log in by email in development',
+    description:
+      'Development/testing shortcut that issues an opaque bearer session for an existing user.',
+    status: 201,
+    responseDescription: 'Bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 401, 404, 429, 500],
+  })
   login(@Body() dto: LoginDto) {
     const result = this.authService.login(dto.email);
     this.auditAuth('auth.login', result, { method: 'passwordless_dev' });
@@ -47,12 +68,28 @@ export class AuthController {
 
   @Post('webauthn/register/options')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin passkey registration',
+    status: 201,
+    responseDescription: 'WebAuthn registration challenge and browser options.',
+    responseSchema: apiSchemaRef('WebAuthnRegisterOptions'),
+    errors: [400, 429, 500],
+  })
   webauthnRegisterOptions(@Body() dto: WebAuthnRegisterOptionsDto) {
     return this.authService.createWebAuthnRegisterOptions(dto.email);
   }
 
   @Post('webauthn/register/verify')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Verify passkey registration',
+    description:
+      'Accepts a browser WebAuthn registration response. Legacy primitive fields remain available for local compatibility.',
+    status: 201,
+    responseDescription: 'Passkey registered and bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 409, 429, 500],
+  })
   async webauthnRegisterVerify(@Body() dto: WebAuthnRegisterVerifyDto) {
     const result = await this.authService.verifyWebAuthnRegistration({
       email: dto.email,
@@ -72,12 +109,29 @@ export class AuthController {
 
   @Post('webauthn/login/options')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin passkey login',
+    status: 201,
+    responseDescription:
+      'WebAuthn authentication challenge and browser options.',
+    responseSchema: apiSchemaRef('WebAuthnLoginOptions'),
+    errors: [400, 404, 429, 500],
+  })
   webauthnLoginOptions(@Body() dto: WebAuthnLoginOptionsDto) {
     return this.authService.createWebAuthnLoginOptions(dto.email);
   }
 
   @Post('webauthn/login/verify')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Verify passkey login',
+    description:
+      'Accepts a browser WebAuthn authentication response and advances the credential sign counter.',
+    status: 201,
+    responseDescription: 'Passkey verified and bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 401, 404, 409, 429, 500],
+  })
   async webauthnLoginVerify(@Body() dto: WebAuthnLoginVerifyDto) {
     const result = await this.authService.verifyWebAuthnLogin({
       email: dto.email,
@@ -93,17 +147,37 @@ export class AuthController {
 
   @Get('oauth/google/start')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin Google OAuth',
+    responseDescription: 'Provider authorization URL and short-lived state.',
+    responseSchema: apiSchemaRef('OAuthStartResponse'),
+    errors: [429, 500],
+  })
   oauthGoogleStart() {
     return this.authService.createOAuthStart('google');
   }
 
   @Get('oauth/apple/start')
   @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin Apple OAuth',
+    responseDescription: 'Provider authorization URL and short-lived state.',
+    responseSchema: apiSchemaRef('OAuthStartResponse'),
+    errors: [429, 500],
+  })
   oauthAppleStart() {
     return this.authService.createOAuthStart('apple');
   }
 
   @Get('oauth/google/callback')
+  @ApiEndpoint({
+    summary: 'Complete Google OAuth',
+    description:
+      'Exchanges a provider authorization code when credentials are configured. Development fallback identity fields are supported only by local configuration.',
+    responseDescription: 'OAuth identity linked and bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 401, 409, 500],
+  })
   async oauthGoogleCallback(@Query() dto: OAuthGoogleCallbackDto) {
     const result = await this.authService.completeGoogleOAuth({
       state: dto.state,
@@ -116,6 +190,12 @@ export class AuthController {
   }
 
   @Get('oauth/apple/callback')
+  @ApiEndpoint({
+    summary: 'Complete Apple OAuth by query callback',
+    responseDescription: 'OAuth identity linked and bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 401, 409, 500],
+  })
   async oauthAppleCallbackGet(@Query() dto: OAuthAppleCallbackDto) {
     const result = await this.authService.completeAppleOAuth({
       state: dto.state,
@@ -129,6 +209,14 @@ export class AuthController {
   }
 
   @Post('oauth/apple/callback')
+  @ApiConsumes('application/x-www-form-urlencoded', 'application/json')
+  @ApiEndpoint({
+    summary: 'Complete Apple OAuth form-post callback',
+    status: 201,
+    responseDescription: 'OAuth identity linked and bearer session issued.',
+    responseSchema: apiSchemaRef('AuthResponse'),
+    errors: [400, 401, 409, 500],
+  })
   async oauthAppleCallbackPost(@Body() dto: OAuthAppleCallbackDto) {
     const result = await this.authService.completeAppleOAuth({
       state: dto.state,
@@ -143,6 +231,14 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(AuthGuard)
+  @ApiEndpoint({
+    summary: 'Log out the current session',
+    status: 201,
+    authenticated: true,
+    responseDescription: 'Bearer session invalidated.',
+    responseSchema: apiSchemaRef('LogoutResponse'),
+    errors: [401, 500],
+  })
   logout(@Req() request: AuthenticatedRequest) {
     const token = this.getAuthToken(request);
     const user = this.authService.requireUserBySessionToken(token);
@@ -157,6 +253,14 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard)
+  @ApiEndpoint({
+    summary: 'Read the authenticated profile',
+    authenticated: true,
+    responseDescription:
+      'Current user profile and linked authentication methods.',
+    responseSchema: apiSchemaRef('UserProfile'),
+    errors: [401, 500],
+  })
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.getProfileBySessionToken(
       this.getAuthToken(request),

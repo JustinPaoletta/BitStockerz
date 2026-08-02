@@ -35,7 +35,7 @@
 | `GET /dashboard/summary` | JC-1 — client-side parallel calls |
 | Drag-and-drop / custom layouts | MVP_07 out of scope |
 | Real-time streaming / polling | #7.6.2 forbids polling |
-| Full Strategy Lab / Trade / Backtest editors | Navigation targets; deep UX may be stubs until those pages exist |
+| Full Strategy Lab / Trade workflows | Sprint 5.3; this sprint owns links and dashboard context |
 | Server-side widget aggregation | Keep Nest thin |
 
 ---
@@ -57,25 +57,25 @@ If a domain API is delayed, widget shows error/empty with stub fixture behind a 
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #7.2.1 – Account summary card
 
 - Displays cash balance, total equity, unrealized P&L from `GET /api/trading/portfolio-summary`.
-- Currency formatting + +/- coloring for P&L (shared formatter).
+- Parses validated decimal strings at the display boundary; currency formatting + sign/color/icon/text for P&L (color is not the only signal).
 - Loading skeleton → content or error independently.
 
 ### #7.2.2 – Positions preview
 
-- Table: symbol, quantity, avg cost; top **N=5**.
-- Link to `/trade` (or positions view).
+- Table: symbol, quantity, avg cost; first **N=5** from the API’s deterministic symbol-ascending order.
+- Link to the canonical `/trade` workspace.
 - Empty state when no positions.
 
 ### #7.3.1 – Active strategies list
 
 - Columns: name, asset type, timeframe, last updated.
 - Deleted/inactive hidden (API contract).
-- Row click → Strategy Lab editor route (`/strategies/:id` or `/strategies?id=`).
+- Row click → canonical Strategy Lab detail/editor route `/strategies/:id`.
 
 ### #7.3.2 – Strategy quick actions
 
@@ -97,6 +97,7 @@ If a domain API is delayed, widget shows error/empty with stub fixture behind a 
 - Each widget owns its fetch (service method / `resource` / signal + `HttpClient`).
 - Failure in one widget → inline error + retry; others unaffected.
 - Do **not** wrap all widget calls in a single `forkJoin` that fails the page.
+- Cancel subscriptions on destroy (`takeUntilDestroyed` or equivalent) and suppress stale responses after a retry/navigation.
 
 ### #7.5.2 – Empty and first-run states
 
@@ -113,7 +114,7 @@ If a domain API is delayed, widget shows error/empty with stub fixture behind a 
 
 ### #7.6.2 – Minimal performance optimization
 
-- Request `limit` / client slice to N≤5 (or API `limit` if available).
+- Request `limit=5&offset=0` for strategies/backtests/executions; positions are a bounded client slice because that endpoint intentionally returns the full small book.
 - No polling; refresh on navigation or explicit Retry.
 - Acceptable feel with seed/mock production-sized payloads.
 
@@ -126,10 +127,10 @@ If a domain API is delayed, widget shows error/empty with stub fixture behind a 
 | Widget | Endpoint | Notes |
 |--------|----------|-------|
 | Account summary | `GET /api/trading/portfolio-summary` | Auth |
-| Positions | `GET /api/trading/positions` | Client slice top 5 |
-| Strategies | `GET /api/strategies` | Filter inactive client-side if needed |
-| Backtests | `GET /api/backtests` | Prefer `limit=5` if API supports; else slice |
-| Trades | `GET /api/trading/executions` | Prefer recent limit |
+| Positions | `GET /api/trading/positions` | Client slice first 5; API is already active/non-zero only |
+| Strategies | `GET /api/strategies?limit=5&offset=0` | Read `items`; API already filters inactive |
+| Backtests | `GET /api/backtests?limit=5&offset=0` | Read `items`, including `strategy_name` |
+| Trades | `GET /api/trading/executions?limit=5&offset=0` | Read `executions` |
 
 **Skipped (JC-1):** `GET /api/dashboard/summary`.
 
@@ -217,7 +218,7 @@ apps/web/src/app/shared/
 ### 2. API client services
 
 1. Thin HttpClient wrappers returning typed models matching API inventory snake_case → map to camelCase in one place if preferred (be consistent with 5.1).
-2. Support optional `limit` query where APIs allow.
+2. Encode the exact wrapper/decimal contracts above; reject malformed payloads into the widget’s error state rather than rendering `NaN`/`Invalid Date`.
 
 ### 3. Widgets (one PR-sized chunk each)
 
@@ -264,20 +265,20 @@ apps/web/src/app/shared/
 |------|------------|
 | Domain APIs incomplete | Feature-flag mock widgets for UI; fail closed in prod builds |
 | Snake_case vs camelCase drift | Single mapper layer + typed interfaces |
-| Large strategy/backtest payloads | Enforce client N=5; request API `limit` in follow-up if needed |
+| Large strategy/backtest payloads | Request canonical `limit=5&offset=0`; do not fetch full lists for previews |
 | Navigation targets missing | Stub destination pages with “coming soon” + params preserved |
 | Visual inconsistency | Shared card/table/empty only — no one-off styles per widget |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Confirm skip `/dashboard/summary` | Backend work vs client | ⏭ Skip (JC-1) | ⏭ recommended |
-| 2 | N for previews (5) | UX density | ⏭ N=5 | ⏭ stubbed |
-| 3 | Exact editor/backtest routes | Deep links | ⏭ `/strategies/:id`, `/backtests/new?strategy_id=` | ⏸ if routes differ |
-| 4 | P&L color tokens | Brand | ⏭ green up / red down via CSS vars | ⏭ stubbed |
+| 1 | Confirm skip `/dashboard/summary` | Backend work vs client | Skip (JC-1) | Adopted |
+| 2 | N for previews (5) | UX density | N=5 | Adopted |
+| 3 | Exact editor/backtest routes | Deep links | `/strategies/:id`, `/backtests/new?strategy_id=` | Adopted; Sprint 5.3 makes all targets functional |
+| 4 | P&L tokens | Brand/accessibility | Positive/negative CSS vars plus sign/text, never color alone | Adopted |
 
 ---
 

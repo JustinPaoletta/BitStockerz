@@ -6,7 +6,11 @@
   "type": "module",
   "description": "BitStockerz monorepo",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "web:start": "npm --prefix apps/web start",
+    "web:build": "npm --prefix apps/web run build",
+    "web:test": "npm --prefix apps/web test -- --watch=false",
+    "web:lint": "npm --prefix apps/web run lint"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",

@@ -52,9 +52,9 @@
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
-Write these into MVP_01 / MVP_03 during implementation **before** merging.
+These criteria are binding for this sprint. Sync them into MVP_01 and MVP_03 in the implementation PR before merge.
 
 ### #1.3.1 – Default paper account on first signup
 
@@ -72,7 +72,7 @@ Write these into MVP_01 / MVP_03 during implementation **before** merging.
 
 - Prisma model + migration `*_sprint_4_1_paper_accounts` matching DDL (`paper_accounts`).
 - `GET /api/paper-account` (AuthGuard): returns the caller’s account.
-- Missing account for authenticated user → auto-create with defaults (lazy heal for users created before this sprint) **or** `NOT_FOUND` — **default: auto-create** (JC-8).
+- Missing account for an authenticated user auto-creates defaults (lazy heal for users created before this sprint; JC-8).
 - Response snake_case JSON (see API contract).
 - Seed mode returns in-memory account with same shape; `id` may be a synthetic integer sequence.
 
@@ -80,19 +80,22 @@ Write these into MVP_01 / MVP_03 during implementation **before** merging.
 
 - Prisma model + migration `*_sprint_4_1_positions` matching DDL (`positions`).
 - Domain service methods (no public fill API yet):
-  - `applyBuy(accountId, symbolId, qty, price)` → increase qty; weighted `avg_cost`.
-  - `applySell(accountId, symbolId, qty, price)` → decrease qty; reject if qty > position (long-only).
-  - Zero quantity → **delete row** or keep zero? **Default: delete row** so 4.3 “non-zero positions” is natural (JC-9).
+- `applyBuy(accountId, symbolId, qty, price)` → increase qty; weighted `avg_cost`.
+- `applySell(accountId, symbolId, qty, price)` → decrease qty; reject if qty > position (long-only).
+  - Zero quantity → delete row so 4.3 “non-zero positions” is natural (JC-9).
 - Unique `(paper_account_id, symbol_id)`.
 - Unit tests: open, add, reduce, close, insufficient quantity, decimal qty (prep for JC-3 in 4.2).
+- Weighted average cost rounds once to 8 decimal places with `ROUND_HALF_UP`; partial sells leave `avg_cost` unchanged.
 
 ### #3.3.3 – Cash balance updates
 
-- `debitCash(accountId, amount)` / `creditCash(accountId, amount)` with DECIMAL math.
-- BUY notional = `qty * price` (debit); SELL = credit.
-- Reject debit when `cash_balance < amount` (surface as domain error in 4.2; here throw typed internal/`DomainError` with `VALIDATION_ERROR` or provisional `TRADING_INSUFFICIENT_CASH` if enum added early — prefer provisional code, consolidate in 4.3).
+- `debitCash(accountId, amount)` / `creditCash(accountId, amount)` with Prisma `Decimal` math.
+- BUY/SELL cash notional = `qty * price` rounded once to 2 decimal places with `ROUND_HALF_UP`; never round operands first.
+- Reject debit when `cash_balance < amount` with `DomainError(ErrorCode.TRADING_INSUFFICIENT_CASH)`; Sprint 4.3 extends exhaustive catalog tests but does not rename it.
 - Never allow negative cash.
 - Unit tests: exact boundary (cash == notional), overspend, credit after sell.
+- Add a transaction-scoped `TradingLedgerService.applyFill(...)` that applies cash + position to a caller-supplied Prisma transaction client (or in-memory copy-on-write draft). This is the only method Sprint 4.2 may use; lower-level cash/position mutations remain internal so a caller cannot update one without the other.
+- Add canonical `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, and `TRADING_ACCOUNT_INACTIVE` codes now; Sprint 4.3 completes catalog coverage without renaming them.
 
 ---
 
@@ -121,7 +124,7 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <session>`.
 
 | Field | Notes |
 |-------|--------|
-| `starting_balance` / `cash_balance` | Strings with 2 decimal places (avoid float). Inventory allows numbers; **prefer strings** for DECIMAL fidelity (JC-10). |
+| `starting_balance` / `cash_balance` | Strings with exactly 2 decimal places; update any inventory example that still shows JSON numbers (JC-10). |
 | `name` / `is_active` | Omitted from public response for MVP (internal columns remain). |
 
 **Errors**
@@ -129,7 +132,6 @@ Global prefix `/api`. Snake_case JSON. Auth: `Authorization: Bearer <session>`.
 | Status | Code | When |
 |--------|------|------|
 | 401 | `UNAUTHORIZED` | Missing/invalid session |
-| 404 | `NOT_FOUND` | Only if JC-8 chooses no lazy-create |
 
 ### Seed mode behavior
 
@@ -150,25 +152,33 @@ flowchart TB
   subgraph auth [Auth signup paths]
     REG[register / WebAuthn / OAuth]
   end
+  subgraph provision [PaperAccountProvisioningModule]
+    PROV[PaperAccountProvisioner]
+  end
   subgraph trading [TradingModule]
     PAC[PaperAccountController]
     PAS[PaperAccountsService]
-    POS[PositionsService]
-    CASH[CashLedger helpers]
+    LEDGER[TradingLedgerService]
+    POS[Internal position helpers]
+    CASH[Internal cash helpers]
   end
   subgraph persist [Persistence]
     MEM[In-memory maps]
     PRISMA[Prisma paper_accounts + positions]
     USER[ensureUserPersisted]
   end
-  REG -->|ensurePaperAccount| PAS
+  REG --> USER
+  USER -->|then ensure account| PROV
   PAC -->|GET| PAS
-  PAS --> USER
+  PAS --> PROV
   PAS --> PRISMA
   PAS --> MEM
+  LEDGER --> POS
+  LEDGER --> CASH
   POS --> PRISMA
   POS --> MEM
-  CASH --> PAS
+  CASH --> PRISMA
+  CASH --> MEM
 ```
 
 **Concrete files (create/touch)**
@@ -179,17 +189,20 @@ flowchart TB
 | `apps/api/prisma/migrations/*_sprint_4_1_paper_accounts/` | `paper_accounts` |
 | `apps/api/prisma/migrations/*_sprint_4_1_positions/` | `positions` |
 | `apps/api/src/trading/trading.module.ts` | New module |
-| `apps/api/src/trading/paper-accounts.service.ts` | Create/get/lazy-heal + cash |
+| `apps/api/src/trading/paper-account-provisioning.module.ts` | Imports Prisma only; exports cycle-free provisioner to Auth and Trading |
+| `apps/api/src/trading/paper-account-provisioner.service.ts` | Idempotent create/get by user id; no Auth dependency |
+| `apps/api/src/trading/paper-accounts.service.ts` | Create/get/lazy-heal account reads |
 | `apps/api/src/trading/paper-accounts.controller.ts` | `GET paper-account` |
-| `apps/api/src/trading/positions.service.ts` | applyBuy/applySell |
+| `apps/api/src/trading/positions.service.ts` | Internal transaction-scoped applyBuy/applySell primitives |
+| `apps/api/src/trading/trading-ledger.service.ts` | Public atomic `applyFill` boundary used by Sprint 4.2 |
 | `apps/api/src/trading/*.spec.ts` | Unit tests |
 | `apps/api/src/auth/auth.service.ts` | Call `ensurePaperAccount` on new-user paths; extend remap for `paper_accounts.user_id` |
-| `apps/api/src/auth/auth.module.ts` | Import/export trading or inject circular-safe provider |
+| `apps/api/src/auth/auth.module.ts` | Import `PaperAccountProvisioningModule`; do not import `TradingModule` |
 | `apps/api/src/app.module.ts` | Import `TradingModule` |
 | `apps/api/test/app.e2e-spec.ts` | Register → GET paper-account |
 | `scripts/smoke-test-api.sh` | Optional authenticated paper-account check |
 
-Avoid circular DI: prefer `forwardRef` **or** extract `PaperAccountsService.ensureForUser` and call from Auth via a thin callback / event; jobs pattern keeps Auth as the FK helper — Trading calls `ensureUserPersisted`, Auth calls Trading after user create.
+Avoid circular DI by construction: `PaperAccountProvisioningModule` imports only Prisma/config and is imported by both Auth and Trading. Auth calls `ensureUserPersisted` first, then the provisioner. Trading may import Auth for `AuthGuard`, but the provisioning module never imports Auth and Auth never imports the full Trading module. Do not use `forwardRef` for this new dependency.
 
 ---
 
@@ -204,8 +217,8 @@ Avoid circular DI: prefer `forwardRef` **or** extract `PaperAccountsService.ensu
 
 ### 2. PaperAccountsService (#3.1.1 / #1.3.1)
 
-1. `ensureForUser(userId)` — idempotent create with $100k defaults.
-2. `getForUser(userId)` — used by controller.
+1. `PaperAccountProvisioner.ensureForUser(userId)` — idempotent create with $100k defaults; caller guarantees the user FK exists.
+2. `PaperAccountsService.getForUser(userId)` delegates missing-account healing to the provisioner and is used by controller.
 3. Seed-mode store + integer id sequence.
 4. Unit tests with Prisma mock + seed path.
 
@@ -217,8 +230,8 @@ Avoid circular DI: prefer `forwardRef` **or** extract `PaperAccountsService.ensu
 
 ### 4. Positions + cash (#3.3.2 / #3.3.3)
 
-1. Implement DECIMAL-safe helpers (`decimal.js` already via Prisma Decimal, or shared util).
-2. `applyBuy` / `applySell` + cash debit/credit; transactional when Prisma enabled (`prisma.$transaction`).
+1. Implement DECIMAL-safe helpers with Prisma `Decimal`; do not add a second decimal library unless Prisma Decimal proves insufficient.
+2. Implement transaction-scoped cash/position primitives plus `TradingLedgerService.applyFill`; standalone calls open a transaction, while Sprint 4.2 can pass its existing transaction context.
 3. Export methods for 4.2 order executor; no HTTP yet.
 4. Heavy unit coverage (avg cost math, close-out, insufficient cash/qty).
 
@@ -265,7 +278,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 - [ ] RFC 7807 via `DomainError` + `ErrorCode` ([error filter](../../apps/api/src/common/errors/http-exception.filter.ts))
 - [ ] AuthGuard on paper-account ([NestJS guards](https://docs.nestjs.com/guards))
 - [ ] Transactions for multi-row cash+position updates
-- [ ] Coverage ≥90%; no new ignore patterns without Dev input
+- [ ] Coverage ≥90%; no new ignore patterns without explicit review
 - [ ] Conventional Commits; stacked PR onto prior sprint branch
 
 ---
@@ -274,7 +287,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 | Risk | Mitigation |
 |------|------------|
-| Auth ↔ Trading circular dependency | `forwardRef` or extract bootstrap into shared provider; prefer Trading→Auth for FK only |
+| Auth ↔ Trading circular dependency | Use the cycle-free `PaperAccountProvisioningModule` described above; do not add `forwardRef` |
 | Remap drops paper account | Extend `remapPersistedUserIdentity` in same PR as hooks |
 | Float money bugs | String/Decimal serialization in API; unit tests on cents |
 | Users created before sprint have no account | Lazy-create on GET (JC-8) |
@@ -283,15 +296,15 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ---
 
-## Dev input required
+## Adopted defaults and external prerequisites
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | PR base if Milestone 3 not merged | Stack target unclear | ⏭ Branch from latest merged main / 3.4 tip | ⏸ |
-| 2 | Balance JSON as string vs number | Clients / inventory ambiguity | ⏭ Strings with 2dp | ⏭ |
-| 3 | Lazy-create on GET vs 404 | Pre-sprint users | ⏭ Lazy-create $100k | ⏭ |
-| 4 | Auth↔Trading DI approach | Circular module risk | ⏭ `forwardRef` + service call from Auth | ⏭ |
-| 5 | Coverage excludes for thin controllers | Gate risk | ⏸ Prefer tests; ask before ignores | ⏸ |
+| 1 | PR base if Milestone 3 not merged | Stack target unclear | Branch from the 3.4 tip; use `main` only after 3.4 merges | Sequencing prerequisite |
+| 2 | Balance JSON as string vs number | Clients / inventory ambiguity | Strings with 2dp | Adopted |
+| 3 | Lazy-create on GET vs 404 | Pre-sprint users | Lazy-create $100k | Adopted |
+| 4 | Auth↔Trading DI approach | Circular module risk | Shared cycle-free `PaperAccountProvisioningModule` | Adopted |
+| 5 | Coverage excludes for thin controllers | Gate risk | Add tests; no new coverage ignores without explicit review | Adopted |
 
 ---
 
@@ -341,7 +354,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 | AC in stories + Prisma models + 2 migrations | 0.5d |
 | PaperAccountsService + seed store + unit tests | 0.75d |
 | Auth signup hooks + remap extension + tests | 0.75d |
-| PositionsService + cash helpers + transaction tests | 1.0d |
+| TradingLedgerService + internal position/cash helpers + transaction tests | 1.0d |
 | `GET /paper-account` + e2e + smoke | 0.5d |
 | Docs + manual section + ROADMAP | 0.5d |
 
@@ -359,7 +372,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 - [ ] Position/cash helpers unit-tested (≥90% coverage gate)
 - [ ] Remap keeps paper account across auth restart (MySQL)
 - [ ] Docs / inventory / manual testing updated
-- [ ] JC defaults followed or explicitly overridden in Dev input table
+- [ ] Adopted defaults followed or any override recorded in the plan/PR
 
 ---
 

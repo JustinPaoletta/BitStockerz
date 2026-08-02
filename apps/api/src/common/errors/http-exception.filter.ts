@@ -166,7 +166,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
         );
         detail =
           typeof res === 'object' && res !== null && 'message' in res
-            ? Array.isArray((res as { message: unknown }).message)
+            ? Array.isArray(res.message)
               ? (res as { message: string[] }).message.join('; ')
               : String((res as { message: string }).message)
             : (ERROR_CATALOG[ErrorCode.VALIDATION_ERROR].defaultDetail ?? '');
@@ -185,7 +185,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
                     : ErrorCode.INTERNAL_ERROR;
         detail =
           typeof res === 'object' && res !== null && 'message' in res
-            ? String((res as { message: unknown }).message)
+            ? String(res.message)
             : exception.message;
       }
       status = statusCode;

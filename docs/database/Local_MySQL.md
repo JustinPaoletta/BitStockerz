@@ -1,6 +1,6 @@
 # Local MySQL (Docker)
 
-The BitStockerz API uses **MySQL 8** via Prisma. Database backing is **optional**: without `DATABASE_URL`, the API runs in in-memory seed mode (fine for unit/e2e tests and quick API exploration). Use MySQL when you want persisted jobs, ingested OHLCV bars, and symbol rows after import.
+The BitStockerz API uses **MySQL 8** via Prisma. Database backing is **optional**: without `DATABASE_URL`, the API runs in in-memory seed mode (fine for unit/e2e tests and quick API exploration). Use MySQL when you want persisted jobs, ingested OHLCV bars, symbol rows after import, audit events, strategies, immutable strategy versions, and backtest runs/results/trades/equity points.
 
 ## Prerequisites
 
@@ -117,10 +117,12 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when creating jobs (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, `ensureUserPersisted` remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs (and any credential rows) so history is retained. |
+| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when persisted job, strategy, or backtest ownership requires it (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, the next persisted domain operation remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs, strategies, backtest runs, audit events, and credential rows so history is retained. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
+| Strategies | In-memory owner-scoped store | `strategies` + immutable `strategy_versions`; metadata/version 1 survive API restarts |
+| Backtests | In-memory owner-scoped copy-on-write aggregates | `backtest_runs`, one-to-one results, trades, and equity points; terminal completion is transactional and immutable |
 | `/health/ready` `database` | `{ status: "not_configured" }` | `{ status: "up", latencyMs }` when reachable |
 
 After enabling MySQL on a fresh database, run ingestion (manual testing **Section 8**) before expecting candle endpoints to return data.
@@ -133,11 +135,15 @@ With MySQL running and `DATABASE_URL` in `apps/api/.env`:
 # Full quality gates + HTTP smoke (loads DATABASE_URL from apps/api/.env when KEEP_DATABASE_URL=1)
 KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
-# Smoke tests only (start API yourself first; reads DATABASE_URL from apps/api/.env for the persistence check)
+# Smoke tests only (start API yourself first, then safely export DATABASE_URL)
+source scripts/lib/load-api-env.sh
+load_database_url_from_api_env "$PWD/apps/api"
 ./scripts/smoke-test-api.sh --sprint all
 ```
 
-The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to run smoke with MySQL and optionally verify persisted candles.
+The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run a transactional backtest-persistence round trip, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email re-registration. The backtest gate creates isolated fixture rows, checks result/trade/equity counts and terminal immutability, restarts its Nest context to prove completed runs survive the same-email user-id remap, then removes its fixtures.
+
+The standalone smoke script deliberately does not load `.env`; it uses only an already-exported `DATABASE_URL` so its seed/MySQL assertions cannot silently disagree with the mode of the API process being tested.
 
 ## Troubleshooting
 
@@ -164,10 +170,15 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 
 **Ingestion or `POST /jobs` returns `500 INTERNAL_ERROR`**
 
-- Ensure you are on latest `main` (includes `AuthService.ensureUserPersisted`).
+- Ensure your checkout includes the current `AuthService.ensureUserPersisted`
+  implementation (PR #9 is not merged to `main` yet).
 - Restart the API after changing `.env`.
 - Re-register to get a fresh bearer token, then retry Section 8 curls.
-- If the error mentions `users_email_key`, a stale `users` row from a prior session shares your email but not your current in-memory user id. Latest code remaps that row (and its jobs) to the new in-memory id automatically; otherwise reset the dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
+- If the error mentions `users_email_key`, a stale `users` row from a prior
+  session shares your email but not your current in-memory user id. Current
+  code remaps that row and its owned jobs, strategies, backtests, audit events,
+  and credentials to the new in-memory id automatically; otherwise reset the
+  dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
 
 **Migrations fail**
 

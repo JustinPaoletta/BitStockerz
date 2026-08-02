@@ -1,9 +1,9 @@
 # Sprint 3.1 — Backtest Engine Core
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** Milestone 3 / Sprint 3.1 (after Milestone 2 Strategy Lab exit)  
-**Branch:** `feat/sprint-3-1-backtest-engine-core`  
-**PR base:** `feat/sprint-2-3-strategy-crud-validation` (or `main` once 2.3 is merged)
+**Status:** Implemented locally and verified (unmerged in PR #9)
+**Roadmap marker:** Completed locally — July 28, 2026; Sprints 3.2–3.4 are also complete and `START HERE` is Sprint 4.1
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked at the owner's request)
+**PR base:** `main` via combined draft PR #9
 
 **Overview:** Ship a pure, in-process backtest engine that evaluates a Milestone 2 strategy definition against a bar series: indicators → rule evaluation → long-only trade simulation with SL/TP, plus hard wall-clock and bar-count guardrails. No HTTP routes and no persistence tables in this sprint — callers are unit tests and a thin Nest injectable used by Sprint 3.2/3.3. Target NFR: 1 year of daily bars for one symbol completes in under 2 seconds.
 
@@ -57,9 +57,9 @@
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
-Stories are title-only today. Write these into [MVP_05](../product/stories/BitStockerz_MVP_05_Backtesting_Stories.md) / [MVP_08](../product/stories/BitStockerz_MVP_08_Backend_Infrastructure_Stories.md) **before** merging.
+These criteria are binding for this sprint. Sync them into [MVP_05](../product/stories/BitStockerz_MVP_05_Backtesting_Stories.md) and [MVP_08](../product/stories/BitStockerz_MVP_08_Backend_Infrastructure_Stories.md) in the implementation PR before merge.
 
 ### #5.2.1 – Engine interface
 
@@ -70,20 +70,24 @@ Stories are title-only today. Write these into [MVP_05](../product/stories/BitSt
   - `initialEquity: number` (> 0)
   - `symbolId?: number` (pass-through onto trades; optional in 3.1 tests)
   - `signal?: AbortSignal` for cooperative cancel/timeout
-  - `limits?: { maxBars?: number; timeoutMs?: number }`
+  - `limits?: { maxBars?: number; timeoutMs?: number; maxSeriesCells?: number }`
 - `BacktestEngineOutput` includes:
-  - `trades[]` — closed trades only (entry/exit time & price, side=`long`, qty, pnl_abs, pnl_pct)
-  - `equityCurve[]` — `{ ts, equity }` one point per bar (or per closed bar after mark-to-market)
+  - `trades[]` — closed trades only (`entryTime`, `exitTime`, prices, `side="long"`, `quantity`, `pnlAbs`, `pnlPct`; Sprint 3.2 maps these to snake-case DDL columns)
+  - `equityCurve[]` — `{ ts, equity }` exactly one mark-to-market point per processed bar
   - `metrics` — `finalEquity`, `totalReturnPct`, `maxDrawdownPct`, `winRatePct`, `numTrades`, `avgWinPct`, `avgLossPct`, `sharpeRatio: number | null`
   - `diagnostics` — `{ barsProcessed, durationMs, indicatorsComputed, signalsFired }`
 - Engine is deterministic given the same bars + definition (no wall-clock in metrics math except `diagnostics.durationMs`).
-- Unit tests cover empty bars, single bar (no trade), and a golden fixture (SMA cross) with frozen expected trades/metrics.
+- Validate bars before compute: timestamps strictly ascend with no duplicates; OHLCV values are finite; prices are positive; `low <= min(open, close) <= max(open, close) <= high`; volume is non-negative.
+- Empty or too-short input throws `BACKTEST_INSUFFICIENT_BARS`; a single-bar no-trade result is only valid for a price-only definition whose required lookback is one.
+- Unit tests cover invalid/unsorted bars, insufficient lookback, a valid price-only no-trade case, and a golden SMA-cross fixture with frozen expected trades/metrics.
 
 ### #5.2.2 – Indicator computation layer
 
-- Support indicator types from Strategy Lab: `SMA`, `EMA`, `RSI` with `params.period` and `source` ∈ `open|high|low|close|volume` (default `close`).
+- Support indicator types from Strategy Lab: `SMA`, `EMA`, `RSI` with `params.period` and `source` ∈ `open|high|low|close` (default `close`). Do not add `volume` unless the 2.2 catalog/schema is changed in the same PR.
 - Pure module: `computeIndicators(definition.indicators, bars) → Record<indicatorId, Array<number | null>>` aligned 1:1 with bar index; warmup bars are `null`.
-- Invalid period (`<= 0`, non-integer) or unknown type → throw `DomainError(ErrorCode.BACKTEST_INVALID_DEFINITION)` (or `STRATEGY_VALIDATION_ERROR` if already defined in M2 — prefer one code; see JC-4).
+- Wilder RSI first becomes available at index `period` because it needs
+  `period` price changes (`period + 1` bars); an all-flat seed resolves to 50.
+- Invalid period (`<= 0`, non-integer) or unknown type → throw `DomainError(ErrorCode.BACKTEST_INVALID_DEFINITION)` (see JC-4). Strategy write/validate endpoints continue using `STRATEGY_VALIDATION_ERROR`.
 - Unit tests: SMA period 3 on known series; EMA seed behavior documented; RSI bounds `[0,100]` after warmup.
 
 ### #5.2.3 – Rule evaluation
@@ -94,6 +98,7 @@ Stories are title-only today. Write these into [MVP_05](../product/stories/BitSt
   - `{ literal: number }` (canonical name from Sprint 2.2 — do **not** invent `constant`)
 - Operators (MVP minimum): `gt`, `gte`, `lt`, `lte`, `eq`, `crosses_above`, `crosses_below`.
 - Cross operators require previous bar values; if either side was `null` at `i-1` or `i`, condition is false.
+- Dynamic-vs-literal crosses are valid; literal-vs-literal crosses are invalid. `eq` uses the 2.2 relative epsilon contract.
 - Missing indicator id → `BACKTEST_INVALID_DEFINITION`.
 - Pure: `evaluateRules(entry|exit, ctx) → boolean` per bar; unit-tested independently of simulation.
 
@@ -105,6 +110,7 @@ Stories are title-only today. Write these into [MVP_05](../product/stories/BitSt
 - Position size MVP: invest **100% of current equity** (qty = equity / entryPrice); no partial fills, no fees/slippage (document; fees deferred).
 - Flat mark-to-market: equity curve uses cash; in-position equity = cash residual (0) + qty * bar.close.
 - Open position still open at last bar → force-close at last bar close (include in trades + metrics).
+- Do not re-enter on the same bar after any rule/risk exit. Risk checks begin on the bar after entry because the signal-bar high/low occurred before the close fill.
 - Side field always `"long"` (DDL `side VARCHAR(8)`).
 
 ### #5.2.5 – Stop loss / take profit handling
@@ -126,9 +132,10 @@ Stories are title-only today. Write these into [MVP_05](../product/stories/BitSt
 
 ### #8.2.2 – Runtime & memory limits per backtest
 
-- Enforce `maxBars` (default from config, e.g. `10_000`) before run; exceed → `BACKTEST_BAR_LIMIT_EXCEEDED`.
-- Enforce wall-clock via `AbortSignal` + periodic checks every N bars (e.g. 64); abort → `BACKTEST_TIMEOUT`.
-- Default timeout from `BACKTEST_TIMEOUT_MS` (default `2000` to match NFR, or `5000` with headroom — JC-7).
+- Enforce `maxBars` (config default `10_000`) before run; exceed → `BACKTEST_BAR_LIMIT_EXCEEDED`.
+- Enforce wall-clock via external `AbortSignal` + monotonic deadline checks at least every 64 iterations in every potentially large loop; abort/deadline → `BACKTEST_TIMEOUT`.
+- Default timeout from `BACKTEST_TIMEOUT_MS` is `5000`; the separate performance target remains under 2 seconds (JC-7).
+- Enforce a derived memory bound before allocation: `bars.length * max(1, indicators.length) <= BACKTEST_MAX_SERIES_CELLS` (default `250_000`); exceed → `BACKTEST_RESOURCE_LIMIT_EXCEEDED`.
 - No BullMQ. Optional `worker_threads` **not** required for 3.1 exit (JC-1); if added, must use `resourceLimits.maxOldGenerationSizeMb` and still treat as soft sandbox.
 
 ---
@@ -149,10 +156,10 @@ Engine is invoked only from:
 | `BACKTEST_INVALID_DEFINITION` | 400 | Unknown indicator/op, bad risk params |
 | `BACKTEST_INSUFFICIENT_BARS` | 400 | Bars length 0 or < max indicator period |
 | `BACKTEST_BAR_LIMIT_EXCEEDED` | 400 | `bars.length > maxBars` |
-| `BACKTEST_TIMEOUT` | 504 or 400 | AbortSignal fired / wall clock |
-| `BACKTEST_INTERNAL_ERROR` | 500 | Unexpected engine failure |
+| `BACKTEST_RESOURCE_LIMIT_EXCEEDED` | 400 | Indicator-series cell estimate exceeds configured bound |
+| `BACKTEST_TIMEOUT` | 504 | External abort or monotonic deadline exceeded |
 
-Also ensure Milestone 2 `STRATEGY_*` codes remain the source of truth for CRUD validation; engine assumes a previously validated definition but still fails closed on structural issues.
+Unexpected failures use existing `INTERNAL_ERROR`. Milestone 2 `STRATEGY_*` codes remain the source of truth for CRUD validation; the engine assumes a previously validated definition but still fails closed on structural issues.
 
 ### Programmatic contract (TypeScript shapes)
 
@@ -164,7 +171,11 @@ export interface BacktestEngineInput {
   initialEquity: number;
   symbolId?: number;
   signal?: AbortSignal;
-  limits?: { maxBars?: number; timeoutMs?: number };
+  limits?: {
+    maxBars?: number;
+    timeoutMs?: number;
+    maxSeriesCells?: number;
+  };
 }
 
 export interface BacktestEngineOutput {
@@ -234,7 +245,7 @@ flowchart TB
 1. **Pure core, thin Nest shell** — maximize unit-test coverage without TestModule bootstraps.
 2. **Definition is data** — never execute user code.
 3. **Fail closed** on bad definition / limits; do not silently skip unknown ops.
-4. **Cooperative cancel** — check `signal.aborted` in the bar loop; do not busy-spin.
+4. **Cooperative cancel** — check `signal.aborted` and `performance.now() >= deadline` in indicator loops and the bar loop. A timer or `AbortSignal.timeout()` alone cannot interrupt synchronous CPU work while the event loop is blocked.
 5. **Config via DI only** — no raw `process.env` in engine files.
 
 ---
@@ -245,7 +256,7 @@ flowchart TB
 
 1. Paste AC into MVP_05 (#5.2.1–5.2.5) and MVP_08 (#8.2.1–8.2.2).
 2. Add `BACKTEST_*` to `ErrorCode` + `ERROR_CATALOG`.
-3. Extend `AppConfig` with `backtest.timeoutMs` (default `5000`), `backtest.maxBars` (default `10000`); document in `.env.example`.
+3. Extend `AppConfig` with `backtest.timeoutMs` (default `5000`), `backtest.maxBars` (default `10000`), and `backtest.maxSeriesCells` (default `250000`); document in `.env.example`.
 4. Config unit tests for defaults and invalid ints (fail-fast).
 
 ### 2. Fixtures (#5.2.1 foundation)
@@ -267,15 +278,21 @@ flowchart TB
 
 ### 5. Simulation + SL/TP (#5.2.4, #5.2.5)
 
-1. Bar loop in `run.ts`: indicators once → for each bar: SL/TP → exit rules → entry rules → mark equity.
+1. Bar loop in `run.ts`: indicators once → for each bar: SL/TP → exit rules → entry rules → mark equity. Track `exitedThisBar` to prevent same-bar re-entry.
 2. Force-close at end.
-3. Metrics: max drawdown from equity peaks; win rate on closed trades; Sharpe optional (null if `< 2` returns or zero variance) — JC-8.
+3. Metrics contract:
+   - percentages are percentage points (`12.5`, not `0.125`);
+   - max drawdown is a non-negative magnitude;
+   - no trades → win rate / avg win / avg loss = `0`;
+   - average loss remains a negative percentage;
+   - Sharpe is non-annualized mean per-bar return divided by sample standard deviation (`rf=0`), `null` for fewer than two returns or zero variance (JC-7).
 
 ### 6. Sandbox limits (#8.2.1, #8.2.2)
 
-1. `BacktestEngineService.run` applies config limits, creates `AbortSignal.timeout(timeoutMs)` (Node 18+) or manual timer.
-2. Reject oversized bars before compute.
-3. Unit test: abort mid-run throws `BACKTEST_TIMEOUT`; oversized throws `BACKTEST_BAR_LIMIT_EXCEEDED`.
+1. `BacktestEngineService.run` applies config limits and passes an absolute monotonic deadline to a shared `checkBudget()` helper. It also honors any caller-provided `AbortSignal`.
+2. Call `checkBudget()` at least every 64 iterations in every potentially large loop; do not rely on `setTimeout`/`AbortSignal.timeout()` to fire during synchronous compute.
+3. Reject oversized bars and series-cell estimates before allocating indicator arrays.
+4. Unit test with an injected fake monotonic clock: deadline expiry → `BACKTEST_TIMEOUT`; pre-aborted signal → `BACKTEST_TIMEOUT`; oversized bars/cells → the matching limit code.
 
 ### 7. Module wire + gates
 
@@ -304,16 +321,16 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 
 ## Best-practice checklist
 
-- [ ] Pure functions for indicators / rules / sim / metrics (unit-testable without Nest)
-- [ ] No user-code execution; definition JSON only ([Node security guidance](https://nodejs.org/en/learn/getting-started/security-best-practices))
-- [ ] Cooperative `AbortSignal` timeout ([AbortSignal.timeout](https://nodejs.org/docs/latest/api/globals.html#abortsignaltimeoutmilliseconds))
-- [ ] Config fail-fast via `AppConfigService`
-- [ ] RFC 7807 codes registered even before HTTP surface
-- [ ] Golden fixtures for regression (no DB)
-- [ ] NFR path: microbench or timed unit test for ~252 daily bars &lt; 2s
-- [ ] Conventional Commits (`feat: add backtest engine core`)
-- [ ] Coverage ≥ 90% on new engine files
-- [ ] No BullMQ / no Prisma models / no Angular
+- [x] Pure functions for indicators / rules / sim / metrics (unit-testable without Nest)
+- [x] No user-code execution; definition JSON only ([Node security guidance](https://nodejs.org/en/learn/getting-started/security-best-practices))
+- [x] Cooperative `AbortSignal` timeout ([AbortSignal.timeout](https://nodejs.org/docs/latest/api/globals.html#abortsignaltimeoutmilliseconds))
+- [x] Config fail-fast via `AppConfigService`
+- [x] RFC 7807 codes registered even before HTTP surface
+- [x] Golden fixtures for regression (no DB)
+- [x] NFR path: timed 365-daily-bar fixture &lt; 2s
+- [x] Conventional Commit prepared (`feat: add backtest engine core`)
+- [x] Coverage ≥ 90% on new engine files
+- [x] No BullMQ / no Prisma models / no Angular
 
 ---
 
@@ -325,21 +342,21 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 | Indicator math drift vs Strategy Lab docs | Shared type + fixture tests; prefer pure impl owned by us (JC-2) |
 | Ambiguous cross / SL same-bar semantics | Lock JC-5 / JC-6 in this plan; encode in fixture expectations |
 | Strategy definition schema still evolving in M2 | Depend on 2.3 merge; pin fixture to committed `StrategyDefinitionValidator` + types |
-| Sharpe unstable on short samples | Return `null` when undefined (JC-8) |
+| Sharpe unstable on short samples | Return `null` when undefined (JC-7) |
 | Coverage gate from Nest wiring file | Keep `BacktestEngineService` thin; test pure `run.ts` heavily |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Sandbox: in-process vs `worker_threads` | Affects package surface + complexity | ⏭ In-process + AbortSignal for 3.1 | ⏭ stubbed |
-| 2 | Indicator library vs pure math | Dep drift vs correctness | ⏭ Pure SMA/EMA/RSI in-repo | ⏭ stubbed |
-| 3 | Fill price: close vs next open | Changes all trade PnL | ⏭ Signal-bar **close** | ⏭ stubbed |
-| 4 | Default `BACKTEST_TIMEOUT_MS` | NFR is 2s compute; HTTP overhead later | ⏭ `5000` ms engine host default | ⏭ stubbed |
-| 5 | Fees / slippage | Changes metrics | ⏭ Zero fees MVP | ⏭ stubbed |
-| 6 | Position sizing | All-in vs fixed qty | ⏭ 100% equity long | ⏭ stubbed |
+| 1 | Sandbox: in-process vs `worker_threads` | Affects package surface + complexity | In-process + cooperative deadline/AbortSignal for 3.1 | Adopted |
+| 2 | Indicator library vs pure math | Dep drift vs correctness | Pure SMA/EMA/RSI in-repo | Adopted |
+| 3 | Fill price: close vs next open | Changes all trade PnL | Signal-bar **close** | Adopted |
+| 4 | Default `BACKTEST_TIMEOUT_MS` | NFR is 2s compute; HTTP overhead later | `5000` ms engine host default | Adopted |
+| 5 | Fees / slippage | Changes metrics | Zero fees MVP | Adopted |
+| 6 | Position sizing | All-in vs fixed qty | 100% equity long | Adopted |
 
 ---
 
@@ -347,7 +364,7 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 
 ### JC-1 — Soft sandbox: in-process first
 
-**Decision:** Run the engine in-process with hard wall-clock timeout + bar-count limits. Do **not** introduce BullMQ. Defer `worker_threads` + `resourceLimits.maxOldGenerationSizeMb` unless profiling shows event-loop blocking.  
+**Decision:** Run the engine in-process with cooperative monotonic-deadline/abort checks + bar-count limits. Do **not** introduce BullMQ. Defer `worker_threads` + `resourceLimits.maxOldGenerationSizeMb` unless profiling shows event-loop blocking.
 **Why:** Fastest path to correct, testable core; Node worker_threads are soft isolation only ([worker_threads](https://nodejs.org/docs/latest/api/worker_threads.html)), not a security boundary.  
 **Discuss before implement if:** Multi-tenant untrusted definitions become a hard security requirement in MVP, or CI shows p95 API latency regressions from sync runs.
 
@@ -407,14 +424,14 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 
 ## Definition of done
 
-- [ ] Branched from Sprint 2.3 (or `main` post-merge)
-- [ ] Dev gates resolved or stubbed above
-- [ ] #5.2.1–#5.2.5 and #8.2.1–#8.2.2 implemented per AC
-- [ ] No Prisma migrations in this sprint
-- [ ] Golden fixture tests green; timeout/bar-limit tests green
-- [ ] build / lint / test / test:cov (≥90%) pass
-- [ ] Docs synced; ROADMAP/stories updated
-- [ ] PR opened against correct base
+- [x] Stacked on the completed Sprint 2.3 branch in PR #9
+- [x] Adopted defaults and resource/timeout semantics implemented as written
+- [x] #5.2.1–#5.2.5 and #8.2.1–#8.2.2 implemented per AC
+- [x] No Prisma migrations in this sprint
+- [x] Golden fixture tests green; timeout/bar-limit tests green
+- [x] build / lint / test / test:cov (≥90%) pass
+- [x] Docs synced; ROADMAP/stories updated
+- [x] Existing PR #9 targets the correct `main` base
 
 ---
 
@@ -427,5 +444,5 @@ No e2e HTTP required this sprint. Optionally add a tiny Nest testing-module smok
 - DDL (future persistence): [DDL/04_backtesting.sql](../database/DDL/04_backtesting.sql)  
 - API inventory (future HTTP): [API_Inventory §5](../database/API_Inventory.md)  
 - NFR performance: [Non_Functional_Requirements.md](../product/requirements/Non_Functional_Requirements.md)  
-- Prior plan style: [sprint-1-4-data-health-observability.md](./sprint-1-4-data-health-observability.md) (git history if working tree empty)  
+- Prior plan style: `sprint-1-4-data-health-observability.md` (git history; not present in this working tree)
 - Delivery workflow: `.cursor/skills/sprint-delivery/SKILL.md`

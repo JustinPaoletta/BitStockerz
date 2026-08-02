@@ -1,11 +1,11 @@
 # Sprint 3.4 — Backtest UI
 
-**Status:** Plan ready (not started)  
+**Status:** Implemented and locally verified through August 1, 2026; unmerged in draft PR #9
 **Roadmap marker:** Milestone 3 / Sprint 3.4 (ROADMAP exit: Strategy → Backtest → Results fully demoable)  
-**Branch:** `feat/sprint-3-4-backtest-ui`  
-**PR base:** `feat/sprint-3-3-backtest-execution-limits`
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (combined PR #9)
+**PR base:** `main`
 
-**Overview:** Deliver the backtest results visualization surface — equity curve chart and trades table — against the Sprint 3.3 APIs. Because ROADMAP places Angular shell scaffolding in Sprint 5.1 (`apps/web`), this sprint **soft-depends** on extracting a minimal Angular application shell early (prerequisite slice of 5.1). If that shell is not pulled forward, ship API-ready OpenAPI examples + manual-test fixtures and park UI components until 5.1 — but the recommended path is a thin `apps/web` scaffold so Milestone 3 exit stays demoable.
+**Overview:** Deliver the backtest results visualization surface — equity curve chart and trades table — against the Sprint 3.3 APIs. This sprint pulls forward the minimal Angular application shell needed for the feature; Sprint 5.1 extends that same app. The checked-in API fixture supports offline UI work but is not a substitute for shipping #5.4.1/#5.4.2.
 
 ---
 
@@ -18,7 +18,7 @@
 | #5.4.1 | Equity curve chart | [MVP_05](../product/stories/BitStockerz_MVP_05_Backtesting_Stories.md) + [UX_Flows](../product/UX_Flows.md) |
 | #5.4.2 | Trades table | same |
 
-**Exit (from [ROADMAP.md](../product/ROADMAP.md)):** Strategy → Backtest → Results fully demoable in the Angular app (recommended path), consuming `GET /api/backtests/:id`.
+**Exit (from [ROADMAP.md](../product/ROADMAP.md)):** Strategy → Backtest → Results is demoable in the Angular app, consuming `GET /api/backtests/:id`.
 
 **Explicitly out of scope**
 
@@ -48,11 +48,11 @@
 
 **Schema:** No changes ([Migrations_Plan — Sprint 3.4](../database/Migrations_Plan.md)).
 
-**Soft prerequisite (JC-1):** Minimal `apps/web` Angular scaffold (routing, env API base URL, auth interceptor, layout shell) extracted from Sprint 5.1 — see [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md); 3.4 takes only the thin slice needed for backtest routes, then 5.1 extends shell/nav/dashboard.
+**Required prerequisite slice (JC-1):** Minimal `apps/web` Angular scaffold (routing, API base URL, auth interceptor, layout shell) extracted from Sprint 5.1 — see [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md). Sprint 3.4 creates it if missing; Sprint 5.1 extends it.
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### Prerequisite slice – Minimal Angular shell (from 5.1)
 
@@ -60,12 +60,10 @@ Ship **only** what charts need (do not implement full Milestone 5 dashboard):
 
 - `apps/web` Angular app (current stable Angular via `ng new` / workspace convention matching monorepo — JC-2).
 - Environments: `apiBaseUrl` → `http://localhost:4000/api`.
-- Auth: store session token from existing auth endpoints; `Authorization` interceptor; login route good enough for demos (reuse API dev register/login).
-- Router outlets: `/login`, `/backtests`, `/backtests/:id` (and stub `/strategies` link if needed to pick an id).
+- Auth: store the bearer in `sessionStorage` key `bs.access_token`, attach it with an `Authorization` interceptor, and provide a demo login route using existing API dev register/login. Sprint 5.1 extends this exact storage contract.
+- Router outlets: `/login`, `/backtests`, `/backtests/new`, `/backtests/:id`, plus a labelled `/strategies` placeholder owned by Sprint 5.3.
 - Shared `ApiClient` / `BacktestsApi` service returning typed snake_case models.
-- README: `pnpm/npm start` for web on a non-4000 port (e.g. 4200) + CORS note for API (JC-3).
-
-If product **rejects** pulling shell forward: mark #5.4.1/#5.4.2 blocked; deliver § “API-ready fixtures” below and move UI stories to post-5.1 — document on ROADMAP (not the recommended default).
+- README: npm start command for web on port 4200 + local proxy and production CORS notes (JC-3).
 
 ### #5.4.1 – Equity curve chart
 
@@ -82,18 +80,18 @@ If product **rejects** pulling shell forward: mark #5.4.1/#5.4.2 blocked; delive
 - Sort default: `entry_time` ascending (API order).
 - PnL styling: distinct positive/negative classes (no emoji).
 - Empty trades → “No trades” message.
-- If API returns paginated trades (3.3 soft cap), table shows “Load more” calling `trades_offset` (JC-5).
+- Table requests `trades_limit=500&trades_offset=0`; when `trades_page.has_more`, “Load more” requests the next page and appends it without duplicates (JC-5).
 - Accessibility: real `<table>` (or Angular CDK table) with column headers.
 
 ### Cross-cutting demo path
 
 - From a backtest list page (minimal): show recent runs → navigate to detail.
-- Optional thin “Run backtest” form: strategy id, symbol, timeframe, dates, initial equity → POST → navigate to detail (unblocks ROADMAP exit without waiting for full Strategy Lab UI).
+- Required thin “Run backtest” form: strategy id, symbol, timeframe, dates, initial equity → POST → navigate to detail (unblocks ROADMAP exit without waiting for full Strategy Lab UI).
 - Manual testing script documents the click-path.
 
 ### API-ready fixtures (always ship)
 
-Even with UI, add under `docs/manual-testing/fixtures/backtest-detail.example.json` (or `apps/web/public/fixtures/`) a frozen example of `GET /backtests/:id` response for offline UI work and contract tests.
+Add `docs/manual-testing/fixtures/backtest-detail.example.json`, a frozen example of `GET /backtests/:id` for offline UI work and contract tests. A test validates the fixture against the client mapper so it cannot silently drift.
 
 ---
 
@@ -103,19 +101,24 @@ Even with UI, add under `docs/manual-testing/fixtures/backtest-detail.example.js
 
 | Method | Path | UI usage |
 |--------|------|----------|
-| `POST` | `/api/backtests` | Optional run form |
+| `POST` | `/api/backtests` | Required run form |
 | `GET` | `/api/backtests` | List page |
 | `GET` | `/api/backtests/:id` | Detail chart + table |
 
 Contract stability requirements for UI:
 
-- `equity_curve[].timestamp` ISO-8601 UTC; `equity` number
+- `equity_curve[].timestamp` ISO-8601 UTC; `equity` decimal string
 - `trades[]` field names snake_case as inventory
+- all decimal-backed prices, quantities, P&L, and metrics arrive as strings; client mappers parse finite display/chart numbers at the boundary and retain the raw string where precision matters
 - `results` null when `status !== completed`
 
 If any rename is required, fix in 3.3 follow-up **before** UI merge — do not fork field names in the client.
 
-OpenAPI (optional stretch): annotate Nest controllers with `@nestjs/swagger` only if already chosen elsewhere; otherwise keep inventory + example JSON as source of truth (JC-6).
+OpenAPI was not a Sprint 3.4 blocker (JC-6). A later cross-cutting PR #9
+follow-up added generated OpenAPI JSON/YAML and Swagger UI after the UI contract
+was implemented. The generated document is now the machine-readable contract
+for shipped routes; the inventory retains design rationale and planned routes,
+and the checked-in example remains a client-mapper fixture.
 
 ---
 
@@ -174,17 +177,16 @@ flowchart TB
 
 ## Implementation plan (ordered)
 
-### 1. Decision gate (day 0)
+### 1. Contract verification (day 0)
 
-1. Confirm JC-1: pull minimal Angular shell into this sprint (recommended **yes**).
-2. If no: stop UI implementation; ship fixtures + ROADMAP note; re-open #5.4.x after 5.1.
-3. If yes: create scaffold branch slice first (can be same PR or stacked `chore/apps-web-shell` merged into 3.4).
+1. Confirm the Sprint 3.3 detail fixture includes decimal strings, `trades_page`, full equity curve, and terminal/empty states.
+2. Create or extend the Angular scaffold in this branch before feature components. Do not open a separate optional decision track.
 
 ### 2. Scaffold `apps/web` (prerequisite)
 
-1. Generate Angular app under `apps/web`.
+1. Generate Angular app under `apps/web` using npm and commit its exact Angular/tooling versions and lockfile.
 2. Add proxy or CORS for `localhost:4000`.
-3. Auth login using existing `POST /api/auth/login` (dev) or WebAuthn if already UX-ready — **default dev login** for speed (JC-7).
+3. Auth login uses existing dev `POST /api/auth/login`; WebAuthn UI is outside this prerequisite slice (JC-7).
 4. Smoke: logged-in call to `GET /api/health/live`.
 
 ### 3. Backtests API client + fixtures
@@ -196,7 +198,7 @@ flowchart TB
 ### 4. Equity curve (#5.4.1)
 
 1. Add dependency `lightweight-charts`.
-2. Wrapper component: create chart on init, `setData` from mapped `{ time, value }`, cleanup on destroy.
+2. Wrapper component: create chart on init, map daily timestamps to `BusinessDay` and intraday timestamps to UTC seconds, reject invalid/non-finite points, set data, and remove chart/resize observers on destroy.
 3. Metrics summary header.
 4. Handle failed runs (`results === null`).
 
@@ -204,12 +206,12 @@ flowchart TB
 
 1. Table component with formatting (dates locale-aware, numbers fixed decimals).
 2. Wire into detail page below chart.
-3. Load-more if pagination present.
+3. Load-more using the required `trades_page.has_more` pagination metadata.
 
 ### 6. Minimal list + run form (demo glue)
 
 1. List recent backtests.
-2. Simple reactive form → POST → navigate to `:id`.
+2. Simple reactive form on `/backtests/new` (accepts optional `strategy_id` query param) → POST → navigate to `:id`.
 3. Manual testing section with screenshots optional.
 
 ### 7. Quality gates
@@ -220,13 +222,13 @@ npm --prefix apps/api run test:cov
 
 # Web
 npm --prefix apps/web run build
-npm --prefix apps/web run test   # if configured
+npm --prefix apps/web run test -- --watch=false
 npm --prefix apps/web run lint
 ```
 
 | File | Update |
 |------|--------|
-| `docs/product/ROADMAP.md` | Mark 3.4; note shell pulled from 5.1 or deferred |
+| `docs/product/ROADMAP.md` | Mark 3.4; record that the thin shell was pulled forward from 5.1 |
 | `docs/product/stories/BitStockerz_MVP_05_*.md` | AC + completion |
 | `docs/product/UX_Flows.md` | Confirm demo path |
 | `docs/manual-testing/manual_testing.md` | UI section |
@@ -238,16 +240,16 @@ npm --prefix apps/web run lint
 
 ## Best-practice checklist
 
-- [ ] Soft-dep on minimal Angular shell decided and documented (JC-1)
-- [ ] TradingView Lightweight Charts for equity ([docs](https://www.tradingview.com/lightweight-charts/))
-- [ ] No Chart.js / no React
-- [ ] Auth token on all backtest API calls
-- [ ] Pure mappers unit-tested (timestamp → chart time)
-- [ ] Failed/empty states without console errors
-- [ ] CORS/proxy documented for local demo
-- [ ] Contract fixture checked in
-- [ ] Conventional Commits (`feat: add backtest equity chart and trades table`)
-- [ ] ROADMAP 5.1 shell stories adjusted to avoid double scaffold
+- [x] Soft-dep on minimal Angular shell decided and documented (JC-1)
+- [x] TradingView Lightweight Charts for equity ([docs](https://www.tradingview.com/lightweight-charts/))
+- [x] No Chart.js / no React
+- [x] Auth token on all backtest API calls
+- [x] Pure mappers unit-tested (timestamp → chart time)
+- [x] Failed/empty states without console errors
+- [x] CORS/proxy documented for local demo
+- [x] Contract fixture checked in
+- [x] Conventional Commit included in combined PR #9
+- [x] ROADMAP 5.1 shell stories adjusted to avoid double scaffold
 
 ---
 
@@ -255,7 +257,7 @@ npm --prefix apps/web run lint
 
 | Risk | Mitigation |
 |------|------------|
-| ROADMAP orders UI before Angular scaffold | JC-1 pull-forward shell; else explicit defer |
+| ROADMAP orders UI before Angular scaffold | JC-1 makes the pull-forward scaffold a required predecessor task |
 | CORS blocks browser calls | Dev CORS allowlist or Angular proxy.conf |
 | Lightweight Charts time scale vs ISO strings | Normalize to UTCSeconds / `YYYY-MM-DD` for daily |
 | Large equity arrays stall UI | Already capped by bar limits; virtualize table if needed |
@@ -264,26 +266,26 @@ npm --prefix apps/web run lint
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Pull Angular shell into 3.4? | apps/web missing until 5.1 | ⏭ **Yes** — minimal shell prerequisite | ⏭ stubbed |
-| 2 | Package manager for web | npm vs pnpm monorepo | ⏭ Match `apps/api` npm scripts style unless root pnpm exists | ⏭ stubbed |
-| 3 | CORS vs proxy | Local DX | ⏭ Angular `proxy.conf.json` to `:4000` | ⏭ stubbed |
-| 4 | Entry/exit markers on chart | Scope | ⏭ Optional if &lt; 0.5d; else skip | ⏭ stubbed |
-| 5 | Dev login vs WebAuthn-only | Demo friction | ⏭ Dev email/password login for UI sprint | ⏭ stubbed |
-| 6 | OpenAPI generation | Extra deps | ⏭ Example JSON + inventory only | ⏭ stubbed |
+| 1 | Pull Angular shell into 3.4? | `apps/web` is required for the UI stories | **Yes** — minimal shell prerequisite | Adopted |
+| 2 | Package manager for web | Repository currently uses npm lockfiles | npm with `apps/web/package-lock.json` | Adopted |
+| 3 | CORS vs proxy | Local DX | Angular `proxy.conf.json` to `:4000`; production uses explicit CORS | Adopted |
+| 4 | Entry/exit markers on chart | Scope | Optional if &lt; 0.5d; otherwise skip | Optional, non-blocking |
+| 5 | Dev login vs WebAuthn-only | Demo friction | Dev email/password login for UI sprint | Adopted |
+| 6 | OpenAPI generation | Extra deps | Example JSON + inventory only | Adopted |
 
 ---
 
 ## Judgement calls
 
-### JC-1 — Soft-depend on early Angular shell (REQUIRED)
+### JC-1 — Angular scaffold ownership (REQUIRED)
 
 **Decision:** Sprint 3.4 **pulls forward** a minimal `apps/web` scaffold (prerequisite slice of Sprint 5.1) so #5.4.1/#5.4.2 can ship real UI. Sprint 5.1 then extends shell/nav/dashboard rather than greenfield scaffolding.  
 **Why:** ROADMAP Milestone 3 exit requires a demoable Strategy → Backtest → Results path; waiting until 5.1 breaks that exit.  
-**Discuss before implement if:** Team wants Milestone 3 to be API-only and will move #5.4.x after 5.1 on ROADMAP (acceptable fallback — update stories/ROADMAP explicitly).
+**Override trigger:** Only an explicit roadmap/release-scope change that moves #5.4.x out of Milestone 3; absent that approved change, implement the scaffold here.
 
 ### JC-2 — Angular standalone + modern defaults
 
@@ -305,15 +307,19 @@ npm --prefix apps/web run lint
 
 ### JC-5 — Honor 3.3 trade pagination
 
-**Decision:** Implement “Load more” when `trades.length` equals requested limit or API provides a `has_more` flag (add flag in 3.3 if missing — small follow-up).  
+**Decision:** Implement “Load more” exclusively from Sprint 3.3’s canonical `trades_page.has_more`; advance `trades_offset` by the number of items already loaded and de-duplicate by trade id.
 **Why:** Prevents silent truncation.  
 **Discuss before implement if:** Product guarantees trades always &lt; 1000 for MVP demos.
 
-### JC-6 — No Swagger requirement
+### JC-6 — Swagger was not a Sprint 3.4 requirement
 
 **Decision:** Do not block 3.4 on `@nestjs/swagger`; use inventory + checked-in fixture JSON.  
 **Why:** Inventory is already canonical; Swagger is orthogonal.  
 **Discuss before implement if:** Client generation is mandated org-wide.
+
+**Post-sprint implementation note:** Generated OpenAPI 3.0 JSON/YAML and an
+interactive Swagger UI subsequently shipped as an orthogonal PR #9 follow-up.
+This does not change the original sequencing decision or Sprint 3.4 scope.
 
 ### JC-7 — Dev login for Milestone 3 demo
 
@@ -333,7 +339,7 @@ npm --prefix apps/web run lint
 
 | Ticket | Estimate |
 |--------|----------|
-| Decision gate + ROADMAP note | 0.1d |
+| Scaffold ownership + ROADMAP sync | 0.1d |
 | Angular shell scaffold + auth + proxy | 1.0–1.5d |
 | Backtests API client + fixture JSON | 0.5d |
 | Equity curve component + metrics | 1.0d |
@@ -346,14 +352,24 @@ npm --prefix apps/web run lint
 
 ## Definition of done
 
-- [ ] JC-1 resolved (shell pulled **or** UI explicitly deferred with ROADMAP edit)
-- [ ] #5.4.1 and #5.4.2 implemented per AC **or** formally rescheduled
-- [ ] No DB migrations
-- [ ] Demo path: login → run/list → detail with chart + table
-- [ ] `apps/web` build passes; API tests still green
-- [ ] Manual testing section + fixture JSON committed
-- [ ] Sprint 5.1 shell work de-duplicated in docs
-- [ ] PR opened against Sprint 3.3 base
+- [x] Minimal Angular shell exists in `apps/web` and is documented as owned by 3.4
+- [x] #5.4.1 and #5.4.2 implemented per AC
+- [x] No DB migrations
+- [x] Demo path: login → run/list → detail with chart + table
+- [x] `apps/web` build/lint/unit gates pass; API tests remain green
+- [x] Desktop and 390px mobile browser flows pass without console errors
+- [x] Manual testing section + fixture JSON committed
+- [x] Sprint 5.1 shell work de-duplicated in docs
+- [x] Added to combined draft PR #9 against `main`
+
+**Implementation record:** The scaffold pins Angular CLI/build 21.2.19 and
+Angular 21.2.x. Angular 22.0.8 was evaluated but requires Node 24.15 or newer,
+while this repository intentionally pins Node 24.11.1; Angular 21 is therefore
+the newest compatible supported line for this PR. Lightweight Charts 5.2 is
+used through its current `addSeries(LineSeries, …)` API. The trades table's
+minimum-width rules are scoped beneath `.table-wrap` so they cannot resize the
+chart library's internal layout table; this was reverified at 390 × 844 on
+August 1, 2026.
 
 ---
 

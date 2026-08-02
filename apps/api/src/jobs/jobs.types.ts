@@ -1,15 +1,13 @@
+import type { ErrorCode } from '../common/errors/error-codes.enum';
+
 export type JobStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled';
+  'pending' | 'running' | 'completed' | 'failed' | 'timed_out' | 'cancelled';
 
 export type JobType =
   | 'equity_daily_import'
   | 'crypto_import'
-  | 'market_data_scheduled';
+  | 'market_data_scheduled'
+  | 'backtest_run';
 
 export interface JobPayload {
   symbol?: string;
@@ -17,6 +15,7 @@ export interface JobPayload {
   imported_equity_bars?: number;
   imported_crypto_daily_bars?: number;
   imported_crypto_hourly_bars?: number;
+  error_code?: ErrorCode;
   [key: string]: unknown;
 }
 
@@ -49,4 +48,13 @@ export interface CreateJobInput {
   payload?: JobPayload;
 }
 
-export type JobHandler = (job: JobRecord) => Promise<JobPayload>;
+export interface JobExecutionContext {
+  signal: AbortSignal;
+  /** Monotonic `performance.now()` deadline, not wall-clock time. */
+  deadlineAtMs: number;
+}
+
+export type JobHandler = (
+  job: JobRecord,
+  context: JobExecutionContext,
+) => Promise<JobPayload>;

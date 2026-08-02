@@ -1,58 +1,125 @@
 # BitStockerz API – Manual Testing Guide
 
-Use this guide to smoke-test the runnable API in `apps/api` after local changes. All paths below are prefixed with `/api` and assume the server listens on port **4000** (override with `PORT`).
+Use this guide to smoke-test the runnable API in `apps/api` after local
+changes. All API paths below are prefixed with `/api` and assume port **4000**
+(override with `PORT`). The Sprint 3.4 Angular app runs on port **4200**.
+
+For PR #9, use the single required
+[pre-merge manual checklist](./PRE_MERGE_CHECKLIST.md). It is self-contained
+and supersedes assembling strategy checks from multiple sections in this guide.
+
+## How to use this guide
+
+Use two terminals:
+
+- **Terminal A — API:** start and stop the API here. Run only one API process on port `4000`.
+- **Terminal B — tests:** run curls here. Variables such as `TOKEN`, `STRATEGY_EMAIL`, and `STRATEGY_ID` remain available when Terminal A restarts.
+
+Choose the smallest relevant test set:
+
+| Change area | Required manual sections |
+| --- | --- |
+| Any API change | Sections 1–2 |
+| Symbols or candle reads | Sections 3–7 |
+| Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
+| Observability or audit | Section 10 |
+| Strategy CRUD/versioning/validation, Sprint 3.1 engine, Sprint 3.2 persistence, Sprint 3.3 backtest APIs, or Sprint 3.4 Angular UI | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
+| Full release/sprint verification | Run both automated verifier commands in Section 0 |
+
+Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
 
 ## Section 0 – Local setup
 
-### Install and start
+Run all setup commands from the repository root.
+
+### Install dependencies
 
 ```bash
-npm install
-npm --prefix apps/api install
-npm --prefix apps/api run start:dev
+npm ci
+npm --prefix apps/api ci
+npm --prefix apps/web ci
 ```
 
-### MySQL (recommended for persistence tests)
+### Start in seed mode — Terminal A
+
+Use an explicitly empty `DATABASE_URL` so an existing `apps/api/.env` cannot silently switch the API to MySQL:
+
+```bash
+DATABASE_URL= INGESTION_SCHEDULER_ENABLED=false \
+  npm --prefix apps/api run start:dev
+```
+
+Expected startup target: `http://localhost:4000/api`. Leave this process running while using Terminal B.
+
+### Start in MySQL mode — Terminal A
 
 Full Docker setup: [docs/database/Local_MySQL.md](../database/Local_MySQL.md)
 
 ```bash
 ./scripts/docker-mysql.sh start
-cp apps/api/.env.example apps/api/.env   # skip if .env already exists
+test -f apps/api/.env || cp apps/api/.env.example apps/api/.env
 # Ensure DATABASE_URL is set in apps/api/.env
 npm --prefix apps/api run db:deploy
-npm --prefix apps/api run start:dev
+INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
 ```
 
-Set `INGESTION_SCHEDULER_ENABLED=false` in `apps/api/.env` while running Section 8 manually so hourly cron does not interfere.
+Expected: migrations apply successfully and `/api/health/ready` reports the database as `up`. The inline scheduler override prevents hourly ingestion from interfering with Section 8.
 
 ### Database modes
 
 | Mode | When | Behavior |
 | --- | --- | --- |
-| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, and jobs use deterministic seed data in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs and ingested bars persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; job creation upserts a minimal `users` row for foreign keys. |
+| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, metrics, and audit events live in process. Data resets on API restart. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, and backtest runs/results/trades/equity points persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; persisted job, strategy, and backtest operations upsert/remap a minimal `users` row for ownership foreign keys. |
 
 ### Automated alternative
 
-From repo root (starts the API and runs smoke tests):
+Stop any API already running in Terminal A before using this path; the verifier starts its own API and intentionally refuses to take over an occupied port `4000`.
+
+From the repository root:
 
 ```bash
+# Seed mode: API/web build + lint + unit + coverage/e2e + audit + HTTP smoke
 ./scripts/sprint-delivery-verify.sh verify
-KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # loads DATABASE_URL from apps/api/.env; includes DB persistence check
+
+# MySQL mode: the same gates + migrations + persistence + ingestion + restart checks
+KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ```
 
-Default `verify` runs smoke tests in seed mode (the script clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it). `./scripts/smoke-test-api.sh` alone does not start the API — start it yourself first.
+Each command must exit with status `0`, with every gate marked `GATE PASS` and
+the smoke summary reporting `0 failed`. The verifier includes web build, lint,
+unit, and audit gates plus a real Sprint 3.3 HTTP run/list/detail smoke flow.
+Default `verify` clears `DATABASE_URL` for its smoke API even when
+`apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from
+`apps/api/.env`, deploys migrations, verifies a transactional
+backtest-persistence round trip, ingests the current rolling fixture window,
+and verifies strategy ownership after an API restart.
 
-Smoke tests only (API must already be running on port 4000):
+Standalone smoke tests require an API already running on port `4000`. Match the assertion mode to the API you started:
 
 ```bash
+# Seed-backed API:
+DATABASE_URL= ./scripts/smoke-test-api.sh --sprint all
+
+# MySQL-backed API: safely load only DATABASE_URL first:
+source scripts/lib/load-api-env.sh
+load_database_url_from_api_env "$PWD/apps/api"
 ./scripts/smoke-test-api.sh --sprint all
 ```
 
-Both scripts read `DATABASE_URL` from `apps/api/.env` when needed: `smoke-test-api.sh` for the optional persisted-candles check; `sprint-delivery-verify.sh` only when `KEEP_DATABASE_URL=1`.
+The standalone smoke script does not load `.env`; it honors an already-exported `DATABASE_URL` so its assertions match the API mode you actually started. The verify script loads `DATABASE_URL` from `apps/api/.env` only when `KEEP_DATABASE_URL=1`.
 
-Authenticated bearer token required for job and ingestion endpoints (Sprint 1.3).
+Authenticated bearer token required for job, ingestion, and strategy endpoints.
+
+Generated API reference while the server is running:
+
+- Swagger UI: `http://localhost:4000/api/docs`
+- OpenAPI JSON: `http://localhost:4000/api/openapi.json`
+- OpenAPI YAML: `http://localhost:4000/api/openapi.yaml`
+
+For PR #9, the required generated-contract and live Swagger UI assertions are
+recorded in Section 16 of the
+[pre-merge manual checklist](./PRE_MERGE_CHECKLIST.md).
 
 ---
 
@@ -354,7 +421,7 @@ curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&int
 curl -s 'http://localhost:4000/api/market-data/crypto/candles?symbol=BTC-USD&interval=1h&start=2000-01-01T00:00:00.000Z&end=2099-12-31T23:59:59.999Z' | jq 'length'
 ```
 
-Expected: `"AAPL"`, then `40`, `30`, and `48` respectively.
+Expected: `"AAPL"`, then **at least** `40`, `30`, and `48` respectively. Ingestion upserts the current rolling fixture window but intentionally does not delete older rows, so a reused database can contain more than the seed-window counts.
 
 ### 9.5 Regression table (MySQL mode)
 
@@ -408,6 +475,21 @@ curl -s -X POST http://localhost:4000/api/market-data/ingestion/equity \
 
 Expected: `sanity.checked` is 40 (AAPL seed bars) and `invalid` is 0.
 
+### Success – inspect audit events (MySQL mode)
+
+The audit log is not exposed over HTTP. With the default local Docker container running, inspect recent events directly:
+
+```bash
+docker exec bitstockerz-db sh -lc \
+  'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE" -e \
+  "SELECT event_type, user_id, JSON_KEYS(payload_json) AS payload_keys, created_at
+   FROM audit_events
+   ORDER BY id DESC
+   LIMIT 10;"'
+```
+
+Expected: recent rows include events generated by your tests, such as `auth.register`, `market_data.ingestion_requested`, and later `strategy.created`. `payload_keys` must not include secret-bearing names such as `access_token`, `authorization`, `cookie`, `private_key`, or `client_secret`.
+
 ### Section 10 regression checklist
 
 | # | Scenario | Command | Expect |
@@ -415,7 +497,196 @@ Expected: `sanity.checked` is 40 (AAPL seed bars) and `invalid` is 0.
 | 1 | Market data health | `GET /api/market-data/health` | `200`, has `series` + `sanity` |
 | 2 | Metrics | `GET /api/metrics` | `200`, has `http` |
 | 3 | Ingestion sanity | equity import `AAPL` | payload includes `sanity` |
-| 4 | Auth still works with audit | register → logout | `201` / `200` |
+| 4 | Auth still works with audit | register → logout | `201` / `201` |
+| 5 | MySQL audit persistence | query `audit_events` | recent expected event types; no secrets |
+
+---
+
+## Section 11 – Strategy Lab (Sprints 2.1–2.3)
+
+The canonical, self-contained steps are in
+[PRE_MERGE_CHECKLIST.md](./PRE_MERGE_CHECKLIST.md). The commands below remain a
+shorter legacy regression reference; the pre-merge checklist is the only
+required and current manual sign-off source for all Strategy Lab routes.
+
+Register a unique test user and capture the bearer token:
+
+```bash
+STRATEGY_EMAIL="strategy-manual-$(date +%s)@example.com"
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$STRATEGY_EMAIL\",\"display_name\":\"Strategy Manual\"}" \
+  | jq -r '.access_token')
+
+STRATEGY_DEFINITION=$(jq -cn '{
+  indicators:[
+    {id:"sma_fast",type:"SMA",params:{period:10},source:"close"},
+    {id:"sma_slow",type:"EMA",params:{period:30},source:"close"}
+  ],
+  entry:{logic:"AND",conditions:[
+    {left:{indicator:"sma_fast"},op:"crosses_above",right:{indicator:"sma_slow"}}
+  ]},
+  exit:{logic:"AND",conditions:[
+    {left:{indicator:"sma_fast"},op:"crosses_below",right:{indicator:"sma_slow"}}
+  ]},
+  risk:{
+    stop_loss:{type:"percent",value:2},
+    take_profit:{type:"percent",value:500}
+  }
+}')
+```
+
+### Success – create strategy and immutable version 1
+
+```bash
+STRATEGY_HTTP_CODE=$(curl -s -o /tmp/bitstockerz-strategy-create.json \
+  -w '%{http_code}' -X POST http://localhost:4000/api/strategies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$STRATEGY_DEFINITION" '{
+    name:"  Manual Momentum  ",
+    description:"Sprint 2.1–2.3 Strategy Lab regression check",
+    asset_type:"CRYPTO",
+    timeframe:"1h",
+    definition:$definition
+  }')")
+
+echo "HTTP $STRATEGY_HTTP_CODE"
+jq < /tmp/bitstockerz-strategy-create.json
+STRATEGY_ID=$(jq -r '.id' /tmp/bitstockerz-strategy-create.json)
+```
+
+Expected: `201`; name is `Manual Momentum`, `symbol_scope` is `SINGLE`, `is_active` is `true`, `version_number` is `1`, and the definition round-trips unchanged.
+
+### Success – read the owned strategy
+
+```bash
+curl -s "http://localhost:4000/api/strategies/$STRATEGY_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Expected: `200` with the same id, metadata, `version_number: 1`, and definition.
+
+### Conflict – normalized duplicate name
+
+```bash
+curl -s -o /tmp/bitstockerz-strategy-duplicate.json -w '%{http_code}\n' \
+  -X POST http://localhost:4000/api/strategies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$STRATEGY_DEFINITION" '{
+    name:"manual momentum",asset_type:"CRYPTO",timeframe:"1d",definition:$definition
+  }')"
+jq < /tmp/bitstockerz-strategy-duplicate.json
+```
+
+Expected: `409` with `code: "CONFLICT"`.
+
+### Validation and authentication boundaries
+
+```bash
+# Equity hourly is unsupported because equity candles are daily-only.
+curl -s -X POST http://localhost:4000/api/strategies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$STRATEGY_DEFINITION" '{
+    name:"Invalid Equity",asset_type:"EQUITY",timeframe:"1h",definition:$definition
+  }')" | jq
+
+# Missing bearer token.
+curl -s -X POST http://localhost:4000/api/strategies \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$STRATEGY_DEFINITION" '{
+    name:"Unauthenticated",asset_type:"CRYPTO",timeframe:"1d",definition:$definition
+  }')" | jq
+```
+
+Expected: `400 VALIDATION_ERROR` for equity hourly and `401 UNAUTHORIZED` without a token.
+
+Also verify strict text validation and UUID parsing:
+
+```bash
+# Numeric text fields must not be coerced into strings.
+curl -s -X POST http://localhost:4000/api/strategies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --argjson definition "$STRATEGY_DEFINITION" '{
+    name:123,description:456,asset_type:"CRYPTO",timeframe:"1h",definition:$definition
+  }')" | jq
+
+# Malformed ids are rejected before lookup.
+curl -s http://localhost:4000/api/strategies/not-a-uuid \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Expected: both return `400 VALIDATION_ERROR`.
+
+### Ownership boundary
+
+```bash
+OTHER_TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"strategy-other-$(date +%s)@example.com\",\"display_name\":\"Other User\"}" \
+  | jq -r '.access_token')
+
+curl -s "http://localhost:4000/api/strategies/$STRATEGY_ID" \
+  -H "Authorization: Bearer $OTHER_TOKEN" | jq
+```
+
+Expected: `404 STRATEGY_NOT_FOUND`; the response does not reveal that another
+user's strategy exists.
+
+### Persistence check (MySQL mode)
+
+This check requires the strategy above to have been created while the API was in MySQL mode.
+
+1. In **Terminal A**, stop the API with `Ctrl+C`.
+2. Restart it without changing `DATABASE_URL`:
+
+   ```bash
+   INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
+   ```
+
+3. In **Terminal B**, keep the existing `$STRATEGY_EMAIL` and `$STRATEGY_ID`, register the same email again, and read the original strategy:
+
+   ```bash
+   TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+     -H 'Content-Type: application/json' \
+     -d "{\"email\":\"$STRATEGY_EMAIL\",\"display_name\":\"Strategy Manual Restart\"}" \
+     | jq -r '.access_token')
+
+   curl -s -o /tmp/bitstockerz-strategy-restart.json -w '%{http_code}\n' \
+     "http://localhost:4000/api/strategies/$STRATEGY_ID" \
+     -H "Authorization: Bearer $TOKEN"
+
+   jq < /tmp/bitstockerz-strategy-restart.json
+   ```
+
+Expected: HTTP `200`, the same strategy id and definition, and `version_number: 1`. The read remaps the new in-memory user id to the persisted owner while retaining the strategy/version rows.
+
+### Section 11 regression checklist
+
+| # | Scenario | Expect |
+| --- | --- | --- |
+| 1 | Create valid crypto strategy | `201`, defaults `SINGLE`, version 1 |
+| 2 | Read by owner | `200`, definition round-trips |
+| 3 | Case-insensitive duplicate | `409 CONFLICT` |
+| 4 | Equity + `1h` | `400 VALIDATION_ERROR` |
+| 5 | Unauthenticated create | `401 UNAUTHORIZED` |
+| 6 | Read by another user | `404 STRATEGY_NOT_FOUND` |
+| 7 | Numeric name/description | `400 VALIDATION_ERROR`; no implicit string coercion |
+| 8 | Malformed strategy id | `400 VALIDATION_ERROR` |
+| 9 | Restart in MySQL mode and read again | `200`; persisted strategy/version remain available |
+
+### Cleanup
+
+```bash
+rm -f /tmp/bitstockerz-strategy-duplicate.json \
+  /tmp/bitstockerz-strategy-create.json \
+  /tmp/bitstockerz-strategy-restart.json
+```
+
+Stop the API in Terminal A with `Ctrl+C`. The MySQL container may remain running for development; stop it with `./scripts/docker-mysql.sh stop` when desired.
 
 ---
 

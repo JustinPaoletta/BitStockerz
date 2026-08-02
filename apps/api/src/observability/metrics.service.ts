@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 
-export type MetricsDomain = 'auth' | 'market_data' | 'jobs' | 'unknown';
+export type MetricsDomain =
+  'auth' | 'market_data' | 'jobs' | 'backtest' | 'unknown';
 export type JobTerminalStatus = 'completed' | 'failed' | 'timed_out';
+export type BacktestTerminalStatus = JobTerminalStatus;
 
 export interface DurationStats {
   count: number;
@@ -29,6 +31,12 @@ export interface MetricsSnapshot {
       }
     >;
   };
+  backtests: {
+    completed: number;
+    failed: number;
+    timed_out: number;
+    duration_ms: DurationStats;
+  };
   errors_by_domain: Record<MetricsDomain, number>;
 }
 
@@ -44,10 +52,17 @@ export class MetricsService {
     string,
     { completed: number; failed: number; timed_out: number }
   >();
+  private readonly backtestDurations: number[] = [];
+  private readonly backtestCounts = {
+    completed: 0,
+    failed: 0,
+    timed_out: 0,
+  };
   private readonly errorsByDomain: Record<MetricsDomain, number> = {
     auth: 0,
     market_data: 0,
     jobs: 0,
+    backtest: 0,
     unknown: 0,
   };
 
@@ -99,6 +114,15 @@ export class MetricsService {
     this.errorsByDomain[domain] += 1;
   }
 
+  recordBacktest(status: BacktestTerminalStatus, durationMs: number): void {
+    if (!this.enabled) {
+      return;
+    }
+
+    this.backtestCounts[status] += 1;
+    pushBounded(this.backtestDurations, durationMs, MAX_SAMPLES);
+  }
+
   snapshot(now = new Date()): MetricsSnapshot {
     const byType: MetricsSnapshot['jobs']['by_type'] = {};
 
@@ -117,6 +141,10 @@ export class MetricsService {
         duration_ms: summarize(this.httpDurations),
       },
       jobs: { by_type: byType },
+      backtests: {
+        ...this.backtestCounts,
+        duration_ms: summarize(this.backtestDurations),
+      },
       errors_by_domain: { ...this.errorsByDomain },
     };
   }
@@ -127,9 +155,14 @@ export class MetricsService {
     this.httpDurations.length = 0;
     this.jobDurations.clear();
     this.jobCounts.clear();
+    this.backtestDurations.length = 0;
+    this.backtestCounts.completed = 0;
+    this.backtestCounts.failed = 0;
+    this.backtestCounts.timed_out = 0;
     this.errorsByDomain.auth = 0;
     this.errorsByDomain.market_data = 0;
     this.errorsByDomain.jobs = 0;
+    this.errorsByDomain.backtest = 0;
     this.errorsByDomain.unknown = 0;
   }
 }

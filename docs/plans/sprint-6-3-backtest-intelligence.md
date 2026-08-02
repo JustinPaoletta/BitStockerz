@@ -41,16 +41,17 @@
 | AiModule 6.1–6.2 | `apps/api/src/ai` | Invoke + explain/validate patterns |
 | Backtest run + results APIs | Milestone 3 | Metrics, equity summary, trade stats |
 | Strategy ownership | Milestone 2 | Suggestions tied to owned strategy |
-| Angular backtest detail (nice) | 3.4 / 5.x | “Explain results” button |
+| Angular backtest detail | 3.4 / 5.3 | Required “Explain results” and suggestions integration surface |
 
 ---
 
-## Draft acceptance criteria (per story)
+## Acceptance criteria (implementation contract)
 
 ### #6.3.1 – Explain backtest
 
 - `POST /api/ai/explain-backtest` body `{ "backtest_run_id": "<id>" }`.
 - Auth + ownership of the run (via user_id on backtest).
+- Run must be `completed` with results; other states return `409 BACKTEST_INVALID_STATE` without consuming AI quota.
 - Prompt includes: strategy summary, key metrics (return, max drawdown, win rate, trade count), date range, symbol/timeframe — **not** full trade blotter if huge (summarize; JC-2).
 - Response:
 
@@ -58,19 +59,27 @@
 {
   "disclaimer": "Not financial advice. Kernel suggestions are informational only.",
   "confidence": "MEDIUM",
+  "ai_request_id": "uuid",
   "explanation": "...",
   "issues": []
 }
 ```
 
 - Flag/quota/logging same as 6.2.
-- StubProvider deterministic text referencing run id + a metric.
+- StubProvider returns a deterministic schema-valid object referencing the run id and one metric.
+- Use AI SDK v6 `Output.object()` with an operation-specific bounded Zod schema. Schema/parse failure returns `502 AI_PROVIDER_ERROR`; never return raw provider text.
 
 ### #6.3.2 – Failure modes
 
-- Same endpoint **or** `issues` populated by a dedicated validation pass inside explain — **Decision JC-3:** keep single `explain-backtest` that returns `issues[]`, plus optional internal `identifyFailureModes` used by suggest.
-- Issues examples: overfitting signals (very few trades / huge return), missing stops, short sample, concentration in one trade.
-- Prefer hybrid: deterministic heuristics (trade_count &lt; N, max_dd threshold) + LLM narrative.
+- A single `explain-backtest` endpoint returns `issues[]`; an internal `identifyFailureModes` helper is reused by suggestions (JC-3).
+- Each issue is `{ code, severity, message, evidence }`, where `severity` is `LOW|MEDIUM|HIGH`, `code` matches `^[A-Z][A-Z0-9_]{0,63}$`, `message` is 1–500 chars, and `evidence` contains 0–10 unique 1–200-char strings.
+- Deterministic issue codes/defaults:
+  - `SHORT_SAMPLE` when `bars_processed < 100`
+  - `TOO_FEW_TRADES` when `num_trades < 5`
+  - `HIGH_DRAWDOWN` when `max_drawdown_pct >= 25`
+  - `NEGATIVE_RETURN` when `total_return_pct < 0`
+  - `CONCENTRATED_PNL` when total positive P&L is greater than zero and one winning trade contributes more than 50% of it
+- Merge deterministic issues with schema-validated model issues, dedupe by `code`, and cap at 10. Model-only issues are never severity/confidence `HIGH`.
 
 ### #6.4.1 – Suggest improvements
 
@@ -80,21 +89,28 @@
 { "strategy_id": "...", "backtest_run_id": "..." }
 ```
 
-- `backtest_run_id` optional but recommended; if present must belong to user and match strategy when applicable.
+- `backtest_run_id` is optional; if present it must be owned by the user and satisfy the exact strategy/state rules below.
+- If present, the run must be completed and `run.strategy_id` must exactly equal `strategy_id`; mismatch → `400 VALIDATION_ERROR`, non-completed → `409 BACKTEST_INVALID_STATE`.
 - Response:
 
 ```json
 {
   "disclaimer": "Not financial advice. Kernel suggestions are informational only.",
   "confidence": "LOW",
+  "ai_request_id": "uuid",
   "suggestions": [
-    { "title": "Widen stop loss", "description": "..." }
+    {
+      "code": "REVIEW_STOP_DISTANCE",
+      "title": "Review stop distance",
+      "description": "...",
+      "evidence": ["max_drawdown_pct=28.4"]
+    }
   ]
 }
 ```
 
 - Suggestions are advisory text only — API does **not** PATCH strategy.
-- Cap suggestions length (e.g. max 5).
+- Cap suggestions at 5 and dedupe by `code`. Runtime schema bounds: `code` matches `^[A-Z][A-Z0-9_]{0,63}$`; `title` is 1–120 chars; `description` is 1–1000 chars; `evidence` has 0–10 unique 1–200-char strings. Explanation text is 1–4000 chars.
 
 ### #6.4.2 – Diff-style explanation (stretch)
 
@@ -105,7 +121,7 @@
   "diff": {
     "summary": "Proposed parameter tweaks",
     "changes": [
-      { "path": "definition.stop_loss.pct", "from": 1, "to": 2, "rationale": "..." }
+      { "path": "risk.stop_loss.value", "from": 1, "to": 2, "rationale": "..." }
     ]
   }
 }
@@ -122,15 +138,15 @@ From [API_Inventory §6.3–6.4](../database/API_Inventory.md):
 
 | Method | Path | Body | Response highlights |
 |--------|------|------|---------------------|
-| POST | `/ai/explain-backtest` | `backtest_run_id` | `explanation`, `issues?` |
-| POST | `/ai/suggest-improvements` | `strategy_id`, `backtest_run_id?` | `suggestions[]` |
+| POST | `/api/ai/explain-backtest` | `backtest_run_id` | `explanation`, `issues` |
+| POST | `/api/ai/suggest-improvements` | `strategy_id`, `backtest_run_id?` | `suggestions[]`, optional flag-gated `diff` |
 
-All: Bearer auth, disclaimer envelope, usage +1 per call, `AI_DISABLED` / `AI_RATE_LIMIT` / `AI_PROVIDER_ERROR`.
+All: Bearer auth, disclaimer envelope, usage +1 per valid call, `AI_DISABLED` / `AI_RATE_LIMIT` / `AI_PROVIDER_ERROR` / `AI_TIMEOUT`. DTO, ownership, strategy/run relationship, and run-state validation happens before quota consumption; a provider failure after consumption still counts as one call.
 
-**Angular (recommended)**
+**Angular (required)**
 
 - Backtest detail: Explain + Suggest improvements panels.
-- Render disclaimer; never one-click “Apply”.
+- Render disclaimer; never one-click “Apply”; use escaped Angular text rendering, disable duplicate submits, and distinguish 503/429/502 errors.
 
 ---
 
@@ -163,7 +179,7 @@ apps/api/src/ai/
   failure-mode.heuristics.ts
   failure-mode.heuristics.spec.ts
   backtest-intelligence.service.ts
-apps/web/.../backtests/kernel-insights.component.ts  # optional
+apps/web/.../backtests/kernel-insights.component.ts  # required minimal panel
 ```
 
 ---
@@ -178,7 +194,7 @@ apps/web/.../backtests/kernel-insights.component.ts  # optional
 ### 2. Backtest context loader
 
 1. Fetch run + aggregate metrics + strategy pin.
-2. Build compact context object (max chars budget, e.g. 8–12k).
+2. Build a deterministic compact context object under `AI_MAX_CONTEXT_CHARS=12000`: run/strategy identifiers and metadata, metrics, diagnostics, aggregate trade statistics, and at most three best/three worst trade summaries. Omit lowest-priority samples until within budget and set `context_truncated=true`; never byte-slice JSON or send the full blotter/equity curve.
 
 ### 3. Explain + failure modes
 
@@ -188,7 +204,7 @@ apps/web/.../backtests/kernel-insights.component.ts  # optional
 ### 4. Suggest improvements
 
 1. Prompt with strategy + optional backtest context.
-2. Parse to `suggestions[]`; clamp to 5.
+2. Generate `suggestions[]` with `Output.object()`; validate and clamp to 5.
 3. Refuse to return SQL/code that mutates DB — text only.
 
 ### 5. Stretch #6.4.2
@@ -196,7 +212,10 @@ apps/web/.../backtests/kernel-insights.component.ts  # optional
 1. Only if time: flag-gated `diff` parser + tests.
 2. Else: ticket “MVP+” and skip.
 
-### 6. Tests + docs + Milestone 6 exit
+### 6. Angular panel + tests + docs + Milestone 6 exit
+
+1. Add the two actions to backtest detail with success/loading/error/disclaimer states.
+2. Component tests prove output is escaped, duplicate submissions are blocked, and no Apply action exists.
 
 | File | Update |
 |------|--------|
@@ -231,13 +250,13 @@ apps/web/.../backtests/kernel-insights.component.ts  # optional
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
-| 1 | Ship #6.4.2 in MVP? | Effort | ⏭ Defer (JC-1) | ⏭ recommended |
-| 2 | Metrics field names from backtest API | Prompt mapping | ⏭ Adapt to Milestone 3 schema | ⏸ if schema unstable |
-| 3 | Angular panels required? | DoD | ⏭ API required; UI recommended | ⏭ stubbed |
+| 1 | Ship #6.4.2 in MVP? | Effort | Defer; keep documented flag/schema for follow-up (JC-1) | Adopted |
+| 2 | Metrics field names from backtest API | Prompt mapping | Use the canonical Sprint 3.3 names/decimal strings | Adopted; verify predecessor contract |
+| 3 | Angular panels required? | User-facing story completion | Required minimal panels | Adopted |
 
 ---
 
@@ -272,6 +291,7 @@ apps/web/.../backtests/kernel-insights.component.ts  # optional
 - [ ] `#6.4.2` either shipped behind flag **or** explicitly deferred in ROADMAP/CHANGELOG
 - [ ] No AI path mutates strategies/orders
 - [ ] E2E stub coverage for explain-backtest + suggest-improvements
+- [ ] Backtest detail Kernel panel covers success/disabled/quota/provider-error states
 - [ ] Milestone 6 exit criteria documented complete
 - [ ] PR: `feat: add ai backtest explain and suggestions`
 

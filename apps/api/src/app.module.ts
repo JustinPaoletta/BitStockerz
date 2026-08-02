@@ -11,7 +11,6 @@ import { AppService } from './app.service';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
-import { StrategiesController } from './strategies/strategies.controller';
 import { ErrorTestController } from './error-test/error-test.controller';
 import { buildPinoLoggerOptions } from './common/logging/pino.config';
 import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
@@ -23,6 +22,8 @@ import { JobsModule } from './jobs/jobs.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { MetricsInterceptor } from './observability/metrics.interceptor';
 import { ObservabilityModule } from './observability/observability.module';
+import { StrategiesModule } from './strategies/strategies.module';
+import { BacktestModule } from './backtest/backtest.module';
 
 @Module({
   imports: [
@@ -31,6 +32,8 @@ import { ObservabilityModule } from './observability/observability.module';
     MarketDataModule,
     JobsModule,
     ObservabilityModule,
+    StrategiesModule,
+    BacktestModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
@@ -38,12 +41,7 @@ import { ObservabilityModule } from './observability/observability.module';
         buildPinoLoggerOptions(config.logging),
     }),
   ],
-  controllers: [
-    AppController,
-    HealthController,
-    StrategiesController,
-    ErrorTestController,
-  ],
+  controllers: [AppController, HealthController, ErrorTestController],
   providers: [
     AppService,
     HealthService,

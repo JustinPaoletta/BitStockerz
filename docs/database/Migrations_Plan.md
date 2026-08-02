@@ -18,6 +18,10 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Core auth tables (0.1–0.2) | `20260421100000_core_auth_tables` |
 | Symbols + OHLCV schemas (1.1) | `20260421110000_sprint_1_1_symbols_and_market_data` |
 | Jobs table (1.3) | `20260711000000_sprint_1_3_jobs` |
+| Audit events (1.4) | `20260724150000_sprint_1_4_audit_events` |
+| Strategies + immutable versions (2.1) | `20260725120000_sprint_2_1_strategies` |
+| Backtest runs/results/trades/equity points (3.2) | `20260728213000_sprint_3_2_backtest_tables` |
+| Deferred backtest-run → job foreign key (3.2) | `20260728213100_sprint_3_2_backtest_runs_job_fk` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 
@@ -110,13 +114,10 @@ No new core tables are required for metrics/health endpoints beyond `audit_event
 
 **Migrations**
 
-1. `V0200__create_strategies.sql`  
-   - Creates: `strategies`  
-   - Source: `DDL/03_strategy_lab.sql`
-
-2. `V0201__create_strategy_versions.sql`  
-   - Creates: `strategy_versions`  
-   - Source: `DDL/03_strategy_lab.sql`
+1. Prisma folder `20260725120000_sprint_2_1_strategies` (conceptual `V0200__create_strategies.sql` + `V0201__create_strategy_versions.sql`)
+   - Creates `strategies` first, then `strategy_versions`, with foreign keys and uniqueness/index contracts.
+   - Source: `DDL/03_strategy_lab.sql`.
+   - Applied and verified against local MySQL on July 25, 2026.
 
 Run after Sprint 1 migrations.
 
@@ -126,6 +127,7 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
+- Implemented July 27, 2026 with no migration.
 - No new tables required.  
 - All indicator/condition structures live in `strategy_versions.definition_json`.
 
@@ -135,8 +137,10 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
+- Implemented July 28, 2026 with no migration.
 - No new tables required.  
-- You may add non-critical indexes later if needed (e.g., `idx_strategies_user`).
+- The existing strategy owner index and strategy-version uniqueness constraint
+  support the CRUD and serialized version-allocation paths.
 
 ---
 
@@ -144,36 +148,26 @@ Run after Sprint 1 migrations.
 
 **Migrations**
 
-- No new tables yet. This sprint is engine logic only, operating in memory.
+- Implemented July 28, 2026 with no migration.
+- No new tables required. The pure engine and thin Nest adapter operate only
+  on caller-supplied definitions and bars.
 
 ---
 
 ## Sprint 3.2 – Backtest Persistence
 
-**Migrations**
+**Implemented July 28, 2026**
 
-1. `V0300__create_backtest_runs.sql`  
-   - Creates: `backtest_runs`  
-   - Source: `DDL/04_backtesting.sql` (table definition only; FK to `jobs` added later via `V0330__add_fk_backtest_runs_job.sql`).
+| Prisma migration folder | Conceptual migrations | Effect |
+| --- | --- | --- |
+| `20260728213000_sprint_3_2_backtest_tables` | V0300–V0303 | Creates `backtest_runs` (including nullable `job_id` without its FK), `backtest_results`, `backtest_trades`, and `backtest_equity_points` in FK-safe order with all required indexes and cascade/restrict rules. |
+| `20260728213100_sprint_3_2_backtest_runs_job_fk` | V0330 | Adds `fk_backtest_runs_job` to `jobs.id` with `ON DELETE SET NULL ON UPDATE CASCADE`. |
 
-2. `V0301__create_backtest_results.sql`  
-   - Creates: `backtest_results`  
-   - Source: `DDL/04_backtesting.sql`
-
-3. `V0302__create_backtest_trades.sql`  
-   - Creates: `backtest_trades`  
-   - Source: `DDL/04_backtesting.sql`
-
-4. `V0303__create_backtest_equity_points.sql`  
-   - Creates: `backtest_equity_points`  
-   - Source: `DDL/04_backtesting.sql`
-
-5. `V0330__add_fk_backtest_runs_job.sql`  
-   - Alters: `backtest_runs` to add FK to `jobs.id` (`ON DELETE SET NULL`).  
-   - Source: `DDL/04_backtesting.sql` (constraint only).
-
-Note: If your migration tool requires strict FK ordering with `jobs`, ensure `V0130__create_jobs.sql` runs before `V0330__add_fk_backtest_runs_job.sql`.  
-If you prefer, you can omit the FK initially and add `V0330` later once jobs exist.
+The two-folder packaging preserves the conceptual DDL traceability while
+keeping table creation atomic and the deferred jobs constraint independently
+auditable. Sprint 1.3's jobs migration is already earlier in the runnable
+Prisma history. Both migrations apply with `npm --prefix apps/api run db:deploy`
+and are exercised by the MySQL persistence smoke gate.
 
 ---
 
@@ -181,8 +175,11 @@ If you prefer, you can omit the FK initially and add `V0330` later once jobs exi
 
 **Migrations**
 
+- Implemented July 28, 2026 with no migration.
 - No new tables.  
-- Optional: add indexes if profiling requires it (e.g., `idx_backtests_user_created`).
+- Sprint 3.2 already provides required list index
+  `idx_backtests_user_created`; add further indexes only if profiling justifies
+  a separate migration.
 
 ---
 
@@ -190,7 +187,8 @@ If you prefer, you can omit the FK initially and add `V0330` later once jobs exi
 
 **Migrations**
 
-- No schema changes.
+- Implemented July 28, 2026 with no migration.
+- No schema changes; `apps/web` consumes the Sprint 3.3 HTTP contracts.
 
 ---
 

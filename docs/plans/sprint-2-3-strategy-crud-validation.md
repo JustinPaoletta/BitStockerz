@@ -1,9 +1,9 @@
 # Sprint 2.3 — Strategy CRUD & Validation
 
-**Status:** Plan ready (not started)  
-**Roadmap marker:** after Sprint 2.2 completes  
-**Branch (when implementing):** `feat/sprint-2-3-strategy-crud-validation`  
-**PR base:** `feat/sprint-2-2-indicators-rule-schema` (or `main` if merged)
+**Status:** Implemented locally and verified (July 28, 2026); unmerged in draft PR #9
+**Roadmap marker:** Completed locally; Sprints 3.1–3.4 are also complete and `START HERE` is Sprint 4.1
+**Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (stacked PR #9)
+**PR base:** `main`
 
 **Overview:** Complete the Strategy Lab HTTP surface: list, get, update (new version), soft-delete, validate endpoint, and human-readable summary. Exit criterion: users can create and manage valid strategies ready for backtesting (Milestone 3).
 
@@ -49,7 +49,7 @@
 
 ---
 
-## Draft acceptance criteria
+## Acceptance criteria (implementation contract)
 
 ### #4.5.1 – Create strategy
 
@@ -60,29 +60,33 @@
 ### #4.5.2 – Update strategy (new version)
 
 - `PUT /api/strategies/:id` (owner only):
-  - Updates mutable metadata: `name?`, `description?`, `asset_type?`, `timeframe?` (with 2.1 constraints)
+  - Updates mutable metadata: `name?`, `description?`, `asset_type?`, `timeframe?` (with 2.1 constraints). `description: null` clears it; omission leaves it unchanged.
   - If `definition` present → append new `strategy_versions` row with `version_number = max+1`
   - If only metadata changes → **no** new version (JC-2)
+- Reject an empty update body with `400 VALIDATION_ERROR`
+- A present valid `definition` creates a version even when byte-for-byte/equivalent to the latest definition; clients omit the field for metadata-only updates
 - Cannot update soft-deleted strategies → `404`
 - Name conflict with another strategy → `409`
-- Invalid definition → `400 VALIDATION_ERROR`
+- Invalid definition → `400 STRATEGY_VALIDATION_ERROR`
 - Response returns latest version payload
 
 ### #4.5.3 – List strategies
 
 - `GET /api/strategies` returns current user’s **active** strategies
-- Default sort: `updated_at DESC`
-- Query: `limit?` default 50 max 100; `offset?` optional (JC-3: offset pagination MVP)
+- Default sort: `updated_at DESC, id ASC` (stable tie-breaker)
+- Query: `limit?` default 50 max 100; `offset?` default 0, min 0, max 10,000 (JC-3: offset pagination MVP)
+- Response: `{ "items": [...], "limit": 50, "offset": 0, "has_more": false }`; compute `has_more` by fetching `limit + 1`, not a required count query
 - Items: `{ id, name, asset_type, timeframe, version_number, created_at, updated_at, is_active }` — no full definition in list
 
 ### #4.5.4 – Get strategy details
 
 - `GET /api/strategies/:id` returns metadata + latest definition + `version_number` + `summary`
 - Optional query `version?` to fetch a historical version (JC-4: **include** — cheap and helps backtest debugging)
+- Historical response returns current strategy metadata plus the requested `version_number`, `version_created_at`, definition, summary, and `is_latest`; a missing version returns `404 STRATEGY_VERSION_NOT_FOUND`
 
 ### #4.5.5 – Soft delete
 
-- `DELETE /api/strategies/:id` sets `is_active=false`; returns `204` or `200` with `{ id, is_active: false }` (JC-5: **204**)
+- `DELETE /api/strategies/:id` sets `is_active=false` and returns `204` with no response body (JC-5).
 - Idempotent: second delete → `404`
 - List/get hide soft-deleted
 - Name remains reserved (per Sprint 2.1 JC-1)
@@ -97,7 +101,7 @@
 {
   "is_valid": false,
   "errors": [
-    { "path": "entry.conditions[0].op", "code": "UNKNOWN_OP", "message": "..." }
+    { "path": "entry.conditions[0].op", "code": "UNKNOWN_OPERATOR", "message": "..." }
   ],
   "summary": null
 }
@@ -105,6 +109,7 @@
 
 - When valid: `is_valid: true`, `errors: []`, `summary` string present
 - Does not persist
+- `strategy_id` validates the latest version of an active owned strategy; missing, inactive, or cross-user ids return `404 STRATEGY_NOT_FOUND`
 
 ### #4.6.2 – Human-readable summary
 
@@ -134,7 +139,7 @@ All routes authenticated except `GET /strategies/indicators` (2.2).
 
 **Route ordering:** Register `GET indicators` and `POST validate` **before** `GET :id` to avoid param capture.
 
-**Error codes:** Continue using `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`. Domain-specific codes (`STRATEGY_INVALID`) optional until Sprint 4.3 `#8.3.2` consolidation — see JC-6.
+**Error codes:** Add and use `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, and `STRATEGY_VALIDATION_ERROR` in this sprint. Keep generic `CONFLICT` for duplicate names and `UNAUTHORIZED` for a missing session. These names are canonical for downstream backtest/AI plans (JC-6).
 
 ---
 
@@ -145,7 +150,7 @@ flowchart TB
   C[StrategiesController]
   S[StrategiesService]
   V[StrategyDefinitionValidator]
-  SUM[StrategySummaryService]
+  SUM[Pure StrategySummary]
   C --> S
   S --> V
   S --> SUM
@@ -171,11 +176,13 @@ Use Prisma `$transaction` when updating metadata + inserting version ([Prisma tr
 
 1. AC into MVP_04 for #4.5.x / #4.6.x.
 2. Summary pure function + unit tests.
-3. List + delete + update service methods (memory + Prisma).
+3. List + delete + update service methods (memory + Prisma). Serialize version allocation by locking the strategy row inside the transaction (or use a serializable transaction with bounded retry on Prisma `P2034`); do not rely on an unprotected `max + 1`.
 4. Validate endpoint (reuse validator + summary).
 5. Controller routes + DTO; fix route order.
 6. Audit hooks; e2e happy/error paths.
-7. Docs: API_Inventory §4 complete; manual section; ROADMAP exit + START HERE → 3.1; CHANGELOG.
+7. Docs at Sprint 2.3 completion: API_Inventory §4, manual section, roadmap
+   exit, then-current marker advanced to Sprint 3.1, and CHANGELOG. The plan
+   header carries the current marker.
 
 Gates:
 
@@ -190,13 +197,13 @@ npm --prefix apps/api run test:e2e
 
 ## Best-practice checklist
 
-- [ ] Owner checks on every id-based route (404 not 403 for cross-user)
-- [ ] Append-only versions for definition changes
-- [ ] Soft delete via `is_active` matching DDL
-- [ ] Deterministic summary (no LLM)
-- [ ] Validate endpoint side-effect free
-- [ ] class-validator DTOs ([NestJS pipes](https://docs.nestjs.com/pipes))
-- [ ] Conventional Commit: `feat: complete strategy crud and validation`
+- [x] Owner checks on every id-based route (404 not 403 for cross-user)
+- [x] Append-only versions for definition changes
+- [x] Soft delete via `is_active` matching DDL
+- [x] Deterministic summary (no LLM)
+- [x] Validate endpoint side-effect free
+- [x] class-validator DTOs ([NestJS pipes](https://docs.nestjs.com/pipes))
+- [x] Conventional Commit: `feat: complete strategy crud and validation`
 
 ---
 
@@ -211,13 +218,13 @@ npm --prefix apps/api run test:e2e
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | PUT partial vs full body | Inventory says “same as POST or partial” | ⏭ Partial PATCH-like PUT | ⏭ stubbed |
-| 2 | Historical version query | Not in inventory | ⏭ Support `?version=` | ⏭ stubbed |
-| 3 | Delete response 204 vs body | Style | ⏭ 204 | ⏭ stubbed |
+| 1 | PUT partial vs full body | Locks update DTO and version behavior | Partial PATCH-like PUT; empty body invalid | Adopted |
+| 2 | Historical version query | Not in inventory | Support `?version=` | Adopted |
+| 3 | Delete response 204 vs body | Style | 204 | Adopted |
 
 ---
 
@@ -255,9 +262,9 @@ npm --prefix apps/api run test:e2e
 
 ### JC-6 — Strategy-specific ErrorCode enum values
 
-**Decision:** Defer new enum members to Sprint 4.3 (`#8.3.2`); use existing codes + `fieldErrors` / detail messages now.  
-**Why:** Avoid piecemeal enum churn across milestones.  
-**Discuss if:** Add `STRATEGY_NOT_FOUND` / `STRATEGY_INVALID` immediately.
+**Decision:** Add `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, and `STRATEGY_VALIDATION_ERROR` now; Sprint 4.3 adds the exhaustive catalog test but does not rename them.
+**Why:** Backtest persistence and AI ownership checks depend on stable strategy codes before Sprint 4.3.
+**Discuss if:** The product intentionally wants only generic resource codes across every domain; change all downstream plans together.
 
 ### JC-7 — Validate XOR body
 
@@ -282,11 +289,13 @@ npm --prefix apps/api run test:e2e
 
 ## Definition of done
 
-- [ ] All #4.5.x and #4.6.x AC implemented
-- [ ] ROADMAP Milestone 2 exit satisfied; START HERE → Sprint 3.1
-- [ ] API_Inventory §4 marked implemented
-- [ ] Gates green; manual curls for full CRUD + validate
-- [ ] PR opened
+- [x] All #4.5.x and #4.6.x AC implemented
+- [x] Historical completion record: ROADMAP Milestone 2 exit was satisfied and
+  its marker advanced to Sprint 3.1; the current marker is maintained above.
+- [x] API_Inventory §4 marked implemented
+- [x] Gates green; automated curl smoke covers full CRUD + validate and the
+      canonical manual checklist is merge-ready
+- [x] PR #9 open with Sprint 2.3 stacked
 
 ---
 

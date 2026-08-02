@@ -35,6 +35,11 @@ const DEFAULT_JOBS_SYSTEM_USER_ID = '00000000-0000-4000-8000-000000000001';
 const DEFAULT_STALE_EQUITY_DAILY_MS = 172_800_000; // 48h
 const DEFAULT_STALE_CRYPTO_DAILY_MS = 129_600_000; // 36h
 const DEFAULT_STALE_CRYPTO_HOURLY_MS = 7_200_000; // 2h
+const DEFAULT_BACKTEST_TIMEOUT_MS = 5_000;
+const DEFAULT_BACKTEST_MAX_BARS = 10_000;
+const DEFAULT_BACKTEST_MAX_SERIES_CELLS = 250_000;
+const DEFAULT_BACKTEST_RATE_LIMIT_WINDOW_MS = 60_000;
+const DEFAULT_BACKTEST_RATE_LIMIT_MAX_REQUESTS = 10;
 
 export interface ServerConfig {
   port: number;
@@ -92,6 +97,14 @@ export interface MetricsConfig {
   enabled: boolean;
 }
 
+export interface BacktestConfig {
+  timeoutMs: number;
+  maxBars: number;
+  maxSeriesCells: number;
+  rateLimitWindowMs: number;
+  rateLimitMaxRequests: number;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
@@ -101,6 +114,7 @@ export interface AppConfig {
   jobs: JobsConfig;
   marketData: MarketDataConfig;
   metrics: MetricsConfig;
+  backtest: BacktestConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -170,8 +184,7 @@ function parseNodeEnvironment(
   errors: string[],
 ): NodeEnvironment {
   const normalized = normalizeOptional(rawValue)?.toLowerCase() as
-    | NodeEnvironment
-    | undefined;
+    NodeEnvironment | undefined;
   if (normalized === undefined) {
     return 'development';
   }
@@ -475,6 +488,46 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     true,
     errors,
   );
+  const backtestTimeoutMs = parseInteger(
+    'BACKTEST_TIMEOUT_MS',
+    env.BACKTEST_TIMEOUT_MS,
+    DEFAULT_BACKTEST_TIMEOUT_MS,
+    100,
+    60_000,
+    errors,
+  );
+  const backtestMaxBars = parseInteger(
+    'BACKTEST_MAX_BARS',
+    env.BACKTEST_MAX_BARS,
+    DEFAULT_BACKTEST_MAX_BARS,
+    1,
+    1_000_000,
+    errors,
+  );
+  const backtestMaxSeriesCells = parseInteger(
+    'BACKTEST_MAX_SERIES_CELLS',
+    env.BACKTEST_MAX_SERIES_CELLS,
+    DEFAULT_BACKTEST_MAX_SERIES_CELLS,
+    1,
+    10_000_000,
+    errors,
+  );
+  const backtestRateLimitWindowMs = parseInteger(
+    'BACKTEST_RATE_LIMIT_WINDOW_MS',
+    env.BACKTEST_RATE_LIMIT_WINDOW_MS,
+    DEFAULT_BACKTEST_RATE_LIMIT_WINDOW_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const backtestRateLimitMaxRequests = parseInteger(
+    'BACKTEST_RATE_LIMIT_MAX_REQUESTS',
+    env.BACKTEST_RATE_LIMIT_MAX_REQUESTS,
+    DEFAULT_BACKTEST_RATE_LIMIT_MAX_REQUESTS,
+    1,
+    10_000,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
@@ -529,6 +582,13 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     metrics: {
       enabled: metricsEnabled,
     },
+    backtest: {
+      timeoutMs: backtestTimeoutMs,
+      maxBars: backtestMaxBars,
+      maxSeriesCells: backtestMaxSeriesCells,
+      rateLimitWindowMs: backtestRateLimitWindowMs,
+      rateLimitMaxRequests: backtestRateLimitMaxRequests,
+    },
   };
 }
 
@@ -570,5 +630,9 @@ export class AppConfigService {
 
   get metrics(): MetricsConfig {
     return this.config.metrics;
+  }
+
+  get backtest(): BacktestConfig {
+    return this.config.backtest;
   }
 }

@@ -47,6 +47,30 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().auditEvent;
   }
 
+  get strategy() {
+    return this.requireClient().strategy;
+  }
+
+  get strategyVersion() {
+    return this.requireClient().strategyVersion;
+  }
+
+  get backtestRun() {
+    return this.requireClient().backtestRun;
+  }
+
+  get backtestResult() {
+    return this.requireClient().backtestResult;
+  }
+
+  get backtestTrade() {
+    return this.requireClient().backtestTrade;
+  }
+
+  get backtestEquityPoint() {
+    return this.requireClient().backtestEquityPoint;
+  }
+
   get user() {
     return this.requireClient().user;
   }
@@ -57,8 +81,13 @@ export class PrismaService implements OnModuleDestroy {
 
   $transaction<R>(
     fn: (tx: Prisma.TransactionClient) => Promise<R>,
+    options?: {
+      maxWait?: number;
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    },
   ): Promise<R> {
-    return this.requireClient().$transaction(fn);
+    return this.requireClient().$transaction(fn, options);
   }
 
   async onModuleDestroy(): Promise<void> {

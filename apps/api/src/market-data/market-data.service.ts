@@ -6,6 +6,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AssetType,
+  BacktestBarsInput,
   CandleOrder,
   CryptoCandleResponse,
   CryptoCandlesInput,
@@ -17,6 +18,7 @@ import {
   SymbolResponse,
   SymbolSearchInput,
 } from './market-data.types';
+import type { EngineBar } from '../backtest/engine/backtest-engine.types';
 import { CandleSanityService } from './sanity/candle-sanity.service';
 import type {
   SanityBarInput,
@@ -51,6 +53,7 @@ export interface MarketDataHealthResponse {
 
 const SANITY_SAMPLE_LIMIT = 40;
 const ACTIVE_SYMBOL_WHERE = { symbol: { isActive: true } } as const;
+const MILLISECONDS_PER_DAY = 86_400_000;
 
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -107,6 +110,121 @@ export class MarketDataService {
     }
 
     return toSymbolResponse(record);
+  }
+
+  async requireActiveSymbolById(symbolId: number): Promise<SymbolResponse> {
+    let record: SymbolRecord | undefined;
+    if (this.prisma.isEnabled) {
+      const prismaRecord = await this.prisma.symbol.findUnique({
+        where: { id: symbolId },
+      });
+      record =
+        prismaRecord?.isActive === true
+          ? fromPrismaSymbol(prismaRecord)
+          : undefined;
+    } else {
+      record = SEED_SYMBOLS.find(
+        (candidate) => candidate.id === symbolId && candidate.isActive,
+      );
+    }
+
+    if (!record) {
+      throw new DomainError(
+        ErrorCode.NOT_FOUND,
+        `Symbol id ${symbolId} was not found.`,
+      );
+    }
+
+    return toSymbolResponse(record);
+  }
+
+  async getSymbolsByIds(symbolIds: number[]): Promise<SymbolResponse[]> {
+    const ids = [...new Set(symbolIds)];
+    if (ids.length === 0) {
+      return [];
+    }
+    if (this.prisma.isEnabled) {
+      const records = await this.prisma.symbol.findMany({
+        where: { id: { in: ids } },
+        orderBy: { id: 'asc' },
+      });
+      return records.map((record) =>
+        toSymbolResponse(fromPrismaSymbol(record)),
+      );
+    }
+    return SEED_SYMBOLS.filter((record) => ids.includes(record.id))
+      .sort((left, right) => left.id - right.id)
+      .map(toSymbolResponse);
+  }
+
+  async getBacktestBars(input: BacktestBarsInput): Promise<EngineBar[]> {
+    const take = input.limit + 1;
+    if (input.assetType === 'EQUITY') {
+      if (input.timeframe !== '1d') {
+        throw validationError(
+          'timeframe',
+          'Equity backtests support only the 1d timeframe.',
+        );
+      }
+      const records: DailyBarLike[] = this.prisma.isEnabled
+        ? await this.prisma.equityDailyBar.findMany({
+            where: {
+              symbolId: input.symbolId,
+              date: { gte: input.start, lte: input.end },
+            },
+            orderBy: { date: 'asc' },
+            take,
+          })
+        : selectBacktestSeedBars(
+            SEED_EQUITY_DAILY_BARS,
+            input.symbolId,
+            'date',
+            input.start,
+            input.end,
+            take,
+          );
+      return records.map((record) => toEngineBar(record, record.date));
+    }
+
+    if (input.timeframe === '1d') {
+      const records: DailyBarLike[] = this.prisma.isEnabled
+        ? await this.prisma.cryptoDailyBar.findMany({
+            where: {
+              symbolId: input.symbolId,
+              date: { gte: input.start, lte: input.end },
+            },
+            orderBy: { date: 'asc' },
+            take,
+          })
+        : selectBacktestSeedBars(
+            SEED_CRYPTO_DAILY_BARS,
+            input.symbolId,
+            'date',
+            input.start,
+            input.end,
+            take,
+          );
+      return records.map((record) => toEngineBar(record, record.date));
+    }
+
+    const records: HourlyBarLike[] = this.prisma.isEnabled
+      ? await this.prisma.cryptoHourlyBar.findMany({
+          where: {
+            symbolId: input.symbolId,
+            timestamp: { gte: input.start, lte: input.end },
+          },
+          orderBy: { timestamp: 'asc' },
+          take,
+        })
+      : selectBacktestSeedBars(
+          SEED_CRYPTO_HOURLY_BARS,
+          input.symbolId,
+          'timestamp',
+          input.start,
+          input.end,
+          take,
+        );
+    return records.map((record) => toEngineBar(record, record.timestamp));
   }
 
   async searchSymbols(input: SymbolSearchInput): Promise<SymbolResponse[]> {
@@ -456,7 +574,14 @@ export class MarketDataService {
       };
     }
 
-    const ageMs = Math.max(0, now.getTime() - latest.getTime());
+    // A date-only candle covers its full UTC calendar day. Measure staleness
+    // from the end of that coverage window so Friday daily data does not become
+    // falsely stale during the weekend merely because its DB value is midnight.
+    const coverageEndMs =
+      kind === 'daily'
+        ? latest.getTime() + MILLISECONDS_PER_DAY
+        : latest.getTime();
+    const ageMs = Math.max(0, now.getTime() - coverageEndMs);
     return {
       asset_type: assetType,
       interval,
@@ -722,6 +847,45 @@ function selectSeedBars<T extends { symbolId: number }>(
   }
 
   return selected.slice(0, range.limit);
+}
+
+function selectBacktestSeedBars<T extends { symbolId: number }>(
+  records: T[],
+  symbolId: number,
+  timeField: 'date' | 'timestamp',
+  start: Date,
+  end: Date,
+  limit: number,
+): T[] {
+  return records
+    .filter((record) => {
+      const timestamp = (record[timeField as keyof T] as Date).getTime();
+      return (
+        record.symbolId === symbolId &&
+        timestamp >= start.getTime() &&
+        timestamp <= end.getTime()
+      );
+    })
+    .sort(
+      (left, right) =>
+        (left[timeField as keyof T] as Date).getTime() -
+        (right[timeField as keyof T] as Date).getTime(),
+    )
+    .slice(0, limit);
+}
+
+function toEngineBar(
+  record: DailyBarLike | HourlyBarLike,
+  ts: Date,
+): EngineBar {
+  return {
+    ts,
+    open: toNumber(record.open),
+    high: toNumber(record.high),
+    low: toNumber(record.low),
+    close: toNumber(record.close),
+    volume: toNumber(record.volume),
+  };
 }
 
 function toDailyCandleResponse(

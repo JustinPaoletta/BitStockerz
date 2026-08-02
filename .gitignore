@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.angular/
 
 # Build outputs
 dist/
@@ -58,3 +59,5 @@ temp/
 
 # Codex
 .codex/environments/environment.toml
+.playwright-cli/
+.playwright-mcp/

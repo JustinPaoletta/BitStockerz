@@ -29,7 +29,7 @@
 |------|----------------|
 | New DDL / migrations | Migrations_Plan §4.3: APIs only |
 | Order cancel / amend | Not in MVP |
-| Realized P&amp;L ledger table | Derive later if needed; summary uses unrealized only per inventory |
+| Realized P&amp;L ledger/analytics | Explicit post-MVP follow-up; canonical inventory/story scope is unrealized summary |
 | Strategy/backtest feature APIs | Codes only; implementation in Milestones 2–3 |
 | Angular portfolio widgets | Milestone 5 |
 | Account reset | JC-5 still deferred |
@@ -50,15 +50,16 @@
 
 ---
 
-## Draft acceptance criteria (lock before coding)
+## Acceptance criteria (implementation contract)
 
 ### #3.4.1 – Current positions API
 
 - `GET /api/trading/positions` (AuthGuard).
 - Returns **non-zero** positions for the caller’s paper account.
 - Each row: `symbol`, `quantity`, `avg_cost` (strings for DECIMAL).
-- Optional enrichment (not in inventory — **omit** unless Dev asks): `market_price`, `market_value`, `unrealized_pnl` — **default omit** to match inventory; MTM lives in portfolio summary (JC-13).
-- Empty book → `[]`.
+- Omit `market_price`, `market_value`, and `unrealized_pnl` from this response; MTM lives in portfolio summary (JC-13). Adding them later requires an explicit additive API-contract change.
+- Empty book → `{ "positions": [] }`.
+- Deterministic order: `symbol ASC, position.id ASC`; the dashboard’s first five positions therefore have stable semantics.
 - Seed + MySQL parity.
 
 ### #3.4.2 – Portfolio summary
@@ -70,34 +71,38 @@
   - `total_equity` — `cash_balance + total_position_value`
   - `unrealized_pnl_total` — sum of `(latest_close - avg_cost) * qty`
 - If a held symbol has **no** market price: **fail closed** with `TRADING_NO_MARKET_PRICE` (JC-14) — do not silently treat as 0.
-- DECIMAL string encoding consistent with JC-10.
+- DECIMAL string encoding consistent with the repository contract: all aggregate currency values use exactly 2 decimal places.
 - Unit tests: flat book, mixed winners/losers, missing price, empty positions (equity = cash).
 
 ### #3.5.1 – Recent orders
 
 - `GET /api/trading/orders` (AuthGuard).
-- Query: `status?`, `symbol?`, `limit?` (default **50**, max **200**).
-- Newest first (`requested_at DESC`).
-- Same order shape as POST response `order` object (list wrapper — JC-15).
+- Query: `status?`, `symbol?`, `limit?` (default **50**, max **200**), `offset?` (default 0, max 10,000).
+- Newest first (`requested_at DESC, id ASC`).
+- Response `{ orders, limit, offset, has_more }`; same item shape as POST response `order` object (JC-15).
 - Includes `REJECTED` / `FILLED` (and any `CANCELLED` if introduced later).
 
 ### #3.5.2 – Trade history
 
 - `GET /api/trading/executions` (AuthGuard).
-- Query: `symbol?`, `limit?` (default **100**, max **500**).
-- Newest first (`executed_at DESC`).
+- Query: `symbol?`, `limit?` (default **100**, max **500**), `offset?` (default 0, max 10,000).
+- Newest first (`executed_at DESC, id ASC`).
+- Response `{ executions, limit, offset, has_more }`.
 - Each item: `executed_at`, `symbol`, `side`, `quantity`, `price`, `notional` (`qty * price`).
+- `notional` uses the same 2dp `ROUND_HALF_UP` cash-notional rule as the fill ledger.
 - Only real fills (no reject rows).
 
 ### #8.3.2 – Domain error types
 
-Expand `ErrorCode` + `ERROR_CATALOG`; exhaustive catalog unit test; migrate provisional 4.2 trading throws. Keep RFC 7807 filter shape. **No** strategy/backtest controllers — codes only.
+Verify and complete `ErrorCode` + `ERROR_CATALOG` entries introduced by 2.3, 3.1–3.3, and 4.1–4.2; add an exhaustive catalog unit test and update any stale generic throw sites to the canonical code. Keep the RFC 7807 filter shape. **No** strategy/backtest controllers — codes only.
 
 | Domain | Codes (HTTP) |
 |--------|----------------|
-| Trading (wire now) | `TRADING_NO_MARKET_PRICE` (422), `TRADING_INSUFFICIENT_CASH` (422), `TRADING_INSUFFICIENT_POSITION` (422), `TRADING_RISK_LIMIT` (422), `TRADING_ACCOUNT_INACTIVE` (403), `TRADING_DUPLICATE_ORDER` (409, reserved) |
-| Strategies (stub) | `STRATEGY_NOT_FOUND` (404), `STRATEGY_VALIDATION_ERROR` (400), `STRATEGY_FORBIDDEN` (403) |
-| Backtests (stub) | `BACKTEST_NOT_FOUND` (404), `BACKTEST_VALIDATION_ERROR` (400), `BACKTEST_LIMIT_EXCEEDED` (422), `BACKTEST_FAILED` (500) |
+| Trading (complete catalog coverage) | `TRADING_NO_MARKET_PRICE` (422), `TRADING_INSUFFICIENT_CASH` (422), `TRADING_INSUFFICIENT_POSITION` (422), `TRADING_RISK_LIMIT` (422), `TRADING_ACCOUNT_INACTIVE` (403) |
+| Strategies (already owned by 2.3) | `STRATEGY_NOT_FOUND` (404), `STRATEGY_VERSION_NOT_FOUND` (404), `STRATEGY_VALIDATION_ERROR` (400) |
+| Backtests (already owned by 3.1–3.3) | `BACKTEST_INVALID_DEFINITION` (400), `BACKTEST_INSUFFICIENT_BARS` (400), `BACKTEST_BAR_LIMIT_EXCEEDED` (400), `BACKTEST_RESOURCE_LIMIT_EXCEEDED` (400), `BACKTEST_TIMEOUT` (504), `BACKTEST_NOT_FOUND` (404), `BACKTEST_INVALID_STATE` (409) |
+
+Do not introduce unused near-duplicates (`TRADING_DUPLICATE_ORDER`, `STRATEGY_FORBIDDEN`, `BACKTEST_VALIDATION_ERROR`, `BACKTEST_LIMIT_EXCEEDED`, `BACKTEST_FAILED`). Generic `CONFLICT`, 404 ownership behavior, and `INTERNAL_ERROR` cover those cases.
 
 ---
 
@@ -123,14 +128,14 @@ All routes: Auth required, snake_case, global prefix `/api`.
 
 ```json
 {
-  "cash_balance": "97916.27500000",
-  "total_position_value": "2083.72500000",
-  "total_equity": "100000.00000000",
-  "unrealized_pnl_total": "0.00000000"
+  "cash_balance": "97916.28",
+  "total_position_value": "2083.73",
+  "total_equity": "100000.01",
+  "unrealized_pnl_total": "0.00"
 }
 ```
 
-Notes: cash remains 2dp operationally but may serialize with scale; **prefer 2dp for cash, up to 8dp for crypto-influenced totals** (JC-16) — document chosen formatting helper.
+All four fields are base-currency aggregates and serialize with exactly 2 decimal places (JC-16). Unit prices and quantities remain 8dp.
 
 ### `GET /api/trading/orders?status=FILLED&limit=50`
 
@@ -148,7 +153,10 @@ Notes: cash remains 2dp operationally but may serialize with scale; **prefer 2dp
       "filled_at": "2026-07-25T15:10:00.000Z",
       "client_order_id": "ui-2026-07-25-001"
     }
-  ]
+  ],
+  "limit": 50,
+  "offset": 0,
+  "has_more": false
 }
 ```
 
@@ -163,9 +171,12 @@ Notes: cash remains 2dp operationally but may serialize with scale; **prefer 2dp
       "side": "BUY",
       "quantity": "10.50000000",
       "price": "198.45000000",
-      "notional": "2083.72500000"
+      "notional": "2083.73"
     }
-  ]
+  ],
+  "limit": 100,
+  "offset": 0,
+  "has_more": false
 }
 ```
 
@@ -241,7 +252,7 @@ No Prisma migrations.
 
 ### 2. List queries (#3.5.1 / #3.5.2)
 
-1. `listOrders` / `listExecutions` with filters + limit clamp.
+1. `listOrders` / `listExecutions` with validated filters, limit/offset bounds, stable tie-breaker order, and `limit + 1` `has_more`.
 2. Join/lookup symbol ticker for response.
 3. Unit + e2e.
 
@@ -289,22 +300,22 @@ Gates: `build` / `lint` / `test` / `test:cov` / `test:e2e` / `sprint-delivery-ve
 |------|------------|
 | MTM N+1 price lookups | Batch latest closes by symbol ids |
 | Unrealized P&amp;L confusion vs realized | Document inventory fields only; no realized field yet |
-| Error code rename breaks 4.2 clients | Stabilize names in this sprint; changelog note |
-| Strategy/backtest codes unused | Stub-only; prevent “dead code” lint via catalog test reference |
+| Error code drift breaks earlier clients | Reuse names first introduced in 2.3–4.2; exhaustive catalog test prevents omissions |
+| Strategy/backtest codes appear unused locally | Exhaustive catalog test references the enum; callers already exist in prior sprint branches |
 | Decimal formatting inconsistency | One `formatDecimal(value, scale)` helper |
 | Portfolio endpoint slow with many positions | MVP single account + tiny universe; still batch |
 
 ---
 
-## Dev input required
+## Adopted defaults and override triggers
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | Per-position MTM fields on GET positions | Inventory omits them | ⏭ Omit; summary only | ⏭ |
-| 2 | Missing price → 422 vs zero value | Honesty vs demo resilience | ⏭ 422 fail closed | ⏭ |
-| 3 | List response wrapper keys | Bare array vs `{ orders: [] }` | ⏭ Wrapped objects | ⏭ |
-| 4 | Cash decimal places in summary | Cosmetics | ⏭ cash 2dp; others up to 8 | ⏭ |
-| 5 | `TRADING_DUPLICATE_ORDER` vs silent idempotent 200 | 4.2 chose 200 replay | ⏭ Keep 200; code unused or reserved | ⏭ |
+| 1 | Per-position MTM fields on GET positions | Inventory omits them | Omit; summary only | Adopted |
+| 2 | Missing price → 422 vs zero value | Honesty vs demo resilience | 422 fail closed | Adopted |
+| 3 | List response wrapper keys | Bare array vs wrapped metadata | Wrapped objects with pagination metadata where applicable | Adopted |
+| 4 | Aggregate decimal places | Client consistency | Base-currency aggregates 2dp; qty/unit price 8dp | Adopted |
+| 5 | Duplicate order code | 4.2 chose same-payload replay and generic conflict on mismatch | Do not add `TRADING_DUPLICATE_ORDER` | Adopted |
 
 ---
 
@@ -326,19 +337,19 @@ Gates: `build` / `lint` / `test` / `test:cov` / `test:e2e` / `sprint-delivery-ve
 - **Discuss before implement if:** Prefer partial valuation with `degraded` flag (would expand contract).
 
 ### JC-15 — List wrappers
-- **Decision:** Wrap arrays: `{ orders: [...] }`, `{ executions: [...] }`, `{ positions: [...] }`.
+- **Decision:** Wrap arrays: `{ positions: [...] }`; paginated lists return `{ orders|executions, limit, offset, has_more }`.
 - **Why:** Extensible for `next_cursor` later; consistent with other APIs that use objects.
 - **Discuss before implement if:** Inventory’s “list of orders” must be a raw JSON array.
 
 ### JC-16 — Decimal formatting
-- **Decision:** `cash_balance` → 2 decimal places; qty/price/position values → up to 8, trim trailing zeros optional but stable tests should fix scale.
-- **Why:** Cash is USD cents; crypto qty needs finer scale.
-- **Discuss before implement if:** All-string 8dp everywhere is simpler for clients.
+- **Decision:** Base-currency cash, notional, portfolio values, and P&L → exactly 2 decimal places. Quantity, unit price, and average cost → exactly 8 decimal places.
+- **Why:** Currency ledger is `DECIMAL(18,2)` while crypto quantities/unit prices require finer scale; fixed output scale keeps snapshots and clients stable.
+- **Discuss before implement if:** The database currency scale changes.
 
 ### JC-17 — #8.3.2 stub breadth
-- **Decision:** Add STRATEGY_* and BACKTEST_* codes now even without callers.
-- **Why:** Story explicitly names all three domains; prevents ad-hoc strings later.
-- **Discuss before implement if:** Prefer adding codes only when first thrown (YANGI).
+- **Decision:** Add any still-missing canonical catalog entries and an exhaustive enum↔catalog test; do not rename or duplicate strategy/backtest codes first introduced by Sprints 2.3–3.3.
+- **Why:** #8.3.2 is a consolidation/coverage gate, not a late breaking rename.
+- **Discuss before implement if:** A previously shipped code must change; treat that as a versioned API change and update every plan/client together.
 
 ---
 
@@ -363,7 +374,7 @@ Gates: `build` / `lint` / `test` / `test:cov` / `test:e2e` / `sprint-delivery-ve
 - [ ] Portfolio MTM = positions × JC-1 closes + cash; fail closed on missing price
 - [ ] Exhaustive error catalog; e2e paper loop green; cov ≥90%
 - [ ] Inventory §3 + ROADMAP Milestone 4 done; `START HERE` → 5.1; manual section updated
-- [ ] JC defaults followed or overridden in Dev input
+- [ ] Adopted defaults followed or any override recorded in the plan/PR
 
 ---
 

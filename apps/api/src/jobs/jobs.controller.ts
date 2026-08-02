@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import {
   AUTH_TOKEN_REQUEST_KEY,
@@ -14,11 +15,13 @@ import {
   type AuthenticatedRequest,
 } from '../auth/auth.guard';
 import { AuthService } from '../auth/auth.service';
+import { ApiEndpoint, apiSchemaRef } from '../docs/openapi.decorators';
 import { CreateJobDto } from './dto/create-job.dto';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
 import type { JobPayload, JobRecord } from './jobs.types';
 
+@ApiTags('Jobs')
 @Controller('jobs')
 @UseGuards(AuthGuard)
 export class JobsController {
@@ -29,6 +32,16 @@ export class JobsController {
   ) {}
 
   @Post()
+  @ApiEndpoint({
+    summary: 'Create and execute a job',
+    description:
+      'Creates a supported market-data job and executes it synchronously for the MVP.',
+    status: 201,
+    authenticated: true,
+    responseDescription: 'Final job record after synchronous execution.',
+    responseSchema: apiSchemaRef('Job'),
+    errors: [400, 401, 404, 500, 504],
+  })
   async createJob(
     @Req() request: AuthenticatedRequest,
     @Body() body: CreateJobDto,
@@ -44,6 +57,14 @@ export class JobsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiEndpoint({
+    summary: 'Read an owned job',
+    authenticated: true,
+    responseDescription: 'Current job record.',
+    responseSchema: apiSchemaRef('Job'),
+    errors: [401, 404, 500],
+  })
   async getJob(
     @Req() request: AuthenticatedRequest,
     @Param('id') jobId: string,

@@ -32,6 +32,45 @@ function createService(prisma?: PrismaService): MarketDataService {
   );
 }
 
+function createHealthPrismaMock(latest: Date) {
+  const dailyRecord = {
+    open: 1,
+    high: 2,
+    low: 0.5,
+    close: 1.5,
+    volume: 10,
+    date: latest,
+    symbol: { symbol: 'AAPL' },
+  };
+  const hourlyRecord = {
+    open: 1,
+    high: 2,
+    low: 0.5,
+    close: 1.5,
+    volume: 10,
+    timestamp: latest,
+    symbol: { symbol: 'BTC-USD' },
+  };
+
+  return {
+    isEnabled: true,
+    equityDailyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+      findMany: jest.fn().mockResolvedValue([dailyRecord]),
+    },
+    cryptoDailyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { date: latest } }),
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ ...dailyRecord, symbol: { symbol: 'BTC-USD' } }]),
+    },
+    cryptoHourlyBar: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { timestamp: latest } }),
+      findMany: jest.fn().mockResolvedValue([hourlyRecord]),
+    },
+  };
+}
+
 describe('MarketDataService', () => {
   it('looks up seeded equity symbols case-insensitively when Prisma is disabled', async () => {
     const service = createService();
@@ -59,6 +98,50 @@ describe('MarketDataService', () => {
       expect(error).toBeInstanceOf(DomainError);
       expect((error as DomainError).code).toBe(ErrorCode.NOT_FOUND);
     }
+  });
+
+  it('resolves only active seed symbols by internal id', async () => {
+    const service = createService();
+
+    await expect(service.requireActiveSymbolById(1)).resolves.toMatchObject({
+      id: 1,
+      symbol: 'AAPL',
+      is_active: true,
+    });
+    await expect(service.requireActiveSymbolById(99)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+
+  it('resolves only active Prisma symbols by internal id', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: 7,
+        symbol: 'NVDA',
+        name: 'NVIDIA',
+        assetType: 'EQUITY',
+        exchange: 'NASDAQ',
+        currency: 'USD',
+        baseAsset: null,
+        quoteAsset: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .mockResolvedValueOnce(null);
+    const service = createService({
+      isEnabled: true,
+      symbol: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(service.requireActiveSymbolById(7)).resolves.toMatchObject({
+      id: 7,
+      symbol: 'NVDA',
+    });
+    await expect(service.requireActiveSymbolById(8)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
   });
 
   it('searches seeded symbols by symbol, name, and asset type', async () => {
@@ -224,6 +307,120 @@ describe('MarketDataService', () => {
       orderBy: [{ symbol: 'asc' }],
       take: 3,
     });
+  });
+
+  it('batch-resolves seed symbols, including inactive historical symbols', async () => {
+    const service = createService();
+    await expect(service.getSymbolsByIds([])).resolves.toEqual([]);
+    await expect(service.getSymbolsByIds([1, 1, 999])).resolves.toMatchObject([
+      { id: 1, symbol: 'AAPL' },
+    ]);
+  });
+
+  it('loads bounded ascending seed bars for every supported backtest series', async () => {
+    const service = createService();
+    const equity = await service.getBacktestBars({
+      symbolId: 1,
+      assetType: 'EQUITY',
+      timeframe: '1d',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    const daily = await service.getBacktestBars({
+      symbolId: 4,
+      assetType: 'CRYPTO',
+      timeframe: '1d',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    const hourly = await service.getBacktestBars({
+      symbolId: 4,
+      assetType: 'CRYPTO',
+      timeframe: '1h',
+      start: new Date('2000-01-01T00:00:00Z'),
+      end: new Date('2099-01-01T00:00:00Z'),
+      limit: 2,
+    });
+    for (const bars of [equity, daily, hourly]) {
+      expect(bars).toHaveLength(3);
+      expect(bars[0]).toEqual({
+        ts: expect.any(Date),
+        open: expect.any(Number),
+        high: expect.any(Number),
+        low: expect.any(Number),
+        close: expect.any(Number),
+        volume: expect.any(Number),
+      });
+      expect(bars[0].ts.getTime()).toBeLessThan(bars[1].ts.getTime());
+    }
+    await expect(
+      service.getBacktestBars({
+        symbolId: 1,
+        assetType: 'EQUITY',
+        timeframe: '1h',
+        start: new Date(0),
+        end: new Date(),
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+  });
+
+  it('loads batch symbols and backtest bars from Prisma when enabled', async () => {
+    const symbol = {
+      id: 4,
+      symbol: 'BTC-USD',
+      name: 'Bitcoin',
+      assetType: 'CRYPTO',
+      exchange: null,
+      currency: 'USD',
+      baseAsset: 'BTC',
+      quoteAsset: 'USD',
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const dailyBar = {
+      symbolId: 4,
+      date: new Date('2026-01-01T00:00:00Z'),
+      open: 1,
+      high: 2,
+      low: 0.5,
+      close: 1.5,
+      volume: 10,
+    };
+    const hourlyBar = {
+      ...dailyBar,
+      timestamp: dailyBar.date,
+    };
+    const prisma = {
+      isEnabled: true,
+      symbol: { findMany: jest.fn().mockResolvedValue([symbol]) },
+      equityDailyBar: { findMany: jest.fn().mockResolvedValue([dailyBar]) },
+      cryptoDailyBar: { findMany: jest.fn().mockResolvedValue([dailyBar]) },
+      cryptoHourlyBar: { findMany: jest.fn().mockResolvedValue([hourlyBar]) },
+    } as unknown as PrismaService;
+    const service = createService(prisma);
+    await expect(service.getSymbolsByIds([4])).resolves.toMatchObject([
+      { id: 4, is_active: false },
+    ]);
+    for (const [assetType, timeframe] of [
+      ['EQUITY', '1d'],
+      ['CRYPTO', '1d'],
+      ['CRYPTO', '1h'],
+    ] as const) {
+      await expect(
+        service.getBacktestBars({
+          symbolId: 4,
+          assetType,
+          timeframe,
+          start: new Date('2026-01-01T00:00:00Z'),
+          end: new Date('2026-01-02T00:00:00Z'),
+          limit: 5,
+        }),
+      ).resolves.toHaveLength(1);
+    }
   });
 
   describe('candles', () => {
@@ -676,6 +873,31 @@ describe('MarketDataService', () => {
       expect(health.series.every((series) => series.stale)).toBe(true);
     });
 
+    it('measures daily staleness after the represented UTC day ends', async () => {
+      const friday = new Date('2026-07-24T00:00:00.000Z');
+      const service = createService(createHealthPrismaMock(friday) as never);
+
+      const sunday = await service.getMarketDataHealth(
+        new Date('2026-07-26T03:00:00.000Z'),
+      );
+      const monday = await service.getMarketDataHealth(
+        new Date('2026-07-27T01:00:00.000Z'),
+      );
+
+      expect(
+        sunday.series.find(
+          (series) =>
+            series.asset_type === 'EQUITY' && series.interval === '1d',
+        ),
+      ).toMatchObject({ age_ms: 97_200_000, stale: false });
+      expect(
+        monday.series.find(
+          (series) =>
+            series.asset_type === 'EQUITY' && series.interval === '1d',
+        ),
+      ).toMatchObject({ age_ms: 176_400_000, stale: true });
+    });
+
     it('aggregates health from Prisma when enabled', async () => {
       const latest = new Date('2026-07-24T00:00:00.000Z');
       const prisma = {
@@ -756,9 +978,7 @@ describe('MarketDataService', () => {
           findMany: jest.fn().mockResolvedValue([]),
         },
         cryptoHourlyBar: {
-          aggregate: jest
-            .fn()
-            .mockResolvedValue({ _max: { timestamp: null } }),
+          aggregate: jest.fn().mockResolvedValue({ _max: { timestamp: null } }),
           findMany: jest.fn().mockResolvedValue([]),
         },
       };
@@ -767,9 +987,9 @@ describe('MarketDataService', () => {
       const health = await service.getMarketDataHealth();
 
       expect(health.status).toBe('unhealthy');
-      expect(health.series.every((series) => series.latest_timestamp === null)).toBe(
-        true,
-      );
+      expect(
+        health.series.every((series) => series.latest_timestamp === null),
+      ).toBe(true);
     });
 
     it('marks health degraded when sanity finds invalid bars', async () => {
