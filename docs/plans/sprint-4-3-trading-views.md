@@ -1,9 +1,9 @@
 # Sprint 4.3 — Trading Views
 
-**Status:** Plan ready  
+**Status:** Completed (verified August 2, 2026)
 **Roadmap marker:** Milestone 4 exit — “Users can simulate trades with correct P&amp;L”  
-**Branch:** `feat/sprint-4-3-trading-views`  
-**PR base:** `feat/sprint-4-2-orders-executions`
+**Branch:** `codex/sprint-4-paper-trading` (combined Milestone 4 delivery)
+**PR base:** `main`
 
 **Overview:** Ship read APIs for positions, portfolio summary, recent orders, and trade history. Consolidate domain `ErrorCode` values for trading (and stubs for strategies/backtests) per #8.3.2. No new tables — reads only over 4.1/4.2 data with seed/DB parity and mark-to-market using JC-1 close prices.
 
@@ -280,17 +280,17 @@ Gates: `build` / `lint` / `test` / `test:cov` / `test:e2e` / `sprint-delivery-ve
 
 ## Best-practice checklist
 
-- [ ] Read APIs are side-effect free (except documented lazy paper-account heal from 4.1)
-- [ ] Indexed order/execution queries — use existing DDL indexes
-- [ ] MTM uses same close source as fills (JC-1) — no divergent price logic
-- [ ] Fail closed on missing MTM price (JC-14)
-- [ ] Exhaustive `ErrorCode` ↔ catalog test
-- [ ] RFC 7807 unchanged shape ([Sprint 8.3.1 filter](../../apps/api/src/common/errors/http-exception.filter.ts))
-- [ ] Snake_case list wrappers consistent (`positions` / `orders` / `executions`)
-- [ ] AuthGuard on all trading GETs
-- [ ] Coverage ≥90%; e2e covers full paper loop
-- [ ] ROADMAP Milestone 4 exit criteria satisfied
-- [ ] Conventional Commits; PR onto 4.2 branch
+- [x] Read APIs are side-effect free (except documented lazy paper-account heal from 4.1)
+- [x] Indexed order/execution queries — use existing DDL indexes
+- [x] MTM uses same close source as fills (JC-1) — no divergent price logic
+- [x] Fail closed on missing MTM price (JC-14)
+- [x] Exhaustive `ErrorCode` ↔ catalog test
+- [x] RFC 7807 unchanged shape ([Sprint 8.3.1 filter](../../apps/api/src/common/errors/http-exception.filter.ts))
+- [x] Snake_case list wrappers consistent (`positions` / `orders` / `executions`)
+- [x] AuthGuard on all trading GETs
+- [x] Coverage ≥90%; e2e covers full paper loop
+- [x] ROADMAP Milestone 4 exit criteria satisfied
+- [x] Conventional Commits; combined Milestone 4 PR onto `main`
 
 ---
 
@@ -369,12 +369,12 @@ Gates: `build` / `lint` / `test` / `test:cov` / `test:e2e` / `sprint-delivery-ve
 
 ## Definition of done
 
-- [ ] PR stacked on 4.2; **no** new migrations
-- [ ] #3.4.1–3.4.2, #3.5.1–3.5.2, #8.3.2 meet AC
-- [ ] Portfolio MTM = positions × JC-1 closes + cash; fail closed on missing price
-- [ ] Exhaustive error catalog; e2e paper loop green; cov ≥90%
-- [ ] Inventory §3 + ROADMAP Milestone 4 done; `START HERE` → 5.1; manual section updated
-- [ ] Adopted defaults followed or any override recorded in the plan/PR
+- [x] Combined Milestone 4 branch; **no** Sprint 4.3 migration
+- [x] #3.4.1–3.4.2, #3.5.1–3.5.2, #8.3.2 meet AC
+- [x] Portfolio MTM = positions × JC-1 closes + cash; fail closed on missing price
+- [x] Exhaustive error catalog; e2e paper loop green; cov ≥90%
+- [x] Inventory §3 + ROADMAP Milestone 4 done; `START HERE` → 5.1; manual section updated
+- [x] Adopted defaults followed; combined-delivery branch override recorded above
 
 ---
 

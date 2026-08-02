@@ -8,7 +8,7 @@ describe('AuthController', () => {
     record: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditService;
 
-  it('registers users through the auth service', () => {
+  it('registers users and awaits paper-account provisioning', async () => {
     const registerMock = jest.fn(() => ({
       access_token: 'token-1',
       token_type: 'Bearer',
@@ -20,15 +20,17 @@ describe('AuthController', () => {
       login: jest.fn(),
       logout: jest.fn(),
       getProfileBySessionToken: jest.fn(),
+      ensurePaperAccountForUser: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuthService;
 
     const controller = new AuthController(authService, audit);
-    const result = controller.register({
+    const result = await controller.register({
       email: 'user@example.com',
       display_name: 'User',
     });
 
     expect(registerMock).toHaveBeenCalledWith('user@example.com', 'User');
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledWith('u1');
     expect(result.access_token).toBe('token-1');
   });
 
@@ -117,6 +119,7 @@ describe('AuthController', () => {
       getProfileBySessionToken: jest.fn(),
       createWebAuthnRegisterOptions: createOptionsMock,
       verifyWebAuthnRegistration: verifyMock,
+      ensurePaperAccountForUser: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuthService;
 
     const controller = new AuthController(authService, audit);
@@ -145,6 +148,7 @@ describe('AuthController', () => {
       displayName: undefined,
       response: undefined,
     });
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledWith('u1');
     expect(options.challenge_id).toBe('challenge-1');
     expect(verify.token_type).toBe('Bearer');
   });
@@ -175,6 +179,7 @@ describe('AuthController', () => {
       createOAuthStart: createOAuthStartMock,
       completeGoogleOAuth: googleCallbackMock,
       completeAppleOAuth: appleCallbackMock,
+      ensurePaperAccountForUser: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuthService;
 
     const controller = new AuthController(authService, audit);
@@ -209,6 +214,8 @@ describe('AuthController', () => {
       email: 'apple@example.com',
       user: '{"email":"apple@example.com"}',
     });
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledWith('u1');
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledWith('u2');
     expect(googleStart.provider).toBe('google');
     expect(appleStart.provider).toBe('apple');
     expect(googleCallback.access_token).toBe('token-google');
@@ -228,6 +235,7 @@ describe('AuthController', () => {
       email: 'apple2@example.com',
       user: undefined,
     });
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledTimes(3);
   });
 
   it('starts and verifies webauthn login flows', async () => {
@@ -292,6 +300,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       getProfileBySessionToken: jest.fn(),
       completeAppleOAuth: appleCallbackMock,
+      ensurePaperAccountForUser: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuthService;
     const controller = new AuthController(authService, audit);
 
@@ -310,6 +319,7 @@ describe('AuthController', () => {
       email: 'apple-post@example.com',
       user: '{"email":"apple-post@example.com"}',
     });
+    expect(authService.ensurePaperAccountForUser).toHaveBeenCalledWith('u4');
     expect(callback.access_token).toBe('token-apple-post');
   });
 

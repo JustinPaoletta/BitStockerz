@@ -40,6 +40,10 @@ const DEFAULT_BACKTEST_MAX_BARS = 10_000;
 const DEFAULT_BACKTEST_MAX_SERIES_CELLS = 250_000;
 const DEFAULT_BACKTEST_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_BACKTEST_RATE_LIMIT_MAX_REQUESTS = 10;
+const DEFAULT_PAPER_STARTING_BALANCE = '100000.00';
+const DEFAULT_TRADING_MAX_ORDER_NOTIONAL = '25000';
+const DEFAULT_TRADING_MAX_POSITION_PCT = '25';
+const DEFAULT_TRADING_MIN_CASH_REMAINING = '0';
 
 export interface ServerConfig {
   port: number;
@@ -105,6 +109,13 @@ export interface BacktestConfig {
   rateLimitMaxRequests: number;
 }
 
+export interface TradingConfig {
+  paperStartingBalance: string;
+  maxOrderNotional: string;
+  maxPositionPct: string;
+  minCashRemaining: string;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
@@ -115,6 +126,7 @@ export interface AppConfig {
   marketData: MarketDataConfig;
   metrics: MetricsConfig;
   backtest: BacktestConfig;
+  trading: TradingConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -177,6 +189,35 @@ function parseInteger(
   }
 
   return parsed;
+}
+
+function parseDecimal(
+  envName: string,
+  rawValue: string | undefined,
+  defaultValue: string,
+  options: { min: number; max: number; scale: number },
+  errors: string[],
+): string {
+  const normalized = normalizeOptional(rawValue);
+  if (normalized === undefined) {
+    return defaultValue;
+  }
+
+  const decimalPattern = new RegExp(`^\\d+(?:\\.\\d{1,${options.scale}})?$`);
+  const parsed = Number(normalized);
+  if (
+    !decimalPattern.test(normalized) ||
+    !Number.isFinite(parsed) ||
+    parsed < options.min ||
+    parsed > options.max
+  ) {
+    errors.push(
+      `${envName} must be a decimal between ${options.min} and ${options.max} with at most ${options.scale} decimal places`,
+    );
+    return defaultValue;
+  }
+
+  return normalized;
 }
 
 function parseNodeEnvironment(
@@ -528,6 +569,34 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     10_000,
     errors,
   );
+  const paperStartingBalance = parseDecimal(
+    'PAPER_STARTING_BALANCE',
+    env.PAPER_STARTING_BALANCE,
+    DEFAULT_PAPER_STARTING_BALANCE,
+    { min: 0.01, max: 9_999_999_999.99, scale: 2 },
+    errors,
+  );
+  const maxOrderNotional = parseDecimal(
+    'TRADING_MAX_ORDER_NOTIONAL',
+    env.TRADING_MAX_ORDER_NOTIONAL,
+    DEFAULT_TRADING_MAX_ORDER_NOTIONAL,
+    { min: 0.01, max: 9_999_999_999.99, scale: 2 },
+    errors,
+  );
+  const maxPositionPct = parseDecimal(
+    'TRADING_MAX_POSITION_PCT',
+    env.TRADING_MAX_POSITION_PCT,
+    DEFAULT_TRADING_MAX_POSITION_PCT,
+    { min: 0.01, max: 100, scale: 4 },
+    errors,
+  );
+  const minCashRemaining = parseDecimal(
+    'TRADING_MIN_CASH_REMAINING',
+    env.TRADING_MIN_CASH_REMAINING,
+    DEFAULT_TRADING_MIN_CASH_REMAINING,
+    { min: 0, max: 9_999_999_999.99, scale: 2 },
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
@@ -589,6 +658,12 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       rateLimitWindowMs: backtestRateLimitWindowMs,
       rateLimitMaxRequests: backtestRateLimitMaxRequests,
     },
+    trading: {
+      paperStartingBalance,
+      maxOrderNotional,
+      maxPositionPct,
+      minCashRemaining,
+    },
   };
 }
 
@@ -634,5 +709,9 @@ export class AppConfigService {
 
   get backtest(): BacktestConfig {
     return this.config.backtest;
+  }
+
+  get trading(): TradingConfig {
+    return this.config.trading;
   }
 }

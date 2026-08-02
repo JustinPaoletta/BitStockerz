@@ -11,9 +11,8 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 3.3**,
-and `apps/web` implements the Sprint 3.4 consumer
-(Sprints 2.1–3.4 are locally verified in draft PR #9):
+The runnable API in `apps/api` currently implements through **Sprint 4.3**,
+and `apps/web` implements the Sprint 3.4 backtest consumer:
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -29,24 +28,27 @@ and `apps/web` implements the Sprint 3.4 consumer
 | Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads |
 | Backtest execution APIs | Implemented (3.3) | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit |
 | Backtest UI | Implemented (3.4) | Angular list/run/detail flow, metrics, complete equity chart, and stable-id paged trades table |
-| Trading | Planned | Described below; not implemented yet |
+| Paper trading | Implemented (4.1–4.3) | Default account, atomic market fills, positions/cash, risk/idempotency, portfolio MTM, and owner-scoped order/execution history |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle
-fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory.
+fixtures, jobs, strategies, backtests, paper trading, metrics, and audit events
+are in-memory.
 Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
 `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
 see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL
 (the `webauthn_credentials` table exists but is unused by the auth runtime
 today); persisted job, strategy, and backtest operations create or remap a
-minimal `users` row for foreign keys via `ensureUserPersisted`. If the same
+minimal `users` row for foreign keys via `ensureUserPersisted`; successful
+signup paths synchronously provision the paper account. If the same
 email is re-registered under a new in-memory user id, that helper atomically
 remaps the stale MySQL user row and reassigns its jobs, strategies, backtest
-runs, audit events, and credentials instead of deleting history. Ingestion
+runs, paper account (and therefore its trading history), audit events, and
+credentials instead of deleting history. Ingestion
 upserts those seed OHLCV bars into bar tables when the database is enabled
 (re-run ingestion after an API restart if you need DB health to match the
 latest seed window).
 
-Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
+Sections still marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
 For the generated contract covering shipped routes, run the API and open
 `http://localhost:4000/api/docs`. Machine-readable OpenAPI 3.0 documents are
@@ -102,6 +104,11 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 | BACKTEST_TIMEOUT | 504 | backtest-timeout | Backtest timed out |
 | BACKTEST_NOT_FOUND | 404 | backtest-not-found | Backtest not found |
 | BACKTEST_INVALID_STATE | 409 | backtest-invalid-state | Invalid backtest state |
+| TRADING_ACCOUNT_INACTIVE | 403 | trading-account-inactive | Paper account inactive |
+| TRADING_NO_MARKET_PRICE | 422 | trading-no-market-price | Market price unavailable |
+| TRADING_INSUFFICIENT_CASH | 422 | trading-insufficient-cash | Insufficient cash |
+| TRADING_INSUFFICIENT_POSITION | 422 | trading-insufficient-position | Insufficient position |
+| TRADING_RISK_LIMIT | 422 | trading-risk-limit | Trading risk limit |
 | CONFLICT | 409 | conflict | Conflict |
 | RATE_LIMITED | 429 | rate-limited | Rate limited |
 | INTERNAL_ERROR | 500 | internal | Internal server error |
@@ -113,14 +120,14 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
   details are available and contains `{ field, reason }` entries.
 
 Domain-specific additions are owned by their implementation sprints and are
-canonical for later clients. Sprint 2.3 and Backtesting codes are implemented;
-later rows are planned:
+canonical for later clients. Strategy, backtest, and trading codes are
+implemented; later rows are planned:
 
 | Owner | Codes |
 | --- | --- |
 | Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
 | Sprints 3.1–3.3 (implemented) | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
-| Sprints 4.1–4.3 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
+| Sprints 4.1–4.3 (implemented) | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
 | Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
 ### 0.2 Client examples
@@ -213,14 +220,16 @@ Update display preferences (`display_name`, `base_currency`). Only `USD` is acce
 
 ---
 
-### 1.2 Paper Account (per user) (Planned)
+### 1.2 Paper Account (per user) (implemented in Sprint 4.1)
 
 **GET `/paper-account`**  
 Return the current user’s paper trading account.
 
 - Response: `{ id, base_currency, starting_balance, cash_balance, created_at }`
 
-(Planned: create the paper account when paper trading ships — story #1.3.1 / Sprint 4.1. Registration today does not create a paper account.)
+Successful email, passkey-registration, Google, and Apple new-user paths await
+idempotent account provisioning. The read lazily heals a missing legacy
+account, and the MySQL owner-remap path retains the account and its history.
 
 ---
 
@@ -333,12 +342,13 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`,
   `job.completed`, `job.failed`, `market_data.ingestion_requested`,
   `strategy.created`, `strategy.updated`, `strategy.deleted`, and
-  `backtest.requested`.
+  `backtest.requested`, plus `trading.order_filled` and
+  `trading.order_rejected`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
 
-## 3. Paper Trading APIs (#3) (Planned)
+## 3. Paper Trading APIs (#3) (implemented in Sprints 4.1–4.3)
 
 ### 3.1 Orders
 

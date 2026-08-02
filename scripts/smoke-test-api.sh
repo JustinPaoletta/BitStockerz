@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BitStockerz API smoke tests — logs pass/fail per scenario.
-# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|2.3|3.3|all] [--base-url URL]
+# Usage: ./scripts/smoke-test-api.sh [--sprint 1.2|1.3|2.1|2.2|2.3|3.3|4|all] [--base-url URL]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -78,6 +78,28 @@ http_json() {
     code="$(curl -s -o "$tmp" -w "%{http_code}" -X "$method" "$BASE_URL$path")"
   fi
   HTTP_CODE="$code"
+  HTTP_BODY="$(cat "$tmp")"
+  rm -f "$tmp"
+}
+
+http_auth_json() {
+  local method="$1"
+  local path="$2"
+  local token="$3"
+  local body="${4:-}"
+  local tmp
+  tmp="$(mktemp)"
+  if [[ -n "$body" ]]; then
+    HTTP_CODE="$(curl -s -o "$tmp" -w "%{http_code}" -X "$method" \
+      -H "Authorization: Bearer $token" \
+      -H 'Content-Type: application/json' \
+      -d "$body" \
+      "$BASE_URL$path")"
+  else
+    HTTP_CODE="$(curl -s -o "$tmp" -w "%{http_code}" -X "$method" \
+      -H "Authorization: Bearer $token" \
+      "$BASE_URL$path")"
+  fi
   HTTP_BODY="$(cat "$tmp")"
   rm -f "$tmp"
 }
@@ -751,6 +773,155 @@ run_sprint_33() {
   rm -f "$tmp"
 }
 
+run_sprint_4() {
+  log "=== Sprint 4 — paper accounts, orders, executions, positions, and valuation ==="
+
+  local email="trading-smoke-$(date +%s)-$$@example.com"
+  http_json POST "/auth/register" "{\"email\":\"$email\",\"display_name\":\"Trading Smoke\"}"
+  if [[ "$HTTP_CODE" != "201" ]]; then
+    record_fail "4 auth register" "http=$HTTP_CODE"
+    return 1
+  fi
+  local trading_token
+  trading_token="$(echo "$HTTP_BODY" | jq -r '.access_token')"
+  if [[ -z "$trading_token" || "$trading_token" == "null" ]]; then
+    record_fail "4 auth register" "missing access_token"
+    return 1
+  fi
+  record_pass "4 auth register + paper-account provisioning"
+
+  http_auth_json POST "/market-data/ingestion/equity" "$trading_token" '{"symbol":"AAPL"}'
+  if [[ "$HTTP_CODE" == "201" ]] &&
+    echo "$HTTP_BODY" | jq -e '.status == "completed"' >/dev/null 2>&1; then
+    record_pass "4 current AAPL close available"
+  else
+    record_fail "4 AAPL ingestion prerequisite" "http=$HTTP_CODE"
+    return 1
+  fi
+
+  http_auth_json GET "/paper-account" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.base_currency == "USD" and .starting_balance == "100000.00" and
+     .cash_balance == "100000.00"' >/dev/null 2>&1; then
+    record_pass "4.1 fixed-scale paper account"
+  else
+    record_fail "4.1 GET paper account" "http=$HTTP_CODE body=$(echo "$HTTP_BODY" | head -c 250)"
+  fi
+
+  local client_id="smoke-buy-$(date +%s)-$$"
+  local buy_body
+  buy_body="$(jq -cn --arg client "$client_id" \
+    '{symbol:"AAPL",side:"BUY",quantity:"1",client_order_id:$client}')"
+  http_auth_json POST "/trading/orders" "$trading_token" "$buy_body"
+  local order_id
+  order_id="$(echo "$HTTP_BODY" | jq -r '.order.id')"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.order.status == "FILLED" and .order.symbol == "AAPL" and
+     .order.quantity == "1.00000000" and
+     (.order.avg_fill_price | type) == "string"' >/dev/null 2>&1; then
+    record_pass "4.2 market BUY fills"
+  else
+    record_fail "4.2 market BUY" "http=$HTTP_CODE body=$(echo "$HTTP_BODY" | head -c 250)"
+    return 1
+  fi
+
+  http_auth_json POST "/trading/orders" "$trading_token" "$buy_body"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg id "$order_id" '.order.id == $id and .order.status == "FILLED"' >/dev/null 2>&1; then
+    record_pass "4.2 idempotent replay returns original order"
+  else
+    record_fail "4.2 idempotent replay" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json GET "/paper-account" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '(.cash_balance | tonumber) < (.starting_balance | tonumber)' >/dev/null 2>&1; then
+    record_pass "4.1 filled BUY debits cash once"
+  else
+    record_fail "4.1 BUY cash balance" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json GET "/trading/positions" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.positions == [{symbol:"AAPL",quantity:"1.00000000",avg_cost:.positions[0].avg_cost}] and
+     (.positions[0].avg_cost | type) == "string"' >/dev/null 2>&1; then
+    record_pass "4.3 current positions"
+  else
+    record_fail "4.3 GET positions" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json GET "/trading/portfolio-summary" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.total_equity == "100000.00" and .unrealized_pnl_total == "0.00"' >/dev/null 2>&1; then
+    record_pass "4.3 mark-to-market portfolio summary"
+  else
+    record_fail "4.3 portfolio summary" "http=$HTTP_CODE body=$(echo "$HTTP_BODY" | head -c 250)"
+  fi
+
+  http_auth_json GET "/trading/orders?status=FILLED&symbol=AAPL&limit=1&offset=0" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    --arg id "$order_id" '.orders[0].id == $id and .limit == 1 and .offset == 0' >/dev/null 2>&1; then
+    record_pass "4.3 filtered order history"
+  else
+    record_fail "4.3 order history" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json GET "/trading/executions?symbol=AAPL&limit=10&offset=0" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.executions | length == 1 and .[0].symbol == "AAPL" and
+     (.[0].notional | type) == "string"' >/dev/null 2>&1; then
+    record_pass "4.3 execution history has one idempotent fill"
+  else
+    record_fail "4.3 execution history" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json POST "/trading/orders" "$trading_token" \
+    "{\"symbol\":\"AAPL\",\"side\":\"BUY\",\"quantity\":\"9999\",\"client_order_id\":\"$client_id-risk\"}"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.order.status == "REJECTED" and .order.reject_reason == "MAX_ORDER_NOTIONAL"' >/dev/null 2>&1; then
+    record_pass "4.2 persisted risk rejection"
+  else
+    record_fail "4.2 risk rejection" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json POST "/trading/orders" "$trading_token" \
+    "$(jq -cn --arg client "$client_id" \
+      '{symbol:"AAPL",side:"BUY",quantity:"2",client_order_id:$client}')"
+  if [[ "$HTTP_CODE" == "409" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "CONFLICT"' >/dev/null 2>&1; then
+    record_pass "4.2 semantic idempotency conflict"
+  else
+    record_fail "4.2 idempotency conflict" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json POST "/trading/orders" "$trading_token" \
+    '{"symbol":"AAPL","side":"SELL","quantity":"1"}'
+  http_auth_json GET "/trading/positions" "$trading_token"
+  if [[ "$HTTP_CODE" == "200" ]] && echo "$HTTP_BODY" | jq -e \
+    '.positions == []' >/dev/null 2>&1; then
+    record_pass "4.1 partial/full sell position lifecycle"
+  else
+    record_fail "4.1 close position" "http=$HTTP_CODE"
+  fi
+
+  http_json GET "/paper-account"
+  if [[ "$HTTP_CODE" == "401" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "UNAUTHORIZED"' >/dev/null 2>&1; then
+    record_pass "4 protected routes reject missing auth"
+  else
+    record_fail "4 unauthenticated paper account" "http=$HTTP_CODE"
+  fi
+
+  http_auth_json POST "/trading/orders" "$trading_token" \
+    '{"symbol":"AAPL","side":"BUY","quantity":1}'
+  if [[ "$HTTP_CODE" == "400" ]] && echo "$HTTP_BODY" | jq -e \
+    '.code == "VALIDATION_ERROR"' >/dev/null 2>&1; then
+    record_pass "4 strict decimal-string validation"
+  else
+    record_fail "4 invalid numeric quantity" "http=$HTTP_CODE"
+  fi
+}
+
 run_db_persisted_candles() {
   # Only when the caller already exported DATABASE_URL (e.g. KEEP_DATABASE_URL=1).
   # Do not reload apps/api/.env here: default verify starts the API in seed mode
@@ -782,6 +953,7 @@ main() {
     1.3) run_sprint_13; run_db_persisted_candles ;;
     2.1|2.2|2.3) run_sprint_21 ;;
     3.3) run_sprint_33 ;;
+    4|4.1|4.2|4.3) run_sprint_4 ;;
     2.1-restart|2.3-restart) run_sprint_21_restart ;;
     all)
       if [[ -n "${DATABASE_URL:-}" ]]; then
@@ -798,8 +970,9 @@ main() {
       fi
       run_sprint_21
       run_sprint_33
+      run_sprint_4
       ;;
-    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, 2.3, 3.3, or all)" >&2; exit 1 ;;
+    *) echo "Invalid --sprint: $SPRINT_SCOPE (use 1.2, 1.3, 2.1, 2.2, 2.3, 3.3, 4, or all)" >&2; exit 1 ;;
   esac
 
   log "=== Summary: $PASS passed, $FAIL failed, $SKIP skipped ==="

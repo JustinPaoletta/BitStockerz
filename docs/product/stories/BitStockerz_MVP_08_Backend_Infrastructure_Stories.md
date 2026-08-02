@@ -32,6 +32,8 @@ Dependencies:
 - Extended in Sprint 3.3 (July 28, 2026): bounded backtest logs, terminal
   counts/durations, backtest-domain errors, request diagnostics, and
   `backtest.requested` audit metadata.
+- Completed in Sprint 4.3 (August 2, 2026): #8.3.2 canonical trading,
+  strategy, and backtest error catalogs with exhaustive enum coverage.
 
 ---
 
@@ -83,6 +85,13 @@ Acceptance criteria:
 
 ### Story 8.3.1 – Standardized API error response format
 ### Story 8.3.2 – Domain error types for trading, strategies, and backtests
+
+Acceptance criteria (completed in Sprint 4.3):
+- Every stable `ErrorCode` has one typed catalog entry and RFC 7807 mapping.
+- Trading uses canonical inactive-account, unavailable-price,
+  insufficient-cash/position, and risk-limit codes; no duplicate aliases.
+- An exhaustive test compares every enum value to the catalog so additions
+  cannot silently omit HTTP metadata.
 
 ---
 

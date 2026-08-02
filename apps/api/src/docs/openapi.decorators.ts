@@ -9,7 +9,7 @@ import {
 export const BEARER_AUTH_SCHEME = 'bearer-session';
 
 export type DocumentedErrorStatus =
-  400 | 401 | 403 | 404 | 409 | 429 | 500 | 504;
+  400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 504;
 
 interface ApiEndpointOptions {
   summary: string;
@@ -27,6 +27,7 @@ const ERROR_DESCRIPTIONS: Record<DocumentedErrorStatus, string> = {
   403: 'Authenticated user is not allowed to perform the operation.',
   404: 'Requested resource was not found or is not visible to this user.',
   409: 'Request conflicts with the current resource state.',
+  422: 'Request is valid but cannot be processed under domain rules.',
   429: 'Request rate limit exceeded.',
   500: 'Unexpected internal error. Quote the returned requestId when reporting it.',
   504: 'Operation exceeded its configured execution deadline.',

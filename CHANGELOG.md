@@ -14,6 +14,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Sprint 4 paper trading: one default USD paper account per signup, fixed-scale
+  cash/position ledger, long-only fractional market orders, latest-close fills,
+  persisted terminal rejections, configurable risk limits, serializable MySQL
+  transactions with account locking/retries, seed-mode copy-on-write locking,
+  and semantic `client_order_id` idempotency.
+- Authenticated paper-account, position, portfolio-summary, order-history, and
+  execution-history APIs with stable ordering/pagination, mark-to-market
+  unrealized P&L, fail-closed price handling, snake-case decimal contracts,
+  generated OpenAPI schemas, and complete trading RFC 7807 codes.
+- Sprint 4 unit/integration/e2e coverage, 15-scenario seed/MySQL HTTP smoke,
+  and an isolated real-MySQL gate covering provisioning, concurrent
+  idempotency, fill/reject accounting, history/valuation, and post-restart
+  ownership remap.
 - Generated OpenAPI 3.0 JSON/YAML and interactive Swagger UI for every shipped
   product route, including bearer authorization, request constraints, response
   schemas, exact backtest list/detail shapes, ordered trade-pagination
@@ -79,9 +92,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
-- PR #9 documentation and its single canonical manual checklist now cover
-  Sprints 2.1–3.4; Sprint 4.1 Accounts & Positions is the next implementation
-  target.
+- The current delivery/docs baseline now covers Milestone 4; Sprint 5.1 Shell
+  & Navigation is the next implementation target.
 - Stale-user auth remapping now preserves owned backtest runs along with jobs,
   strategies, audit events, and credentials.
 - Patched root commit-tooling transitive dependencies `fast-uri` and `js-yaml`;
@@ -105,6 +117,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Documentation
 
+- Synchronized the roadmap, stories, API inventory, runnable/full schema,
+  migration map, MySQL guide, testing strategy, lifecycle/ERD notes, and a
+  copy-paste Sprint 4 manual test workflow through paper-trading completion.
 - Reconciled current-state documentation with the code through Sprint 3.4:
   shipped backtest observability/testing, complete configuration and release
   gates, current roadmap/plan status, migration history, database target-model

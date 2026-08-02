@@ -24,7 +24,9 @@
   not shipped: Sprint 5.1 owns session-shell and OAuth UX hardening (with
   passkey UI currently a stretch item), and Sprint 7.2 owns deployed OAuth
   redirect hosting.
-- Deferred to Sprint 4.1: #1.3.1 (paper account creation on signup)
+- Completed in Sprint 4.1 (verified August 2, 2026): #1.3.1 provisions
+  exactly one default paper account after successful email, passkey, Google,
+  or Apple signup and exposes the authenticated account read API.
 
 ---
 
@@ -216,13 +218,19 @@
 - On first successful signup (passkey or OAuth), create exactly one paper account.
 - Default balance is **$100,000.00 USD**.
 - Balance supports cents (DECIMAL), not float.
+- Re-registering after an API restart preserves the MySQL account, cash, and
+  ownership while remapping the in-memory user id.
+- `GET /api/paper-account` is authenticated and returns fixed-scale decimal
+  strings. Missing legacy accounts are idempotently healed.
+
+**Status:** Completed in Sprint 4.1 (verified August 2, 2026).
 
 **Frontend (Angular) tasks**
 - Post-auth “landing” route that loads account state
 - Show starting balance on dashboard header (placeholder UI)
 
 **Backend (NestJS) tasks**
-- User creation transaction that also creates paper account
+- Awaited, idempotent paper-account provisioning after every successful new-user path
 - `GET /paper-account` endpoint (or included on `/me`)
 
 **Data (MySQL)**

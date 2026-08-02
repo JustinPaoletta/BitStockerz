@@ -1,6 +1,6 @@
 # Local MySQL (Docker)
 
-The BitStockerz API uses **MySQL 8** via Prisma. Database backing is **optional**: without `DATABASE_URL`, the API runs in in-memory seed mode (fine for unit/e2e tests and quick API exploration). Use MySQL when you want persisted jobs, ingested OHLCV bars, symbol rows after import, audit events, strategies, immutable strategy versions, and backtest runs/results/trades/equity points.
+The BitStockerz API uses **MySQL 8** via Prisma. Database backing is **optional**: without `DATABASE_URL`, the API runs in in-memory seed mode (fine for unit/e2e tests and quick API exploration). Use MySQL when you want persisted jobs, ingested OHLCV bars, symbol rows after import, audit events, strategies, immutable strategy versions, backtests, and paper accounts/orders/executions/positions.
 
 ## Prerequisites
 
@@ -101,6 +101,10 @@ Copy from `apps/api/.env.example`. Never commit `.env`.
 | `JOB_TIMEOUT_MS` | No | Job executor timeout (default `30000`). |
 | `JOBS_SYSTEM_USER_ID` | No | User id for scheduled jobs (default matches migration seed). |
 | `MARKET_DATA_HEALTH_URL` | No | Optional URL for `/health/ready` `checks.marketData`. |
+| `PAPER_STARTING_BALANCE` | No | New-account USD balance (default `100000.00`). |
+| `TRADING_MAX_ORDER_NOTIONAL` | No | Maximum order notional (default `25000`). |
+| `TRADING_MAX_POSITION_PCT` | No | Maximum resulting single-symbol equity percentage (default `25`). |
+| `TRADING_MIN_CASH_REMAINING` | No | Minimum cash after BUY (default `0`). |
 
 Prisma CLI commands (`db:deploy`, `db:migrate`) load `apps/api/.env` automatically via `prisma.config.ts`.
 
@@ -117,12 +121,13 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when persisted job, strategy, or backtest ownership requires it (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, the next persisted domain operation remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs, strategies, backtest runs, audit events, and credential rows so history is retained. |
+| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when persisted ownership requires it (`ensureUserPersisted`). Successful signup provisions the paper account. The `webauthn_credentials` table is unused by the auth runtime. Same-email re-registration remaps the MySQL user id and retains jobs, strategies, backtests, paper account/trading history, audit events, and credential rows. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
 | Strategies | In-memory owner-scoped store | `strategies` + immutable `strategy_versions`; metadata/version 1 survive API restarts |
 | Backtests | In-memory owner-scoped copy-on-write aggregates | `backtest_runs`, one-to-one results, trades, and equity points; terminal completion is transactional and immutable |
+| Paper trading | Per-account mutex/copy-on-write maps | `paper_accounts`, `orders`, `executions`, and `positions`; serializable fills lock the account and commit terminal state atomically |
 | `/health/ready` `database` | `{ status: "not_configured" }` | `{ status: "up", latencyMs }` when reachable |
 
 After enabling MySQL on a fresh database, run ingestion (manual testing **Section 8**) before expecting candle endpoints to return data.
@@ -141,7 +146,7 @@ load_database_url_from_api_env "$PWD/apps/api"
 ./scripts/smoke-test-api.sh --sprint all
 ```
 
-The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run a transactional backtest-persistence round trip, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email re-registration. The backtest gate creates isolated fixture rows, checks result/trade/equity counts and terminal immutability, restarts its Nest context to prove completed runs survive the same-email user-id remap, then removes its fixtures.
+The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run transactional backtest and paper-trading persistence round trips, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email re-registration. The trading gate checks provisioning, a concurrent idempotency race, risk rejection, cash/position/history/MTM state, and restart owner remap before removing its isolated fixtures.
 
 The standalone smoke script deliberately does not load `.env`; it uses only an already-exported `DATABASE_URL` so its seed/MySQL assertions cannot silently disagree with the mode of the API process being tested.
 

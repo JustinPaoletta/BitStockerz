@@ -194,13 +194,15 @@ and are exercised by the MySQL persistence smoke gate.
 
 ## Sprint 4.1 – Accounts & Positions
 
+**Status:** Implemented and applied to MySQL August 2, 2026.
+
 **Migrations**
 
-1. `V0400__create_paper_accounts.sql`  
+1. `20260802010000_sprint_4_1_paper_accounts/migration.sql` (conceptual V0400)
    - Creates: `paper_accounts`  
    - Source: `DDL/02_trading.sql`
 
-2. `V0401__create_positions.sql`  
+2. `20260802010100_sprint_4_1_positions/migration.sql` (conceptual V0401)
    - Creates: `positions`  
    - Source: `DDL/02_trading.sql`
 
@@ -208,13 +210,15 @@ and are exercised by the MySQL persistence smoke gate.
 
 ## Sprint 4.2 – Orders & Executions
 
+**Status:** Implemented and applied to MySQL August 2, 2026.
+
 **Migrations**
 
-1. `V0402__create_orders.sql`  
+1. `20260802020000_sprint_4_2_orders/migration.sql` (conceptual V0402)
    - Creates: `orders`  
    - Source: `DDL/02_trading.sql`
 
-2. `V0403__create_executions.sql`  
+2. `20260802020100_sprint_4_2_executions/migration.sql` (conceptual V0403)
    - Creates: `executions`  
    - Source: `DDL/02_trading.sql`
 
@@ -224,7 +228,8 @@ and are exercised by the MySQL persistence smoke gate.
 
 **Migrations**
 
-- No new tables; APIs read from `paper_accounts`, `positions`, `orders`, `executions`.
+- Implemented August 2, 2026 with no migration; APIs read from
+  `paper_accounts`, `positions`, `orders`, and `executions`.
 
 ---
 

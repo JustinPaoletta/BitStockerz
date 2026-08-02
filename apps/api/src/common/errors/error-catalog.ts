@@ -94,6 +94,36 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     title: 'Invalid backtest state',
     defaultDetail: 'The backtest cannot perform that state transition.',
   },
+  [ErrorCode.TRADING_ACCOUNT_INACTIVE]: {
+    httpStatus: 403,
+    typeSuffix: 'trading-account-inactive',
+    title: 'Paper account inactive',
+    defaultDetail: 'The paper trading account is inactive.',
+  },
+  [ErrorCode.TRADING_NO_MARKET_PRICE]: {
+    httpStatus: 422,
+    typeSuffix: 'trading-no-market-price',
+    title: 'Market price unavailable',
+    defaultDetail: 'A current market price is unavailable.',
+  },
+  [ErrorCode.TRADING_INSUFFICIENT_CASH]: {
+    httpStatus: 422,
+    typeSuffix: 'trading-insufficient-cash',
+    title: 'Insufficient cash',
+    defaultDetail: 'The paper account has insufficient cash.',
+  },
+  [ErrorCode.TRADING_INSUFFICIENT_POSITION]: {
+    httpStatus: 422,
+    typeSuffix: 'trading-insufficient-position',
+    title: 'Insufficient position',
+    defaultDetail: 'The paper account has insufficient position quantity.',
+  },
+  [ErrorCode.TRADING_RISK_LIMIT]: {
+    httpStatus: 422,
+    typeSuffix: 'trading-risk-limit',
+    title: 'Trading risk limit',
+    defaultDetail: 'The order exceeds a configured paper-trading risk limit.',
+  },
   [ErrorCode.CONFLICT]: {
     httpStatus: 409,
     typeSuffix: 'conflict',

@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////
 // BitStockerz - DBML for dbdiagram.io
 // Full MVP target structural schema. The runnable
-// schema through Sprint 3.4 is apps/api/prisma/schema.prisma.
+// schema through Sprint 4.3 is apps/api/prisma/schema.prisma.
 // Deletion/lifecycle rules are documented separately.
 ////////////////////////////////////////////////////
 

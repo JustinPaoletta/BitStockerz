@@ -14,10 +14,10 @@ Currently covered areas:
 - Strategy CRUD/versioning, persistence, validation, and summaries
 - Backtest persistence, lifecycle transitions, limits, paging, and HTTP orchestration
 - Generated OpenAPI route/schema/security contracts
-
-Planned with Milestone 4:
 - Position math (average cost, quantity updates)
 - Cash/order/execution accounting
+- Trading risk, price freshness/fallback, idempotency races, portfolio MTM,
+  stable paging, and in-memory transaction rollback
 
 Rules:
 - No database access
@@ -27,7 +27,10 @@ Rules:
 ### 1.2 Integration Tests
 Focus: API + database working together.
 
-**Current state:** There is no separate NestJS “integration” suite against MySQL yet. Persistence is exercised manually and via `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` / smoke tests when a local DB is available.
+**Current state:** Covered HTTP integration runs in seed mode, while isolated
+real-MySQL scripts verify backtest persistence and paper-trading transaction,
+race, valuation, and restart-remap behavior. The full MySQL path is included in
+`KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`.
 
 **Target coverage (as domains ship):**
 - Strategy CRUD
@@ -43,7 +46,7 @@ Rules (when added):
 ### 1.3 End-to-End (E2E)
 Focus: user-visible flows and completed API surface.
 
-**Shipped scope (Sprints 0.1–3.4):**
+**Shipped scope (Sprints 0.1–4.3):**
 
 Happy paths:
 - Health live/ready probes
@@ -53,6 +56,8 @@ Happy paths:
 - Job creation, ingestion endpoints, and job status fetch (authenticated)
 - Owner-scoped strategy CRUD/version history/validation and public indicator catalog
 - Backtest create/list/detail, resource/rate limits, stable trade paging, and owner isolation
+- Paper-account bootstrap, market fill/reject/replay, cash/position lifecycle,
+  portfolio MTM, order/execution paging, strict validation, and owner isolation
 
 Failure paths:
 - RFC 7807 validation, not-found, unauthorized, and rate-limit responses
@@ -70,7 +75,6 @@ Failure paths:
   console/network behavior, Swagger UI, and protected-route logout behavior.
 
 **Future scope (not yet implemented):**
-- Place paper trade → view position & P&L
 - Dashboard aggregation and complete Strategy Lab/paper-trading UI workflows
 - AI assistant flows
 
@@ -84,10 +88,9 @@ Failure paths:
 - MySQL-backed smoke / persistence checks are recommended when touching Prisma or ingestion, via `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`
 - E2E required before merging backend PRs that touch completed API scope
   (health, auth, symbols, candles, jobs, ingestion, market-data health, metrics,
-  strategies, or backtests).
+  strategies, backtests, or paper trading).
 - Web lint, unit, and production build gates are required for Angular changes.
 - `test:cov` enforces **90%** global coverage in `apps/api`
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, and HTTP smoke tests (smoke phase clears `DATABASE_URL` by default).
-- MySQL persistence gates are required when changing persisted strategy or
-  backtest behavior; paper-trading and later-domain flows become required when
-  those domains ship.
+- MySQL persistence gates are required when changing persisted strategy,
+  backtest, or paper-trading behavior.

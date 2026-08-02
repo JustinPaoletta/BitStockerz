@@ -44,8 +44,9 @@ export class AuthController {
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 409, 500],
   })
-  register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto) {
     const result = this.authService.register(dto.email, dto.display_name);
+    await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.register', result);
     return result;
   }
@@ -103,6 +104,7 @@ export class AuthController {
       displayName: dto.display_name,
       response: dto.response,
     });
+    await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.register', result, { method: 'webauthn' });
     return result;
   }
@@ -185,6 +187,7 @@ export class AuthController {
       email: dto.email,
       sub: dto.sub,
     });
+    await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.login', result, { method: 'oauth_google' });
     return result;
   }
@@ -204,6 +207,7 @@ export class AuthController {
       email: dto.email,
       user: dto.user,
     });
+    await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.login', result, { method: 'oauth_apple' });
     return result;
   }
@@ -225,6 +229,7 @@ export class AuthController {
       email: dto.email,
       user: dto.user,
     });
+    await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.login', result, { method: 'oauth_apple' });
     return result;
   }

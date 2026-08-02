@@ -1,6 +1,6 @@
 # Sprint 5.1 — Shell & Navigation (Angular)
 
-**Status:** Plan ready (not started)  
+**Status:** START HERE — ready for development
 **Roadmap marker:** Milestone 5 — Dashboard (Angular Frontend)  
 **Branch (when implementing):** `feat/sprint-5-1-shell-navigation`  
 **PR base:** `feat/sprint-4-3-trading-views` (stacked) → retarget `main` after 4.3 merges
@@ -43,7 +43,7 @@
 | `POST /api/auth/login` / logout | `auth.controller.ts` | Login + logout flows |
 | `GET /api/symbols/search` | `symbols.controller.ts` | Symbol search component |
 | CORS for browser origin | `main.ts` / config | Must allow `apps/web` origin in dev |
-| Milestone 4 trading + Milestone 2–3 APIs | planned | Not required for 5.1 shell; widgets need them in 5.2 |
+| Milestone 4 trading + Milestone 2–3 APIs | implemented | Available for shell integration; widgets consume them in 5.2 |
 | Monorepo root | `package.json` | Add workspace scripts for `apps/web` |
 
 **Implemented predecessor state (Sprint 3.4):** `apps/web` now pins Angular
@@ -267,7 +267,7 @@ apps/web/
 | Angular version churn | Pin latest stable at scaffold time; record in plan JC-1 |
 | Over-building design system | Hard stop: CSS vars + a few shared components |
 | Stub Trade/Strategies/Backtests confuse QA | Label “UI stub — data in later sprints” |
-| Milestone 4 not merged | Stack PR; shell still ships with login + search |
+| Milestone 4 review branch not merged | Base after Milestone 4 lands, or stack temporarily while keeping the shell scope isolated |
 
 ---
 

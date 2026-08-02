@@ -44,6 +44,11 @@ const EXPECTED_OPERATIONS: Record<string, HttpMethod[]> = {
   '/api/strategies/{id}': ['get', 'put', 'delete'],
   '/api/backtests': ['get', 'post'],
   '/api/backtests/{id}': ['get'],
+  '/api/paper-account': ['get'],
+  '/api/trading/orders': ['get', 'post'],
+  '/api/trading/executions': ['get'],
+  '/api/trading/positions': ['get'],
+  '/api/trading/portfolio-summary': ['get'],
 };
 
 const PROTECTED_OPERATIONS = new Set([
@@ -64,6 +69,12 @@ const PROTECTED_OPERATIONS = new Set([
   'get /api/backtests',
   'post /api/backtests',
   'get /api/backtests/{id}',
+  'get /api/paper-account',
+  'get /api/trading/orders',
+  'post /api/trading/orders',
+  'get /api/trading/executions',
+  'get /api/trading/positions',
+  'get /api/trading/portfolio-summary',
 ]);
 
 describe('OpenAPI contract', () => {

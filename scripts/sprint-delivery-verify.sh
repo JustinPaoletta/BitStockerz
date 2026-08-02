@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end Sprint 1.2–3.4 verification. Sprint 3.1 is exercised by the
+# End-to-end Sprint 1.2–4.3 verification. Sprint 3.1 is exercised by the
 # unit/coverage gates, Sprint 3.2 has an isolated MySQL persistence round trip,
 # Sprint 3.3 is covered by e2e + HTTP smoke, and Sprint 3.4 adds web gates.
 # Usage:
@@ -127,6 +127,11 @@ verify_all() {
         INGESTION_SCHEDULER_ENABLED=false \
         LOG_LEVEL=silent \
         npm --prefix apps/api run test:mysql:backtest
+      run_gate "paper-trading:persistence:mysql" env \
+        NODE_ENV=development \
+        INGESTION_SCHEDULER_ENABLED=false \
+        LOG_LEVEL=silent \
+        npm --prefix apps/api run test:mysql:trading
       STRATEGY_STATE_FILE="$(mktemp)"
     else
       log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"

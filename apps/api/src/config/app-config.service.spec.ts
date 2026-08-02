@@ -25,6 +25,12 @@ describe('loadAppConfig', () => {
       rateLimitWindowMs: 60_000,
       rateLimitMaxRequests: 10,
     });
+    expect(config.trading).toEqual({
+      paperStartingBalance: '100000.00',
+      maxOrderNotional: '25000',
+      maxPositionPct: '25',
+      minCashRemaining: '0',
+    });
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
       challengeTtlSeconds: 300,
@@ -84,6 +90,10 @@ describe('loadAppConfig', () => {
       BACKTEST_MAX_SERIES_CELLS: '500000',
       BACKTEST_RATE_LIMIT_WINDOW_MS: '45000',
       BACKTEST_RATE_LIMIT_MAX_REQUESTS: '8',
+      PAPER_STARTING_BALANCE: '250000.50',
+      TRADING_MAX_ORDER_NOTIONAL: '50000.25',
+      TRADING_MAX_POSITION_PCT: '40.125',
+      TRADING_MIN_CASH_REMAINING: '1000.01',
     });
 
     expect(config.server).toEqual({
@@ -102,6 +112,12 @@ describe('loadAppConfig', () => {
       maxSeriesCells: 500_000,
       rateLimitWindowMs: 45_000,
       rateLimitMaxRequests: 8,
+    });
+    expect(config.trading).toEqual({
+      paperStartingBalance: '250000.50',
+      maxOrderNotional: '50000.25',
+      maxPositionPct: '40.125',
+      minCashRemaining: '1000.01',
     });
     expect(config.logging).toEqual({
       level: 'warn',
@@ -232,6 +248,21 @@ describe('loadAppConfig', () => {
     }).toThrow(/Invalid configuration/);
   });
 
+  it.each([
+    ['PAPER_STARTING_BALANCE', '0'],
+    ['PAPER_STARTING_BALANCE', '100.001'],
+    ['TRADING_MAX_ORDER_NOTIONAL', '-1'],
+    ['TRADING_MAX_ORDER_NOTIONAL', 'unlimited'],
+    ['TRADING_MAX_POSITION_PCT', '100.0001'],
+    ['TRADING_MAX_POSITION_PCT', '25.12345'],
+    ['TRADING_MIN_CASH_REMAINING', '-0.01'],
+    ['TRADING_MIN_CASH_REMAINING', '100.001'],
+  ])('rejects invalid %s trading configuration', (name, value) => {
+    expect(() => loadAppConfig({ [name]: value })).toThrow(
+      /Invalid configuration/,
+    );
+  });
+
   it('accepts comma-separated webauthn origins', () => {
     const config = loadAppConfig({
       WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com,http://localhost:4200',
@@ -316,6 +347,12 @@ describe('AppConfigService', () => {
       maxSeriesCells: 250_000,
       rateLimitWindowMs: 60_000,
       rateLimitMaxRequests: 10,
+    });
+    expect(service.trading).toEqual({
+      paperStartingBalance: '100000.00',
+      maxOrderNotional: '25000',
+      maxPositionPct: '25',
+      minCashRemaining: '0',
     });
     expect(service.jobs).toEqual({
       timeoutMs: 30000,

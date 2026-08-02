@@ -9,14 +9,15 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — August 1, 2026
+## Current delivery state — August 2, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
 | Milestones 0–1 | Backend/platform scope completed | Platform, auth APIs, market data, ingestion/jobs, and observability are implemented and verified. Full passkey/OAuth/profile browser UI has not shipped. |
-| Sprints 2.1–3.4 | Implementation complete locally; draft PR #9 | One stacked PR covers Strategy Lab, the deterministic resource-bounded engine, transactional persistence, authenticated backtest execution/list/detail APIs, and the thin Angular results app. |
-| Sprint 4.1 | **START HERE — ready for development** | Add the default paper account, positions, cash-balance updates, ownership boundaries, and valuation rules. |
-| Sprints 4.2–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the thin Angular results app. |
+| Sprints 4.1–4.3 | Implementation complete locally; current review branch | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
+| Sprint 5.1 | **START HERE — ready for development** | Extend the Angular scaffold with the authenticated shell, navigation, dashboard route, and reusable symbol search. |
+| Sprints 5.2–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
@@ -52,7 +53,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
   recovery, and profile browser UX remains future frontend work (session/OAuth
   hardening in Sprint 5.1, deployed redirects in Sprint 7.2, and passkey UI
   currently listed as a Sprint 5.1 stretch item).
-- Note: #1.3.1 remains correctly scheduled in Sprint 4.1 because paper-account creation depends on the paper-trading milestone
+- Follow-up: #1.3.1 shipped in Sprint 4.1 so every successful new-user signup path provisions one paper account.
 
 **Exit**
 - Authenticated API requests
@@ -257,7 +258,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 4.1 – Accounts & Positions
 
-**Status: START HERE — ready for development**
+**Status: Completed (verified August 2, 2026)**
 
 **Implementation plan:** [docs/plans/sprint-4-1-accounts-positions.md](../plans/sprint-4-1-accounts-positions.md)
 
@@ -271,6 +272,8 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 4.2 – Orders & Executions
 
+**Status: Completed (verified August 2, 2026)**
+
 **Implementation plan:** [docs/plans/sprint-4-2-orders-executions.md](../plans/sprint-4-2-orders-executions.md)
 
 **Stories**
@@ -283,6 +286,8 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 ---
 
 ### Sprint 4.3 – Trading Views
+
+**Status: Completed (verified August 2, 2026)**
 
 **Implementation plan:** [docs/plans/sprint-4-3-trading-views.md](../plans/sprint-4-3-trading-views.md)
 
@@ -305,6 +310,8 @@ Frontend note:
 - Any reusable client-side UI components referenced below are Angular components, not React components
 
 ### Sprint 5.1 – Shell & Navigation
+
+**Status: START HERE — ready for development**
 
 **Implementation plan:** [docs/plans/sprint-5-1-shell-navigation.md](../plans/sprint-5-1-shell-navigation.md)
 
