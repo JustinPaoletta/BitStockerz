@@ -9,6 +9,14 @@ Scope includes:
 - Order and trade history
 - Minimal guardrails
 
+## Status
+
+- Not implemented yet.
+- Sprint 4.1 is next and owns paper accounts, positions, and cash-balance
+  domain logic.
+- Sprint 4.2 owns market orders, executions, idempotency, and risk limits.
+- Sprint 4.3 owns portfolio, positions, order, and execution read APIs.
+
 ---
 
 ## Epic 3.1 – Paper Trading Account Model

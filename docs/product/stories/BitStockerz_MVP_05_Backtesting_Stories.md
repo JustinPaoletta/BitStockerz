@@ -20,8 +20,9 @@ Dependencies:
   and #5.6.1; included in draft PR #9.
 - Completed locally in Sprint 3.3 (July 28, 2026): #5.3.1–#5.3.3 and
   #5.5.1–#5.5.2; included in draft PR #9.
-- Completed locally in Sprint 3.4 (July 28, 2026): #5.4.1–#5.4.2 and the thin
-  Angular scaffold needed to demo them; included in draft PR #9.
+- Completed locally in Sprint 3.4 (implemented July 28 and reverified August 1,
+  2026): #5.4.1–#5.4.2 and the thin Angular scaffold needed to demo them;
+  included in draft PR #9.
 
 ---
 

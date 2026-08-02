@@ -1,9 +1,10 @@
 # BitStockerz – Observability
 
 ## 1. Logging
-Structured JSON logs (Pino) to stdout.
+Pino provides structured logging. Development stdout uses `pino-pretty`;
+non-development stdout remains JSON unless file logging is enabled.
 
-Optional local file logging (API):
+Optional file logging (API; redirects the transport to the file):
 - `LOG_TO_FILE=true` writes logs to `logs/api.log` (or `LOG_FILE_PATH` when set)
 - Setting `LOG_FILE_PATH` alone also enables file logging to that path
 - `LOG_FILE_PATH=/absolute/or/relative/path.log` writes logs to a custom file
@@ -22,7 +23,8 @@ Redaction:
 
 Structured logs for (as domains ship):
 - Market data ingestion errors (jobs / ingestion handlers)
-- Backtest start / completion / failure (planned)
+- Backtest start / completion / failure, with ids, bar counts, bounded timing,
+  status, error code, and request id (shipped in Sprint 3.3)
 - Order placement and execution (planned)
 - AI invocation failures (planned)
 
@@ -30,11 +32,12 @@ Structured logs for (as domains ship):
 Shipped in Sprint 1.4 (in-process; `GET /api/metrics`):
 - API request latency / counts / errors
 - Job duration and terminal counts by `job_type`
-- Error counts by domain (`auth`, `market_data`, `jobs`, `unknown`)
+- Backtest duration and terminal counts (`completed`, `failed`, `timed_out`)
+- Error counts by domain (`auth`, `market_data`, `jobs`, `backtest`, `unknown`)
 
 Track later (domain sprints):
-- Backtests per user per day
-- Backtest duration (wire into `MetricsService` when Milestone 3 lands)
+- Paper-trading order/execution metrics
+- AI usage/provider metrics
 
 ## 3. Health Checks
 - Liveness: `GET /api/health/live` returns `{ status: "ok" }`
@@ -43,8 +46,11 @@ Track later (domain sprints):
 
 ## 4. Audit trail
 - Critical actions write `audit_events` (MySQL) or an in-memory ring buffer (seed mode).
-- Events include auth register/login/logout, job lifecycle, and market-data ingestion requests.
+- Events include auth register/login/logout, job lifecycle, market-data
+  ingestion requests, strategy create/update/delete, and bounded
+  `backtest.requested` metadata.
 
 ## 5. Debugging
 - Correlate logs via request IDs
-- Backtest runs reference job IDs (planned with backtesting)
+- Backtest runs reference nullable job IDs; completed jobs can be purged without
+  deleting runs because the foreign key uses `ON DELETE SET NULL`.

@@ -16,9 +16,9 @@ End-to-end workflow for shipping one roadmap sprint. Read [reference.md](referen
 
 ## Before you start
 
-1. Read [docs/product/ROADMAP.md](../../docs/product/ROADMAP.md) and identify the **target sprint** (section marked `START HERE`, or first sprint without `Status: Completed`).
+1. Read [docs/product/ROADMAP.md](../../../docs/product/ROADMAP.md) and identify the **target sprint** (section marked `START HERE`, or first sprint without `Status: Completed`).
 2. Read the matching story file(s) under `docs/product/stories/` for story IDs and acceptance criteria.
-3. Read [docs/database/API_Inventory.md](../../docs/database/API_Inventory.md) for API contracts and module boundaries.
+3. Read [docs/database/API_Inventory.md](../../../docs/database/API_Inventory.md) for API contracts and module boundaries.
 4. Confirm with the user which sprint to ship if ROADMAP is ambiguous or multiple sprints are in flight.
 
 Do **not** expand scope beyond the target sprint's stories and exit criteria.
@@ -144,7 +144,7 @@ Use existing conventions:
 
 Before coding each slice, confirm its dev gates are **✅** or **⏭ stubbed**. If you hit a new blocker, stop and surface it (do not commit secrets or wire paid APIs without credentials).
 
-1. **Schema/migrations** — only if the sprint requires new tables. Follow [docs/database/Migrations_Plan.md](../../docs/database/Migrations_Plan.md). Update `apps/api/prisma/schema.prisma` and run `npm --prefix apps/api run db:migrate` when applicable.
+1. **Schema/migrations** — only if the sprint requires new tables. Follow [docs/database/Migrations_Plan.md](../../../docs/database/Migrations_Plan.md). Update `apps/api/prisma/schema.prisma` and run `npm --prefix apps/api run db:migrate` when applicable.
 2. **Code** — minimal diff; match surrounding module style. Extend existing modules before creating parallel ones.
 3. **Seed/fixtures** — when read APIs or jobs need data before ingestion exists, add deterministic seeds (see `seed-symbols.ts`, `seed-candles.ts` patterns).
 4. **Config** — new env vars go through `AppConfigService` / `loadAppConfig`, not raw `process.env` in services. Document new vars in plan/manual testing; never commit values.
@@ -161,6 +161,11 @@ npm --prefix apps/api run lint
 npm --prefix apps/api run test
 npm --prefix apps/api run test:cov
 npm --prefix apps/api run test:e2e   # seed mode via test/setup-e2e.ts
+
+# Required whenever apps/web exists; mandatory for Angular changes
+npm run web:lint
+npm run web:test
+npm run web:build
 
 # Or from repo root (includes smoke tests; default verify clears DATABASE_URL for seed-mode smoke):
 ./scripts/sprint-delivery-verify.sh verify
@@ -200,7 +205,7 @@ Match existing doc tone. Do not create unrelated markdown files.
 
 ## Phase 5 — Manual testing guide
 
-Append to [docs/manual-testing/manual_testing.md](../../docs/manual-testing/manual_testing.md):
+Append to [docs/manual-testing/manual_testing.md](../../../docs/manual-testing/manual_testing.md):
 
 1. **Section header** — `## Section N – <feature> (Sprint X.Y)`
 2. **Prerequisites** — port 4000, `/api` prefix, seed vs DB behavior

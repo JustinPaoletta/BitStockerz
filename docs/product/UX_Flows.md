@@ -2,6 +2,10 @@
 
 These flows describe the user-facing behavior of the Angular application.
 
+The Strategy → Backtest flow is implemented locally through Sprint 3.4. The
+paper-trading flow remains the target for Sprints 4.1–5.3; steps in that section
+do not describe a currently available route.
+
 ## 1. Strategy → Backtest Flow
 1. Create and save a strategy through the Strategy API. The full Strategy Lab
    UI remains owned by Sprint 5.3; Sprint 3.4 exposes a `/strategies`

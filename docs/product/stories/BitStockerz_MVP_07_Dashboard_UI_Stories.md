@@ -22,6 +22,13 @@ Dependencies:
 - #4 Strategy Lab
 - #5 Backtesting
 
+## Status
+
+- Sprint 3.4 shipped only the thin authenticated Angular shell and backtest
+  list/run/detail routes required to demonstrate backtesting.
+- The dashboard route, symbol search, widgets, complete Strategy Lab, and
+  paper-trading workflows remain planned for Sprints 5.1–5.3.
+
 ---
 
 ## Epic 7.1 – Dashboard Shell & Navigation

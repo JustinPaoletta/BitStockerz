@@ -1,6 +1,6 @@
 # Sprint 3.4 — Backtest UI
 
-**Status:** Implemented and locally verified July 28, 2026; unmerged in draft PR #9
+**Status:** Implemented and locally verified through August 1, 2026; unmerged in draft PR #9
 **Roadmap marker:** Milestone 3 / Sprint 3.4 (ROADMAP exit: Strategy → Backtest → Results fully demoable)  
 **Branch:** `feat/sprint-2-1-strategy-persistence-versioning` (combined PR #9)
 **PR base:** `main`

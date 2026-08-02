@@ -29,6 +29,9 @@ Dependencies:
 - Completed in Sprint 1.3 (July 11, 2026): #8.1.1 – Job model & lifecycle, #8.1.2 – Synchronous executor, #8.1.3 – Job timeout handling, #8.6.1 – Scheduled jobs
 - Completed in Sprint 1.4 (July 24, 2026): #8.4.2 – Performance metrics foundation, #8.4.3 – Audit trail
 - Completed in Sprint 3.1 (July 28, 2026): #8.2.1 – Logical execution sandbox boundaries, #8.2.2 – Runtime and memory limits per backtest
+- Extended in Sprint 3.3 (July 28, 2026): bounded backtest logs, terminal
+  counts/durations, backtest-domain errors, request diagnostics, and
+  `backtest.requested` audit metadata.
 
 ---
 

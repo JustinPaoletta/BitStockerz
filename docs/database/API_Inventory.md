@@ -31,7 +31,20 @@ and `apps/web` implements the Sprint 3.4 consumer
 | Backtest UI | Implemented (3.4) | Angular list/run/detail flow, metrics, complete equity chart, and stable-id paged trades table |
 | Trading | Planned | Described below; not implemented yet |
 
-Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory. Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL (the `webauthn_credentials` table exists but is unused by the auth runtime today); creating a job or reading/creating a strategy persists a minimal `users` row for foreign keys via `ensureUserPersisted`. If the same email is re-registered under a new in-memory user id, that helper atomically remaps the stale MySQL user row and reassigns its jobs, strategies, backtest runs, audit events, and credentials instead of deleting history. Ingestion upserts those seed OHLCV bars into bar tables when the database is enabled (re-run ingestion after an API restart if you need DB health to match the latest seed window).
+Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle
+fixtures, jobs, strategies, backtests, metrics, and audit events are in-memory.
+Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
+`DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
+see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL
+(the `webauthn_credentials` table exists but is unused by the auth runtime
+today); persisted job, strategy, and backtest operations create or remap a
+minimal `users` row for foreign keys via `ensureUserPersisted`. If the same
+email is re-registered under a new in-memory user id, that helper atomically
+remaps the stale MySQL user row and reassigns its jobs, strategies, backtest
+runs, audit events, and credentials instead of deleting history. Ingestion
+upserts those seed OHLCV bars into bar tables when the database is enabled
+(re-run ingestion after an API restart if you need DB health to match the
+latest seed window).
 
 Sections marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
@@ -308,13 +321,19 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 **GET `/metrics`** (public)
 
-- In-process JSON summary (not Prometheus text): HTTP request/error counts + duration stats, job counts/durations by type, errors by domain.
+- In-process JSON summary (not Prometheus text): HTTP request/error counts and
+  duration stats, job counts/durations by type, backtest terminal
+  counts/durations, and errors by domain.
 - Cleared on process restart. Disable with `METRICS_ENABLED=false`.
 
 ### 2.8 Audit trail (implemented in Sprint 1.4)
 
 - No public list/query API in MVP.
-- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`, `strategy.created`, `strategy.updated`, and `strategy.deleted`.
+- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer
+  (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`,
+  `job.completed`, `job.failed`, `market_data.ingestion_requested`,
+  `strategy.created`, `strategy.updated`, `strategy.deleted`, and
+  `backtest.requested`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---

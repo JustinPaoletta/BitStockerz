@@ -117,7 +117,7 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when creating jobs or reading/creating strategies (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, the next persisted domain operation remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs, strategies, backtest runs, audit events, and credential rows so history is retained. |
+| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when persisted job, strategy, or backtest ownership requires it (`ensureUserPersisted`). The `webauthn_credentials` table is unused by the auth runtime. If you re-register the same email after an API restart, the next persisted domain operation remaps the existing MySQL user id to the new in-memory id and reassigns dependent jobs, strategies, backtest runs, audit events, and credential rows so history is retained. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
@@ -170,10 +170,15 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 
 **Ingestion or `POST /jobs` returns `500 INTERNAL_ERROR`**
 
-- Ensure you are on latest `main` (includes `AuthService.ensureUserPersisted`).
+- Ensure your checkout includes the current `AuthService.ensureUserPersisted`
+  implementation (PR #9 is not merged to `main` yet).
 - Restart the API after changing `.env`.
 - Re-register to get a fresh bearer token, then retry Section 8 curls.
-- If the error mentions `users_email_key`, a stale `users` row from a prior session shares your email but not your current in-memory user id. Latest code remaps that row (and its jobs) to the new in-memory id automatically; otherwise reset the dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
+- If the error mentions `users_email_key`, a stale `users` row from a prior
+  session shares your email but not your current in-memory user id. Current
+  code remaps that row and its owned jobs, strategies, backtests, audit events,
+  and credentials to the new in-memory id automatically; otherwise reset the
+  dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
 
 **Migrations fail**
 

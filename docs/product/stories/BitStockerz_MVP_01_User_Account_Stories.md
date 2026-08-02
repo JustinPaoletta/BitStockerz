@@ -15,7 +15,15 @@
 
 ## Status
 
-- Completed in Sprint 0.2 (July 3, 2026): #1.1.1–#1.1.6, #1.2.1–#1.2.2, #1.4.1
+- Backend/API portions completed in Sprint 0.2 (July 3, 2026):
+  #1.1.1–#1.1.6, #1.2.1–#1.2.2, and #1.4.1. Users can complete the passkey and
+  OAuth ceremonies by calling the API, manage bearer sessions, and read/update
+  profile data.
+- The current Sprint 3.4 Angular app exposes development email
+  login/registration only. Passkey/OAuth/recovery/profile browser screens have
+  not shipped: Sprint 5.1 owns session-shell and OAuth UX hardening (with
+  passkey UI currently a stretch item), and Sprint 7.2 owns deployed OAuth
+  redirect hosting.
 - Deferred to Sprint 4.1: #1.3.1 (paper account creation on signup)
 
 ---
@@ -243,4 +251,3 @@ Passkeys remove **passwords**, but you still need:
 - a **user record** (email/identifier),
 - a **session** (cookie/JWT) after login,
 - a **recovery path** (OAuth or another passkey/device), otherwise users can lock themselves out.
-

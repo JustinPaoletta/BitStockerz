@@ -3,6 +3,12 @@
 This document is the **authoritative ERD (Entity–Relationship Definition)** for the BitStockerz MVP.
 It is derived from stories **#1–#8** and is intended to be implementation-grade.
 
+It describes the **full MVP target**, not only the tables migrated today. The
+runnable database currently implements auth/reference/jobs/audit, Strategy
+Lab, and backtesting through Sprint 3.4; use
+`apps/api/prisma/schema.prisma` plus `apps/api/prisma/migrations/` for the
+current deployable schema. Paper-trading and AI models below remain planned.
+
 Use this to:
 - Validate table relationships before coding
 - Drive DB migrations
@@ -110,6 +116,7 @@ Domains covered:
 - base_currency
 - starting_balance
 - cash_balance
+- is_active
 - created_at
 - updated_at
 
@@ -292,14 +299,11 @@ Domains covered:
 
 ---
 
-**File:** BitStockerz_ERD.md
-
-
 ## 5. Lifecycle & Deletion Overview
 
-This ERD defines **structure only**. For how data is deleted, retained, or anonymized, see:
-
-- `../Data_Lifecycle_and_Deletion_Policy.md`
+This ERD defines **structure only**. For how data is deleted, retained, or
+anonymized, see
+[Data_Lifecycle_and_Deletion_Policy.md](../Data_Lifecycle_and_Deletion_Policy.md).
 
 Key points (summary):
 - `users` are **soft-deleted** (PII scrubbed; no cascades).
@@ -308,21 +312,5 @@ Key points (summary):
 - Trading and backtest records (`orders`, `executions`, `positions`, `backtest_*`) are treated as **historical facts**, not user-deletable content.
 - Infra tables (`jobs`, `audit_events`, `ai_usage`) follow retention policies defined in the lifecycle document.
 
-Foreign key `ON DELETE` behavior and retention rules are governed by `../Data_Lifecycle_and_Deletion_Policy.md`.
-
-
----
-
-## Lifecycle & Deletion Policy
-
-This ERD defines **structure only**.
-
-All deletion, retention, and cascade rules are defined in:
-
-**../Data_Lifecycle_and_Deletion_Policy.md**
-
-This includes:
-- Soft delete vs hard delete
-- Retention windows
-- FK cascade vs restrict rules
-- “Delete my account” behavior
+Foreign key `ON DELETE` behavior and retention rules are governed by that
+lifecycle policy.

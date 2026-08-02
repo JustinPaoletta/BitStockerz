@@ -15,6 +15,8 @@ Update this table when a sprint ships. Pattern: `feat/sprint-{milestone}-{sprint
 | 2.3 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 | 3.1 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 | 3.2 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
+| 3.3 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
+| 3.4 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
 
 **Stacked PR rule:** Sprint N+1 PR targets the branch for Sprint N. After Sprint N merges to `main`, Sprint N+1 rebases or merges `main`, then targets `main`.
 
@@ -155,6 +157,10 @@ npm --prefix apps/api run test          # unit; 90% coverage threshold
 npm --prefix apps/api run test:cov
 npm --prefix apps/api run test:e2e      # seed mode (setup-e2e.ts)
 
+npm run web:lint
+npm run web:test
+npm run web:build
+
 # Full gate + smoke (API started automatically for smoke phase)
 ./scripts/sprint-delivery-verify.sh verify
 
@@ -176,7 +182,7 @@ API defaults: port **4000**, global prefix **`/api`**.
 | Validation | DTOs in `dto/`; snake_case query params map to camelCase in service |
 | DB optional | `PrismaService.isEnabled`; seed modules for dev/test without `DATABASE_URL` |
 | E2E env | `test/setup-e2e.ts` forces `NODE_ENV=test` and clears `DATABASE_URL` |
-| Jobs + MySQL | `AuthService.ensureUserPersisted` creates/remaps minimal `users` row before job insert (keeps jobs on email rematch) |
+| Persisted ownership + MySQL | `AuthService.ensureUserPersisted` creates/remaps the minimal `users` row used by jobs, strategies, backtests, audit events, and credential relations after an email rematch |
 | Public routes | No `AuthGuard` unless story requires auth |
 | Module layout | `FeatureModule` → `controller` + `service` + `dto` + `*.spec.ts` |
 | E2E setup | `createApp()` in `app.e2e-spec.ts` — global prefix, `ValidationPipe`, exception filter |

@@ -70,7 +70,7 @@ Expected: migrations apply successfully and `/api/health/ready` reports the data
 | Mode | When | Behavior |
 | --- | --- | --- |
 | **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, metrics, and audit events live in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, and backtest runs/results/trades/equity points persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; job/strategy creation upserts a minimal `users` row for foreign keys. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, and backtest runs/results/trades/equity points persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; persisted job, strategy, and backtest operations upsert/remap a minimal `users` row for ownership foreign keys. |
 
 ### Automated alternative
 

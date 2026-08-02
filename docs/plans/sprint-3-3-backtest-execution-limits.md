@@ -428,7 +428,7 @@ npm --prefix apps/api run test:e2e
 - Node `worker_threads`: https://nodejs.org/docs/latest/api/worker_threads.html  
 - RFC 7807: https://www.rfc-editor.org/rfc/rfc7807  
 - API inventory §5: [docs/database/API_Inventory.md](../database/API_Inventory.md)  
-- Security (backtest rate limit planned): [docs/product/requirements/Security.md](../product/requirements/Security.md)  
+- Security (backtest rate-limit contract): [docs/product/requirements/Security.md](../product/requirements/Security.md)
 - NFR &lt; 2s: [Non_Functional_Requirements.md](../product/requirements/Non_Functional_Requirements.md)  
 - Prior plans: [sprint-3-1](./sprint-3-1-backtest-engine-core.md), [sprint-3-2](./sprint-3-2-backtest-persistence.md)  
 - Delivery workflow: `.cursor/skills/sprint-delivery/SKILL.md`

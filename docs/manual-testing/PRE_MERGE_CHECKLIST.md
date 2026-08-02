@@ -9,11 +9,12 @@ required for this PR. General unit, coverage, e2e, seed-smoke, and MySQL-smoke
 gates are not duplicated except for the focused commands needed to sign off
 surfaces that have no separate HTTP or UI workflow.
 
-**Execution record:** All 34 checks below passed on 2026-08-01. The Sprint
-2.1–3.4 workflow record culminated at pagination-gate commit `0163316`; the
-generated-contract gate and full API unit/e2e/build/lint/coverage regression
-passed against OpenAPI follow-up commit `7204830`, using the live API and a real
-Chromium browser. The checked boxes are the PR #9 acceptance record; rerun the
+**Execution record:** All 34 checks below passed on 2026-08-01. The generated
+contract gate and full API unit/e2e/build/lint/coverage regression passed after
+the OpenAPI follow-up, using the live API and a real Chromium browser. The
+desktop/mobile UI walkthrough, 501-trade pagination gate, clean console/network
+pass, and logout/deep-link protection were then reverified after responsive-fix
+commit `2b50af4`. The checked boxes are the PR #9 acceptance record; rerun the
 applicable commands if the implementation changes.
 
 Run every command from the repository root. Prerequisites are Node.js

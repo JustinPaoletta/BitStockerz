@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- Scoped trades-table CSS so its intentional 850px scroll surface no longer
+  resizes and clips Lightweight Charts' internal table at mobile widths.
+
 ### Added
 
 - Generated OpenAPI 3.0 JSON/YAML and interactive Swagger UI for every shipped
@@ -99,6 +104,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Exception-path HTTP metrics record in `GlobalHttpExceptionFilter` (interceptor successes only); health aggregates filter active symbols.
 
 ### Documentation
+
+- Reconciled current-state documentation with the code through Sprint 3.4:
+  shipped backtest observability/testing, complete configuration and release
+  gates, current roadmap/plan status, migration history, database target-model
+  fields, local sprint-delivery links/branch map, and final PR #9 browser
+  acceptance evidence.
 
 - Make manual verification reproducible with a two-terminal workflow, explicit seed/MySQL startup modes, a change-to-test matrix, executable strategy restart steps, audit-table inspection, and rolling MySQL count expectations.
 - Refresh the roadmap through July 26, distinguish locally verified Sprint 2.1 work from merged delivery, keep Sprint 2.2 as `START HERE`, and link every remaining sprint to its ready implementation plan.

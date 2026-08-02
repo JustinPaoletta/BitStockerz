@@ -20,6 +20,8 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Jobs table (1.3) | `20260711000000_sprint_1_3_jobs` |
 | Audit events (1.4) | `20260724150000_sprint_1_4_audit_events` |
 | Strategies + immutable versions (2.1) | `20260725120000_sprint_2_1_strategies` |
+| Backtest runs/results/trades/equity points (3.2) | `20260728213000_sprint_3_2_backtest_tables` |
+| Deferred backtest-run → job foreign key (3.2) | `20260728213100_sprint_3_2_backtest_runs_job_fk` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 

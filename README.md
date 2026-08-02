@@ -1,6 +1,7 @@
 # BitStockerz
 
-A private BitStockerz monorepo that combines product and database documentation with an early NestJS API implementation.
+A private BitStockerz monorepo that combines product and database documentation
+with a working NestJS API and Angular application.
 
 ## Status
 
@@ -41,7 +42,8 @@ A private BitStockerz monorepo that combines product and database documentation 
 - Root tooling: npm, Husky, and commitlint
 - API app: NestJS 11, TypeScript, Jest, Pino, and WebAuthn foundations
 - Web app: Angular 21.2, TypeScript, Vitest, ESLint, and Lightweight Charts 5.2
-- Database planning: Prisma schema plus SQL documentation and migration notes
+- Database: MySQL 8 through Prisma, with a runnable schema/migrations plus
+  separate full-MVP target schema and SQL design documents
 
 ## Repository Layout
 
@@ -55,7 +57,7 @@ A private BitStockerz monorepo that combines product and database documentation 
 
 ## Prerequisites
 
-- Node.js `24.11.1` for `apps/api`
+- Node.js `24.11.1` for `apps/api` and `apps/web`
 - npm
 
 ## Local Setup
@@ -110,18 +112,23 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 
 | Variable | Purpose |
 | --- | --- |
+| `NODE_ENV` | `development`, `test`, or `production` (default `development`). |
 | `DATABASE_URL` | MySQL connection URL. Omit for in-memory seed mode. |
 | `INGESTION_SCHEDULER_ENABLED` | Hourly background imports. When unset: `true` if `NODE_ENV=development`, otherwise `false`. Always off when `NODE_ENV=test`. Set `false` during manual ingestion tests. |
 | `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
 | `JOBS_SYSTEM_USER_ID` | User id for scheduled jobs (default matches migration seed). |
 | `PORT` | API listen port (default `4000`). |
+| `READINESS_TIMEOUT_MS` | Per-dependency readiness timeout (default `1500`). |
 | `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData` (can point at `/api/market-data/health`). |
 | `MARKET_DATA_STALE_EQUITY_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | Domain health staleness thresholds (defaults 48h / 36h / 2h). |
 | `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine deadline and allocation guards (defaults `5000` / `10000` / `250000`). |
 | `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS` | Per-user `POST /api/backtests` rate limit (defaults `60000` / `10`). |
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
-| `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging (see Observability.md). |
+| `AUTH_SESSION_TTL_SECONDS` / `AUTH_CHALLENGE_TTL_SECONDS` / `AUTH_OAUTH_STATE_TTL_SECONDS` | Session/challenge/state lifetimes (defaults `43200` / `300` / `300`). |
+| `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
+| `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider credentials and callback URLs; each provider's required set must be complete. |
+| `LOG_LEVEL` / `LOG_TO_FILE` / `LOG_FILE_PATH` | Log level and optional file logging (see Observability.md). |
 
 The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Restart after editing `.env`.
 

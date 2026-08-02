@@ -1,7 +1,8 @@
 ////////////////////////////////////////////////////
 // BitStockerz - DBML for dbdiagram.io
-// Structural schema only. Deletion / lifecycle
-// rules are handled at the application level.
+// Full MVP target structural schema. The runnable
+// schema through Sprint 3.4 is apps/api/prisma/schema.prisma.
+// Deletion/lifecycle rules are documented separately.
 ////////////////////////////////////////////////////
 
 // 1) Core
@@ -48,7 +49,7 @@ Table equity_daily_bars {
   high       decimal(18,6) [not null]
   low        decimal(18,6) [not null]
   close      decimal(18,6) [not null]
-  volume     decimal(24,8) [not null]
+  volume     bigint        [not null]
   provider   varchar(64)   [not null]
   created_at datetime      [not null]
 
@@ -103,6 +104,10 @@ Table paper_accounts {
   is_active        boolean       [not null]
   created_at       datetime      [not null]
   updated_at       datetime      [not null]
+
+  indexes {
+    user_id [unique]
+  }
 }
 
 Table orders {
@@ -113,9 +118,15 @@ Table orders {
   quantity         decimal(18,8) [not null]
   order_type       varchar(16)   [not null] // MARKET (MVP)
   status           varchar(16)   [not null]
-  time_in_force    varchar(16)   [not null] // DAY, etc.
-  submitted_at     datetime      [not null]
+  avg_fill_price   decimal(18,8)
+  reject_reason    varchar(255)
+  client_order_id  varchar(64)
+  requested_at     datetime      [not null]
   filled_at        datetime
+
+  indexes {
+    (paper_account_id, client_order_id) [unique]
+  }
 }
 
 Table executions {
@@ -155,6 +166,10 @@ Table strategies {
   is_active    boolean      [not null]
   created_at   datetime     [not null]
   updated_at   datetime     [not null]
+
+  indexes {
+    (user_id, name) [unique]
+  }
 }
 
 Table strategy_versions {
@@ -193,12 +208,18 @@ Table backtest_runs {
 Table backtest_results {
   id               int           [pk]
   backtest_run_id  varchar(36)   [not null]
+  final_equity     decimal(18,2) [not null]
   total_return_pct decimal(9,4)  [not null]
   max_drawdown_pct decimal(9,4)  [not null]
   win_rate_pct     decimal(9,4)  [not null]
-  trade_count      int           [not null]
+  num_trades       int           [not null]
+  avg_win_pct      decimal(9,4)  [not null]
+  avg_loss_pct     decimal(9,4)  [not null]
   sharpe_ratio     decimal(9,4)
-  created_at       datetime      [not null]
+
+  indexes {
+    backtest_run_id [unique]
+  }
 }
 
 Table backtest_trades {
@@ -229,6 +250,10 @@ Table ai_usage {
   user_id   varchar(36) [not null]
   date      date        [not null]
   calls     int         [not null]
+
+  indexes {
+    (user_id, date) [unique]
+  }
 }
 
 // 7) Infra

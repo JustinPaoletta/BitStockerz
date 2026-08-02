@@ -14,6 +14,11 @@ Dependencies:
 - #4 Strategy Lab
 - #5 Backtesting
 
+## Status
+
+- Not implemented yet.
+- Planned across Sprints 6.1–6.3 after the Milestone 5 Angular workflows.
+
 ---
 
 ## Epic 6.1 – AI Assistant Foundation
@@ -58,4 +63,3 @@ Dependencies:
 - Live trading recommendations
 - Strategy ranking or leaderboards
 - Self-training or reinforcement learning agents
-

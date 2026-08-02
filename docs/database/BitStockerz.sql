@@ -1,3 +1,11 @@
+-- LEGACY DESIGN EXPORT - DO NOT APPLY.
+--
+-- This historical snapshot predates the passkey-only identity model and the
+-- current Sprint 3.2 backtest-result contract. It is retained only as an old
+-- design export. For the runnable database, use apps/api/prisma/schema.prisma
+-- and apps/api/prisma/migrations/. For the full MVP target, use
+-- docs/database/schema.prisma and docs/database/DDL/*.sql.
+
 CREATE TABLE `users` (
   `id` varchar(36) PRIMARY KEY,
   `email` varchar(255) UNIQUE NOT NULL,

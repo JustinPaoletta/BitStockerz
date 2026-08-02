@@ -6,8 +6,9 @@
 // through Sprint 3.4 (including users/auth, symbols/OHLCV, jobs/audit,
 // strategies/versions, and backtest runs/results/trades/equity points).
 // This file remains the full MVP target schema and may differ in Prisma field
-// naming, column annotations, and relations. Apply migrations from
-// apps/api/prisma/migrations/ only — do not treat this file as migrate-able.
+// naming, column annotations, and relations. Prisma 7 connection configuration
+// belongs in prisma.config.ts. Apply migrations from apps/api/prisma/migrations/
+// only — do not treat this file as a migration source.
 
 generator client {
   provider = "prisma-client-js"
@@ -15,7 +16,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 ////////////////////////////
@@ -76,10 +76,11 @@ model Symbol {
   cryptoDailyBars  CryptoDailyBar[]
   cryptoHourlyBars CryptoHourlyBar[]
 
-  orders     Order[]
-  executions Execution[]
-  positions  Position[]
-  backtests  BacktestRun[]
+  orders         Order[]
+  executions     Execution[]
+  positions      Position[]
+  backtests      BacktestRun[]
+  backtestTrades BacktestTrade[]
 
   @@map("symbols")
 }
@@ -214,7 +215,7 @@ model BacktestRun {
 model BacktestResult {
   id              Int     @id @default(autoincrement())
   backtestRunId   String  @unique @map("backtest_run_id")
-  finalEquity     Decimal
+  finalEquity     Decimal @map("final_equity")
   totalReturnPct  Decimal @map("total_return_pct")
   maxDrawdownPct  Decimal @map("max_drawdown_pct")
   winRatePct      Decimal @map("win_rate_pct")
@@ -299,6 +300,7 @@ model Order {
   symbol    Symbol       @relation(fields: [symbolId], references: [id])
   executions Execution[]
 
+  @@unique([paperAccountId, clientOrderId])
   @@map("orders")
 }
 

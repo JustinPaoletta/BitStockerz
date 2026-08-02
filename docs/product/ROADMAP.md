@@ -9,11 +9,11 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — July 28, 2026
+## Current delivery state — August 1, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
-| Milestones 0–1 | Completed | Platform, auth, market data, ingestion/jobs, and observability are implemented and verified. |
+| Milestones 0–1 | Backend/platform scope completed | Platform, auth APIs, market data, ingestion/jobs, and observability are implemented and verified. Full passkey/OAuth/profile browser UI has not shipped. |
 | Sprints 2.1–3.4 | Implementation complete locally; draft PR #9 | One stacked PR covers Strategy Lab, the deterministic resource-bounded engine, transactional persistence, authenticated backtest execution/list/detail APIs, and the thin Angular results app. |
 | Sprint 4.1 | **START HERE — ready for development** | Add the default paper account, positions, cash-balance updates, ownership boundaries, and valuation rules. |
 | Sprints 4.2–7.2 | Plans ready; not started | Follow the linked implementation contract and its predecessor dependency. External provisioning is only required where the plan says so. |
@@ -47,12 +47,16 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #1.2.1 – User can view basic profile
 - #1.2.2 – User can update display preferences
 - #1.4.1 – Rate limit auth endpoints
-- Status: Completed (verified July 3, 2026)
+- Status: Backend/API implementation completed (verified July 3, 2026).
+  The current Angular app uses development email shortcuts; passkey/OAuth,
+  recovery, and profile browser UX remains future frontend work (session/OAuth
+  hardening in Sprint 5.1, deployed redirects in Sprint 7.2, and passkey UI
+  currently listed as a Sprint 5.1 stretch item).
 - Note: #1.3.1 remains correctly scheduled in Sprint 4.1 because paper-account creation depends on the paper-trading milestone
 
 **Exit**
 - Authenticated API requests
-- Core auth, session, and profile loops are functional
+- Core auth, session, and profile API loops are functional
 
 ---
 
