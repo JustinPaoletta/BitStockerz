@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////
 // BitStockerz - DBML for dbdiagram.io
 // Full MVP target structural schema. The runnable
-// schema through Sprint 3.4 is apps/api/prisma/schema.prisma.
+// schema through Sprint 4.3 is apps/api/prisma/schema.prisma.
 // Deletion/lifecycle rules are documented separately.
 ////////////////////////////////////////////////////
 
@@ -118,7 +118,7 @@ Table orders {
   quantity         decimal(18,8) [not null]
   order_type       varchar(16)   [not null] // MARKET (MVP)
   status           varchar(16)   [not null]
-  avg_fill_price   decimal(18,8)
+  avg_fill_price   decimal(20,8)
   reject_reason    varchar(255)
   client_order_id  varchar(64)
   requested_at     datetime      [not null]
@@ -136,7 +136,7 @@ Table executions {
   symbol_id        int           [not null]
   side             varchar(8)    [not null] // BUY | SELL
   quantity         decimal(18,8) [not null]
-  price            decimal(18,8) [not null]
+  price            decimal(20,8) [not null]
   executed_at      datetime      [not null]
 }
 
@@ -145,7 +145,7 @@ Table positions {
   paper_account_id int           [not null]
   symbol_id        int           [not null]
   quantity         decimal(18,8) [not null]
-  avg_cost         decimal(18,8) [not null]
+  avg_cost         decimal(20,8) [not null]
   updated_at       datetime      [not null]
 
   indexes {

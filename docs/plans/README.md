@@ -4,17 +4,17 @@ Index of implementation contracts after Milestone 1. “Ready” means a develop
 
 | Sprint | Plan | Depends on | Readiness | Purpose |
 |--------|------|------------|-----------|---------|
-| 2.1 | [sprint-2-1-strategy-persistence-versioning.md](./sprint-2-1-strategy-persistence-versioning.md) | Milestone 1 | Implemented locally (verified; unmerged in PR #9) | Strategy schema + versioning persistence for Strategy Lab. |
-| 2.2 | [sprint-2-2-indicators-rule-schema.md](./sprint-2-2-indicators-rule-schema.md) | 2.1 | Implemented locally (verified; unmerged in PR #9) | Indicator catalog and entry/exit/SL/TP rule schema. |
-| 2.3 | [sprint-2-3-strategy-crud-validation.md](./sprint-2-3-strategy-crud-validation.md) | 2.2 | Implemented locally (verified; unmerged in PR #9) | Strategy CRUD APIs, validation, and human-readable summaries. |
-| 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Implemented locally (verified; unmerged in PR #9) | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
-| 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Implemented locally (verified; unmerged in PR #9) | Backtest run/result/trades/equity storage and strategy version pinning. |
-| 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | Implemented locally (verified; unmerged in PR #9) | Run/list/detail APIs, bar limits, diagnostics. |
-| 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Implemented locally (verified; unmerged in PR #9) | Angular equity-curve chart and trades table for backtest results. |
-| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | **START HERE — Ready** | Default paper account, positions table, cash balance updates. |
-| 4.2 | [sprint-4-2-orders-executions.md](./sprint-4-2-orders-executions.md) | 4.1 | Ready | Order schema, market orders, executions, risk limits, idempotency. |
-| 4.3 | [sprint-4-3-trading-views.md](./sprint-4-3-trading-views.md) | 4.2 | Ready | Positions/portfolio/orders/history APIs and trading domain errors. |
-| 5.1 | [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md) | 4.3 + 3.4 web scaffold | Ready | Angular shell/nav/dashboard route + symbol search. |
+| 2.1 | [sprint-2-1-strategy-persistence-versioning.md](./sprint-2-1-strategy-persistence-versioning.md) | Milestone 1 | Completed (PR #9) | Strategy schema + versioning persistence for Strategy Lab. |
+| 2.2 | [sprint-2-2-indicators-rule-schema.md](./sprint-2-2-indicators-rule-schema.md) | 2.1 | Completed (PR #9) | Indicator catalog and entry/exit/SL/TP rule schema. |
+| 2.3 | [sprint-2-3-strategy-crud-validation.md](./sprint-2-3-strategy-crud-validation.md) | 2.2 | Completed (PR #9) | Strategy CRUD APIs, validation, and human-readable summaries. |
+| 3.1 | [sprint-3-1-backtest-engine-core.md](./sprint-3-1-backtest-engine-core.md) | 2.3 | Completed (PR #9) | Backtest engine interface, indicators, rules, trade sim, sandbox limits. |
+| 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Completed (PR #9) | Backtest run/result/trades/equity storage and strategy version pinning. |
+| 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | Completed (PR #9) | Run/list/detail APIs, bar limits, diagnostics. |
+| 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Completed (PR #9) | Angular equity-curve chart and trades table for backtest results. |
+| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | Implemented locally (verified August 2, 2026) | Default paper account, positions table, cash balance updates. |
+| 4.2 | [sprint-4-2-orders-executions.md](./sprint-4-2-orders-executions.md) | 4.1 | Implemented locally (verified August 2, 2026) | Order schema, market orders, executions, risk limits, idempotency. |
+| 4.3 | [sprint-4-3-trading-views.md](./sprint-4-3-trading-views.md) | 4.2 | Implemented locally (verified August 2, 2026) | Positions/portfolio/orders/history APIs and trading domain errors. |
+| 5.1 | [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md) | 4.3 + 3.4 web scaffold | **START HERE — Ready** | Angular shell/nav/dashboard route + symbol search. |
 | 5.2 | [sprint-5-2-dashboard-widgets.md](./sprint-5-2-dashboard-widgets.md) | 5.1 | Ready | Dashboard widgets with independent loading, empty states, UX consistency. |
 | 5.3 | [sprint-5-3-core-workflows-ui.md](./sprint-5-3-core-workflows-ui.md) | 5.2 | Ready | Functional Strategy Lab, backtest launch, and paper-trading UI flows. |
 | 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | 5.3 | Ready | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
@@ -58,7 +58,7 @@ Generic `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`
 | 4.1–4.2 | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
 | 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
-Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`, or `BACKTEST_VALIDATION_ERROR`. Sprint 4.3 completes the exhaustive enum/catalog test; it does not rename codes already shipped.
+Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`, or `BACKTEST_VALIDATION_ERROR`. Sprint 4.3 completed the exhaustive enum/catalog test without renaming codes already shipped.
 
 **Cross-sprint contracts (read before implementing)**
 

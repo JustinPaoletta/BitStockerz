@@ -71,6 +71,22 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().backtestEquityPoint;
   }
 
+  get paperAccount() {
+    return this.requireClient().paperAccount;
+  }
+
+  get position() {
+    return this.requireClient().position;
+  }
+
+  get order() {
+    return this.requireClient().order;
+  }
+
+  get execution() {
+    return this.requireClient().execution;
+  }
+
   get user() {
     return this.requireClient().user;
   }

@@ -9,8 +9,8 @@ with a working NestJS API and Angular application.
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–1 and Sprints 2.1–3.4 implemented and locally verified in draft PR #9
-- Next ready sprint: 4.1 Accounts & Positions
+- Delivery state: Milestones 0–4 implemented; Sprint 4 paper trading is locally verified on the current review branch
+- Next ready sprint: 5.1 Shell & Navigation
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -32,7 +32,9 @@ with a working NestJS API and Angular application.
   symbols/candles, jobs/ingestion, observability, and complete owner-scoped
   Strategy Lab CRUD/version history/validation/summaries, plus the pure
   Backtest Engine Core, owner-scoped run/result/trade/equity persistence, and
-  authenticated run/list/detail execution APIs with limits and diagnostics.
+  authenticated run/list/detail execution APIs with limits and diagnostics,
+  plus paper accounts, atomic market fills, positions, risk/idempotency,
+  execution/order history, and mark-to-market portfolio views.
 - An Angular app under `apps/web` with the Sprint 3.4 thin authenticated shell,
   dev login/register flow, backtest list/run/detail screens, Lightweight Charts
   equity curve, paged trades table, responsive layout, and API proxy.
@@ -100,11 +102,12 @@ end-to-end curl workflows.
 - `npm --prefix apps/api run test:cov` runs unit tests with **90%** global coverage gates.
 - `npm --prefix apps/api run test:e2e` runs the API end-to-end suite (seed mode; see `apps/api/test/setup-e2e.ts`).
 - `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
+- `npm --prefix apps/api run test:mysql:trading` runs the isolated real-MySQL paper-trading persistence/race/restart gate (requires an exported `DATABASE_URL`).
 - `npm run web:start` starts Angular on port 4200 with `/api` proxied to the API.
 - `npm run web:build`, `npm run web:lint`, and `npm run web:test` run the web gates.
 - `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests against an already-running API; it honors an exported `DATABASE_URL` but does not load `.env` itself.
 - `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
-- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, verifies a transactional backtest run/result/trade/equity round trip and post-restart ownership remap, ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
+- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, verifies isolated transactional backtest and paper-trading round trips (including idempotency/restart ownership), ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
 
 ## Environment & Configuration
 
@@ -124,6 +127,10 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine deadline and allocation guards (defaults `5000` / `10000` / `250000`). |
 | `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS` | Per-user `POST /api/backtests` rate limit (defaults `60000` / `10`). |
+| `PAPER_STARTING_BALANCE` | Default USD balance provisioned for a new paper account (default `100000.00`). |
+| `TRADING_MAX_ORDER_NOTIONAL` | Maximum unrounded market-order notional before a persisted rejection (default `25000`). |
+| `TRADING_MAX_POSITION_PCT` | Maximum resulting single-symbol percentage of pre-trade equity for BUY orders (default `25`). |
+| `TRADING_MIN_CASH_REMAINING` | Minimum cash required after a BUY using the rounded cash notional (default `0`). |
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
 | `AUTH_SESSION_TTL_SECONDS` / `AUTH_CHALLENGE_TTL_SECONDS` / `AUTH_OAUTH_STATE_TTL_SECONDS` | Session/challenge/state lifetimes (defaults `43200` / `300` / `300`). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
@@ -162,7 +169,7 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence subset through Sprint 3.4; Sprints 3.3–3.4 add no tables)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema through Sprint 4.3)
 - [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
 - [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)

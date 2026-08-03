@@ -2,10 +2,10 @@
 
 This is the complete MVP **target**, not a list of features already shipped.
 For current implementation state and the next development owner, use the
-[roadmap](./ROADMAP.md). As of August 1, 2026, Sprints 2.1–3.4 are implemented
-locally in draft PR #9 and Sprint 4.1 is next; paper trading, the complete
-dashboard/workflow UI, AI assistance, and backtest entry/exit chart markers
-remain future work.
+[roadmap](./ROADMAP.md). As of August 2, 2026, backend/API delivery is complete
+through Sprint 4.3 and the Sprint 3.4 Angular backtest UI is shipped. Sprint
+5.1 is next; the complete dashboard/workflow UI, AI assistance, realized-P&L
+analytics, and backtest entry/exit chart markers remain future work.
 
 ## 1. User & Account
 - Passkeys (WebAuthn) / OAuth login

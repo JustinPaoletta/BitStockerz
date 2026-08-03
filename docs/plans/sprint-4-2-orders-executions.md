@@ -1,9 +1,9 @@
 # Sprint 4.2 — Orders & Executions
 
-**Status:** Plan ready  
+**Status:** Completed (verified August 2, 2026)
 **Roadmap marker:** Milestone 4 – Paper Trading (orders engine)  
-**Branch:** `feat/sprint-4-2-orders-executions`  
-**PR base:** `feat/sprint-4-1-accounts-positions`
+**Branch:** `codex/sprint-4-paper-trading` (combined Milestone 4 delivery)
+**PR base:** `main`
 
 **Overview:** Add `orders` + `executions` tables and a single write path — `POST /trading/orders` — that validates risk limits, fills market orders at the latest market-data close, updates cash/positions atomically, and supports idempotent `client_order_id`. Long-only, fractional qty allowed, seed + MySQL parity.
 
@@ -58,7 +58,7 @@
 ### #3.2.1 – Order schema
 
 - Prisma models + migrations for `orders` and `executions` matching DDL.
-- Columns used: `id` (UUID), `paper_account_id`, `symbol_id`, `side` (`BUY`|`SELL`), `quantity` `DECIMAL(18,8)`, `order_type` (`MARKET` only), `status` (`PENDING`|`FILLED`|`REJECTED`|`CANCELLED`), `avg_fill_price`, `reject_reason`, `client_order_id`, `requested_at`, `filled_at`.
+- Columns used: `id` (UUID), `paper_account_id`, `symbol_id`, `side` (`BUY`|`SELL`), `quantity` `DECIMAL(18,8)`, `order_type` (`MARKET` only), `status` (`PENDING`|`FILLED`|`REJECTED`|`CANCELLED`), `avg_fill_price` `DECIMAL(20,8)`, `reject_reason`, `client_order_id`, `requested_at`, `filled_at`.
 - Unique `(paper_account_id, client_order_id)` — MySQL allows multiple NULLs; application treats missing `client_order_id` as non-idempotent.
 - Seed mode: in-memory order/execution stores keyed by account.
 
@@ -84,7 +84,7 @@
 ### #3.3.1 – Execution records
 
 - One execution per filled market order (full fill).
-- Fields: UUID `id`, `order_id`, `paper_account_id`, `symbol_id`, `side`, `quantity`, `price`, `executed_at`.
+- Fields: UUID `id`, `order_id`, `paper_account_id`, `symbol_id`, `side`, `quantity`, `price` `DECIMAL(20,8)`, `executed_at`.
 - Notional for API later = `quantity * price` (computed, not stored).
 - Unit tests: execution created iff FILLED; none on REJECTED.
 
@@ -299,16 +299,16 @@ Same verify script as 4.1; MySQL path must prove unique idempotency index.
 
 ## Best-practice checklist
 
-- [ ] Single DB transaction for fill side effects ([Prisma interactive transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
-- [ ] Idempotency via unique `(paper_account_id, client_order_id)` ([API Inventory §3](../database/API_Inventory.md))
-- [ ] DECIMAL qty/price; no float notional
-- [ ] Latest close only from market-data module (no hard-coded prices)
-- [ ] Risk limits env-configurable with safe defaults
-- [ ] AuthGuard + ownership via caller’s paper account only
-- [ ] Audit never breaks order path
-- [ ] Seed/DB parity for fill price + balances
-- [ ] Coverage ≥90% on risk + orders services
-- [ ] Conventional Commits; PR onto 4.1 branch
+- [x] Single DB transaction for fill side effects ([Prisma interactive transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions))
+- [x] Idempotency via unique `(paper_account_id, client_order_id)` ([API Inventory §3](../database/API_Inventory.md))
+- [x] DECIMAL qty/price; no float notional
+- [x] Latest close only from market-data module (no hard-coded prices)
+- [x] Risk limits env-configurable with safe defaults
+- [x] AuthGuard + ownership via caller’s paper account only
+- [x] Audit never breaks order path
+- [x] Seed/DB parity for fill price + balances
+- [x] Coverage ≥90% on risk + orders services
+- [x] Conventional Commits; combined Milestone 4 PR onto `main`
 
 ---
 
@@ -388,15 +388,15 @@ Same verify script as 4.1; MySQL path must prove unique idempotency index.
 
 ## Definition of done
 
-- [ ] PR stacked on 4.1; migrations deploy cleanly
-- [ ] #3.2.1–3.2.2, #3.3.1, #3.6.1–3.6.2 meet AC
-- [ ] Market BUY/SELL updates cash, positions, executions correctly
-- [ ] Risk limits enforced with documented defaults
-- [ ] Idempotent `client_order_id` proven in unit + e2e
-- [ ] Seed and MySQL paths both work
-- [ ] build / lint / test / test:cov (≥90%) / test:e2e / verify script green
-- [ ] Docs + manual testing updated
-- [ ] Adopted defaults followed or any override recorded in the plan/PR
+- [x] Combined Milestone 4 branch; migrations deploy cleanly
+- [x] #3.2.1–3.2.2, #3.3.1, #3.6.1–3.6.2 meet AC
+- [x] Market BUY/SELL updates cash, positions, executions correctly
+- [x] Risk limits enforced with documented defaults
+- [x] Idempotent `client_order_id` proven in unit + e2e + MySQL race smoke
+- [x] Seed and MySQL paths both work
+- [x] build / lint / test / test:cov (≥90%) / test:e2e / verify script green
+- [x] Docs + manual testing updated
+- [x] Adopted defaults followed; combined-delivery branch override recorded above
 
 ---
 

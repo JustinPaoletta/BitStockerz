@@ -88,8 +88,10 @@ CREATE TABLE `orders` (
   `quantity` decimal(18,8) NOT NULL,
   `order_type` varchar(16) NOT NULL,
   `status` varchar(16) NOT NULL,
-  `time_in_force` varchar(16) NOT NULL,
-  `submitted_at` datetime NOT NULL,
+  `avg_fill_price` decimal(20,8),
+  `reject_reason` varchar(255),
+  `client_order_id` varchar(64),
+  `requested_at` datetime NOT NULL,
   `filled_at` datetime
 );
 
@@ -100,7 +102,7 @@ CREATE TABLE `executions` (
   `symbol_id` int NOT NULL,
   `side` varchar(8) NOT NULL,
   `quantity` decimal(18,8) NOT NULL,
-  `price` decimal(18,8) NOT NULL,
+  `price` decimal(20,8) NOT NULL,
   `executed_at` datetime NOT NULL
 );
 
@@ -109,7 +111,7 @@ CREATE TABLE `positions` (
   `paper_account_id` int NOT NULL,
   `symbol_id` int NOT NULL,
   `quantity` decimal(18,8) NOT NULL,
-  `avg_cost` decimal(18,8) NOT NULL,
+  `avg_cost` decimal(20,8) NOT NULL,
   `updated_at` datetime NOT NULL
 );
 

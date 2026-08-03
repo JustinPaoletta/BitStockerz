@@ -5,9 +5,9 @@ It is derived from stories **#1–#8** and is intended to be implementation-grad
 
 It describes the **full MVP target**, not only the tables migrated today. The
 runnable database currently implements auth/reference/jobs/audit, Strategy
-Lab, and backtesting through Sprint 3.4; use
+Lab, backtesting, and paper trading through Sprint 4.3; use
 `apps/api/prisma/schema.prisma` plus `apps/api/prisma/migrations/` for the
-current deployable schema. Paper-trading and AI models below remain planned.
+current deployable schema. AI models below remain planned.
 
 Use this to:
 - Validate table relationships before coding

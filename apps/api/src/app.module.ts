@@ -24,6 +24,7 @@ import { MetricsInterceptor } from './observability/metrics.interceptor';
 import { ObservabilityModule } from './observability/observability.module';
 import { StrategiesModule } from './strategies/strategies.module';
 import { BacktestModule } from './backtest/backtest.module';
+import { TradingModule } from './trading/trading.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { BacktestModule } from './backtest/backtest.module';
     ObservabilityModule,
     StrategiesModule,
     BacktestModule,
+    TradingModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],

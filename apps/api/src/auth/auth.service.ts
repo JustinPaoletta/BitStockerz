@@ -8,7 +8,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { JWTPayload } from 'jose';
@@ -16,6 +16,7 @@ import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaperAccountProvisioner } from '../trading/paper-account-provisioner.service';
 
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -247,7 +248,15 @@ export class AuthService {
   constructor(
     private readonly config: AppConfigService,
     private readonly prisma: PrismaService,
+    @Optional()
+    private readonly paperAccounts?: PaperAccountProvisioner,
   ) {}
+
+  async ensurePaperAccountForUser(userId: string): Promise<void> {
+    if (!this.paperAccounts) return;
+    await this.ensureUserPersisted(userId);
+    await this.paperAccounts.ensureForUser(userId);
+  }
 
   async ensureUserPersisted(userId: string): Promise<void> {
     if (!this.prisma.isEnabled) {
@@ -400,6 +409,11 @@ export class AuthService {
       });
 
       await tx.backtestRun.updateMany({
+        where: { userId: input.previousUserId },
+        data: { userId: input.nextUserId },
+      });
+
+      await tx.paperAccount.updateMany({
         where: { userId: input.previousUserId },
         data: { userId: input.nextUserId },
       });

@@ -2037,3 +2037,313 @@ describe('Backtest execution limits (e2e)', () => {
       .expect(200);
   });
 });
+
+describe('Milestone 4 paper trading (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function register(email = `${crypto.randomUUID()}@example.com`) {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  it('provisions exactly one $100k account and guards every trading route', async () => {
+    const token = await register();
+    const authorization = `Bearer ${token}`;
+    await request(app.getHttpServer())
+      .get('/api/paper-account')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual({
+          id: 1,
+          base_currency: 'USD',
+          starting_balance: '100000.00',
+          cash_balance: '100000.00',
+          created_at: expect.any(String),
+        });
+      });
+    await request(app.getHttpServer())
+      .get('/api/paper-account')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => expect(response.body.id).toBe(1));
+
+    for (const [method, path] of [
+      ['get', '/api/paper-account'],
+      ['get', '/api/trading/positions'],
+      ['get', '/api/trading/portfolio-summary'],
+      ['get', '/api/trading/orders'],
+      ['get', '/api/trading/executions'],
+      ['post', '/api/trading/orders'],
+    ] as const) {
+      await request(app.getHttpServer())[method](path).expect(401);
+    }
+  });
+
+  it('fills, values, lists, and idempotently replays a fractional BUY', async () => {
+    const token = await register();
+    const authorization = `Bearer ${token}`;
+    const body = {
+      symbol: 'AAPL',
+      side: 'BUY',
+      quantity: '10.5',
+      client_order_id: 'e2e-buy-1',
+    };
+    const first = await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(200);
+    expect(first.body.order).toMatchObject({
+      symbol: 'AAPL',
+      side: 'BUY',
+      quantity: '10.50000000',
+      status: 'FILLED',
+      avg_fill_price: expect.stringMatching(/^\d+\.\d{8}$/),
+      client_order_id: 'e2e-buy-1',
+    });
+
+    const afterFill = await request(app.getHttpServer())
+      .get('/api/paper-account')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(afterFill.body.cash_balance).not.toBe('100000.00');
+    const replay = await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send(body)
+      .expect(200);
+    expect(replay.body.order.id).toBe(first.body.order.id);
+    await request(app.getHttpServer())
+      .get('/api/paper-account')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.cash_balance).toBe(afterFill.body.cash_balance),
+      );
+
+    await request(app.getHttpServer())
+      .get('/api/trading/positions')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.positions).toEqual([
+          {
+            symbol: 'AAPL',
+            quantity: '10.50000000',
+            avg_cost: first.body.order.avg_fill_price,
+          },
+        ]);
+      });
+    await request(app.getHttpServer())
+      .get('/api/trading/portfolio-summary')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual({
+          cash_balance: afterFill.body.cash_balance,
+          total_position_value: expect.stringMatching(/^\d+\.\d{2}$/),
+          total_equity: expect.stringMatching(/^\d+\.\d{2}$/),
+          unrealized_pnl_total: '0.00',
+        });
+      });
+    await request(app.getHttpServer())
+      .get('/api/trading/orders?status=FILLED&symbol=AAPL&limit=1')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.orders).toHaveLength(1);
+        expect(response.body.has_more).toBe(false);
+      });
+    await request(app.getHttpServer())
+      .get('/api/trading/executions?symbol=AAPL&limit=1')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.executions).toHaveLength(1);
+        expect(response.body.executions[0]).toMatchObject({
+          symbol: 'AAPL',
+          side: 'BUY',
+          quantity: '10.50000000',
+          price: first.body.order.avg_fill_price,
+          notional: expect.stringMatching(/^\d+\.\d{2}$/),
+        });
+      });
+  });
+
+  it('persists business rejections without executions or balance mutation', async () => {
+    const token = await register();
+    const authorization = `Bearer ${token}`;
+    const rejected = await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'BUY',
+        quantity: '1000',
+        client_order_id: 'too-big',
+      })
+      .expect(200);
+    expect(rejected.body.order).toMatchObject({
+      status: 'REJECTED',
+      reject_reason: 'MAX_ORDER_NOTIONAL',
+    });
+    await request(app.getHttpServer())
+      .get('/api/paper-account')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.cash_balance).toBe('100000.00'),
+      );
+    await request(app.getHttpServer())
+      .get('/api/trading/executions')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => expect(response.body.executions).toEqual([]));
+
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'SELL',
+        quantity: '1',
+        client_order_id: 'no-position',
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.order.status).toBe('REJECTED');
+        expect(response.body.order.reject_reason).toBe('INSUFFICIENT_POSITION');
+      });
+  });
+
+  it('partially sells, closes at zero, and prevents semantic idempotency reuse', async () => {
+    const token = await register();
+    const authorization = `Bearer ${token}`;
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'BUY',
+        quantity: '2.25',
+        client_order_id: 'open',
+      })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'SELL',
+        quantity: '1.25',
+        client_order_id: 'partial',
+      })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/trading/positions')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.positions[0].quantity).toBe('1.00000000'),
+      );
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'SELL',
+        quantity: '1',
+        client_order_id: 'close',
+      })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/trading/positions')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect((response) => expect(response.body.positions).toEqual([]));
+
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({
+        symbol: 'AAPL',
+        side: 'BUY',
+        quantity: '3',
+        client_order_id: 'open',
+      })
+      .expect(409)
+      .expect((response) => expect(response.body.code).toBe('CONFLICT'));
+  });
+
+  it('strictly validates order and list inputs and hides inactive symbols', async () => {
+    const token = await register();
+    const authorization = `Bearer ${token}`;
+    for (const body of [
+      { symbol: 'AAPL', side: 'BUY', quantity: 1 },
+      { symbol: 'AAPL', side: 'BUY', quantity: '0' },
+      { symbol: 'AAPL', side: 'BUY', quantity: '1.000000001' },
+      { symbol: 'AAPL', side: 'BUY', quantity: '1', order_type: 'MARKET' },
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/trading/orders')
+        .set('Authorization', authorization)
+        .send(body)
+        .expect(400)
+        .expect((response) =>
+          expect(response.body.code).toBe('VALIDATION_ERROR'),
+        );
+    }
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', authorization)
+      .send({ symbol: 'DELISTED', side: 'BUY', quantity: '1' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/api/trading/orders?limit=201')
+      .set('Authorization', authorization)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/api/trading/executions?offset=10001')
+      .set('Authorization', authorization)
+      .expect(400);
+  });
+
+  it('keeps paper accounts, orders, and views owner-scoped', async () => {
+    const first = await register('paper-owner-1@example.com');
+    const second = await register('paper-owner-2@example.com');
+    await request(app.getHttpServer())
+      .post('/api/trading/orders')
+      .set('Authorization', `Bearer ${first}`)
+      .send({ symbol: 'AAPL', side: 'BUY', quantity: '1' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/trading/orders')
+      .set('Authorization', `Bearer ${second}`)
+      .expect(200)
+      .expect((response) => expect(response.body.orders).toEqual([]));
+    await request(app.getHttpServer())
+      .get('/api/trading/portfolio-summary')
+      .set('Authorization', `Bearer ${second}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.total_equity).toBe('100000.00');
+        expect(response.body.total_position_value).toBe('0.00');
+      });
+  });
+});

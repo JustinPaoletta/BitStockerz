@@ -16,7 +16,7 @@ export function configureOpenApi(app: INestApplication): OpenAPIObject {
     .setTitle('BitStockerz API')
     .setDescription(
       [
-        'HTTP API for BitStockerz authentication, market data, strategies, jobs, and backtests.',
+        'HTTP API for BitStockerz authentication, market data, strategies, backtests, and paper trading.',
         '',
         'All errors use RFC 7807 Problem Details. Supply an optional `x-request-id` header to correlate a request with logs.',
         '',

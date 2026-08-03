@@ -71,7 +71,153 @@ function createHealthPrismaMock(latest: Date) {
   };
 }
 
+function createLatestClosePrismaMock(input: {
+  assetType: 'EQUITY' | 'CRYPTO';
+  equity?: unknown;
+  cryptoDaily?: unknown;
+  cryptoHourly?: unknown;
+}) {
+  return {
+    isEnabled: true,
+    symbol: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: input.assetType === 'EQUITY' ? 7 : 8,
+        symbol: input.assetType === 'EQUITY' ? 'NVDA' : 'SOL-USD',
+        name: input.assetType === 'EQUITY' ? 'NVIDIA' : 'Solana / US Dollar',
+        assetType: input.assetType,
+        exchange: input.assetType === 'EQUITY' ? 'NASDAQ' : null,
+        currency: 'USD',
+        baseAsset: input.assetType === 'CRYPTO' ? 'SOL' : null,
+        quoteAsset: input.assetType === 'CRYPTO' ? 'USD' : null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    },
+    equityDailyBar: {
+      findFirst: jest.fn().mockResolvedValue(input.equity),
+    },
+    cryptoDailyBar: {
+      findFirst: jest.fn().mockResolvedValue(input.cryptoDaily),
+    },
+    cryptoHourlyBar: {
+      findFirst: jest.fn().mockResolvedValue(input.cryptoHourly),
+    },
+  } as unknown as PrismaService;
+}
+
 describe('MarketDataService', () => {
+  it('returns current seed closes and de-duplicates batch symbol ids', async () => {
+    const service = createService();
+    const now = new Date();
+
+    await expect(service.getLatestClose('aapl', now)).resolves.toMatchObject({
+      symbol_id: 1,
+      symbol: 'AAPL',
+      interval: '1d',
+    });
+    await expect(service.getLatestClose('btc-usd', now)).resolves.toMatchObject(
+      {
+        symbol_id: 4,
+        symbol: 'BTC-USD',
+        interval: '1d',
+      },
+    );
+
+    const closes = await service.getLatestClosesByIds([4, 1, 4]);
+    expect([...closes.keys()]).toEqual([1, 4]);
+    await expect(service.getLatestClosesByIds([])).resolves.toEqual(new Map());
+  });
+
+  it('uses the latest Prisma equity daily close', async () => {
+    const timestamp = new Date('2026-08-02T00:00:00.000Z');
+    const prisma = createLatestClosePrismaMock({
+      assetType: 'EQUITY',
+      equity: { close: '182.125', date: timestamp },
+    });
+    const service = createService(prisma);
+
+    await expect(
+      service.getLatestClose('NVDA', new Date('2026-08-03T00:00:00.000Z')),
+    ).resolves.toEqual({
+      symbol_id: 7,
+      symbol: 'NVDA',
+      price: '182.125',
+      as_of: timestamp.toISOString(),
+      interval: '1d',
+    });
+    expect(prisma.equityDailyBar.findFirst).toHaveBeenCalledWith({
+      where: { symbolId: 7 },
+      orderBy: { date: 'desc' },
+    });
+  });
+
+  it('prefers a Prisma crypto daily close and falls back to hourly', async () => {
+    const dailyTimestamp = new Date('2026-08-02T00:00:00.000Z');
+    const dailyPrisma = createLatestClosePrismaMock({
+      assetType: 'CRYPTO',
+      cryptoDaily: { close: '165.25', date: dailyTimestamp },
+      cryptoHourly: {
+        close: '999',
+        timestamp: new Date('2026-08-02T10:00:00.000Z'),
+      },
+    });
+    const dailyService = createService(dailyPrisma);
+
+    await expect(
+      dailyService.getLatestClose(
+        'SOL-USD',
+        new Date('2026-08-03T00:00:00.000Z'),
+      ),
+    ).resolves.toMatchObject({ price: '165.25', interval: '1d' });
+    expect(dailyPrisma.cryptoHourlyBar.findFirst).not.toHaveBeenCalled();
+
+    const hourlyTimestamp = new Date('2026-08-02T10:00:00.000Z');
+    const hourlyPrisma = createLatestClosePrismaMock({
+      assetType: 'CRYPTO',
+      cryptoDaily: null,
+      cryptoHourly: { close: '166.75', timestamp: hourlyTimestamp },
+    });
+    const hourlyService = createService(hourlyPrisma);
+    await expect(
+      hourlyService.getLatestClose(
+        'SOL-USD',
+        new Date('2026-08-02T11:00:00.000Z'),
+      ),
+    ).resolves.toMatchObject({ price: '166.75', interval: '1h' });
+    expect(hourlyPrisma.cryptoHourlyBar.findFirst).toHaveBeenCalledWith({
+      where: { symbolId: 8 },
+      orderBy: { timestamp: 'desc' },
+    });
+  });
+
+  it.each([
+    ['missing', undefined, new Date('2026-08-02T00:00:00.000Z')],
+    [
+      'non-positive',
+      { close: '0', date: new Date('2026-08-02T00:00:00.000Z') },
+      new Date('2026-08-02T00:00:00.000Z'),
+    ],
+    [
+      'non-numeric',
+      { close: 'not-a-price', date: new Date('2026-08-02T00:00:00.000Z') },
+      new Date('2026-08-02T00:00:00.000Z'),
+    ],
+    [
+      'stale',
+      { close: '100', date: new Date('2026-07-01T00:00:00.000Z') },
+      new Date('2026-08-02T00:00:00.000Z'),
+    ],
+  ])('rejects a %s close as unavailable', async (_case, equity, now) => {
+    const service = createService(
+      createLatestClosePrismaMock({ assetType: 'EQUITY', equity }),
+    );
+
+    await expect(service.getLatestClose('NVDA', now)).rejects.toMatchObject({
+      code: ErrorCode.TRADING_NO_MARKET_PRICE,
+    });
+  });
+
   it('looks up seeded equity symbols case-insensitively when Prisma is disabled', async () => {
     const service = createService();
 

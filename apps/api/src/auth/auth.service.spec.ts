@@ -115,6 +115,7 @@ describe('AuthService', () => {
     const updateManyStrategies = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyBacktestRuns = jest.fn().mockResolvedValue({ count: 0 });
     const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
+    const updateManyPaperAccounts = jest.fn().mockResolvedValue({ count: 1 });
     const transaction = jest.fn(async (fn) =>
       fn({
         user: { update, create, delete: deleteUser },
@@ -123,6 +124,7 @@ describe('AuthService', () => {
         strategy: { updateMany: updateManyStrategies },
         backtestRun: { updateMany: updateManyBacktestRuns },
         webAuthnCredential: { updateMany: updateManyCredentials },
+        paperAccount: { updateMany: updateManyPaperAccounts },
       }),
     );
     const prisma = createPrismaMock({
@@ -169,6 +171,10 @@ describe('AuthService', () => {
       data: { userId: result.user.id },
     });
     expect(updateManyBacktestRuns).toHaveBeenCalledWith({
+      where: { userId: staleUserId },
+      data: { userId: result.user.id },
+    });
+    expect(updateManyPaperAccounts).toHaveBeenCalledWith({
       where: { userId: staleUserId },
       data: { userId: result.user.id },
     });

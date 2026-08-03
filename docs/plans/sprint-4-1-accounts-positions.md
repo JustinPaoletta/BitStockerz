@@ -1,9 +1,9 @@
 # Sprint 4.1 — Accounts & Positions
 
-**Status:** Plan ready  
+**Status:** Completed (verified August 2, 2026)
 **Roadmap marker:** Milestone 4 – Paper Trading (first sprint); depends on Milestone 3 exit  
-**Branch:** `feat/sprint-4-1-accounts-positions`  
-**PR base:** `feat/sprint-3-4-backtest-ui` (or `main` once Milestone 3 is merged)
+**Branch:** `codex/sprint-4-paper-trading` (combined Milestone 4 delivery)
+**PR base:** `main`
 
 **Overview:** Persist a single paper trading account per user ($100,000 USD default), create it on every signup path, expose `GET /paper-account`, and ship positions + cash-balance domain logic (called by order fills in 4.2). Seed mode gets in-memory mirrors so e2e/smoke work without MySQL.
 
@@ -85,7 +85,9 @@ These criteria are binding for this sprint. Sync them into MVP_01 and MVP_03 in 
   - Zero quantity → delete row so 4.3 “non-zero positions” is natural (JC-9).
 - Unique `(paper_account_id, symbol_id)`.
 - Unit tests: open, add, reduce, close, insufficient quantity, decimal qty (prep for JC-3 in 4.2).
-- Weighted average cost rounds once to 8 decimal places with `ROUND_HALF_UP`; partial sells leave `avg_cost` unchanged.
+- Weighted average cost rounds once to 8 decimal places with `ROUND_HALF_UP`
+  and is stored as `DECIMAL(20,8)`, preserving the 12-integer-digit range of
+  market-data prices; partial sells leave `avg_cost` unchanged.
 
 ### #3.3.3 – Cash balance updates
 
@@ -95,7 +97,7 @@ These criteria are binding for this sprint. Sync them into MVP_01 and MVP_03 in 
 - Never allow negative cash.
 - Unit tests: exact boundary (cash == notional), overspend, credit after sell.
 - Add a transaction-scoped `TradingLedgerService.applyFill(...)` that applies cash + position to a caller-supplied Prisma transaction client (or in-memory copy-on-write draft). This is the only method Sprint 4.2 may use; lower-level cash/position mutations remain internal so a caller cannot update one without the other.
-- Add canonical `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, and `TRADING_ACCOUNT_INACTIVE` codes now; Sprint 4.3 completes catalog coverage without renaming them.
+- Add canonical `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, and `TRADING_ACCOUNT_INACTIVE` codes now; Sprint 4.3 completed catalog coverage without renaming them.
 
 ---
 
@@ -270,16 +272,16 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ## Best-practice checklist
 
-- [ ] DECIMAL money math only — no `number` accumulation for cash/avg_cost ([Prisma Decimal](https://www.prisma.io/docs/orm/prisma-client/special-fields-and-types/working-with-decimal))
-- [ ] `ensureUserPersisted` before MySQL FK insert (jobs/audit pattern)
-- [ ] Idempotent account create (`UNIQUE user_id`)
-- [ ] Remap path keeps paper account across in-memory auth restart
-- [ ] Seed vs DB response parity for `GET /paper-account`
-- [ ] RFC 7807 via `DomainError` + `ErrorCode` ([error filter](../../apps/api/src/common/errors/http-exception.filter.ts))
-- [ ] AuthGuard on paper-account ([NestJS guards](https://docs.nestjs.com/guards))
-- [ ] Transactions for multi-row cash+position updates
-- [ ] Coverage ≥90%; no new ignore patterns without explicit review
-- [ ] Conventional Commits; stacked PR onto prior sprint branch
+- [x] DECIMAL money math only — no `number` accumulation for cash/avg_cost ([Prisma Decimal](https://www.prisma.io/docs/orm/prisma-client/special-fields-and-types/working-with-decimal))
+- [x] `ensureUserPersisted` before MySQL FK insert (jobs/audit pattern)
+- [x] Idempotent account create (`UNIQUE user_id`)
+- [x] Remap path keeps paper account across in-memory auth restart
+- [x] Seed vs DB response parity for `GET /paper-account`
+- [x] RFC 7807 via `DomainError` + `ErrorCode` ([error filter](../../apps/api/src/common/errors/http-exception.filter.ts))
+- [x] AuthGuard on paper-account ([NestJS guards](https://docs.nestjs.com/guards))
+- [x] Transactions for multi-row cash+position updates
+- [x] Coverage ≥90%; no new ignore patterns without explicit review
+- [x] Conventional Commits; combined Milestone 4 PR onto `main`
 
 ---
 
@@ -300,7 +302,7 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 | # | Blocker | Why | Default | Status |
 |---|---------|-----|---------|--------|
-| 1 | PR base if Milestone 3 not merged | Stack target unclear | Branch from the 3.4 tip; use `main` only after 3.4 merges | Sequencing prerequisite |
+| 1 | PR base after Milestone 3 | Stack target resolved | Combined Milestone 4 branch from merged `main` | Resolved |
 | 2 | Balance JSON as string vs number | Clients / inventory ambiguity | Strings with 2dp | Adopted |
 | 3 | Lazy-create on GET vs 404 | Pre-sprint users | Lazy-create $100k | Adopted |
 | 4 | Auth↔Trading DI approach | Circular module risk | Shared cycle-free `PaperAccountProvisioningModule` | Adopted |
@@ -311,7 +313,9 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 ## Judgement calls
 
 ### JC-4 — Sync paper account on signup
-- **Decision:** Create paper account **synchronously** inside AuthService new-user paths (awaited), not a background job.
+- **Decision:** Create the paper account **synchronously** through the awaited
+  AuthService provisioner immediately after every successful new-user
+  controller path, not a background job.
 - **Why:** Story #1.3.1 requires account ready immediately; matches “start trading immediately.”
 - **Discuss before implement if:** Product wants eventual consistency or signup latency budget &lt; DB RTT.
 
@@ -364,15 +368,15 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify
 
 ## Definition of done
 
-- [ ] Branched from agreed PR base; stacked PR opened
-- [ ] Migrations apply (`db:deploy`); seed mode still boots without DB
-- [ ] #1.3.1, #3.1.1, #3.3.2, #3.3.3 meet AC
-- [ ] Signup paths create exactly one $100k account
-- [ ] `GET /api/paper-account` auth-guarded, snake_case, e2e green
-- [ ] Position/cash helpers unit-tested (≥90% coverage gate)
-- [ ] Remap keeps paper account across auth restart (MySQL)
-- [ ] Docs / inventory / manual testing updated
-- [ ] Adopted defaults followed or any override recorded in the plan/PR
+- [x] Branched from agreed `main` base; combined Milestone 4 review branch prepared
+- [x] Migrations apply (`db:deploy`); seed mode still boots without DB
+- [x] #1.3.1, #3.1.1, #3.3.2, #3.3.3 meet AC
+- [x] Signup paths create exactly one $100k account
+- [x] `GET /api/paper-account` auth-guarded, snake_case, e2e green
+- [x] Position/cash helpers unit-tested (≥90% coverage gate)
+- [x] Remap keeps paper account across auth restart (MySQL)
+- [x] Docs / inventory / manual testing updated
+- [x] Adopted defaults followed; combined-delivery branch override recorded above
 
 ---
 

@@ -1,6 +1,6 @@
 // BitStockerz API Prisma schema
-// Sprint 3.2 adds immutable backtest runs/results/trades/equity points on top
-// of the Sprint 2.1 strategy and Sprint 1.x platform tables.
+// Sprint 4 adds paper accounts, positions, market orders, and executions on top
+// of the Sprint 2–3 strategy/backtest and Sprint 1.x platform tables.
 
 generator client {
   provider = "prisma-client-js"
@@ -22,6 +22,7 @@ model User {
   auditEvents         AuditEvent[]
   strategies          Strategy[]
   backtestRuns        BacktestRun[]
+  paperAccount        PaperAccount?
 
   @@map("users")
 }
@@ -128,6 +129,9 @@ model Symbol {
   cryptoHourlyBars CryptoHourlyBar[]
   backtestRuns     BacktestRun[]
   backtestTrades   BacktestTrade[]
+  orders           Order[]
+  executions       Execution[]
+  positions        Position[]
 
   @@index([assetType])
   @@map("symbols")
@@ -272,4 +276,83 @@ model BacktestEquityPoint {
 
   @@index([backtestRunId, timestamp], map: "idx_backtest_equity_run_ts")
   @@map("backtest_equity_points")
+}
+
+model PaperAccount {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId          String   @unique(map: "uq_paper_account_user") @map("user_id") @db.Char(36)
+  name            String   @db.VarChar(255)
+  baseCurrency    String   @map("base_currency") @db.VarChar(16)
+  startingBalance Decimal  @map("starting_balance") @db.Decimal(18, 2)
+  cashBalance     Decimal  @map("cash_balance") @db.Decimal(18, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @map("created_at")
+  updatedAt       DateTime @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  orders     Order[]
+  executions Execution[]
+  positions  Position[]
+
+  @@map("paper_accounts")
+}
+
+model Position {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  paperAccountId Int      @map("paper_account_id") @db.UnsignedInt
+  symbolId       Int      @map("symbol_id") @db.UnsignedInt
+  quantity       Decimal  @db.Decimal(18, 8)
+  avgCost        Decimal  @map("avg_cost") @db.Decimal(20, 8)
+  updatedAt      DateTime @map("updated_at")
+
+  account PaperAccount @relation(fields: [paperAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  symbol  Symbol       @relation(fields: [symbolId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([paperAccountId, symbolId], map: "uq_positions_account_symbol")
+  @@index([paperAccountId], map: "idx_positions_account")
+  @@index([symbolId], map: "idx_positions_symbol")
+  @@map("positions")
+}
+
+model Order {
+  id             String    @id @db.Char(36)
+  paperAccountId Int       @map("paper_account_id") @db.UnsignedInt
+  symbolId       Int       @map("symbol_id") @db.UnsignedInt
+  side           String    @db.VarChar(8)
+  quantity       Decimal   @db.Decimal(18, 8)
+  orderType      String    @map("order_type") @db.VarChar(16)
+  status         String    @db.VarChar(16)
+  avgFillPrice   Decimal?  @map("avg_fill_price") @db.Decimal(20, 8)
+  rejectReason   String?   @map("reject_reason") @db.VarChar(255)
+  clientOrderId  String?   @map("client_order_id") @db.VarChar(64)
+  requestedAt    DateTime  @map("requested_at")
+  filledAt       DateTime? @map("filled_at")
+
+  account    PaperAccount @relation(fields: [paperAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  symbol     Symbol       @relation(fields: [symbolId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  executions Execution[]
+
+  @@unique([paperAccountId, clientOrderId], map: "uq_orders_account_client")
+  @@index([paperAccountId, requestedAt], map: "idx_orders_account_requested")
+  @@index([symbolId], map: "idx_orders_symbol")
+  @@map("orders")
+}
+
+model Execution {
+  id             String   @id @db.Char(36)
+  orderId        String   @map("order_id") @db.Char(36)
+  paperAccountId Int      @map("paper_account_id") @db.UnsignedInt
+  symbolId       Int      @map("symbol_id") @db.UnsignedInt
+  side           String   @db.VarChar(8)
+  quantity       Decimal  @db.Decimal(18, 8)
+  price          Decimal  @db.Decimal(20, 8)
+  executedAt     DateTime @map("executed_at")
+
+  order   Order        @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  account PaperAccount @relation(fields: [paperAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  symbol  Symbol       @relation(fields: [symbolId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([paperAccountId, executedAt], map: "idx_exec_account_time")
+  @@index([symbolId, executedAt], map: "idx_exec_symbol_time")
+  @@map("executions")
 }

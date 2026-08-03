@@ -51,6 +51,14 @@ export interface MarketDataHealthResponse {
   source: 'database' | 'seed';
 }
 
+export interface LatestClose {
+  symbol_id: number;
+  symbol: string;
+  price: string;
+  as_of: string;
+  interval: '1d' | '1h';
+}
+
 const SANITY_SAMPLE_LIMIT = 40;
 const ACTIVE_SYMBOL_WHERE = { symbol: { isActive: true } } as const;
 const MILLISECONDS_PER_DAY = 86_400_000;
@@ -155,6 +163,105 @@ export class MarketDataService {
     return SEED_SYMBOLS.filter((record) => ids.includes(record.id))
       .sort((left, right) => left.id - right.id)
       .map(toSymbolResponse);
+  }
+
+  async getLatestClose(
+    rawSymbol: string,
+    now = new Date(),
+  ): Promise<LatestClose> {
+    const symbol = await this.lookupSymbol(rawSymbol);
+    let bar:
+      | { close: NumericValue; timestamp: Date; interval: '1d' | '1h' }
+      | undefined;
+    let staleAfterMs: number;
+
+    if (symbol.asset_type === 'EQUITY') {
+      const latest = this.prisma.isEnabled
+        ? await this.prisma.equityDailyBar.findFirst({
+            where: { symbolId: symbol.id },
+            orderBy: { date: 'desc' },
+          })
+        : SEED_EQUITY_DAILY_BARS.filter(
+            (candidate) => candidate.symbolId === symbol.id,
+          ).sort(
+            (left, right) => right.date.getTime() - left.date.getTime(),
+          )[0];
+      if (latest) {
+        bar = { close: latest.close, timestamp: latest.date, interval: '1d' };
+      }
+      staleAfterMs = this.config.marketData.staleEquityDailyMs;
+    } else {
+      const daily = this.prisma.isEnabled
+        ? await this.prisma.cryptoDailyBar.findFirst({
+            where: { symbolId: symbol.id },
+            orderBy: { date: 'desc' },
+          })
+        : SEED_CRYPTO_DAILY_BARS.filter(
+            (candidate) => candidate.symbolId === symbol.id,
+          ).sort(
+            (left, right) => right.date.getTime() - left.date.getTime(),
+          )[0];
+      if (daily) {
+        bar = { close: daily.close, timestamp: daily.date, interval: '1d' };
+        staleAfterMs = this.config.marketData.staleCryptoDailyMs;
+      } else {
+        const hourly = this.prisma.isEnabled
+          ? await this.prisma.cryptoHourlyBar.findFirst({
+              where: { symbolId: symbol.id },
+              orderBy: { timestamp: 'desc' },
+            })
+          : SEED_CRYPTO_HOURLY_BARS.filter(
+              (candidate) => candidate.symbolId === symbol.id,
+            ).sort(
+              (left, right) =>
+                right.timestamp.getTime() - left.timestamp.getTime(),
+            )[0];
+        if (hourly) {
+          bar = {
+            close: hourly.close,
+            timestamp: hourly.timestamp,
+            interval: '1h',
+          };
+        }
+        staleAfterMs = this.config.marketData.staleCryptoHourlyMs;
+      }
+    }
+
+    const price = bar ? Number(bar.close.toString()) : Number.NaN;
+    const coveredThrough =
+      bar?.interval === '1d'
+        ? bar.timestamp.getTime() + MILLISECONDS_PER_DAY
+        : (bar?.timestamp.getTime() ?? 0);
+    if (
+      !bar ||
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      now.getTime() - coveredThrough > staleAfterMs
+    ) {
+      throw new DomainError(
+        ErrorCode.TRADING_NO_MARKET_PRICE,
+        `No current close is available for ${symbol.symbol}.`,
+      );
+    }
+
+    return {
+      symbol_id: symbol.id,
+      symbol: symbol.symbol,
+      price: bar.close.toString(),
+      as_of: bar.timestamp.toISOString(),
+      interval: bar.interval,
+    };
+  }
+
+  async getLatestClosesByIds(
+    symbolIds: number[],
+    now = new Date(),
+  ): Promise<Map<number, LatestClose>> {
+    const symbols = await this.getSymbolsByIds(symbolIds);
+    const closes = await Promise.all(
+      symbols.map((symbol) => this.getLatestClose(symbol.symbol, now)),
+    );
+    return new Map(closes.map((close) => [close.symbol_id, close]));
   }
 
   async getBacktestBars(input: BacktestBarsInput): Promise<EngineBar[]> {

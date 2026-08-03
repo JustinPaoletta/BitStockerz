@@ -3,6 +3,22 @@ import { ERROR_CATALOG } from './error-catalog';
 import { DomainError } from './domain-error';
 
 describe('DomainError', () => {
+  it('has a complete, valid catalog entry for every stable error code', () => {
+    expect(Object.keys(ERROR_CATALOG).sort()).toEqual(
+      Object.values(ErrorCode).sort(),
+    );
+    for (const code of Object.values(ErrorCode)) {
+      expect(ERROR_CATALOG[code]).toEqual(
+        expect.objectContaining({
+          httpStatus: expect.any(Number),
+          typeSuffix: expect.any(String),
+          title: expect.any(String),
+          defaultDetail: expect.any(String),
+        }),
+      );
+    }
+  });
+
   it('uses the provided message when supplied', () => {
     const error = new DomainError(ErrorCode.FORBIDDEN, 'Custom message');
     const response = error.getResponse() as {

@@ -674,6 +674,135 @@ export const API_SCHEMAS: OpenApiSchemas = {
       },
     },
   },
+  PaperAccount: {
+    type: 'object',
+    required: [
+      'id',
+      'base_currency',
+      'starting_balance',
+      'cash_balance',
+      'created_at',
+    ],
+    properties: {
+      id: { type: 'integer', minimum: 1 },
+      base_currency: { type: 'string', enum: ['USD'] },
+      starting_balance: decimal,
+      cash_balance: decimal,
+      created_at: timestamp,
+    },
+  },
+  PaperOrder: {
+    type: 'object',
+    required: ['id', 'symbol', 'side', 'quantity', 'status', 'requested_at'],
+    properties: {
+      id: stringId,
+      symbol: { type: 'string', example: 'AAPL' },
+      side: { type: 'string', enum: ['BUY', 'SELL'] },
+      quantity: decimal,
+      status: {
+        type: 'string',
+        enum: ['PENDING', 'FILLED', 'REJECTED', 'CANCELLED'],
+      },
+      avg_fill_price: decimal,
+      reject_reason: {
+        type: 'string',
+        enum: [
+          'NO_MARKET_PRICE',
+          'MAX_ORDER_NOTIONAL',
+          'MAX_POSITION_PCT',
+          'MIN_CASH_REMAINING',
+          'INSUFFICIENT_CASH',
+          'INSUFFICIENT_POSITION',
+        ],
+      },
+      requested_at: timestamp,
+      filled_at: timestamp,
+      client_order_id: { type: 'string', minLength: 1, maxLength: 64 },
+    },
+  },
+  PlaceOrderResponse: {
+    type: 'object',
+    required: ['order'],
+    properties: { order: { $ref: '#/components/schemas/PaperOrder' } },
+  },
+  OrderList: {
+    type: 'object',
+    required: ['orders', 'limit', 'offset', 'has_more'],
+    properties: {
+      orders: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/PaperOrder' },
+      },
+      limit: { type: 'integer', minimum: 1, maximum: 200 },
+      offset: { type: 'integer', minimum: 0, maximum: 10000 },
+      has_more: { type: 'boolean' },
+    },
+  },
+  PaperExecution: {
+    type: 'object',
+    required: [
+      'executed_at',
+      'symbol',
+      'side',
+      'quantity',
+      'price',
+      'notional',
+    ],
+    properties: {
+      executed_at: timestamp,
+      symbol: { type: 'string', example: 'AAPL' },
+      side: { type: 'string', enum: ['BUY', 'SELL'] },
+      quantity: decimal,
+      price: decimal,
+      notional: decimal,
+    },
+  },
+  ExecutionList: {
+    type: 'object',
+    required: ['executions', 'limit', 'offset', 'has_more'],
+    properties: {
+      executions: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/PaperExecution' },
+      },
+      limit: { type: 'integer', minimum: 1, maximum: 500 },
+      offset: { type: 'integer', minimum: 0, maximum: 10000 },
+      has_more: { type: 'boolean' },
+    },
+  },
+  PositionList: {
+    type: 'object',
+    required: ['positions'],
+    properties: {
+      positions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['symbol', 'quantity', 'avg_cost'],
+          properties: {
+            symbol: { type: 'string', example: 'AAPL' },
+            quantity: decimal,
+            avg_cost: decimal,
+          },
+        },
+      },
+    },
+  },
+  PortfolioSummary: {
+    type: 'object',
+    required: [
+      'cash_balance',
+      'total_position_value',
+      'total_equity',
+      'unrealized_pnl_total',
+    ],
+    properties: {
+      cash_balance: decimal,
+      total_position_value: decimal,
+      total_equity: decimal,
+      unrealized_pnl_total: decimal,
+    },
+  },
   Liveness: {
     type: 'object',
     required: ['status'],

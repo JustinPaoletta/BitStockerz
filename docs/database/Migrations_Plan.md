@@ -22,6 +22,11 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Strategies + immutable versions (2.1) | `20260725120000_sprint_2_1_strategies` |
 | Backtest runs/results/trades/equity points (3.2) | `20260728213000_sprint_3_2_backtest_tables` |
 | Deferred backtest-run → job foreign key (3.2) | `20260728213100_sprint_3_2_backtest_runs_job_fk` |
+| Paper accounts (4.1) | `20260802010000_sprint_4_1_paper_accounts` |
+| Positions (4.1) | `20260802010100_sprint_4_1_positions` |
+| Orders (4.2) | `20260802020000_sprint_4_2_orders` |
+| Executions (4.2) | `20260802020100_sprint_4_2_executions` |
+| Trading price precision alignment (4.1–4.2) | `20260802030000_sprint_4_trading_price_precision` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 
@@ -194,13 +199,15 @@ and are exercised by the MySQL persistence smoke gate.
 
 ## Sprint 4.1 – Accounts & Positions
 
+**Status:** Implemented and applied to MySQL August 2, 2026.
+
 **Migrations**
 
-1. `V0400__create_paper_accounts.sql`  
+1. `20260802010000_sprint_4_1_paper_accounts/migration.sql` (conceptual V0400)
    - Creates: `paper_accounts`  
    - Source: `DDL/02_trading.sql`
 
-2. `V0401__create_positions.sql`  
+2. `20260802010100_sprint_4_1_positions/migration.sql` (conceptual V0401)
    - Creates: `positions`  
    - Source: `DDL/02_trading.sql`
 
@@ -208,14 +215,23 @@ and are exercised by the MySQL persistence smoke gate.
 
 ## Sprint 4.2 – Orders & Executions
 
+**Status:** Implemented and applied to MySQL August 2, 2026.
+
 **Migrations**
 
-1. `V0402__create_orders.sql`  
+1. `20260802020000_sprint_4_2_orders/migration.sql` (conceptual V0402)
    - Creates: `orders`  
    - Source: `DDL/02_trading.sql`
 
-2. `V0403__create_executions.sql`  
+2. `20260802020100_sprint_4_2_executions/migration.sql` (conceptual V0403)
    - Creates: `executions`  
+   - Source: `DDL/02_trading.sql`
+
+3. `20260802030000_sprint_4_trading_price_precision/migration.sql` (conceptual V0404)
+   - Widens `positions.avg_cost`, `orders.avg_fill_price`, and
+     `executions.price` to `DECIMAL(20,8)`, retaining eight fractional digits
+     while matching the 12-integer-digit range of market-data
+     `DECIMAL(18,6)` prices.
    - Source: `DDL/02_trading.sql`
 
 ---
@@ -224,7 +240,8 @@ and are exercised by the MySQL persistence smoke gate.
 
 **Migrations**
 
-- No new tables; APIs read from `paper_accounts`, `positions`, `orders`, `executions`.
+- Implemented August 2, 2026 with no migration; APIs read from
+  `paper_accounts`, `positions`, `orders`, and `executions`.
 
 ---
 

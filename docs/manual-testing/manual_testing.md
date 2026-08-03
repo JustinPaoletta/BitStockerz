@@ -24,6 +24,7 @@ Choose the smallest relevant test set:
 | Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
 | Observability or audit | Section 10 |
 | Strategy CRUD/versioning/validation, Sprint 3.1 engine, Sprint 3.2 persistence, Sprint 3.3 backtest APIs, or Sprint 3.4 Angular UI | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
+| Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -69,8 +70,8 @@ Expected: migrations apply successfully and `/api/health/ready` reports the data
 
 | Mode | When | Behavior |
 | --- | --- | --- |
-| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, metrics, and audit events live in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, and backtest runs/results/trades/equity points persist. Symbol/candle reads use DB rows (empty until ingestion). Auth (sessions and passkeys) remains in-memory; persisted job, strategy, and backtest operations upsert/remap a minimal `users` row for ownership foreign keys. |
+| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, paper trading, metrics, and audit events live in process. Data resets on API restart. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, backtests, and paper accounts/orders/executions/positions persist. Symbol/candle reads use DB rows (empty until ingestion). Auth sessions/passkeys remain in-memory; persisted ownership remaps a minimal `users` row across restarts. |
 
 ### Automated alternative
 
@@ -92,8 +93,8 @@ unit, and audit gates plus a real Sprint 3.3 HTTP run/list/detail smoke flow.
 Default `verify` clears `DATABASE_URL` for its smoke API even when
 `apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from
 `apps/api/.env`, deploys migrations, verifies a transactional
-backtest-persistence round trip, ingests the current rolling fixture window,
-and verifies strategy ownership after an API restart.
+backtest and paper-trading persistence round trips, ingests the current rolling
+fixture window, and verifies strategy ownership after an API restart.
 
 Standalone smoke tests require an API already running on port `4000`. Match the assertion mode to the API you started:
 
@@ -687,6 +688,273 @@ rm -f /tmp/bitstockerz-strategy-duplicate.json \
 ```
 
 Stop the API in Terminal A with `Ctrl+C`. The MySQL container may remain running for development; stop it with `./scripts/docker-mysql.sh stop` when desired.
+
+---
+
+## Section 12 – Paper trading (Sprints 4.1–4.3)
+
+Run this section once with the seed-mode startup and once with the MySQL-mode
+startup from Section 0. In MySQL mode, apply migrations first. Keep the same
+Terminal B open for all commands in a run.
+
+### 12.1 Register and verify account bootstrap
+
+```bash
+BASE_URL=http://localhost:4000/api
+TRADING_EMAIL="trading-manual-$(date +%s)@example.com"
+TOKEN=$(curl -s -X POST "$BASE_URL/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$TRADING_EMAIL\",\"display_name\":\"Trading Manual\"}" \
+  | jq -r '.access_token')
+
+curl -s "$BASE_URL/paper-account" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-paper-account-before.json | jq
+
+jq -e '
+  .base_currency == "USD" and
+  .starting_balance == "100000.00" and
+  .cash_balance == "100000.00" and
+  (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
+' /tmp/bitstockerz-paper-account-before.json
+```
+
+Expected: the final `jq` prints `true`. Repeating `GET /paper-account` returns
+the same account id and does not create another account.
+
+### 12.2 Ensure a current fill price exists
+
+This is required in MySQL mode because symbol/candle reads do not fall back to
+seed data. It is harmless and deterministic in seed mode.
+
+```bash
+curl -s -X POST "$BASE_URL/market-data/ingestion/equity" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL"}' \
+  | jq -e '.status == "completed" and .payload.imported_equity_bars >= 40'
+```
+
+Expected: `true`.
+
+### 12.3 Fill a BUY and prove idempotent replay
+
+```bash
+CLIENT_ORDER_ID="manual-buy-$(date +%s)"
+BUY_BODY=$(jq -cn --arg client "$CLIENT_ORDER_ID" '{
+  symbol:"AAPL",
+  side:"BUY",
+  quantity:"2.5",
+  client_order_id:$client
+}')
+
+BUY_CODE=$(curl -s -o /tmp/bitstockerz-trading-buy.json \
+  -w '%{http_code}' -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$BUY_BODY")
+BUY_ID=$(jq -r '.order.id' /tmp/bitstockerz-trading-buy.json)
+
+REPLAY_CODE=$(curl -s -o /tmp/bitstockerz-trading-replay.json \
+  -w '%{http_code}' -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$BUY_BODY")
+
+test "$BUY_CODE" = 200
+test "$REPLAY_CODE" = 200
+jq -e '
+  .order.status == "FILLED" and
+  .order.symbol == "AAPL" and
+  .order.side == "BUY" and
+  .order.quantity == "2.50000000" and
+  (.order.avg_fill_price | type) == "string" and
+  (.order.filled_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
+' /tmp/bitstockerz-trading-buy.json
+jq -e --arg id "$BUY_ID" '.order.id == $id' \
+  /tmp/bitstockerz-trading-replay.json
+```
+
+Expected: every assertion passes. There is one order and one execution for the
+client id; the replay does not debit cash again.
+
+### 12.4 Verify account, position, portfolio, and history views
+
+```bash
+curl -s "$BASE_URL/paper-account" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-paper-account-after.json | jq
+
+jq -e --slurpfile before /tmp/bitstockerz-paper-account-before.json '
+  (.cash_balance | tonumber) < ($before[0].cash_balance | tonumber)
+' /tmp/bitstockerz-paper-account-after.json
+
+curl -s "$BASE_URL/trading/positions" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-trading-positions.json | jq
+jq -e '
+  .positions == [{
+    symbol:"AAPL",
+    quantity:"2.50000000",
+    avg_cost:.positions[0].avg_cost
+  }] and (.positions[0].avg_cost | type) == "string"
+' /tmp/bitstockerz-trading-positions.json
+
+curl -s "$BASE_URL/trading/portfolio-summary" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-trading-summary.json | jq
+jq -e '
+  .total_equity == "100000.00" and
+  .unrealized_pnl_total == "0.00" and
+  ([.cash_balance,.total_position_value,.total_equity,.unrealized_pnl_total]
+    | all(test("^-?[0-9]+\\.[0-9]{2}$")))
+' /tmp/bitstockerz-trading-summary.json
+
+curl -s "$BASE_URL/trading/orders?status=FILLED&symbol=AAPL&limit=1&offset=0" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-trading-orders.json | jq
+jq -e --arg id "$BUY_ID" '
+  .orders[0].id == $id and .limit == 1 and .offset == 0 and
+  (.has_more | type) == "boolean"
+' /tmp/bitstockerz-trading-orders.json
+
+curl -s "$BASE_URL/trading/executions?symbol=AAPL&limit=10&offset=0" \
+  -H "Authorization: Bearer $TOKEN" \
+  | tee /tmp/bitstockerz-trading-executions.json | jq
+jq -e '
+  (.executions | length) == 1 and
+  .executions[0].quantity == "2.50000000" and
+  (.executions[0].price | test("^[0-9]+\\.[0-9]{8}$")) and
+  (.executions[0].notional | test("^[0-9]+\\.[0-9]{2}$"))
+' /tmp/bitstockerz-trading-executions.json
+```
+
+Expected: every assertion passes. The portfolio is flat to the same close used
+for the fill; history ordering/pagination metadata is stable.
+
+### 12.5 Persisted risk rejection and semantic conflict
+
+```bash
+RISK_CODE=$(curl -s -o /tmp/bitstockerz-trading-risk.json \
+  -w '%{http_code}' -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL","side":"BUY","quantity":"9999","client_order_id":"manual-risk"}')
+test "$RISK_CODE" = 200
+jq -e '
+  .order.status == "REJECTED" and
+  .order.reject_reason == "MAX_ORDER_NOTIONAL" and
+  (.order | has("filled_at") | not)
+' /tmp/bitstockerz-trading-risk.json
+
+CONFLICT_CODE=$(curl -s -o /tmp/bitstockerz-trading-conflict.json \
+  -w '%{http_code}' -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -cn --arg client "$CLIENT_ORDER_ID" '{
+    symbol:"AAPL",side:"BUY",quantity:"3",client_order_id:$client
+  }')")
+test "$CONFLICT_CODE" = 409
+jq -e '.code == "CONFLICT"' /tmp/bitstockerz-trading-conflict.json
+```
+
+Expected: the business risk failure is a persisted `200 REJECTED` order with
+no execution. Reusing the original key for a different quantity is `409` and
+does not create or fill another order.
+
+### 12.6 SELL lifecycle and boundary failures
+
+```bash
+SELL_CODE=$(curl -s -o /tmp/bitstockerz-trading-sell.json \
+  -w '%{http_code}' -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL","side":"SELL","quantity":"2.5","client_order_id":"manual-close"}')
+test "$SELL_CODE" = 200
+jq -e '.order.status == "FILLED"' /tmp/bitstockerz-trading-sell.json
+
+curl -s "$BASE_URL/trading/positions" \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq -e '.positions == []'
+
+# Long-only boundary: a new SELL has no position and persists a reject.
+curl -s -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL","side":"SELL","quantity":"0.1"}' \
+  | jq -e '.order.status == "REJECTED" and .order.reject_reason == "INSUFFICIENT_POSITION"'
+
+# Quantity must be a JSON string, never a number.
+curl -s -X POST "$BASE_URL/trading/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"AAPL","side":"BUY","quantity":1}' \
+  | jq -e '.code == "VALIDATION_ERROR" and .status == 400'
+
+# Protected reads reject missing authentication.
+curl -s "$BASE_URL/paper-account" \
+  | jq -e '.code == "UNAUTHORIZED" and .status == 401'
+```
+
+Expected: the position disappears at zero; an excess SELL is persisted as a
+business reject; invalid representation and missing auth use RFC 7807.
+
+### 12.7 Real-MySQL transaction, race, and restart gate
+
+With MySQL running, safely load the URL and execute the isolated test:
+
+```bash
+source scripts/lib/load-api-env.sh
+load_database_url_from_api_env "$PWD/apps/api"
+
+NODE_ENV=development \
+INGESTION_SCHEDULER_ENABLED=false \
+LOG_LEVEL=silent \
+  npm --prefix apps/api run test:mysql:trading
+```
+
+Expected terminal line:
+
+```text
+Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and restart ownership remap verified.
+```
+
+This gate creates isolated rows, sends two concurrent requests with the same
+client id, and proves one execution. It also fills a fractional order at the
+maximum `DECIMAL(18,6)` market-data price and verifies that `avg_cost`,
+`avg_fill_price`, and execution `price` retain it in MySQL. Finally, it restarts
+the Nest application context, re-registers the same email, proves the
+account/cash/position/history survived the user-id remap, and removes its
+fixtures.
+
+### Section 12 regression checklist
+
+| # | Scenario | Expect |
+| --- | --- | --- |
+| 1 | New signup → paper account | One account, USD, `100000.00` cash/start |
+| 2 | BUY at current close | `200 FILLED`; one cash debit/position/execution |
+| 3 | Same client id + payload | Original order id; no second execution/debit |
+| 4 | Same client id + different payload | `409 CONFLICT`; no mutation |
+| 5 | Oversized BUY | Persisted `200 REJECTED/MAX_ORDER_NOTIONAL` |
+| 6 | Position/account/portfolio views | Fixed scales, stable shapes, owner-only |
+| 7 | Orders/executions filters and paging | Stable newest-first result + metadata |
+| 8 | SELL to zero | Cash credited; position removed |
+| 9 | SELL without quantity held | Persisted `INSUFFICIENT_POSITION` reject |
+| 10 | Numeric quantity / missing auth | `400 VALIDATION_ERROR` / `401 UNAUTHORIZED` |
+| 11 | Seed automated smoke | `--sprint 4`: 15 passed, 0 failed |
+| 12 | MySQL persistence gate | PASS including concurrent replay and restart remap |
+| 13 | Maximum market-data price | Fractional fill persists in all trading price columns |
+
+### Cleanup
+
+```bash
+rm -f /tmp/bitstockerz-paper-account-{before,after}.json \
+  /tmp/bitstockerz-trading-{buy,replay,positions,summary,orders,executions,risk,conflict,sell}.json
+```
+
+Stop the API in Terminal A with `Ctrl+C`. Paper-trading rows created by the
+manual HTTP flow intentionally remain in a local MySQL dev database as useful
+history; the isolated MySQL gate cleans up its own fixtures.
 
 ---
 

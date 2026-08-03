@@ -2,9 +2,9 @@
 
 These flows describe the user-facing behavior of the Angular application.
 
-The Strategy → Backtest flow is implemented locally through Sprint 3.4. The
-paper-trading flow remains the target for Sprints 4.1–5.3; steps in that section
-do not describe a currently available route.
+The Strategy → Backtest flow is implemented through Sprint 3.4. The paper
+trading backend flow is implemented through Sprint 4.3; Milestones 5.2–5.3 add
+its Angular dashboard and trade-ticket presentation.
 
 ## 1. Strategy → Backtest Flow
 1. Create and save a strategy through the Strategy API. The full Strategy Lab
@@ -25,12 +25,17 @@ token in `sessionStorage`. Sprint 5.1 hardens the guard with `/auth/me` session
 validation and expands the shell; it does not re-scaffold the app.
 
 ## 2. Paper Trading Flow
-1. Open trading view
-2. Select symbol
-3. Place market order
-4. Execute immediately
-5. Update position & cash
-6. Refresh portfolio UI
+1. A successful signup provisions one $100,000.00 USD paper account.
+2. The future Angular trading view selects an active symbol and submits a
+   decimal-string market BUY/SELL with a unique client id.
+3. The API fills immediately at the latest eligible close, or returns a
+   persisted `REJECTED` order explaining the business rule.
+4. Filled cash, average-cost position, execution, and order state commit as
+   one transaction; replaying the same client id does not fill again.
+5. Refresh the account, current positions, portfolio summary, recent orders,
+   and execution history independently.
+6. Empty positions render an empty-state; unavailable held-symbol prices show
+   a valuation error rather than a misleading zero portfolio value.
 
 ## 3. Empty States
 - No strategies → CTA to create
@@ -43,3 +48,5 @@ validation and expands the shell; it does not re-scaffold the app.
 - Backtest failure → error message + retry
 - Expired/missing local session → redirect protected backtest routes to `/login`
 - Insufficient balance → block trade with explanation
+- Idempotency-key payload mismatch → show conflict and generate a new client id
+- Missing/stale valuation price → show unavailable-price state; do not show zero
