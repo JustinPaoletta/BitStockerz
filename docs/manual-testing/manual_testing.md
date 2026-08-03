@@ -715,7 +715,7 @@ jq -e '
   .base_currency == "USD" and
   .starting_balance == "100000.00" and
   .cash_balance == "100000.00" and
-  (.created_at | fromdateiso8601 | type) == "number"
+  (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
 ' /tmp/bitstockerz-paper-account-before.json
 ```
 
@@ -769,7 +769,7 @@ jq -e '
   .order.side == "BUY" and
   .order.quantity == "2.50000000" and
   (.order.avg_fill_price | type) == "string" and
-  (.order.filled_at | fromdateiso8601 | type) == "number"
+  (.order.filled_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
 ' /tmp/bitstockerz-trading-buy.json
 jq -e --arg id "$BUY_ID" '.order.id == $id' \
   /tmp/bitstockerz-trading-replay.json
