@@ -249,13 +249,13 @@ apps/web/src/app/shared/
 
 ## Best-practice checklist
 
-- [ ] Standalone widget components — https://angular.dev/guide/components
-- [ ] Signals for per-widget UI state — https://angular.dev/guide/signals
-- [ ] Independent fetches (no page-level `forkJoin`) — resilience #7.5.1
-- [ ] Lazy-loaded dashboard route retained from 5.1 — https://angular.dev/guide/routing
-- [ ] Auth interceptor still attaches Bearer — https://angular.dev/guide/http/interceptors
-- [ ] Empty states with clear CTAs
-- [ ] Conventional Commits: `feat: add dashboard widgets with independent loading`
+- [x] Standalone widget components — https://angular.dev/guide/components
+- [x] Signals for per-widget UI state — https://angular.dev/guide/signals
+- [x] Independent fetches (no page-level `forkJoin`) — resilience #7.5.1
+- [x] Lazy-loaded dashboard route retained from 5.1 — https://angular.dev/guide/routing
+- [x] Auth interceptor still attaches Bearer — https://angular.dev/guide/http/interceptors
+- [x] Empty states with clear CTAs
+- [x] Conventional Commits: `feat: add dashboard widgets with independent loading`
 
 ---
 

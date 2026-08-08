@@ -239,15 +239,15 @@ Update ROADMAP with Sprint 5.3, UX flow verification, manual testing click paths
 
 ## Best-practice checklist
 
-- [ ] Standalone, lazy-loaded feature routes; no duplicate Angular scaffold or global state library
-- [ ] Strict typed reactive forms and one catalog-driven definition serializer
-- [ ] Central transport-to-domain mappers; components do not repeat snake_case conversion
-- [ ] Decimal strings remain strings outside bounded display formatting
-- [ ] Order retries retain one idempotency key for the unchanged attempt
-- [ ] Server/model text uses escaped interpolation; no `innerHTML`
-- [ ] Keyboard, focus, label, error-summary, and non-color-only status coverage
-- [ ] Component contract tests plus two complete seed-mode browser flows
-- [ ] Conventional Commit: `feat: add core strategy and paper-trading workflows`
+- [x] Standalone, lazy-loaded feature routes; no duplicate Angular scaffold or global state library
+- [x] Strict typed reactive forms and one catalog-driven definition serializer
+- [x] Central transport-to-domain mappers; components do not repeat snake_case conversion
+- [x] Decimal strings remain strings outside bounded display formatting
+- [x] Order retries retain one idempotency key for the unchanged attempt
+- [x] Server/model text uses escaped interpolation; no `innerHTML`
+- [x] Keyboard, focus, label, error-summary, and non-color-only status coverage
+- [x] Component contract tests plus two complete seed-mode browser flows
+- [x] Conventional Commit: `feat: add core strategy and paper-trading workflows`
 
 ---
 

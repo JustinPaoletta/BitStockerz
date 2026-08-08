@@ -270,14 +270,14 @@ apps/web/
 
 ## Best-practice checklist
 
-- [ ] Standalone components (default) — https://angular.dev/guide/components
-- [ ] Functional `CanActivateFn` — https://angular.dev/guide/routing/common-router-tasks
-- [ ] Functional HTTP interceptor for Bearer — https://angular.dev/guide/http/interceptors
-- [ ] Lazy routes via `loadComponent` / `loadChildren` — https://angular.dev/guide/routing
-- [ ] Signals for local UI/auth state — https://angular.dev/guide/signals
-- [ ] No `forkJoin` “dashboard mega-call” in this sprint (skeletons only)
-- [ ] CSS variables for brand; minimal global CSS
-- [ ] Conventional Commits: `feat: add angular shell, passkeys, and symbol search`
+- [x] Standalone components (default) — https://angular.dev/guide/components
+- [x] Functional `CanActivateFn` — https://angular.dev/guide/routing/common-router-tasks
+- [x] Functional HTTP interceptor for Bearer — https://angular.dev/guide/http/interceptors
+- [x] Lazy routes via `loadComponent` / `loadChildren` — https://angular.dev/guide/routing
+- [x] Signals for local UI/auth state — https://angular.dev/guide/signals
+- [x] No `forkJoin` “dashboard mega-call” in this sprint (skeletons only)
+- [x] CSS variables for brand; minimal global CSS
+- [x] Conventional Commits: `feat: add angular shell, passkeys, and symbol search`
 
 ---
 
