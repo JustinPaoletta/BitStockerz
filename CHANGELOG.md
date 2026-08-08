@@ -16,7 +16,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   allowlist config (`CORS_ALLOWED_ORIGINS`) for the SPA origin.
 - Milestone 5 Angular unit coverage (auth, dashboard isolation, strategy
   mapper, display pipes, symbol search, client order ids) and Playwright
-  seed-mode e2e for Strategy Lab → backtest and paper trade fill/reject.
+  seed-mode workflow e2e covering shell auth, Strategy Lab, backtests, and
+  paper trade fill/reject/sell guards.
 
 ### Fixed
 
