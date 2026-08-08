@@ -25,6 +25,7 @@ Choose the smallest relevant test set:
 | Observability or audit | Section 10 |
 | Strategy CRUD/versioning/validation, Sprint 3.1 engine, Sprint 3.2 persistence, Sprint 3.3 backtest APIs, or Sprint 3.4 Angular UI | [PR #9 pre-merge checklist](./PRE_MERGE_CHECKLIST.md) |
 | Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes |
+| Angular shell, passkeys, dashboard widgets, Strategy Lab, or Trade desk | Section 13 |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -955,6 +956,34 @@ rm -f /tmp/bitstockerz-paper-account-{before,after}.json \
 Stop the API in Terminal A with `Ctrl+C`. Paper-trading rows created by the
 manual HTTP flow intentionally remain in a local MySQL dev database as useful
 history; the isolated MySQL gate cleans up its own fixtures.
+
+## Section 13 – Angular Milestone 5 (Sprints 5.1–5.3)
+
+Terminal A (API, seed mode):
+
+```bash
+DATABASE_URL= INGESTION_SCHEDULER_ENABLED=false \
+  WEBAUTHN_ALLOWED_ORIGINS=http://localhost:4200 \
+  npm --prefix apps/api run start:dev
+```
+
+Terminal C (web):
+
+```bash
+npm --prefix apps/web start
+```
+
+Open `http://localhost:4200`.
+
+| # | Scenario | Expect |
+| --- | --- | --- |
+| 1 | Passkey register / sign-in | Primary buttons create a session and land on `/dashboard` |
+| 2 | Email fallback | Still works when passkeys are unavailable |
+| 3 | Shell nav | Dashboard / Trade / Strategies / Backtests + logo + logout |
+| 4 | Dashboard widgets | Independent load; one forced failure does not blank others |
+| 5 | Symbol search | Debounced results; keyboard select works |
+| 6 | Strategy Lab | Create → validate → save → detail → run backtest link |
+| 7 | Trade desk | BUY fills, cash/position refresh; reject reasons shown; SELL closes |
 
 ---
 

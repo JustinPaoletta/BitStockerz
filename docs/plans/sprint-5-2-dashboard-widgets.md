@@ -1,9 +1,9 @@
 # Sprint 5.2 — Dashboard Widgets
 
-**Status:** Plan ready (not started)  
+**Status:** Completed (Milestone 5 PR)  
 **Roadmap marker:** Milestone 5 — Dashboard (Angular Frontend)  
-**Branch (when implementing):** `feat/sprint-5-2-dashboard-widgets`  
-**PR base:** `feat/sprint-5-1-shell-navigation` (stacked) → retarget `main` after 5.1 merges
+**Branch (when implementing):** `feat/sprint-5-dashboard-workflows`  
+**PR base:** `main`
 
 **Overview:** Fill the authenticated dashboard with portfolio, positions, strategies, backtests, and trades widgets. Each widget fetches independently (no `forkJoin` mega-request, no `GET /dashboard/summary`). Ship empty states, inline errors, shared formatting, and MVP performance basics (limits, no polling).
 
@@ -314,7 +314,7 @@ apps/web/src/app/shared/
 - [ ] Independent failure demo documented in manual testing
 - [ ] No `/dashboard/summary` endpoint added
 - [ ] Unit tests for formatters + at least one widget error path
-- [ ] ROADMAP Milestone 5 exit criteria satisfied
+- [ ] ROADMAP Sprint 5.2 stories marked complete; Milestone 5 exit waits for 5.3
 - [ ] PR: `feat: add dashboard widgets with independent loading`
 
 ---

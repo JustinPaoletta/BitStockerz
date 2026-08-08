@@ -1,11 +1,11 @@
 # Sprint 5.3 — Core Workflows UI
 
-**Status:** Plan ready (not started)
+**Status:** Completed (Milestone 5 PR)
 
 **Roadmap marker:** Milestone 5 integration/coverage closure
 
-**Branch (when implementing):** `feat/sprint-5-3-core-workflows-ui`
-**PR base:** `feat/sprint-5-2-dashboard-widgets` (or `main` after 5.2 merges)
+**Branch (when implementing):** `feat/sprint-5-dashboard-workflows`
+**PR base:** `main`
 
 **Overview:** Replace the shell’s Strategy and Trade placeholders with the minimum complete Angular workflows promised by `MVP.md` and `UX_Flows.md`: create/edit/validate/soft-delete a rule-based strategy, launch its backtest, place a paper market order, and immediately inspect the updated portfolio/history. This is a UI integration slice over already planned APIs, not a new backend domain.
 

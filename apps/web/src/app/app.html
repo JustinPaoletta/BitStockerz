@@ -1,20 +1,21 @@
 <header class="site-header">
-  <a class="brand" routerLink="/backtests" aria-label="BitStockerz home">
-    <span class="brand-mark">BS</span>
+  <a class="brand" routerLink="/dashboard" aria-label="BitStockerz home">
+    <img class="brand-logo" src="/brand/logo.png" alt="" width="36" height="36" />
     <span>BitStockerz</span>
   </a>
-  @if (tokens.hasToken()) {
+  @if (auth.isAuthenticated()) {
     <nav aria-label="Primary navigation">
-      <a
-        routerLink="/backtests"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
+      <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >Dashboard</a
       >
-        Backtests
-      </a>
+      <a routerLink="/trade" routerLinkActive="active">Trade</a>
       <a routerLink="/strategies" routerLinkActive="active">Strategies</a>
-      <button class="button ghost small" type="button" (click)="logout()">Log out</button>
+      <a routerLink="/backtests" routerLinkActive="active">Backtests</a>
     </nav>
+    <div class="user-menu">
+      <span class="user-label">{{ auth.user()?.display_name || auth.user()?.email || 'Signed in' }}</span>
+      <button class="button ghost small" type="button" (click)="logout()">Log out</button>
+    </div>
   }
 </header>
 <main>

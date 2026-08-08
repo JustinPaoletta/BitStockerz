@@ -48,6 +48,7 @@ const DEFAULT_TRADING_MIN_CASH_REMAINING = '0';
 export interface ServerConfig {
   port: number;
   nodeEnv: NodeEnvironment;
+  corsAllowedOrigins: string[];
 }
 
 export interface LoggingConfig {
@@ -360,6 +361,11 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   const nodeEnv = parseNodeEnvironment(env.NODE_ENV, errors);
   const port = parseInteger('PORT', env.PORT, DEFAULT_PORT, 1, 65535, errors);
+  const corsAllowedOrigins = parseCsvUrls(
+    'CORS_ALLOWED_ORIGINS',
+    env.CORS_ALLOWED_ORIGINS,
+    errors,
+  );
   const logLevel = parseLogLevel(env.LOG_LEVEL, errors);
   const logFilePath = normalizeOptional(env.LOG_FILE_PATH);
   const logToFile =
@@ -606,6 +612,12 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     server: {
       port,
       nodeEnv,
+      corsAllowedOrigins:
+        corsAllowedOrigins.length > 0
+          ? corsAllowedOrigins
+          : nodeEnv === 'production'
+            ? []
+            : ['http://localhost:4200'],
     },
     logging: {
       level: logLevel,

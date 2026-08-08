@@ -14,9 +14,10 @@ import type {
 export class BacktestsApiService {
   private readonly http = inject(HttpClient);
 
-  list(): Observable<BacktestListResponse> {
+  list(limit = 50, offset = 0): Observable<BacktestListResponse> {
+    const params = new HttpParams().set('limit', limit).set('offset', offset);
     return this.http
-      .get<unknown>('/api/backtests')
+      .get<unknown>('/api/backtests', { params })
       .pipe(map(mapBacktestList), catchError(toUserError));
   }
 

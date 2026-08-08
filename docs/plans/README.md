@@ -11,12 +11,12 @@ Index of implementation contracts after Milestone 1. “Ready” means a develop
 | 3.2 | [sprint-3-2-backtest-persistence.md](./sprint-3-2-backtest-persistence.md) | 3.1 | Completed (PR #9) | Backtest run/result/trades/equity storage and strategy version pinning. |
 | 3.3 | [sprint-3-3-backtest-execution-limits.md](./sprint-3-3-backtest-execution-limits.md) | 3.2 | Completed (PR #9) | Run/list/detail APIs, bar limits, diagnostics. |
 | 3.4 | [sprint-3-4-backtest-ui.md](./sprint-3-4-backtest-ui.md) | 3.3 | Completed (PR #9) | Angular equity-curve chart and trades table for backtest results. |
-| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | Implemented locally (verified August 2, 2026) | Default paper account, positions table, cash balance updates. |
-| 4.2 | [sprint-4-2-orders-executions.md](./sprint-4-2-orders-executions.md) | 4.1 | Implemented locally (verified August 2, 2026) | Order schema, market orders, executions, risk limits, idempotency. |
-| 4.3 | [sprint-4-3-trading-views.md](./sprint-4-3-trading-views.md) | 4.2 | Implemented locally (verified August 2, 2026) | Positions/portfolio/orders/history APIs and trading domain errors. |
-| 5.1 | [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md) | 4.3 + 3.4 web scaffold | **START HERE — Ready** | Angular shell/nav/dashboard route + symbol search. |
-| 5.2 | [sprint-5-2-dashboard-widgets.md](./sprint-5-2-dashboard-widgets.md) | 5.1 | Ready | Dashboard widgets with independent loading, empty states, UX consistency. |
-| 5.3 | [sprint-5-3-core-workflows-ui.md](./sprint-5-3-core-workflows-ui.md) | 5.2 | Ready | Functional Strategy Lab, backtest launch, and paper-trading UI flows. |
+| 4.1 | [sprint-4-1-accounts-positions.md](./sprint-4-1-accounts-positions.md) | 3.4 | Completed (PR #10) | Default paper account, positions table, cash balance updates. |
+| 4.2 | [sprint-4-2-orders-executions.md](./sprint-4-2-orders-executions.md) | 4.1 | Completed (PR #10) | Order schema, market orders, executions, risk limits, idempotency. |
+| 4.3 | [sprint-4-3-trading-views.md](./sprint-4-3-trading-views.md) | 4.2 | Completed (PR #10) | Positions/portfolio/orders/history APIs and trading domain errors. |
+| 5.1 | [sprint-5-1-shell-navigation.md](./sprint-5-1-shell-navigation.md) | 4.3 + 3.4 web scaffold | Completed (this PR) | Angular shell/nav/dashboard + symbol search + passkey auth UI. |
+| 5.2 | [sprint-5-2-dashboard-widgets.md](./sprint-5-2-dashboard-widgets.md) | 5.1 | Completed (this PR) | Dashboard widgets with independent loading, empty states, UX consistency. |
+| 5.3 | [sprint-5-3-core-workflows-ui.md](./sprint-5-3-core-workflows-ui.md) | 5.2 | Completed (this PR) | Functional Strategy Lab, backtest launch, and paper-trading UI flows. |
 | 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | 5.3 | Ready | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
 | 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Ready | Explain-strategy and logical red-flag validation endpoints. |
 | 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Ready | Explain-backtest, failure modes, and improvement suggestions. |

@@ -83,7 +83,24 @@ Acceptance criteria:
 ## Epic 2.4 – Symbol Search & Selection
 
 ### Story 2.4.1 – Symbol search API
+
+**Acceptance criteria**
+- Implemented and verified in Milestone 1 (`GET /api/symbols/search`).
+
 ### Story 2.4.2 – Reusable symbol search UI component
+
+**As a** user  
+**I want** a reusable symbol typeahead in the Angular app  
+**So that** Strategy, Trade, and Backtest screens can pick symbols consistently
+
+**Acceptance criteria**
+- Standalone Angular component callable from any route.
+- Calls `GET /api/symbols/search?q=&asset_type?&limit?` with debounce, distinct-until-changed, and request cancellation; empty trimmed input clears results without a request.
+- Result list shows symbol, display name when present, and asset type; keyboard and click selection emit the chosen symbol.
+- Handles empty query, empty results, and HTTP errors with inline messaging.
+- Combobox/listbox semantics: labelled input, arrow-key highlight, Enter select, Escape close, visible focus, and `aria-activedescendant`.
+- Unit tests with mocked `HttpClient`.
+- Demonstrated in Sprint 5.1 (dashboard or Trade stub) so QA can exercise it.
 
 ---
 

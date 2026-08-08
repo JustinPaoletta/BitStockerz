@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { TokenStorageService } from './core/auth/token-storage.service';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -9,11 +9,9 @@ import { TokenStorageService } from './core/auth/token-storage.service';
   styleUrl: './app.css',
 })
 export class App {
-  protected readonly tokens = inject(TokenStorageService);
-  private readonly router = inject(Router);
+  protected readonly auth = inject(AuthService);
 
   protected logout(): void {
-    this.tokens.clear();
-    void this.router.navigate(['/login']);
+    void this.auth.logout();
   }
 }

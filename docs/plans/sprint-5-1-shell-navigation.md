@@ -1,11 +1,11 @@
 # Sprint 5.1 — Shell & Navigation (Angular)
 
-**Status:** START HERE — ready for development
+**Status:** Completed (Milestone 5 PR)
 **Roadmap marker:** Milestone 5 — Dashboard (Angular Frontend)  
 **Branch (when implementing):** `feat/sprint-5-1-shell-navigation`  
-**PR base:** `feat/sprint-4-3-trading-views` (stacked) → retarget `main` after 4.3 merges
+**PR base:** `main` (Sprint 4 merged in PR #10)
 
-**Overview:** Extend the minimal `apps/web` scaffold owned by Sprint 3.4 into the full authenticated Angular shell + routing, land users on `/dashboard` with skeleton placeholders, and ship a reusable symbol-search component wrapping `GET /api/symbols/search`. Do not re-scaffold. No dashboard widgets yet (Sprint 5.2). Backend aggregation is intentionally skipped.
+**Overview:** Extend the minimal `apps/web` scaffold owned by Sprint 3.4 into the full authenticated Angular shell + routing, land users on `/dashboard` with skeleton placeholders, ship a reusable symbol-search component wrapping `GET /api/symbols/search`, and ship the primary **passkey (WebAuthn) register/login UI** over the existing auth APIs. Do not re-scaffold. No dashboard widgets yet (Sprint 5.2). Backend aggregation is intentionally skipped.
 
 ---
 
@@ -17,9 +17,11 @@
 |----|-------|--------|
 | #7.1.1 | Authenticated app shell | [MVP_07](../product/stories/BitStockerz_MVP_07_Dashboard_UI_Stories.md) |
 | #7.1.2 | Dashboard landing route | same |
-| #2.4.2 | Reusable symbol search UI component | [MVP_02](../product/stories/BitStockerz_MVP_02_Market_Data_Stories.md) (title only today) |
+| #2.4.2 | Reusable symbol search UI component | [MVP_02](../product/stories/BitStockerz_MVP_02_Market_Data_Stories.md) |
+| #1.1.1 | Create account with a passkey | [MVP_01](../product/stories/BitStockerz_MVP_01_User_Account_Stories.md) |
+| #1.1.2 | Sign in with a passkey | same |
 
-**Exit (from [ROADMAP.md](../product/ROADMAP.md)):** Angular app exists with auth-gated shell, dashboard route, and symbol search reusable in later screens.
+**Exit (from [ROADMAP.md](../product/ROADMAP.md)):** Angular app exists with auth-gated shell, dashboard route, symbol search reusable in later screens, and passkey register/login as the primary browser auth path.
 
 **Explicitly out of scope**
 
@@ -30,7 +32,8 @@
 | Strategy Lab / Trade full pages | Sprint 5.3; this sprint owns functional route placeholders only |
 | Design system / component library (Material as product UI) | Prefer CSS variables + light shared styles (JC-2) |
 | SSR / Angular Universal | Static SPA for MVP (Sprint 7.2) |
-| OAuth redirect UX polish | Wire login path that already returns `access_token`; deep OAuth redirect hosting in 7.2 |
+| Google/Apple OAuth browser polish + deployed redirect hosting | Keep email as unsupported-browser fallback; production OAuth callbacks in 7.2 |
+| Account recovery “add another passkey” polish | Optional MVP+ in #1.1.6; OAuth recovery remains available via API |
 
 ---
 
@@ -40,9 +43,10 @@
 |------------|----------|-----------|
 | Bearer sessions (`access_token`, `token_type: Bearer`) | `apps/api` auth controllers | Angular interceptor attaches `Authorization` |
 | `GET /api/auth/me` | `me.controller.ts` | Shell user menu / session check |
-| `POST /api/auth/login` / logout | `auth.controller.ts` | Login + logout flows |
+| `POST /api/auth/login` / logout | `auth.controller.ts` | Email fallback + logout |
+| WebAuthn register/login options + verify | `auth.controller.ts` | Passkey create-account and sign-in |
 | `GET /api/symbols/search` | `symbols.controller.ts` | Symbol search component |
-| CORS for browser origin | `main.ts` / config | Must allow `apps/web` origin in dev |
+| CORS / WebAuthn origins for browser origin | `main.ts` / config | Must allow `apps/web` origin (`localhost:4200`) in dev |
 | Milestone 4 trading + Milestone 2–3 APIs | implemented | Available for shell integration; widgets consume them in 5.2 |
 | Monorepo root | `package.json` | Add workspace scripts for `apps/web` |
 
@@ -52,8 +56,10 @@ styling, `sessionStorage` token handling, a bearer interceptor, token-presence
 route protection, login/register demo flow, `/strategies` placeholder, and
 functional `/backtests`, `/backtests/new`, and `/backtests/:id` screens.
 Sprint 5.1 must preserve those backtest routes. Its auth work hardens the
-existing guard by validating `/auth/me` and centralizing 401/logout handling;
-its UI work adds dashboard/trade destinations, the full user menu, and symbol
+existing guard by validating `/auth/me` and centralizing 401/logout handling,
+promotes **passkey register/login** to the primary `/login` UX (email remains
+the unsupported-browser / automation fallback), and its UI work adds
+dashboard/trade destinations, the full user menu, dark brand shell, and symbol
 search.
 
 ---
@@ -92,6 +98,16 @@ search.
 - Unit tests with mocked `HttpClient`.
 - Demonstrated on dashboard (or a small Trade stub page) so QA can exercise it.
 
+### #1.1.1 / #1.1.2 – Passkey register and sign-in (primary auth UI)
+
+- `/login` presents **Create account** and **Sign in** with email + **Use passkey** as the primary actions.
+- Create account: collect email (+ optional display name), call `POST /api/auth/webauthn/register/options`, run `navigator.credentials.create`, then `POST /api/auth/webauthn/register/verify`; on success store `access_token` and navigate to `returnUrl` or `/dashboard`.
+- Sign in: collect email, call `POST /api/auth/webauthn/login/options`, run `navigator.credentials.get`, then `POST /api/auth/webauthn/login/verify`; same session handoff as register.
+- Map RFC 7807 / WebAuthn failures to inline messages (cancel, timeout, invalid challenge, rate limit); never leave a half-stored token.
+- Unsupported browser/device: show clear messaging and keep the existing **email register/login** path as an explicit fallback (dev/automation and non-WebAuthn environments).
+- Unit tests cover options→verify happy path and at least one failure path with mocked WebAuthn + HttpClient.
+- Manual testing docs cover a real browser passkey ceremony against the local API (platform authenticator or virtual authenticator).
+
 ---
 
 ## API contract (client-only sprint)
@@ -100,14 +116,18 @@ No new Nest endpoints. Angular consumes existing APIs:
 
 | Method | Path | Auth | Use |
 |--------|------|------|-----|
-| POST | `/api/auth/login` (and/or WebAuthn verify) | Public | Obtain `access_token` |
+| POST | `/api/auth/webauthn/register/options` | Public | Start passkey registration |
+| POST | `/api/auth/webauthn/register/verify` | Public | Finish passkey registration + session |
+| POST | `/api/auth/webauthn/login/options` | Public | Start passkey authentication |
+| POST | `/api/auth/webauthn/login/verify` | Public | Finish passkey authentication + session |
+| POST | `/api/auth/register` / `/api/auth/login` | Public | Email fallback (unsupported browser / automation) |
 | POST | `/api/auth/logout` | Bearer | Clear server session |
 | GET | `/api/auth/me` | Bearer | User menu / guard session probe |
 | GET | `/api/symbols/search` | Public | Symbol search typeahead |
 
 **Token storage (JC-4):** `sessionStorage` key `bs.access_token` (MVP). Interceptor reads it and sets `Authorization: Bearer <token>`.
 
-**CORS:** Local `ng serve` uses the 3.4 `/api` proxy. Direct browser/e2e and deployed SPA origins use an explicit comma-separated allowlist config (final env name chosen once in API config, documented in `.env.example`); never use wildcard origins in production.
+**CORS / WebAuthn:** Local `ng serve` uses the 3.4 `/api` proxy. Direct browser/e2e and deployed SPA origins use an explicit comma-separated allowlist config (final env name chosen once in API config, documented in `.env.example`); never use wildcard origins in production. Ensure `WEBAUTHN_ALLOWED_ORIGINS` includes `http://localhost:4200` for local passkey ceremonies.
 
 **Skipped:** `GET /api/dashboard/summary` — widgets in 5.2 call domain APIs independently ([API_Inventory §7](../database/API_Inventory.md)).
 
@@ -198,14 +218,16 @@ apps/web/
    Sprint 3.4 rather than introducing an absolute local URL.
 5. Preserve the root web scripts and `.gitignore` coverage already in place.
 
-### 2. Auth client foundation
+### 2. Auth client foundation + passkey UI
 
 1. `TokenStorage` → `sessionStorage` (JC-4).
 2. `AuthService` signals: `accessToken`, `user`, `isAuthenticated`.
 3. Functional `authInterceptor` attaches Bearer token.
 4. Functional async `authGuard`: no token → `/login`; unknown session state → await one deduplicated `GET /auth/me`; invalid token → clear + redirect.
 5. A 401 response interceptor clears auth state and redirects only from protected requests (never loops on login/register endpoints). Preserve only same-origin internal `returnUrl` values.
-6. Login page uses the existing API DTO shape; successful login returns to a valid `returnUrl` or `/dashboard`. Logout awaits the API call when possible but clears local state even if the network call fails.
+6. Passkey client helpers wrap `navigator.credentials.create` / `get` and the four WebAuthn HTTP endpoints; encode ArrayBuffer fields per the API contract.
+7. Login page: primary Create account / Sign in with passkey; email register/login remains the explicit fallback.
+8. Successful auth returns to a valid `returnUrl` or `/dashboard`. Logout awaits the API call when possible but clears local state even if the network call fails.
 
 ### 3. App shell + routes
 
@@ -229,17 +251,18 @@ apps/web/
 
 1. Confirm API CORS allows web origin; document env if missing.
 2. Sync docs (table below).
-3. `ng test` / `ng build` green; smoke: login → dashboard → search AAPL.
+3. `ng test` / `ng build` green; smoke: passkey register → dashboard → search AAPL; email fallback still works.
 
 **Docs touch list**
 
 | File | Update |
 |------|--------|
-| `docs/product/ROADMAP.md` | Mark 5.1 in progress/done; note `apps/web` scaffold |
+| `docs/product/ROADMAP.md` | Mark 5.1 in progress/done; note passkey UI in scope |
 | `docs/product/stories/BitStockerz_MVP_07_*.md` | Confirm AC status |
-| `docs/product/stories/BitStockerz_MVP_02_*.md` | Add AC for #2.4.2 |
+| `docs/product/stories/BitStockerz_MVP_01_*.md` | Mark #1.1.1–#1.1.2 Angular UI shipped with 5.1 |
+| `docs/product/stories/BitStockerz_MVP_02_*.md` | Confirm #2.4.2 AC status |
 | `docs/database/API_Inventory.md` | Note client-side dashboard; no `/dashboard/summary` |
-| `docs/manual-testing/manual_testing.md` | Angular shell + symbol search section |
+| `docs/manual-testing/manual_testing.md` | Angular shell + passkey ceremony + symbol search section |
 | `README.md`, `CHANGELOG.md` | Web app scripts |
 | `.cursor/skills/sprint-delivery/reference.md` | Branch map row |
 
@@ -254,7 +277,7 @@ apps/web/
 - [ ] Signals for local UI/auth state — https://angular.dev/guide/signals
 - [ ] No `forkJoin` “dashboard mega-call” in this sprint (skeletons only)
 - [ ] CSS variables for brand; minimal global CSS
-- [ ] Conventional Commits: `feat: scaffold angular shell and symbol search`
+- [ ] Conventional Commits: `feat: add angular shell, passkeys, and symbol search`
 
 ---
 
@@ -266,8 +289,8 @@ apps/web/
 | Auth token shape mismatch | Mirror API `access_token` / `Bearer` exactly from auth specs |
 | Angular version churn | Pin latest stable at scaffold time; record in plan JC-1 |
 | Over-building design system | Hard stop: CSS vars + a few shared components |
-| Stub Trade/Strategies/Backtests confuse QA | Label “UI stub — data in later sprints” |
-| Milestone 4 review branch not merged | Base after Milestone 4 lands, or stack temporarily while keeping the shell scope isolated |
+| Stub Trade/Strategies confuse QA | Label Trade/Strategies “UI stub — data in later sprints”; keep functional Backtests routes from 3.4 |
+| Branching from stale Sprint 4 tip | Branch from `main` after PR #10 |
 
 ---
 
@@ -276,10 +299,10 @@ apps/web/
 | # | Blocker | Why it blocks | Default if unanswered | Status |
 |---|---------|---------------|----------------------|--------|
 | 1 | Angular major version | Peer/toolchain compatibility | Reuse 3.4 exact version; fallback pins current compatible stable | Adopted |
-| 2 | Login UX (password vs passkey-first) | Affects first screen | Dev login + token storage; passkey UI stretch | Adopted |
-| 3 | Brand colors / logo asset | Visual polish | CSS vars with existing repo logo if usable; text fallback | Adopted |
+| 2 | Login UX (passkey-first vs email-only) | Affects first screen | **Passkey register/login required for DoD**; email remains unsupported-browser / automation fallback; OAuth polish in 7.2 | Adopted |
+| 3 | Brand colors / logo asset | Visual polish | Full dark shell (black/navy + neon/forest green) using `docs/assets/images/logo.png` in nav; CSS variables from logo/ad palette | Adopted |
 | 4 | Production CORS allowlist config | Browser deployment | Add one validated comma-separated allowlist env; local proxy remains default | Implementation prerequisite |
-| 5 | Base branch (4.3) | Stacked PR | Stack on 4.3 tip; retarget after merge | Sequencing prerequisite |
+| 5 | Base branch | Correct merge base | Branch from `main` (Sprint 4 already merged) | Adopted |
 
 ---
 
@@ -299,25 +322,27 @@ apps/web/
 
 | Ticket | Estimate |
 |--------|----------|
-| Scaffold `apps/web` + envs + root scripts | 0.5d |
-| Auth service, interceptor, guard, login/logout | 1.0d |
-| App shell nav + lazy routes + user menu | 0.75d |
+| Extend existing `apps/web` shell/routes (do not re-scaffold) | 0.5d |
+| Harden auth service, interceptor, `/auth/me` guard, logout | 1.0d |
+| Passkey register/login UI + WebAuthn client + tests | 1.25d |
+| App shell nav + lazy routes + user menu + dark brand tokens/logo | 1.0d |
 | Dashboard landing + skeletons | 0.5d |
 | Symbol search component + tests + demo placement | 0.75d |
-| CORS/docs/manual testing/CHANGELOG | 0.5d |
+| CORS/WebAuthn origins/docs/manual testing/CHANGELOG | 0.5d |
 
-**Total:** ~4 engineering days.
+**Total:** ~5.5 engineering days.
 
 ---
 
 ## Definition of done
 
 - [ ] `apps/web` builds and serves locally
-- [ ] Auth guard protects shell routes; login/logout work against local API
-- [ ] `/dashboard` shows shell + skeletons
+- [ ] Passkey create-account and sign-in work against local API; email fallback remains
+- [ ] Auth guard protects shell routes; logout works
+- [ ] `/dashboard` shows shell + skeletons with dark brand + logo
 - [ ] Symbol search hits `/api/symbols/search` with debounce + tests
 - [ ] JCs recorded; docs synced; ROADMAP updated
-- [ ] PR: `feat: scaffold angular shell and symbol search`
+- [ ] PR: `feat: add angular shell, passkeys, and symbol search`
 
 ---
 

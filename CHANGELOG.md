@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- Milestone 5 Angular app: dark branded shell with logo, passkey-first auth
+  (email fallback), `/auth/me` session guard, dashboard widgets with
+  independent loading, Strategy Lab create/edit/validate/delete, paper trade
+  desk with idempotent market orders, reusable symbol search, and CORS
+  allowlist config (`CORS_ALLOWED_ORIGINS`) for the SPA origin.
+
 ### Fixed
 
 - Widened paper-trading average-cost and fill-price columns to
