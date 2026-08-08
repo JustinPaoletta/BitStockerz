@@ -16,7 +16,7 @@ Scope includes:
 - Completed in Sprint 1.2 (July 10, 2026): #2.2.3, #2.3.3 (candle read APIs)
 - Completed in Sprint 1.3 (July 11, 2026): #2.2.2, #2.3.2 (data ingestion)
 - Completed in Sprint 1.4 (July 24, 2026): #2.6.1–#2.6.2 (data quality and health endpoint)
-- Planned for Sprint 5.1: #2.4.2 (symbol search UI component)
+- Completed in Milestone 5 / PR #11: #2.4.2 (symbol search UI component)
 - Planned for Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
 
 ---
@@ -100,7 +100,7 @@ Acceptance criteria:
 - Handles empty query, empty results, and HTTP errors with inline messaging.
 - Combobox/listbox semantics: labelled input, arrow-key highlight, Enter select, Escape close, visible focus, and `aria-activedescendant`.
 - Unit tests with mocked `HttpClient`.
-- Demonstrated in Sprint 5.1 (dashboard or Trade stub) so QA can exercise it.
+- Demonstrated on the dashboard and Trade/backtest forms (Milestone 5).
 
 ---
 

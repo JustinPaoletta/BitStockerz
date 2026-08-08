@@ -17,7 +17,7 @@ Dependencies:
 ## Status
 
 - Not implemented yet.
-- Planned across Sprints 6.1–6.3 after the Milestone 5 Angular workflows.
+- Planned across Sprints 6.1–6.3 after Milestone 5 (PR #11).
 
 ---
 

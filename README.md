@@ -9,8 +9,9 @@ with a working NestJS API and Angular application.
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–4 implemented; Sprint 4 paper trading is locally verified on the current review branch
-- Next ready sprint: 5.1 Shell & Navigation
+- Delivery state: Milestones 0–5 implemented; Milestone 5 Angular shell,
+  dashboard, Strategy Lab, and paper Trade desk ship in PR #11
+- Next ready sprint: 6.1 AI Infrastructure
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -35,9 +36,10 @@ with a working NestJS API and Angular application.
   authenticated run/list/detail execution APIs with limits and diagnostics,
   plus paper accounts, atomic market fills, positions, risk/idempotency,
   execution/order history, and mark-to-market portfolio views.
-- An Angular app under `apps/web` with the Sprint 3.4 thin authenticated shell,
-  dev login/register flow, backtest list/run/detail screens, Lightweight Charts
-  equity curve, paged trades table, responsive layout, and API proxy.
+- An Angular app under `apps/web` with passkey-first auth (email fallback),
+  dark branded shell, dashboard widgets, Strategy Lab create/edit/validate,
+  backtest list/run/detail with Lightweight Charts, paper Trade desk, symbol
+  search, responsive layout, and the `/api` development proxy.
 
 ## Tech Stack
 
@@ -143,8 +145,8 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 
 - Start database: `./scripts/docker-mysql.sh start`
 - Apply migrations: `npm --prefix apps/api run db:deploy`
-- Required pre-merge manual checklist for PR #9: [docs/manual-testing/PRE_MERGE_CHECKLIST.md](./docs/manual-testing/PRE_MERGE_CHECKLIST.md)
-- Full curl reference: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
+- Manual API + Angular smoke guide: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
+  (Section 12 paper trading; Section 13 Milestone 5 UI)
 
 ## Testing & Quality Gates
 
@@ -169,11 +171,9 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema through Sprint 4.3)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema through Sprint 4.3 / Milestone 5)
 - [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
-- [docs/plans/sprint-2-1-strategy-persistence-versioning.md](./docs/plans/sprint-2-1-strategy-persistence-versioning.md)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
-- [docs/manual-testing/PRE_MERGE_CHECKLIST.md](./docs/manual-testing/PRE_MERGE_CHECKLIST.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 
 ## License & Access

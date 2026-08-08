@@ -262,6 +262,14 @@ and are exercised by the MySQL persistence smoke gate.
 
 ---
 
+## Sprint 5.3 – Core Workflows UI
+
+**Migrations**
+
+- No backend schema changes (frontend-only sprint).
+
+---
+
 ## Sprint 6.1 – AI Infrastructure
 
 **Migrations**

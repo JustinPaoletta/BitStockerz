@@ -19,9 +19,8 @@
   #1.1.1–#1.1.6, #1.2.1–#1.2.2, and #1.4.1. Users can complete the passkey and
   OAuth ceremonies by calling the API, manage bearer sessions, and read/update
   profile data.
-- The current Sprint 3.4 Angular app exposes development email
-  login/registration only. Sprint 5.1 promotes **passkey register/login** to
-  the required primary browser auth UI (#1.1.1–#1.1.2), with email kept as
+- Completed in Milestone 5 / PR #11: Angular **passkey register/login** is the
+  primary browser auth UI (#1.1.1–#1.1.2), with email kept as
   unsupported-browser / automation fallback. Google/Apple OAuth browser polish
   and deployed redirect hosting remain Sprint 7.2.
 - Completed in Sprint 4.1 (verified August 2, 2026): #1.3.1 provisions

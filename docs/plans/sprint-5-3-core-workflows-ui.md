@@ -1,10 +1,10 @@
 # Sprint 5.3 — Core Workflows UI
 
-**Status:** Completed (Milestone 5 PR)
+**Status:** Completed (PR #11)
 
 **Roadmap marker:** Milestone 5 integration/coverage closure
 
-**Branch (when implementing):** `feat/sprint-5-dashboard-workflows`
+**Branch:** `feat/sprint-5-dashboard-workflows`
 **PR base:** `main`
 
 **Overview:** Replace the shell’s Strategy and Trade placeholders with the minimum complete Angular workflows promised by `MVP.md` and `UX_Flows.md`: create/edit/validate/soft-delete a rule-based strategy, launch its backtest, place a paper market order, and immediately inspect the updated portfolio/history. This is a UI integration slice over already planned APIs, not a new backend domain.
@@ -305,13 +305,13 @@ Update ROADMAP with Sprint 5.3, UX flow verification, manual testing click paths
 
 ## Definition of done
 
-- [ ] Strategy and paper-trading routes contain no placeholders
-- [ ] Both `UX_Flows.md` happy paths complete in the Angular app
-- [ ] Strategy definition serializer matches 2.2 and validates against 2.3
-- [ ] Unchanged order retries reuse one client id and cannot double-fill
-- [ ] Browser e2e covers Strategy → Backtest → Results and BUY/SELL/reject flows
-- [ ] Web lint/test/build/e2e and API e2e are green
-- [ ] ROADMAP/UX/manual testing/README/CHANGELOG are synced
+- [x] Strategy and paper-trading routes contain no placeholders
+- [x] Both `UX_Flows.md` happy paths complete in the Angular app
+- [x] Strategy definition serializer matches 2.2 and validates against 2.3
+- [x] Unchanged order retries reuse one client id and cannot double-fill
+- [x] Browser e2e covers Strategy → Backtest → Results and BUY/SELL/reject flows
+- [x] Web lint/test/build/e2e and API e2e are green
+- [x] ROADMAP/UX/manual testing/README/CHANGELOG are synced
 
 ---
 

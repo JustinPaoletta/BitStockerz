@@ -17,7 +17,8 @@ Scope includes:
   BUY/SELL fills, fixed-scale cash and average-cost positions, persisted
   terminal rejections, configurable risk limits, semantic idempotency,
   portfolio unrealized P&L, and owner-scoped order/execution history.
-- Angular trading/dashboard workflows remain owned by Milestones 5.2–5.3.
+- Angular Trade desk and dashboard portfolio/position widgets shipped in
+  Milestone 5 / PR #11.
 - Realized-P&L aggregation, shorts/margin, account reset, and non-market order
   types remain explicitly outside the Milestone 4 contract.
 

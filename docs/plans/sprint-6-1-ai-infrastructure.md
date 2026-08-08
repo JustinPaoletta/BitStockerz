@@ -3,7 +3,8 @@
 **Status:** Plan ready (not started)  
 **Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
 **Branch (when implementing):** `feat/sprint-6-1-ai-infrastructure`  
-**PR base:** `feat/sprint-5-3-core-workflows-ui` (or `main` if Milestone 5 merged) — stack on latest completed prior sprint
+**PR base:** `main` after Milestone 5 / PR #11 merges (or stack on
+`feat/sprint-5-dashboard-workflows` until then)
 
 **Overview:** Stand up the Kernel AI foundation: a typed provider abstraction using AI SDK v6 structured output, direct OpenAI adapter + explicit stub provider, atomic daily usage limits (`ai_usage` / migration V0600), feature flag `AI_ENABLED`, metadata-only AI observability, and user-facing “not financial advice” disclaimers. No public explain/validate routes yet (6.2/6.3); Sprint 6.1 exports the tested `AiService` contract used by later sprints.
 

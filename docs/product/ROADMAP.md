@@ -9,15 +9,14 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — August 2, 2026
+## Current delivery state — August 7, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
-| Milestones 0–1 | Backend/platform scope completed | Platform, auth APIs, market data, ingestion/jobs, and observability are implemented and verified. Full passkey/OAuth/profile browser UI has not shipped. |
-| Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the thin Angular results app. |
+| Milestones 0–1 | Backend/platform scope completed | Platform, auth APIs, market data, ingestion/jobs, and observability are implemented and verified. |
+| Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
-| Sprint 5.1 | Completed on `feat/sprint-5-dashboard-workflows` | Authenticated shell, dark brand, passkey UI, dashboard route, symbol search. |
-| Sprints 5.2–5.3 | Completed on `feat/sprint-5-dashboard-workflows` | Dashboard widgets + Strategy Lab / Trade workflows in the same PR. |
+| Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
 | Sprints 6.1–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
@@ -50,11 +49,11 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 - #1.2.2 – User can update display preferences
 - #1.4.1 – Rate limit auth endpoints
 - Status: Backend/API implementation completed (verified July 3, 2026).
-  The current Angular app still uses development email shortcuts until Sprint
-  5.1, which owns session-shell hardening and **required** passkey
-  register/login UI (#1.1.1–#1.1.2). Google/Apple OAuth browser polish and
-  deployed redirect hosting remain Sprint 7.2. Profile recovery UX beyond
-  passkey primary flows stays follow-up frontend work.
+  Milestone 5 ships the Angular **passkey register/login** UI (#1.1.1–#1.1.2)
+  with email kept as unsupported-browser / automation fallback. Google/Apple
+  OAuth browser polish and deployed redirect hosting remain Sprint 7.2.
+  Profile recovery UX beyond passkey primary flows stays follow-up frontend
+  work.
 - Follow-up: #1.3.1 shipped in Sprint 4.1 so every successful new-user signup path provisions one paper account.
 
 **Exit**
@@ -313,7 +312,7 @@ Frontend note:
 
 ### Sprint 5.1 – Shell & Navigation
 
-**Status: Completed (Milestone 5 PR)**
+**Status: Completed (PR #11)**
 
 **Implementation plan:** [docs/plans/sprint-5-1-shell-navigation.md](../plans/sprint-5-1-shell-navigation.md)
 
@@ -332,7 +331,7 @@ Frontend note:
 
 ### Sprint 5.2 – Dashboard Widgets
 
-**Status: Completed (Milestone 5 PR)**
+**Status: Completed (PR #11)**
 
 **Implementation plan:** [docs/plans/sprint-5-2-dashboard-widgets.md](../plans/sprint-5-2-dashboard-widgets.md)
 
@@ -352,7 +351,7 @@ Frontend note:
 
 ### Sprint 5.3 – Core Workflows UI
 
-**Status: Completed (Milestone 5 PR)**
+**Status: Completed (PR #11)**
 
 **Implementation plan:** [docs/plans/sprint-5-3-core-workflows-ui.md](../plans/sprint-5-3-core-workflows-ui.md)
 

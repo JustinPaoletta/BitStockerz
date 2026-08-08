@@ -35,6 +35,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Scoped trades-table CSS so its intentional 850px scroll surface no longer
   resizes and clips Lightweight Charts' internal table at mobile widths.
 
+### Changed
+
+- Synced Milestone 5 delivery docs (roadmap, MVP, UX flows, stories, plans,
+  READMEs, manual testing Section 13) and removed the obsolete PR #9
+  `PRE_MERGE_CHECKLIST.md` in favor of `manual_testing.md`.
+
 ### Added
 
 - Sprint 4 paper trading: one default USD paper account per signup, fixed-scale

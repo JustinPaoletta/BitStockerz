@@ -1,8 +1,8 @@
 # Sprint 5.1 — Shell & Navigation (Angular)
 
-**Status:** Completed (Milestone 5 PR)
+**Status:** Completed (PR #11)  
 **Roadmap marker:** Milestone 5 — Dashboard (Angular Frontend)  
-**Branch (when implementing):** `feat/sprint-5-1-shell-navigation`  
+**Branch:** `feat/sprint-5-dashboard-workflows`
 **PR base:** `main` (Sprint 4 merged in PR #10)
 
 **Overview:** Extend the minimal `apps/web` scaffold owned by Sprint 3.4 into the full authenticated Angular shell + routing, land users on `/dashboard` with skeleton placeholders, ship a reusable symbol-search component wrapping `GET /api/symbols/search`, and ship the primary **passkey (WebAuthn) register/login UI** over the existing auth APIs. Do not re-scaffold. No dashboard widgets yet (Sprint 5.2). Backend aggregation is intentionally skipped.
@@ -336,13 +336,13 @@ apps/web/
 
 ## Definition of done
 
-- [ ] `apps/web` builds and serves locally
-- [ ] Passkey create-account and sign-in work against local API; email fallback remains
-- [ ] Auth guard protects shell routes; logout works
-- [ ] `/dashboard` shows shell + skeletons with dark brand + logo
-- [ ] Symbol search hits `/api/symbols/search` with debounce + tests
-- [ ] JCs recorded; docs synced; ROADMAP updated
-- [ ] PR: `feat: add angular shell, passkeys, and symbol search`
+- [x] `apps/web` builds and serves locally
+- [x] Passkey create-account and sign-in work against local API; email fallback remains
+- [x] Auth guard protects shell routes; logout works
+- [x] `/dashboard` shows shell + skeletons with dark brand + logo
+- [x] Symbol search hits `/api/symbols/search` with debounce + tests
+- [x] JCs recorded; docs synced; ROADMAP updated
+- [x] PR: `feat: add angular shell, passkeys, and symbol search`
 
 ---
 

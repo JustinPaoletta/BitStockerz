@@ -6,17 +6,12 @@ Update this table when a sprint ships. Pattern: `feat/sprint-{milestone}-{sprint
 
 | Sprint | Branch | PR base for next sprint |
 |--------|--------|-------------------------|
-| 1.1 | `feat/sprint-1-1-symbols-and-schemas` | this branch (until merged) |
-| 1.2 | `feat/sprint-1-2-market-data-candles` | this branch (until merged) |
 | 1.3 | `feat/sprint-1-3-data-ingestion-jobs` | `main` (merged) |
 | 1.4 | `feat/sprint-1-4-data-health-observability` | `main` (merged) |
-| 2.1 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (until merged) |
-| 2.2 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
-| 2.3 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
-| 3.1 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
-| 3.2 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
-| 3.3 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
-| 3.4 | `feat/sprint-2-1-strategy-persistence-versioning` | this branch (stacked in PR #9) |
+| 2.1–3.4 | `feat/sprint-2-1-strategy-persistence-versioning` | `main` (merged PR #9) |
+| 4.1–4.3 | `feat/sprint-4-paper-trading` (or equivalent) | `main` (merged PR #10) |
+| 5.1–5.3 | `feat/sprint-5-dashboard-workflows` | `main` after PR #11 merges |
+| 6.1 | `feat/sprint-6-1-ai-infrastructure` | stack on Milestone 5 branch until #11 merges, then `main` |
 
 **Stacked PR rule:** Sprint N+1 PR targets the branch for Sprint N. After Sprint N merges to `main`, Sprint N+1 rebases or merges `main`, then targets `main`.
 
