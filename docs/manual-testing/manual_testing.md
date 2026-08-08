@@ -982,6 +982,32 @@ npm --prefix apps/web start
 
 Open `http://localhost:4200`.
 
+### Pre-merge manual checklist
+
+Work through these in order on a fresh browser session (or after Log out).
+
+| # | What to do | Pass when |
+| --- | --- | --- |
+| 1 | **Register (email fallback)** — open Email fallback, register a new email + display name | Lands on `/dashboard`, primary nav + user label + Log out appear |
+| 2 | **Shell** — click Dashboard / Trade / Strategies / Backtests; click logo | Each route loads; logo returns to dashboard |
+| 3 | **Log out / returnUrl** — Log out, visit `/trade` (should bounce to login), sign in again | After login you land back on `/trade`, not a blank shell |
+| 4 | **Session restore** — while signed in, hard-refresh `/dashboard` | Stay signed in; nav + widgets reload without re-login |
+| 5 | **Dashboard widgets** — confirm Portfolio / Positions / Strategies / Backtests / Trades / Symbol search | Each widget has its own loading → ready/empty; one empty does not blank others |
+| 6 | **Dashboard Edit link** — create a strategy first if needed, then from dashboard Strategies widget click **Edit** | Opens `/strategies/:id/edit`, not the detail page |
+| 7 | **Symbol search** — on dashboard, type `AA`, arrow-key to AAPL, Enter | Combobox shows results; selection fills the field |
+| 8 | **Strategy Lab create** — Strategies → Create → Validate → Save | “Definition is valid.” then detail page with name/version |
+| 9 | **Strategy edit + dirty guard** — Edit, change name, click Back without saving | Browser confirm appears; Cancel keeps you on the editor |
+| 10 | **Versioning** — Edit definition (e.g. period), Save, on detail switch Version dropdown | New version number; older version is read-only (no Edit/Delete) |
+| 11 | **Backtest from strategy** — Detail → Run backtest; confirm strategy name + locked timeframe; pick dates covering seed AAPL (e.g. last ~3 months), Run | Navigates to detail with Equity curve + Final equity |
+| 12 | **Trade BUY** — Trade desk, AAPL BUY qty `1`, Submit | Status “Filled BUY…”, cash drops, position + executions update |
+| 13 | **Trade reject** — same ticket qty `9999`, Submit | Status shows `Rejected: MAX_ORDER_NOTIONAL` (or similar); order history shows REJECTED |
+| 14 | **Trade SELL** — SELL qty equal to open AAPL position, Submit | Fills; position clears/reduces; cash increases |
+| 15 | **SELL oversize client guard** — SELL more than displayed position | Inline error; no order submitted |
+| 16 | **Passkey path (if device supports it)** — Log out, Register/Sign in with passkey | Session created; dashboard loads. If WebAuthn unavailable, email fallback still works |
+| 17 | **401 handling** — DevTools → Application → Session Storage → delete `bs.access_token`, click Trade | Redirect to login; signing in restores access |
+
+Optional stretch (not merge-blocking): force one dashboard API to fail in DevTools Network and confirm only that widget shows Retry.
+
 | # | Scenario | Expect |
 | --- | --- | --- |
 | 1 | Passkey register / sign-in | Primary buttons create a session and land on `/dashboard` |

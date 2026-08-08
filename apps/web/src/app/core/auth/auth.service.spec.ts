@@ -68,4 +68,15 @@ describe('AuthService', () => {
     await expect(first).resolves.toBe(true);
     await expect(second).resolves.toBe(true);
   });
+
+  it('clears the session when login returns a token but /auth/me fails', async () => {
+    const pending = auth.loginWithEmail('trader@example.com');
+    http.expectOne('/api/auth/login').flush({ access_token: 'token-1' });
+    await Promise.resolve();
+    http.expectOne('/api/auth/me').flush({ detail: 'unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+    await expect(pending).resolves.toBeUndefined();
+    expect(tokens.get()).toBeNull();
+    expect(auth.isAuthenticated()).toBe(false);
+    expect(auth.user()).toBeNull();
+  });
 });

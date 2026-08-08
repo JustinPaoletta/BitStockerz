@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- Corrected dashboard strategy **Edit** links to open the editor (`/strategies/:id/edit`)
+  instead of the detail page.
+- Avoid marking auth sessions as checked when `/auth/me` fails after a token-only
+  login response; redirect authenticated users away from `/login`.
+- Made trade-ticket `client_order_id` rotation unsubscribe on destroy, and raised
+  the strategy period minimum to `2` to match the indicator catalog.
 - Made auth token storage signal-backed so the shell nav updates after
   login/register instead of staying hidden until a full reload.
 - Widened paper-trading average-cost and fill-price columns to

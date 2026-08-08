@@ -257,7 +257,7 @@ export class TradingWorkspacePage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.ticket.valueChanges.subscribe(() => {
+    this.ticket.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.clientOrderId = nextClientOrderId(this.clientOrderId, true, false);
     });
     this.refreshAll();

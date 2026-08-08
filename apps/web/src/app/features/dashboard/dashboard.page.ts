@@ -142,7 +142,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                 <li>
                   <a [routerLink]="['/strategies', item.id]">{{ item.name }}</a>
                   <div class="row-actions">
-                    <a class="text-link" [routerLink]="['/strategies', item.id]">Edit</a>
+                    <a class="text-link" [routerLink]="['/strategies', item.id, 'edit']">Edit</a>
                     <a
                       class="text-link"
                       [routerLink]="['/backtests/new']"

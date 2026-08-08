@@ -94,9 +94,22 @@ export class LoginPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
+  constructor() {
+    void this.redirectIfAuthenticated();
+  }
+
   protected toggleMode(): void {
     this.mode.update((value) => (value === 'login' ? 'register' : 'login'));
     this.error.set('');
+  }
+
+  private async redirectIfAuthenticated(): Promise<void> {
+    if (!this.auth.isAuthenticated()) return;
+    const ok = await this.auth.ensureSession();
+    if (!ok) return;
+    await this.router.navigateByUrl(
+      safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')),
+    );
   }
 
   protected async onPasskey(event?: SubmitEvent): Promise<void> {

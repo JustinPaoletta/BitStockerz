@@ -184,7 +184,7 @@ export class StrategyEditorPage implements OnInit {
     timeframe: new FormControl<'1d' | '1h'>('1d', { nonNullable: true }),
     indicator_id: new FormControl('sma', { nonNullable: true, validators: [Validators.required] }),
     indicator_type: new FormControl('SMA', { nonNullable: true }),
-    period: new FormControl(20, { nonNullable: true, validators: [Validators.min(1)] }),
+    period: new FormControl(20, { nonNullable: true, validators: [Validators.min(2)] }),
     entry_op: new FormControl('gt', { nonNullable: true }),
     entry_literal: new FormControl(100, { nonNullable: true }),
     exit_op: new FormControl('lt', { nonNullable: true }),

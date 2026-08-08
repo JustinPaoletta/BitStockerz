@@ -151,8 +151,11 @@ export class AuthService {
       this.sessionChecked.set(true);
       return;
     }
-    await this.loadMe();
-    this.sessionChecked.set(true);
+    const ok = await this.loadMe();
+    // loadMe clears the session on failure; only mark checked when the user loaded.
+    if (ok) {
+      this.sessionChecked.set(true);
+    }
   }
 
   private async loadMe(): Promise<boolean> {
