@@ -22,15 +22,15 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
         @if (strategy(); as item) {
           <section class="page-heading">
             <div>
-              <p class="eyebrow">Strategy · v{{ item.version }}</p>
+              <p class="eyebrow">Strategy · v{{ item.version_number }}</p>
               <h1>{{ item.name }}</h1>
               <p class="lede">{{ item.description || 'No description' }}</p>
-              @if (historical()) {
-                <p class="hint">Historical version — read only. Switch to the latest version to edit.</p>
+              @if (!item.is_latest) {
+                <p class="hint">Historical version — read only. Open the latest version to edit.</p>
               }
             </div>
             <div class="actions">
-              @if (!historical()) {
+              @if (item.is_latest !== false) {
                 <a class="button secondary" [routerLink]="['/strategies', item.id, 'edit']">Edit</a>
               }
               <a
@@ -39,7 +39,7 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
                 [queryParams]="{ strategy_id: item.id }"
                 >Run backtest</a
               >
-              @if (!historical()) {
+              @if (item.is_latest !== false) {
                 <button class="button ghost" type="button" (click)="remove()">Delete</button>
               }
             </div>
@@ -47,7 +47,7 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
 
           <div class="panel meta-panel">
             <label for="version">Version</label>
-            <select id="version" [value]="item.version" (change)="onVersion($event)">
+            <select id="version" [value]="item.version_number" (change)="onVersion($event)">
               @for (version of versions(); track version) {
                 <option [value]="version">v{{ version }}</option>
               }
@@ -57,6 +57,9 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
               <div><dt>Timeframe</dt><dd>{{ item.timeframe }}</dd></div>
               <div><dt>Updated</dt><dd>{{ item.updated_at }}</dd></div>
             </dl>
+            @if (item.summary) {
+              <p class="lede">{{ item.summary }}</p>
+            }
             <pre>{{ item.definition | json }}</pre>
           </div>
         }
@@ -94,9 +97,9 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
 export class StrategyDetailPage implements OnInit {
   protected readonly strategy = signal<StrategyDetail | null>(null);
   protected readonly versions = signal<number[]>([]);
-  protected readonly historical = signal(false);
   protected readonly state = signal<'loading' | 'ready' | 'error'>('loading');
   protected readonly error = signal('Failed to load strategy.');
+  private latestVersion = 1;
   private readonly api = inject(StrategiesApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -115,10 +118,13 @@ export class StrategyDetailPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (item) => {
+          if (item.is_latest !== false) {
+            this.latestVersion = item.version_number;
+          }
           this.strategy.set(item);
-          const latest = item.latest_version ?? item.version;
-          this.versions.set(Array.from({ length: latest }, (_, i) => latest - i));
-          this.historical.set(item.version !== latest);
+          this.versions.set(
+            Array.from({ length: this.latestVersion }, (_, i) => this.latestVersion - i),
+          );
           this.state.set('ready');
         },
         error: (error: Error) => {

@@ -8,15 +8,18 @@ export interface StrategySummary {
   description?: string | null;
   asset_type: 'EQUITY' | 'CRYPTO';
   timeframe: '1d' | '1h';
-  latest_version: number;
+  version_number: number;
   updated_at: string;
   created_at: string;
 }
 
 export interface StrategyDetail extends StrategySummary {
   definition: StrategyDefinition;
-  version: number;
+  summary?: string;
+  is_latest?: boolean;
   version_created_at?: string;
+  symbol_scope?: string;
+  is_active?: boolean;
 }
 
 export interface StrategyDefinition {
@@ -98,15 +101,15 @@ export class StrategiesApiService {
   }
 
   validate(definition: StrategyDefinition): Observable<{
-    valid: boolean;
-    summary?: string;
-    errors?: { path?: string; message: string }[];
+    is_valid: boolean;
+    summary?: string | null;
+    errors?: { path?: string; message: string; code?: string }[];
   }> {
     return this.http
       .post<{
-        valid: boolean;
-        summary?: string;
-        errors?: { path?: string; message: string }[];
+        is_valid: boolean;
+        summary?: string | null;
+        errors?: { path?: string; message: string; code?: string }[];
       }>('/api/strategies/validate', { definition })
       .pipe(catchError(toUserError));
   }

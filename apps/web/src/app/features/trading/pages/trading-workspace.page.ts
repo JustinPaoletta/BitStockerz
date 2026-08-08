@@ -14,6 +14,7 @@ import {
   PositionRow,
   TradingApiService,
 } from '../data/trading-api.service';
+import { nextClientOrderId } from '../data/client-order-id';
 
 @Component({
   selector: 'app-trading-workspace-page',
@@ -249,7 +250,7 @@ export class TradingWorkspacePage implements OnInit {
   protected readonly orderError = signal('');
   protected readonly orderResult = signal('');
 
-  private clientOrderId = crypto.randomUUID();
+  private clientOrderId: string = crypto.randomUUID();
   private ordersOffset = 0;
   private executionsOffset = 0;
   private readonly api = inject(TradingApiService);
@@ -257,7 +258,7 @@ export class TradingWorkspacePage implements OnInit {
 
   ngOnInit(): void {
     this.ticket.valueChanges.subscribe(() => {
-      this.clientOrderId = crypto.randomUUID();
+      this.clientOrderId = nextClientOrderId(this.clientOrderId, true, false);
     });
     this.refreshAll();
   }
@@ -399,7 +400,7 @@ export class TradingWorkspacePage implements OnInit {
       } else {
         this.orderResult.set(`Order status: ${order.status}`);
       }
-      this.clientOrderId = crypto.randomUUID();
+      this.clientOrderId = nextClientOrderId(this.clientOrderId, false, true);
       this.refreshSummary();
       this.refreshPositions();
       this.refreshOrders(true);

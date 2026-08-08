@@ -959,6 +959,13 @@ history; the isolated MySQL gate cleans up its own fixtures.
 
 ## Section 13 – Angular Milestone 5 (Sprints 5.1–5.3)
 
+Automated gates (seed mode; starts API + web):
+
+```bash
+npm --prefix apps/web test
+npm --prefix apps/web run e2e
+```
+
 Terminal A (API, seed mode):
 
 ```bash

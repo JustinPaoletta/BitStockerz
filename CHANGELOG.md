@@ -14,9 +14,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   independent loading, Strategy Lab create/edit/validate/delete, paper trade
   desk with idempotent market orders, reusable symbol search, and CORS
   allowlist config (`CORS_ALLOWED_ORIGINS`) for the SPA origin.
+- Milestone 5 Angular unit coverage (auth, dashboard isolation, strategy
+  mapper, display pipes, symbol search, client order ids) and Playwright
+  seed-mode e2e for Strategy Lab → backtest and paper trade fill/reject.
 
 ### Fixed
 
+- Made auth token storage signal-backed so the shell nav updates after
+  login/register instead of staying hidden until a full reload.
 - Widened paper-trading average-cost and fill-price columns to
   `DECIMAL(20,8)` so every `DECIMAL(18,6)` market close can be persisted
   without a MySQL out-of-range failure.

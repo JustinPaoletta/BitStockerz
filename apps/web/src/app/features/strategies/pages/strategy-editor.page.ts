@@ -14,6 +14,12 @@ import {
   StrategyDefinition,
   StrategyDetail,
 } from '../data/strategies-api.service';
+import {
+  buildStrategyDefinition,
+  definitionsEqual,
+  editorValuesFromDetail,
+  type StrategyEditorValues,
+} from '../data/strategy-form.mapper';
 
 type EditorForm = FormGroup<{
   name: FormControl<string>;
@@ -219,9 +225,9 @@ export class StrategyEditorPage implements OnInit {
     this.message.set('');
     try {
       const result = await firstValueFrom(this.api.validate(this.toDefinition()));
-      this.valid.set(result.valid);
+      this.valid.set(result.is_valid);
       this.summary.set(result.summary ?? JSON.stringify(result, null, 2));
-      this.message.set(result.valid ? 'Definition is valid.' : 'Definition has validation errors.');
+      this.message.set(result.is_valid ? 'Definition is valid.' : 'Definition has validation errors.');
     } catch (error) {
       this.valid.set(false);
       this.message.set(error instanceof Error ? error.message : 'Validation failed.');
@@ -237,7 +243,7 @@ export class StrategyEditorPage implements OnInit {
     try {
       const definition = this.toDefinition();
       const validation = await firstValueFrom(this.api.validate(definition));
-      if (!validation.valid) {
+      if (!validation.is_valid) {
         this.valid.set(false);
         this.message.set('Fix validation errors before saving.');
         this.summary.set(JSON.stringify(validation.errors ?? validation, null, 2));
@@ -300,68 +306,17 @@ export class StrategyEditorPage implements OnInit {
   }
 
   private patchFromDetail(detail: StrategyDetail): void {
-    const indicator = detail.definition.indicators[0];
-    const entry = detail.definition.entry.conditions[0];
-    const exit = detail.definition.exit.conditions[0];
-    this.form.patchValue({
-      name: detail.name,
-      description: detail.description ?? '',
-      asset_type: detail.asset_type,
-      timeframe: detail.timeframe,
-      indicator_id: indicator?.id ?? 'sma',
-      indicator_type: indicator?.type ?? 'SMA',
-      period: indicator?.params?.['period'] ?? 20,
-      entry_op: entry?.op ?? 'gt',
-      entry_literal: 'literal' in (entry?.right ?? {}) ? Number((entry!.right as { literal: number }).literal) : 100,
-      exit_op: exit?.op ?? 'lt',
-      exit_literal: 'literal' in (exit?.right ?? {}) ? Number((exit!.right as { literal: number }).literal) : 90,
-      stop_loss: detail.definition.risk.stop_loss.value,
-      take_profit: detail.definition.risk.take_profit.value,
-    });
+    this.form.patchValue(editorValuesFromDetail(detail));
     this.form.markAsPristine();
   }
 
   private toDefinition(): StrategyDefinition {
-    const values = this.form.getRawValue();
-    return {
-      indicators: [
-        {
-          id: values.indicator_id,
-          type: values.indicator_type,
-          params: { period: values.period },
-          source: 'close',
-        },
-      ],
-      entry: {
-        logic: 'AND',
-        conditions: [
-          {
-            left: { indicator: values.indicator_id },
-            op: values.entry_op,
-            right: { literal: values.entry_literal },
-          },
-        ],
-      },
-      exit: {
-        logic: 'AND',
-        conditions: [
-          {
-            left: { indicator: values.indicator_id },
-            op: values.exit_op,
-            right: { literal: values.exit_literal },
-          },
-        ],
-      },
-      risk: {
-        stop_loss: { type: 'percent', value: values.stop_loss },
-        take_profit: { type: 'percent', value: values.take_profit },
-      },
-    };
+    return buildStrategyDefinition(this.form.getRawValue() as StrategyEditorValues);
   }
 
   private definitionChanged(next: StrategyDefinition): boolean {
     if (!this.existing) return true;
-    return JSON.stringify(this.existing.definition) !== JSON.stringify(next);
+    return !definitionsEqual(this.existing.definition, next);
   }
 }
 
