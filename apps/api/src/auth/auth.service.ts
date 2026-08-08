@@ -522,8 +522,6 @@ export class AuthService {
       normalizedEmail,
     );
 
-    const user = this.createUser(normalizedEmail, input.displayName);
-
     if (input.response) {
       const registrationResponse =
         input.response as unknown as RegistrationResponseJSON;
@@ -542,21 +540,33 @@ export class AuthService {
         );
       }
 
-      this.addPasskeyCredential(user, {
-        credentialId: verification.registrationInfo.credential.id,
-        credential: {
-          id: verification.registrationInfo.credential.id,
-          publicKey: verification.registrationInfo.credential.publicKey,
-          counter: verification.registrationInfo.credential.counter,
-          transports: verification.registrationInfo.credential.transports,
-        },
-        aaguid: verification.registrationInfo.aaguid,
-      });
-    } else {
-      // Compatibility fallback for local/test requests that don't send a full WebAuthn response payload.
-      this.verifyLegacyWebAuthnRegistration(user, challenge, input);
+      const user = this.createUser(normalizedEmail, input.displayName);
+      try {
+        this.addPasskeyCredential(user, {
+          credentialId: verification.registrationInfo.credential.id,
+          credential: {
+            id: verification.registrationInfo.credential.id,
+            publicKey: verification.registrationInfo.credential.publicKey,
+            counter: verification.registrationInfo.credential.counter,
+            transports: verification.registrationInfo.credential.transports,
+          },
+          aaguid: verification.registrationInfo.aaguid,
+        });
+      } catch (error) {
+        this.removeUser(user);
+        throw error;
+      }
+      return this.createAuthResponse(user);
     }
 
+    // Compatibility fallback for local/test requests that don't send a full WebAuthn response payload.
+    const user = this.createUser(normalizedEmail, input.displayName);
+    try {
+      this.verifyLegacyWebAuthnRegistration(user, challenge, input);
+    } catch (error) {
+      this.removeUser(user);
+      throw error;
+    }
     return this.createAuthResponse(user);
   }
 
@@ -1329,6 +1339,15 @@ export class AuthService {
     this.usersById.set(user.id, user);
 
     return user;
+  }
+
+  private removeUser(user: UserRecord): void {
+    this.usersByEmail.delete(user.email);
+    this.usersById.delete(user.id);
+    for (const credentialId of user.passkeyCredentialIds) {
+      this.credentialsById.delete(credentialId);
+    }
+    user.passkeyCredentialIds.clear();
   }
 
   private addPasskeyCredential(

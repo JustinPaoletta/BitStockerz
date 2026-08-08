@@ -2,14 +2,15 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { LoginPage, safeReturnUrl } from './login.page';
+import { LoginPage } from './login.page';
+import { safeReturnUrl } from './auth.service';
 
 describe('safeReturnUrl', () => {
   it('accepts only internal absolute paths', () => {
     expect(safeReturnUrl('/backtests/123?tab=trades')).toBe('/backtests/123?tab=trades');
-    expect(safeReturnUrl(null)).toBe('/backtests');
-    expect(safeReturnUrl('https://example.com')).toBe('/backtests');
-    expect(safeReturnUrl('//example.com')).toBe('/backtests');
+    expect(safeReturnUrl(null)).toBe('/dashboard');
+    expect(safeReturnUrl('https://example.com')).toBe('/dashboard');
+    expect(safeReturnUrl('//example.com')).toBe('/dashboard');
   });
 });
 
@@ -21,7 +22,7 @@ describe('LoginPage', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([{ path: 'backtests', component: LoginPage }]),
+        provideRouter([{ path: 'dashboard', component: LoginPage }]),
       ],
     }).compileComponents();
   });
@@ -31,28 +32,29 @@ describe('LoginPage', () => {
     sessionStorage.clear();
   });
 
-  it('prevents native form navigation and logs in through the API', async () => {
+  it('logs in through the email fallback', async () => {
     const fixture = TestBed.createComponent(LoginPage);
     fixture.detectChanges();
-    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    const input = fixture.nativeElement.querySelector('#email') as HTMLInputElement;
     input.value = 'user@example.com';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     fixture.detectChanges();
 
-    const submitEvent = new Event('submit', {
-      bubbles: true,
-      cancelable: true,
-    });
-    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
-    form.dispatchEvent(submitEvent);
+    const fallbackButton = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((button) => button.textContent?.includes('Email log in'));
+    expect(fallbackButton).toBeTruthy();
+    fallbackButton!.click();
 
-    expect(submitEvent.defaultPrevented).toBe(true);
     TestBed.inject(HttpTestingController)
       .expectOne('/api/auth/login')
-      .flush({ access_token: 'test-token' });
+      .flush({
+        access_token: 'test-token',
+        user: { id: '1', email: 'user@example.com', display_name: 'User' },
+      });
     await fixture.whenStable();
 
     expect(sessionStorage.getItem('bs.access_token')).toBe('test-token');
-    expect(TestBed.inject(Router).url).toBe('/backtests');
+    expect(TestBed.inject(Router).url).toBe('/dashboard');
   });
 });

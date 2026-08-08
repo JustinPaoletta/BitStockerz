@@ -7,13 +7,44 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- Milestone 5 Angular app: dark branded shell with logo, passkey-first auth
+  (email fallback), `/auth/me` session guard, dashboard widgets with
+  independent loading, Strategy Lab create/edit/validate/delete, paper trade
+  desk with idempotent market orders, reusable symbol search, and CORS
+  allowlist config (`CORS_ALLOWED_ORIGINS`) for the SPA origin.
+- Milestone 5 Angular unit coverage (auth, dashboard isolation, strategy
+  mapper, display pipes, symbol search, client order ids) and Playwright
+  seed-mode workflow e2e covering shell auth, Strategy Lab, backtests, and
+  paper trade fill/reject/sell guards.
+
 ### Fixed
 
+- Roll back in-memory user creation when passkey registration verification
+  fails, so a cancelled/failed ceremony does not block retry with
+  “email already registered”.
+- Corrected dashboard strategy **Edit** links to open the editor (`/strategies/:id/edit`)
+  instead of the detail page.
+- Avoid marking auth sessions as checked when `/auth/me` fails after a token-only
+  login response; redirect authenticated users away from `/login`.
+- Made trade-ticket `client_order_id` rotation unsubscribe on destroy, and raised
+  the strategy period minimum to `2` to match the indicator catalog.
+- Made auth token storage signal-backed so the shell nav updates after
+  login/register instead of staying hidden until a full reload.
 - Widened paper-trading average-cost and fill-price columns to
   `DECIMAL(20,8)` so every `DECIMAL(18,6)` market close can be persisted
   without a MySQL out-of-range failure.
 - Scoped trades-table CSS so its intentional 850px scroll surface no longer
   resizes and clips Lightweight Charts' internal table at mobile widths.
+
+### Changed
+
+- Synced Milestone 5 delivery docs (roadmap, MVP, UX flows, stories, plans,
+  READMEs, manual testing Section 13) and removed the obsolete PR #9
+  `PRE_MERGE_CHECKLIST.md` in favor of `manual_testing.md`.
+- Removed completed Milestone 2–5 sprint plan files; `docs/plans/` now holds
+  only remaining Sprint 6.1–7.2 contracts plus binding cross-sprint rules.
 
 ### Added
 

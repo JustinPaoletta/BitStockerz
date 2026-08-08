@@ -23,6 +23,8 @@ Dependencies:
 - Completed locally in Sprint 3.4 (implemented July 28 and reverified August 1,
   2026): #5.4.1–#5.4.2 and the thin Angular scaffold needed to demo them;
   included in draft PR #9.
+- Milestone 5 / PR #11 extended Strategy → Backtest launch from Strategy Lab
+  and dashboard quick actions over the same results UI.
 
 ---
 

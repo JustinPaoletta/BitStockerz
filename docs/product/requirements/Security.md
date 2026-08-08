@@ -8,9 +8,10 @@
   receives a minimal `users` row when persisted jobs, strategies, or backtests
   need ownership foreign keys; same-email re-registration remaps those owned
   rows after an API restart.
-- Development email register/login shortcuts are intentionally exposed by the
-  current thin Angular shell. Production authentication hardening and removal
-  or restriction of those shortcuts remains Sprint 5.1 work.
+- Development email register/login shortcuts remain available under the login
+  page **Email fallback** for unsupported browsers and automation. Passkey
+  register/sign-in is the primary Angular auth UI (Milestone 5). Google/Apple
+  OAuth browser polish and deployed redirect hosting remain Sprint 7.2.
 
 ## 2. Authorization
 - Strict user-level tenancy enforced via user_id

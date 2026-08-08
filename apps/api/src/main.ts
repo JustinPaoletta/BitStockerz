@@ -21,6 +21,13 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(app.get(GlobalHttpExceptionFilter));
+  const corsOrigins = config.server.corsAllowedOrigins;
+  if (corsOrigins.length > 0) {
+    app.enableCors({
+      origin: corsOrigins,
+      credentials: true,
+    });
+  }
   configureOpenApi(app);
   await app.listen(config.server.port);
 }

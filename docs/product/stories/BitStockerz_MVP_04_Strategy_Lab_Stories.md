@@ -12,6 +12,12 @@ Scope:
 
 This module feeds directly into **#5 Backtesting**.
 
+## Status
+
+- Backend Strategy Lab APIs completed in Sprints 2.1–2.3 (merged PR #9).
+- Angular Strategy Lab create/edit/validate/delete and version UI shipped in
+  Milestone 5 / PR #11.
+
 ---
 
 ## Epic 4.1 – Strategy Model & Persistence

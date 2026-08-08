@@ -6,6 +6,7 @@ describe('loadAppConfig', () => {
 
     expect(config.server.port).toBe(4000);
     expect(config.server.nodeEnv).toBe('development');
+    expect(config.server.corsAllowedOrigins).toEqual(['http://localhost:4200']);
     expect(config.logging.level).toBe('info');
     expect(config.logging.writeToFile).toBe(false);
     expect(config.logging.filePath).toBe('logs/api.log');
@@ -99,6 +100,7 @@ describe('loadAppConfig', () => {
     expect(config.server).toEqual({
       port: 4100,
       nodeEnv: 'production',
+      corsAllowedOrigins: [],
     });
     expect(config.marketData).toEqual({
       staleEquityDailyMs: 86_400_000,
@@ -321,6 +323,7 @@ describe('AppConfigService', () => {
     expect(service.server).toEqual({
       port: 4300,
       nodeEnv: 'test',
+      corsAllowedOrigins: ['http://localhost:4200'],
     });
     expect(service.logging).toEqual({
       level: 'debug',

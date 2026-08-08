@@ -2,10 +2,11 @@
 
 This is the complete MVP **target**, not a list of features already shipped.
 For current implementation state and the next development owner, use the
-[roadmap](./ROADMAP.md). As of August 2, 2026, backend/API delivery is complete
-through Sprint 4.3 and the Sprint 3.4 Angular backtest UI is shipped. Sprint
-5.1 is next; the complete dashboard/workflow UI, AI assistance, realized-P&L
-analytics, and backtest entry/exit chart markers remain future work.
+[roadmap](./ROADMAP.md). As of August 7, 2026, delivery is complete through
+Milestone 5 (API through Sprint 4.3 plus the Angular shell, dashboard,
+Strategy Lab, backtest, and paper Trade workflows in PR #11). Sprint 6.1 is
+next; AI assistance, realized-P&L analytics, and backtest entry/exit chart
+markers remain future work.
 
 ## 1. User & Account
 - Passkeys (WebAuthn) / OAuth login

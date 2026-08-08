@@ -5,10 +5,13 @@ const createMockApp = (port = 4000) => ({
   setGlobalPrefix: jest.fn(),
   useGlobalPipes: jest.fn(),
   useGlobalFilters: jest.fn(),
+  enableCors: jest.fn(),
   listen: jest.fn().mockResolvedValue(undefined),
   get: jest.fn((token) => {
     if (typeof token === 'function' && token.name === AppConfigService.name) {
-      return { server: { port } };
+      return {
+        server: { port, corsAllowedOrigins: ['http://localhost:4200'] },
+      };
     }
     return token;
   }),
@@ -62,6 +65,10 @@ describe('bootstrap', () => {
     ).toBe(true);
     expect(mockApp.listen).toHaveBeenCalledWith(4567);
     expect(mockConfigureOpenApi).toHaveBeenCalledWith(mockApp);
+    expect(mockApp.enableCors).toHaveBeenCalledWith({
+      origin: ['http://localhost:4200'],
+      credentials: true,
+    });
     expect(mockApp.useGlobalPipes).toHaveBeenCalledTimes(1);
     const pipeArg = mockApp.useGlobalPipes.mock.calls[0][0];
     expect(pipeArg).toBeDefined();

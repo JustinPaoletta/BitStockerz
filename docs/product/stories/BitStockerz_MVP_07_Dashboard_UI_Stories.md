@@ -24,10 +24,11 @@ Dependencies:
 
 ## Status
 
-- Sprint 3.4 shipped only the thin authenticated Angular shell and backtest
+- Sprint 3.4 shipped the thin authenticated Angular shell and backtest
   list/run/detail routes required to demonstrate backtesting.
-- The dashboard route, symbol search, widgets, complete Strategy Lab, and
-  paper-trading workflows remain planned for Sprints 5.1–5.3.
+- Milestone 5 / PR #11 completed the dashboard route, symbol search, widgets,
+  Strategy Lab, and paper-trading Trade desk (#7.1–#7.6 and related workflow
+  coverage).
 
 ---
 

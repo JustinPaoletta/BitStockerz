@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { strategyEditorCanDeactivate } from './features/strategies/pages/strategy-editor.page';
 
 export const routes: Routes = [
   {
@@ -7,40 +8,84 @@ export const routes: Routes = [
     loadComponent: () => import('./core/auth/login.page').then((module) => module.LoginPage),
   },
   {
-    path: 'backtests',
+    path: '',
     canActivate: [authGuard],
     children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
-        path: '',
+        path: 'dashboard',
         loadComponent: () =>
-          import('./features/backtests/pages/backtest-list.page').then(
-            (module) => module.BacktestListPage,
+          import('./features/dashboard/dashboard.page').then((module) => module.DashboardPage),
+      },
+      {
+        path: 'trade',
+        loadComponent: () =>
+          import('./features/trading/pages/trading-workspace.page').then(
+            (module) => module.TradingWorkspacePage,
           ),
       },
       {
-        path: 'new',
-        loadComponent: () =>
-          import('./features/backtests/pages/backtest-new.page').then(
-            (module) => module.BacktestNewPage,
-          ),
+        path: 'strategies',
+        children: [
+          {
+            path: '',
+            loadComponent: () =>
+              import('./features/strategies/pages/strategy-list.page').then(
+                (module) => module.StrategyListPage,
+              ),
+          },
+          {
+            path: 'new',
+            canDeactivate: [strategyEditorCanDeactivate],
+            loadComponent: () =>
+              import('./features/strategies/pages/strategy-editor.page').then(
+                (module) => module.StrategyEditorPage,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canDeactivate: [strategyEditorCanDeactivate],
+            loadComponent: () =>
+              import('./features/strategies/pages/strategy-editor.page').then(
+                (module) => module.StrategyEditorPage,
+              ),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./features/strategies/pages/strategy-detail.page').then(
+                (module) => module.StrategyDetailPage,
+              ),
+          },
+        ],
       },
       {
-        path: ':id',
-        loadComponent: () =>
-          import('./features/backtests/pages/backtest-detail.page').then(
-            (module) => module.BacktestDetailPage,
-          ),
+        path: 'backtests',
+        children: [
+          {
+            path: '',
+            loadComponent: () =>
+              import('./features/backtests/pages/backtest-list.page').then(
+                (module) => module.BacktestListPage,
+              ),
+          },
+          {
+            path: 'new',
+            loadComponent: () =>
+              import('./features/backtests/pages/backtest-new.page').then(
+                (module) => module.BacktestNewPage,
+              ),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./features/backtests/pages/backtest-detail.page').then(
+                (module) => module.BacktestDetailPage,
+              ),
+          },
+        ],
       },
     ],
   },
-  {
-    path: 'strategies',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/strategies/strategies-placeholder.page').then(
-        (module) => module.StrategiesPlaceholderPage,
-      ),
-  },
-  { path: '', pathMatch: 'full', redirectTo: 'backtests' },
-  { path: '**', redirectTo: 'backtests' },
+  { path: '**', redirectTo: 'dashboard' },
 ];
