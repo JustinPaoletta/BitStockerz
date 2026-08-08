@@ -840,6 +840,13 @@ describe('AuthService', () => {
       code: ErrorCode.UNAUTHORIZED,
     });
 
+    // Failed verify must not leave an orphaned account that blocks retry.
+    await expect(
+      service.createWebAuthnRegisterOptions('legacy-invalid@example.com'),
+    ).resolves.toMatchObject({
+      user_email: 'legacy-invalid@example.com',
+    });
+
     const negativeSignCountOptions =
       await service.createWebAuthnRegisterOptions(
         'legacy-negative@example.com',
@@ -855,6 +862,12 @@ describe('AuthService', () => {
       }),
     ).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
+    });
+
+    await expect(
+      service.createWebAuthnRegisterOptions('legacy-negative@example.com'),
+    ).resolves.toMatchObject({
+      user_email: 'legacy-negative@example.com',
     });
   });
 

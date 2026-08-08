@@ -21,6 +21,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- Roll back in-memory user creation when passkey registration verification
+  fails, so a cancelled/failed ceremony does not block retry with
+  “email already registered”.
 - Corrected dashboard strategy **Edit** links to open the editor (`/strategies/:id/edit`)
   instead of the detail page.
 - Avoid marking auth sessions as checked when `/auth/me` fails after a token-only
