@@ -172,7 +172,7 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
 - [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema through Sprint 4.3 / Milestone 5)
-- [docs/plans/README.md](./docs/plans/README.md) (implementation-ready sprint plans and cross-sprint contracts)
+- [docs/plans/README.md](./docs/plans/README.md) (remaining Sprint 6.1–7.2 plans and cross-sprint contracts)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 

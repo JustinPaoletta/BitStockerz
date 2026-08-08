@@ -40,6 +40,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Synced Milestone 5 delivery docs (roadmap, MVP, UX flows, stories, plans,
   READMEs, manual testing Section 13) and removed the obsolete PR #9
   `PRE_MERGE_CHECKLIST.md` in favor of `manual_testing.md`.
+- Removed completed Milestone 2–5 sprint plan files; `docs/plans/` now holds
+  only remaining Sprint 6.1–7.2 contracts plus binding cross-sprint rules.
 
 ### Added
 

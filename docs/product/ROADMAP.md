@@ -19,7 +19,7 @@ Assumptions:
 | Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
 | Sprints 6.1–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
 
-The canonical readiness index is [docs/plans/README.md](../plans/README.md). “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
+The canonical readiness index is [docs/plans/README.md](../plans/README.md). Remaining Sprint 6.1–7.2 plans live there; completed Milestone 2–5 plan files were removed after merge. “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
 ---
 
@@ -125,7 +125,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 2.1 – Strategy Persistence & Versioning
 
-**Implementation plan:** [docs/plans/sprint-2-1-strategy-persistence-versioning.md](../plans/sprint-2-1-strategy-persistence-versioning.md) · [all sprint plans](../plans/README.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #4.1.1 – Strategy schema
@@ -140,7 +140,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 2.2 – Indicators & Rule Schema
 
-**Implementation plan:** [docs/plans/sprint-2-2-indicators-rule-schema.md](../plans/sprint-2-2-indicators-rule-schema.md) · [all sprint plans](../plans/README.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #4.2.1 – Indicator catalog
@@ -155,7 +155,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 2.3 – Strategy CRUD & Validation
 
-**Implementation plan:** [docs/plans/sprint-2-3-strategy-crud-validation.md](../plans/sprint-2-3-strategy-crud-validation.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #4.5.1 – Create strategy
@@ -176,7 +176,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 3.1 – Backtest Engine Core
 
-**Implementation plan:** [docs/plans/sprint-3-1-backtest-engine-core.md](../plans/sprint-3-1-backtest-engine-core.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #5.2.1 – Engine interface
@@ -196,7 +196,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 3.2 – Backtest Persistence
 
-**Implementation plan:** [docs/plans/sprint-3-2-backtest-persistence.md](../plans/sprint-3-2-backtest-persistence.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #5.1.1 – Backtest run schema
@@ -216,7 +216,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 3.3 – Backtest Execution & Limits
 
-**Implementation plan:** [docs/plans/sprint-3-3-backtest-execution-limits.md](../plans/sprint-3-3-backtest-execution-limits.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #5.3.1 – Run backtest API
@@ -238,7 +238,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 ### Sprint 3.4 – Backtest UI
 
-**Implementation plan:** [docs/plans/sprint-3-4-backtest-ui.md](../plans/sprint-3-4-backtest-ui.md)
+**Shipped:** [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9)
 
 **Stories**
 - #5.4.1 – Equity curve chart
@@ -261,7 +261,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 **Status: Completed (verified August 2, 2026)**
 
-**Implementation plan:** [docs/plans/sprint-4-1-accounts-positions.md](../plans/sprint-4-1-accounts-positions.md)
+**Shipped:** [PR #10](https://github.com/JustinPaoletta/BitStockerz/pull/10)
 
 **Stories**
 - #1.3.1 – Default paper account creation on first signup
@@ -275,7 +275,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 **Status: Completed (verified August 2, 2026)**
 
-**Implementation plan:** [docs/plans/sprint-4-2-orders-executions.md](../plans/sprint-4-2-orders-executions.md)
+**Shipped:** [PR #10](https://github.com/JustinPaoletta/BitStockerz/pull/10)
 
 **Stories**
 - #3.2.1 – Order schema
@@ -290,7 +290,7 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). “
 
 **Status: Completed (verified August 2, 2026)**
 
-**Implementation plan:** [docs/plans/sprint-4-3-trading-views.md](../plans/sprint-4-3-trading-views.md)
+**Shipped:** [PR #10](https://github.com/JustinPaoletta/BitStockerz/pull/10)
 
 **Stories**
 - #3.4.1 – Current positions API
@@ -314,7 +314,7 @@ Frontend note:
 
 **Status: Completed (PR #11)**
 
-**Implementation plan:** [docs/plans/sprint-5-1-shell-navigation.md](../plans/sprint-5-1-shell-navigation.md)
+**Shipped:** [PR #11](https://github.com/JustinPaoletta/BitStockerz/pull/11)
 
 **Implementation prerequisite**
 - Extend the minimal `apps/web` Angular scaffold introduced by Sprint 3.4
@@ -333,7 +333,7 @@ Frontend note:
 
 **Status: Completed (PR #11)**
 
-**Implementation plan:** [docs/plans/sprint-5-2-dashboard-widgets.md](../plans/sprint-5-2-dashboard-widgets.md)
+**Shipped:** [PR #11](https://github.com/JustinPaoletta/BitStockerz/pull/11)
 
 **Stories**
 - #7.2.1 – Account summary card
@@ -353,7 +353,7 @@ Frontend note:
 
 **Status: Completed (PR #11)**
 
-**Implementation plan:** [docs/plans/sprint-5-3-core-workflows-ui.md](../plans/sprint-5-3-core-workflows-ui.md)
+**Shipped:** [PR #11](https://github.com/JustinPaoletta/BitStockerz/pull/11)
 
 **Integration coverage**
 - Functional Strategy Lab create/edit/validate/delete workflow over Stories #4.2.1–#4.6.2
@@ -443,7 +443,7 @@ Frontend note:
 - Each sprint can be converted directly into tickets
 - If a sprint slips, later sprints do not collapse
 - Cutting scope is easiest in Milestones 6–7
-- Ready-for-dev contracts and completed-plan history for Sprints 2.1–7.2 live under [docs/plans/](../plans/README.md); adopted defaults are usable unless an owner records an override
+- Ready-for-dev contracts for remaining sprints live under [docs/plans/](../plans/README.md). Completed Milestone 2–5 plans were removed after merge; adopted cross-sprint contracts in that README remain binding
 
 ---
 
