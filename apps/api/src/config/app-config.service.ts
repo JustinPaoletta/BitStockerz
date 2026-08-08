@@ -44,6 +44,13 @@ const DEFAULT_PAPER_STARTING_BALANCE = '100000.00';
 const DEFAULT_TRADING_MAX_ORDER_NOTIONAL = '25000';
 const DEFAULT_TRADING_MAX_POSITION_PCT = '25';
 const DEFAULT_TRADING_MIN_CASH_REMAINING = '0';
+const DEFAULT_AI_DAILY_CALL_LIMIT = 20;
+const DEFAULT_AI_TIMEOUT_MS = 15_000;
+const DEFAULT_AI_MAX_RETRIES = 1;
+const DEFAULT_AI_MAX_OUTPUT_TOKENS = 1200;
+const DEFAULT_AI_MAX_CONTEXT_CHARS = 12_000;
+const DEFAULT_AI_MODEL = 'gpt-4.1-mini';
+const AI_PROVIDERS = new Set<AiProviderName>(['stub', 'openai']);
 
 export interface ServerConfig {
   port: number;
@@ -117,6 +124,22 @@ export interface TradingConfig {
   minCashRemaining: string;
 }
 
+export type AiProviderName = 'stub' | 'openai';
+
+export interface AiConfig {
+  enabled: boolean;
+  provider: AiProviderName;
+  model: string;
+  dailyCallLimit: number;
+  timeoutMs: number;
+  maxRetries: number;
+  maxOutputTokens: number;
+  maxContextChars: number;
+  logContent: boolean;
+  openaiApiKey?: string;
+  diffSuggestionsEnabled: boolean;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
@@ -128,6 +151,7 @@ export interface AppConfig {
   metrics: MetricsConfig;
   backtest: BacktestConfig;
   trading: TradingConfig;
+  ai: AiConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -604,6 +628,100 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     errors,
   );
 
+  const aiEnabled = parseBoolean('AI_ENABLED', env.AI_ENABLED, false, errors);
+  const aiProviderRaw =
+    normalizeOptional(env.AI_PROVIDER)?.toLowerCase() ??
+    (nodeEnv === 'test' ? 'stub' : 'openai');
+  if (!AI_PROVIDERS.has(aiProviderRaw as AiProviderName)) {
+    errors.push('AI_PROVIDER must be one of stub, openai');
+  }
+  const aiProvider = (
+    AI_PROVIDERS.has(aiProviderRaw as AiProviderName)
+      ? aiProviderRaw
+      : nodeEnv === 'test'
+        ? 'stub'
+        : 'openai'
+  ) as AiProviderName;
+  const aiDailyCallLimit = parseInteger(
+    'AI_DAILY_CALL_LIMIT',
+    env.AI_DAILY_CALL_LIMIT,
+    DEFAULT_AI_DAILY_CALL_LIMIT,
+    1,
+    1000,
+    errors,
+  );
+  const aiTimeoutMs = parseInteger(
+    'AI_TIMEOUT_MS',
+    env.AI_TIMEOUT_MS,
+    DEFAULT_AI_TIMEOUT_MS,
+    1000,
+    60_000,
+    errors,
+  );
+  const aiMaxRetries = parseInteger(
+    'AI_MAX_RETRIES',
+    env.AI_MAX_RETRIES,
+    DEFAULT_AI_MAX_RETRIES,
+    0,
+    3,
+    errors,
+  );
+  const aiMaxOutputTokens = parseInteger(
+    'AI_MAX_OUTPUT_TOKENS',
+    env.AI_MAX_OUTPUT_TOKENS,
+    DEFAULT_AI_MAX_OUTPUT_TOKENS,
+    1,
+    4000,
+    errors,
+  );
+  const aiMaxContextChars = parseInteger(
+    'AI_MAX_CONTEXT_CHARS',
+    env.AI_MAX_CONTEXT_CHARS,
+    DEFAULT_AI_MAX_CONTEXT_CHARS,
+    1000,
+    50_000,
+    errors,
+  );
+  const aiLogContent = parseBoolean(
+    'AI_LOG_CONTENT',
+    env.AI_LOG_CONTENT,
+    false,
+    errors,
+  );
+  const aiDiffSuggestionsEnabled = parseBoolean(
+    'AI_DIFF_SUGGESTIONS_ENABLED',
+    env.AI_DIFF_SUGGESTIONS_ENABLED,
+    false,
+    errors,
+  );
+  const openaiApiKey = normalizeOptional(env.OPENAI_API_KEY);
+  const aiModel =
+    normalizeOptional(env.AI_MODEL) ??
+    (aiEnabled && aiProvider === 'openai' ? '' : DEFAULT_AI_MODEL);
+
+  if (aiEnabled && aiProvider === 'openai') {
+    if (!openaiApiKey) {
+      errors.push(
+        'OPENAI_API_KEY is required when AI_ENABLED=true and AI_PROVIDER=openai',
+      );
+    }
+    if (!aiModel) {
+      errors.push(
+        'AI_MODEL is required when AI_ENABLED=true and AI_PROVIDER=openai',
+      );
+    }
+  }
+
+  if (nodeEnv === 'production' && aiEnabled && aiProvider !== 'openai') {
+    errors.push(
+      'AI_PROVIDER must be openai when AI_ENABLED=true in production',
+    );
+  }
+
+  if (aiLogContent && nodeEnv === 'production') {
+    errors.push('AI_LOG_CONTENT must remain false in production');
+  }
+
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -676,6 +794,19 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       maxPositionPct,
       minCashRemaining,
     },
+    ai: {
+      enabled: aiEnabled,
+      provider: aiProvider,
+      model: aiModel || DEFAULT_AI_MODEL,
+      dailyCallLimit: aiDailyCallLimit,
+      timeoutMs: aiTimeoutMs,
+      maxRetries: aiMaxRetries,
+      maxOutputTokens: aiMaxOutputTokens,
+      maxContextChars: aiMaxContextChars,
+      logContent: aiLogContent,
+      openaiApiKey,
+      diffSuggestionsEnabled: aiDiffSuggestionsEnabled,
+    },
   };
 }
 
@@ -725,5 +856,9 @@ export class AppConfigService {
 
   get trading(): TradingConfig {
     return this.config.trading;
+  }
+
+  get ai(): AiConfig {
+    return this.config.ai;
   }
 }

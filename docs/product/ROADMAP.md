@@ -17,9 +17,10 @@ Assumptions:
 | Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
 | Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
-| Sprints 6.1–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 6.1–6.3 | Implemented on `feat/milestone-6-ai-kernel` | Kernel AI infrastructure, strategy/backtest intelligence endpoints, stub provider e2e, and Angular Kernel panels. `#6.4.2` deferred. |
+| Sprints 7.1–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
 
-The canonical readiness index is [docs/plans/README.md](../plans/README.md). Remaining Sprint 6.1–7.2 plans live there; completed Milestone 2–5 plan files were removed after merge. “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
+The canonical readiness index is [docs/plans/README.md](../plans/README.md). Remaining Sprint 7.1–7.2 plans live there; completed Milestone 2–6 plan files may be removed after merge. “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
 
 ---
 
@@ -371,6 +372,8 @@ Frontend note:
 
 ### Sprint 6.1 – AI Infrastructure
 
+**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`)**
+
 **Implementation plan:** [docs/plans/sprint-6-1-ai-infrastructure.md](../plans/sprint-6-1-ai-infrastructure.md)
 
 **Stories**
@@ -384,6 +387,8 @@ Frontend note:
 
 ### Sprint 6.2 – Strategy Intelligence
 
+**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`)**
+
 **Implementation plan:** [docs/plans/sprint-6-2-strategy-intelligence.md](../plans/sprint-6-2-strategy-intelligence.md)
 
 **Stories**
@@ -394,13 +399,15 @@ Frontend note:
 
 ### Sprint 6.3 – Backtest Intelligence
 
+**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`; #6.4.2 deferred)**
+
 **Implementation plan:** [docs/plans/sprint-6-3-backtest-intelligence.md](../plans/sprint-6-3-backtest-intelligence.md)
 
 **Stories**
 - #6.3.1 – Explain backtest
 - #6.3.2 – Identify failure modes
 - #6.4.1 – Suggest improvements
-- #6.4.2 – Diff-style explanation (optional MVP+)
+- #6.4.2 – Diff-style explanation (optional MVP+; deferred)
 
 **Exit**
 - AI adds insight without touching execution

@@ -611,13 +611,14 @@ metadata. Sprint 3.4 consumes these routes from `apps/web`.
 
 ---
 
-## 6. AI Assistant / Kernel APIs (#6) (Planned)
+## 6. AI Assistant / Kernel APIs (#6) (Implemented — Milestone 6)
 
-All AI endpoints are **advisory**, read-only, and can be disabled by feature flag.
+All AI endpoints are **advisory**, read-only, and can be disabled by feature flag
+(`AI_ENABLED`, default false). Stub mode uses `AI_PROVIDER=stub`.
 
 ### 6.1 Strategy Explanations
 
-**POST `/ai/explain-strategy`**
+**POST `/ai/explain-strategy`** (implemented)
 
 - Body:
   - `strategy_id`
@@ -628,7 +629,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 
 ### 6.2 Strategy Checks
 
-**POST `/ai/validate-strategy`**
+**POST `/ai/validate-strategy`** (implemented)
 
 - Body:
   - `strategy_id`
@@ -640,7 +641,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 
 ### 6.3 Backtest Explanations
 
-**POST `/ai/explain-backtest`**
+**POST `/ai/explain-backtest`** (implemented)
 
 - Body:
   - `backtest_run_id`
@@ -651,7 +652,7 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 
 ### 6.4 Improvement Suggestions
 
-**POST `/ai/suggest-improvements`**
+**POST `/ai/suggest-improvements`** (implemented; optional `diff` deferred)
 
 - Body:
   - `strategy_id`

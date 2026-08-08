@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { BacktestKernelPanelComponent } from '../../ai/components/backtest-kernel-panel.component';
 import { BacktestsApiService } from '../backtests-api.service';
 import { EquityCurveChartComponent } from '../components/equity-curve-chart.component';
 import { TradesTableComponent } from '../components/trades-table.component';
@@ -9,7 +10,14 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
 
 @Component({
   selector: 'app-backtest-detail-page',
-  imports: [DatePipe, DecimalPipe, RouterLink, EquityCurveChartComponent, TradesTableComponent],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    RouterLink,
+    EquityCurveChartComponent,
+    TradesTableComponent,
+    BacktestKernelPanelComponent,
+  ],
   template: `
     @if (loading()) {
       <div class="panel state">Loading results…</div>
@@ -71,6 +79,11 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
           </div>
           <app-equity-curve-chart [points]="data.equity_curve" [timeframe]="data.run.timeframe" />
         </section>
+
+        <app-backtest-kernel-panel
+          [strategyId]="data.run.strategy_id"
+          [backtestRunId]="data.run.id"
+        />
       } @else {
         <section class="panel state">
           <h2>Results are unavailable</h2>

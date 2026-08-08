@@ -6,9 +6,9 @@ Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
 
 | Sprint | Plan | Depends on | Readiness | Purpose |
 |--------|------|------------|-----------|---------|
-| 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | Milestone 5 (PR #11) | Ready | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
-| 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Ready | Explain-strategy and logical red-flag validation endpoints. |
-| 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Ready | Explain-backtest, failure modes, and improvement suggestions. |
+| 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | Milestone 5 (PR #11) | Shipped on `feat/milestone-6-ai-kernel` | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
+| 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Shipped on `feat/milestone-6-ai-kernel` | Explain-strategy and logical red-flag validation endpoints. |
+| 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Shipped on `feat/milestone-6-ai-kernel` (#6.4.2 deferred) | Explain-backtest, failure modes, and improvement suggestions. |
 | 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Ready | In-memory candle/symbol cache TTL and provider fallback guardrails. |
 | 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Ready with external provisioning | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
 

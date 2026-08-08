@@ -834,4 +834,100 @@ export const API_SCHEMAS: OpenApiSchemas = {
       details: { type: 'string' },
     },
   },
+  AiExplainStrategyResponse: {
+    type: 'object',
+    required: [
+      'disclaimer',
+      'confidence',
+      'ai_request_id',
+      'explanation',
+      'warnings',
+    ],
+    properties: {
+      disclaimer: { type: 'string' },
+      confidence: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      ai_request_id: stringId,
+      explanation: { type: 'string' },
+      warnings: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/AiWarning' },
+      },
+    },
+  },
+  AiValidateStrategyResponse: {
+    type: 'object',
+    required: ['disclaimer', 'confidence', 'ai_request_id', 'warnings'],
+    properties: {
+      disclaimer: { type: 'string' },
+      confidence: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      ai_request_id: stringId,
+      warnings: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/AiWarning' },
+      },
+    },
+  },
+  AiExplainBacktestResponse: {
+    type: 'object',
+    required: [
+      'disclaimer',
+      'confidence',
+      'ai_request_id',
+      'explanation',
+      'issues',
+    ],
+    properties: {
+      disclaimer: { type: 'string' },
+      confidence: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      ai_request_id: stringId,
+      explanation: { type: 'string' },
+      issues: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/AiIssue' },
+      },
+    },
+  },
+  AiSuggestImprovementsResponse: {
+    type: 'object',
+    required: ['disclaimer', 'confidence', 'ai_request_id', 'suggestions'],
+    properties: {
+      disclaimer: { type: 'string' },
+      confidence: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      ai_request_id: stringId,
+      suggestions: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/AiSuggestion' },
+      },
+    },
+  },
+  AiWarning: {
+    type: 'object',
+    required: ['code', 'severity', 'message', 'evidence_paths'],
+    properties: {
+      code: { type: 'string' },
+      severity: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      message: { type: 'string' },
+      evidence_paths: { type: 'array', items: { type: 'string' } },
+    },
+  },
+  AiIssue: {
+    type: 'object',
+    required: ['code', 'severity', 'message', 'evidence'],
+    properties: {
+      code: { type: 'string' },
+      severity: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      message: { type: 'string' },
+      evidence: { type: 'array', items: { type: 'string' } },
+    },
+  },
+  AiSuggestion: {
+    type: 'object',
+    required: ['code', 'title', 'description', 'evidence'],
+    properties: {
+      code: { type: 'string' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      evidence: { type: 'array', items: { type: 'string' } },
+    },
+  },
 };

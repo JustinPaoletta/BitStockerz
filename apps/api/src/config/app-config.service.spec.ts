@@ -32,6 +32,19 @@ describe('loadAppConfig', () => {
       maxPositionPct: '25',
       minCashRemaining: '0',
     });
+    expect(config.ai).toEqual({
+      enabled: false,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      dailyCallLimit: 20,
+      timeoutMs: 15_000,
+      maxRetries: 1,
+      maxOutputTokens: 1200,
+      maxContextChars: 12_000,
+      logContent: false,
+      openaiApiKey: undefined,
+      diffSuggestionsEnabled: false,
+    });
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
       challengeTtlSeconds: 300,
@@ -274,6 +287,83 @@ describe('loadAppConfig', () => {
       'https://app.example.com',
       'http://localhost:4200',
     ]);
+  });
+
+  it('requires OpenAI credentials when AI is enabled with openai provider', () => {
+    expect(() =>
+      loadAppConfig({
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'openai',
+      }),
+    ).toThrow(/OPENAI_API_KEY/);
+
+    expect(() =>
+      loadAppConfig({
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'sk-test',
+        AI_MODEL: '',
+      }),
+    ).toThrow(/AI_MODEL/);
+
+    const config = loadAppConfig({
+      AI_ENABLED: 'true',
+      AI_PROVIDER: 'stub',
+      AI_DAILY_CALL_LIMIT: '5',
+      AI_TIMEOUT_MS: '2000',
+      AI_MAX_RETRIES: '0',
+      AI_MAX_OUTPUT_TOKENS: '800',
+      AI_MAX_CONTEXT_CHARS: '5000',
+      AI_DIFF_SUGGESTIONS_ENABLED: 'true',
+    });
+    expect(config.ai).toMatchObject({
+      enabled: true,
+      provider: 'stub',
+      dailyCallLimit: 5,
+      timeoutMs: 2000,
+      maxRetries: 0,
+      maxOutputTokens: 800,
+      maxContextChars: 5000,
+      diffSuggestionsEnabled: true,
+    });
+  });
+
+  it('rejects AI content logging and non-openai live provider in production', () => {
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: 'production',
+        AI_LOG_CONTENT: 'true',
+      }),
+    ).toThrow(/AI_LOG_CONTENT/);
+
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: 'production',
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'stub',
+      }),
+    ).toThrow(/AI_PROVIDER must be openai/);
+
+    expect(() =>
+      loadAppConfig({
+        AI_PROVIDER: 'anthropic',
+      }),
+    ).toThrow(/AI_PROVIDER must be one of/);
+  });
+
+  it('accepts live OpenAI configuration', () => {
+    const config = loadAppConfig({
+      AI_ENABLED: 'true',
+      AI_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-live',
+      AI_MODEL: 'gpt-4.1-mini',
+    });
+    expect(config.ai).toMatchObject({
+      enabled: true,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      openaiApiKey: 'sk-live',
+    });
   });
 });
 
