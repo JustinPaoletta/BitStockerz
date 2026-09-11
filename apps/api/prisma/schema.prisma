@@ -23,8 +23,21 @@ model User {
   strategies          Strategy[]
   backtestRuns        BacktestRun[]
   paperAccount        PaperAccount?
+  aiUsage             AiUsage[]
 
   @@map("users")
+}
+
+model AiUsage {
+  id     Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId String   @map("user_id") @db.Char(36)
+  date   DateTime @db.Date
+  calls  Int
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date], map: "uq_ai_usage_user_date")
+  @@map("ai_usage")
 }
 
 model AuditEvent {

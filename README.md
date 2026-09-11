@@ -9,9 +9,12 @@ with a working NestJS API and Angular application.
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–5 implemented; Milestone 5 Angular shell,
-  dashboard, Strategy Lab, and paper Trade desk ship in PR #11
-- Next ready sprint: 6.1 AI Infrastructure
+- Delivery state: Milestones 0–7 complete in-repo on combined
+  [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12)
+  (`#6.4.2` deferred).
+- **What you still need to do:** merge PR #12, create Fly + MySQL + Vercel,
+  add GitHub/`production` secrets, then first deploy. Plain-English checklist:
+  [docs/ops/deployment.md](./docs/ops/deployment.md)
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -19,6 +22,7 @@ with a working NestJS API and Angular application.
 - Changelog: [CHANGELOG.md](./CHANGELOG.md)
 - Release process: [RELEASE.md](./RELEASE.md)
 - Product roadmap: [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
+- Deployment runbook: [docs/ops/deployment.md](./docs/ops/deployment.md)
 - MVP definition: [docs/product/MVP.md](./docs/product/MVP.md)
 - UX flows: [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - API inventory: [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)

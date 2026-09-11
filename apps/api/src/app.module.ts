@@ -25,10 +25,13 @@ import { ObservabilityModule } from './observability/observability.module';
 import { StrategiesModule } from './strategies/strategies.module';
 import { BacktestModule } from './backtest/backtest.module';
 import { TradingModule } from './trading/trading.module';
+import { AiModule } from './ai/ai.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    PrismaModule,
     AuthModule,
     MarketDataModule,
     JobsModule,
@@ -36,6 +39,7 @@ import { TradingModule } from './trading/trading.module';
     StrategiesModule,
     BacktestModule,
     TradingModule,
+    AiModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],

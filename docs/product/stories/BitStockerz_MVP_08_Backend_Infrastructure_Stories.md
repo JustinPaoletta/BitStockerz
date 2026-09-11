@@ -147,7 +147,20 @@ Acceptance criteria:
 ## Epic 8.7 – Deployment & Hosting
 
 ### Story 8.7.1 – Deployment pipeline (CI build and deploy to target environment)
+Acceptance criteria:
+- GitHub Actions `ci.yml` builds/lints/tests API + web on PRs and `main`.
+- `deploy.yml` on `main` runs CI, migrates once, deploys API then web; fails closed on test failure.
+- Secrets live only in GitHub Environments / host dashboards.
+
+Status: Completed in-repo (Sprint 7.2); first live deploy requires external account secrets.
+
 ### Story 8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
+Acceptance criteria:
+- Option A artifacts: API Dockerfile + Fly.io config, Vercel Angular static SPA, managed MySQL colocated with API.
+- Production config requires `DATABASE_URL`, exact CORS/WebAuthn origins; readiness uses Prisma `SELECT 1` when enabled and fails closed without DB in production.
+- Single API replica while in-process scheduler is enabled; runbook in `docs/ops/deployment.md`.
+
+Status: Completed in-repo (Sprint 7.2); provisioning Fly/Vercel/MySQL is an external prerequisite.
 
 ---
 

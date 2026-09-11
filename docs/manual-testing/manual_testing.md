@@ -998,4 +998,170 @@ Optional stretch (not merge-blocking): force one dashboard API to fail in DevToo
 
 ---
 
+## Section 14 – Kernel AI (Milestone 6 / Sprints 6.1–6.3)
+
+Advisory Kernel endpoints. Stub mode needs no OpenAI key. `#6.4.2` diff suggestions remain deferred (`AI_DIFF_SUGGESTIONS_ENABLED=false`).
+
+### Prerequisites
+
+```bash
+# API (seed mode is fine)
+cd apps/api
+cp -n .env.example .env   # if needed
+# Enable stub Kernel for local manual tests:
+# AI_ENABLED=true
+# AI_PROVIDER=stub
+# AI_MODEL=gpt-4.1-mini
+# AI_DAILY_CALL_LIMIT=20
+npm run start:dev
+
+# Optional Angular UI
+npm run web:start   # from repo root, typically :4200
+```
+
+### Env matrix
+
+| Mode | Env | Expect |
+|------|-----|--------|
+| Disabled | `AI_ENABLED=false` | `503` `AI_DISABLED` |
+| Stub (recommended local) | `AI_ENABLED=true` `AI_PROVIDER=stub` | Deterministic JSON, no network |
+| Live OpenAI | `AI_ENABLED=true` `AI_PROVIDER=openai` `OPENAI_API_KEY=…` `AI_MODEL=gpt-4.1-mini` | Real model responses |
+
+### Setup: register + strategy + backtest
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"kernel-manual@example.com"}' | jq -r .access_token)
+
+STRATEGY=$(curl -s -X POST http://localhost:4000/api/strategies \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{
+    "name":"Kernel Manual",
+    "asset_type":"EQUITY",
+    "timeframe":"1d",
+    "definition":{
+      "indicators":[
+        {"id":"fast","type":"SMA","params":{"period":2},"source":"close"},
+        {"id":"unused","type":"EMA","params":{"period":30},"source":"close"}
+      ],
+      "entry":{"logic":"AND","conditions":[{"left":{"price":"close"},"op":"gt","right":{"literal":0}}]},
+      "exit":{"logic":"AND","conditions":[{"left":{"price":"close"},"op":"lt","right":{"literal":0}}]},
+      "risk":{"stop_loss":{"type":"percent","value":5},"take_profit":{"type":"percent","value":2}}
+    }
+  }')
+STRATEGY_ID=$(echo "$STRATEGY" | jq -r .id)
+
+BACKTEST=$(curl -s -X POST http://localhost:4000/api/backtests \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\",\"symbol\":\"AAPL\",\"timeframe\":\"1d\",\"start_date\":\"2024-01-02\",\"end_date\":\"2024-03-28\"}")
+RUN_ID=$(echo "$BACKTEST" | jq -r .run.id)
+```
+
+### Success curls (stub)
+
+```bash
+curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}" | jq
+
+curl -s -X POST http://localhost:4000/api/ai/validate-strategy \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}" | jq
+
+curl -s -X POST http://localhost:4000/api/ai/explain-backtest \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"backtest_run_id\":\"$RUN_ID\"}" | jq
+
+curl -s -X POST http://localhost:4000/api/ai/suggest-improvements \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\",\"backtest_run_id\":\"$RUN_ID\"}" | jq
+```
+
+Expect every success body to include `disclaimer`, `confidence`, and `ai_request_id`. Validate should include deterministic codes such as `UNREFERENCED_INDICATOR` and `RISK_REWARD_NOT_POSITIVE`.
+
+### Error curls
+
+```bash
+# Disabled
+# (restart API with AI_ENABLED=false)
+curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}" | jq '{status:.status,code:.code}'
+# expect 503 AI_DISABLED
+
+# Ownership miss
+OTHER=$(curl -s -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"kernel-other-manual@example.com"}' | jq -r .access_token)
+curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
+  -H "Authorization: Bearer $OTHER" -H 'Content-Type: application/json' \
+  -d "{\"strategy_id\":\"$STRATEGY_ID\"}" | jq '{status:.status,code:.code}'
+# expect 404 STRATEGY_NOT_FOUND
+
+# Bad UUID
+curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"strategy_id":"not-a-uuid"}' | jq '{status:.status,code:.code}'
+# expect 400 VALIDATION_ERROR
+```
+
+### Angular UI checklist
+
+| # | Scenario | Expect |
+|---|----------|--------|
+| 1 | Strategy detail → **Explain** / **Check for issues** with AI enabled (stub) | Disclaimer shown; escaped text; buttons disable while loading |
+| 2 | Same buttons with `AI_ENABLED=false` | Distinct “Kernel AI is disabled…” message |
+| 3 | Backtest detail → **Explain results** / **Suggest improvements** | Disclaimer; issues/suggestions list; no Apply button |
+| 4 | Force quota (`AI_DAILY_CALL_LIMIT=1`, call twice) | Second call shows daily limit message |
+
+### Regression checklist
+
+| Scenario | Command / UI | Expect |
+|----------|--------------|--------|
+| Stub explain strategy | curl above | 200 + disclaimer + explanation |
+| Hybrid validate | curl validate | warnings include deterministic codes |
+| Explain backtest | curl explain-backtest | 200 + issues array |
+| Suggest improvements | curl suggest | suggestions capped, advisory only |
+| Disabled flag | AI_ENABLED=false | 503 AI_DISABLED |
+| Cross-user strategy | other token | 404 STRATEGY_NOT_FOUND |
+
+---
+
+## Section 15 – Cache, provider guardrails & deploy readiness (Milestone 7)
+
+### Cache hit behavior (seed mode)
+
+```bash
+# First candle read populates cache; second identical read should match body.
+curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c1.json
+curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c2.json
+diff /tmp/c1.json /tmp/c2.json
+
+# Metrics should show candles hit/miss counters when METRICS_ENABLED=true
+curl -s http://localhost:4000/api/metrics | jq '.cache'
+```
+
+### Provider / health
+
+```bash
+curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provider}'
+# expect provider.configured == "seed" when MARKET_DATA_LIVE_ENABLED=false
+# expect provider.circuit == "closed"
+```
+
+### Deploy artifacts checklist (no live accounts required)
+
+| # | Check | Expect |
+|---|-------|--------|
+| 1 | `.github/workflows/ci.yml` present | API + web jobs |
+| 2 | `.github/workflows/deploy.yml` present | migrate → Fly API → Vercel web |
+| 3 | `apps/api/Dockerfile` + `fly.toml` | Option A always-on API |
+| 4 | `apps/web/vercel.json` | SPA fallback rewrite |
+| 5 | `docs/ops/deployment.md` | secrets + smoke + rollback |
+
+Live Fly/Vercel/MySQL provisioning remains an operator step before first production URL.
+
+---
+
 **File:** `docs/manual-testing/manual_testing.md`

@@ -5,11 +5,18 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton.component';
+import { StrategyKernelPanelComponent } from '../../ai/components/strategy-kernel-panel.component';
 import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.service';
 
 @Component({
   selector: 'app-strategy-detail-page',
-  imports: [RouterLink, SkeletonComponent, InlineErrorComponent, JsonPipe],
+  imports: [
+    RouterLink,
+    SkeletonComponent,
+    InlineErrorComponent,
+    JsonPipe,
+    StrategyKernelPanelComponent,
+  ],
   template: `
     @switch (state()) {
       @case ('loading') {
@@ -62,6 +69,8 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
             }
             <pre>{{ item.definition | json }}</pre>
           </div>
+
+          <app-strategy-kernel-panel [strategyId]="item.id" />
         }
       }
     }

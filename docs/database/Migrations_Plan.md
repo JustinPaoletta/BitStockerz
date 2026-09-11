@@ -277,6 +277,7 @@ and are exercised by the MySQL persistence smoke gate.
 1. `V0600__create_ai_usage.sql`  
    - Creates: `ai_usage`  
    - Source: `DDL/05_ai_kernel.sql`
+   - Prisma: `apps/api/prisma/migrations/20260808000000_sprint_6_1_ai_usage/`
 
 ---
 

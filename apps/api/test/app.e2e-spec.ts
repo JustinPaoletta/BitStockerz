@@ -2347,3 +2347,216 @@ describe('Milestone 4 paper trading (e2e)', () => {
       });
   });
 });
+
+describe('Milestone 6 Kernel AI (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    process.env.AI_ENABLED = 'true';
+    process.env.AI_PROVIDER = 'stub';
+    process.env.AI_DAILY_CALL_LIMIT = '20';
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function register(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email })
+      .expect(201);
+    return response.body.access_token as string;
+  }
+
+  function definition() {
+    return {
+      indicators: [
+        { id: 'fast', type: 'SMA', params: { period: 2 }, source: 'close' },
+        { id: 'unused', type: 'EMA', params: { period: 30 }, source: 'close' },
+      ],
+      entry: {
+        logic: 'AND',
+        conditions: [
+          { left: { price: 'close' }, op: 'gt', right: { literal: 0 } },
+        ],
+      },
+      exit: {
+        logic: 'AND',
+        conditions: [
+          { left: { price: 'close' }, op: 'lt', right: { literal: 0 } },
+        ],
+      },
+      risk: {
+        stop_loss: { type: 'percent', value: 5 },
+        take_profit: { type: 'percent', value: 2 },
+      },
+    };
+  }
+
+  it('explains and validates owned strategies with stub provider', async () => {
+    const token = await register('kernel-strategy@example.com');
+    const authorization = `Bearer ${token}`;
+    const strategy = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Kernel Strategy',
+        asset_type: 'EQUITY',
+        timeframe: '1d',
+        definition: definition(),
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/ai/explain-strategy')
+      .set('Authorization', authorization)
+      .send({ strategy_id: strategy.body.id })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          disclaimer: expect.stringContaining('Not financial advice'),
+          confidence: 'MEDIUM',
+          explanation: expect.stringContaining('Kernel Strategy'),
+          warnings: [],
+        });
+        expect(res.body.ai_request_id).toEqual(expect.any(String));
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/validate-strategy')
+      .set('Authorization', authorization)
+      .send({ strategy_id: strategy.body.id })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.disclaimer).toContain('Not financial advice');
+        expect(
+          res.body.warnings.map((item: { code: string }) => item.code),
+        ).toEqual(
+          expect.arrayContaining([
+            'UNREFERENCED_INDICATOR',
+            'RISK_REWARD_NOT_POSITIVE',
+          ]),
+        );
+      });
+
+    const other = await register('kernel-other@example.com');
+    await request(app.getHttpServer())
+      .post('/api/ai/explain-strategy')
+      .set('Authorization', `Bearer ${other}`)
+      .send({ strategy_id: strategy.body.id })
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.code).toBe('STRATEGY_NOT_FOUND');
+      });
+  });
+
+  it('explains backtests and suggests improvements', async () => {
+    const token = await register('kernel-backtest@example.com');
+    const authorization = `Bearer ${token}`;
+    const strategy = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Kernel Backtest Strategy',
+        asset_type: 'EQUITY',
+        timeframe: '1d',
+        definition: {
+          indicators: [
+            { id: 'fast', type: 'SMA', params: { period: 2 }, source: 'close' },
+          ],
+          entry: {
+            logic: 'AND',
+            conditions: [
+              { left: { price: 'close' }, op: 'gt', right: { literal: 0 } },
+            ],
+          },
+          exit: {
+            logic: 'AND',
+            conditions: [
+              { left: { price: 'close' }, op: 'lt', right: { literal: 0 } },
+            ],
+          },
+          risk: {
+            stop_loss: { type: 'percent', value: 2 },
+            take_profit: { type: 'percent', value: 500 },
+          },
+        },
+      })
+      .expect(201);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/backtests')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: strategy.body.id,
+        symbol: 'aapl',
+        timeframe: '1d',
+        start_date: SEED_EQUITY_SAMPLE.start,
+        end_date: SEED_EQUITY_SAMPLE.end,
+      });
+    expect(created.status).toBe(200);
+
+    await request(app.getHttpServer())
+      .post('/api/ai/explain-backtest')
+      .set('Authorization', authorization)
+      .send({ backtest_run_id: created.body.run.id })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.explanation).toContain(created.body.run.id);
+        expect(res.body.disclaimer).toContain('Not financial advice');
+        expect(Array.isArray(res.body.issues)).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/suggest-improvements')
+      .set('Authorization', authorization)
+      .send({
+        strategy_id: strategy.body.id,
+        backtest_run_id: created.body.run.id,
+      })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.suggestions.length).toBeGreaterThan(0);
+        expect(res.body.confidence).toBe('MEDIUM');
+      });
+  });
+
+  it('returns AI_DISABLED when the flag is off', async () => {
+    await app.close();
+    process.env.AI_ENABLED = 'false';
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = createApp(moduleFixture) as INestApplication<App>;
+    await app.init();
+
+    const token = await register('kernel-disabled@example.com');
+    const strategy = await request(app.getHttpServer())
+      .post('/api/strategies')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Disabled AI Strategy',
+        asset_type: 'EQUITY',
+        timeframe: '1d',
+        definition: definition(),
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/ai/explain-strategy')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ strategy_id: strategy.body.id })
+      .expect(503)
+      .expect((res) => {
+        expect(res.body.code).toBe('AI_DISABLED');
+      });
+
+    process.env.AI_ENABLED = 'true';
+  });
+});

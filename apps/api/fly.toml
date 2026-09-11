@@ -1,0 +1,42 @@
+# Fly.io Option A host for the Nest API + in-process scheduler.
+# Provision externally, then: fly apps create / fly postgres or managed MySQL
+# secrets set / fly deploy from apps/api.
+app = "bitstockerz-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+  INGESTION_SCHEDULER_ENABLED = "true"
+  AI_ENABLED = "false"
+  CACHE_ENABLED = "true"
+  MARKET_DATA_LIVE_ENABLED = "false"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/api/health/live"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+  cpu_kind = "shared"

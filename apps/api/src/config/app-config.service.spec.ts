@@ -17,6 +17,15 @@ describe('loadAppConfig', () => {
       staleEquityDailyMs: 172_800_000,
       staleCryptoDailyMs: 129_600_000,
       staleCryptoHourlyMs: 7_200_000,
+      liveEnabled: false,
+      circuitFailures: 3,
+      circuitCooldownMs: 60_000,
+    });
+    expect(config.cache).toEqual({
+      enabled: true,
+      candlesTtlMs: 60_000,
+      symbolsTtlMs: 60_000,
+      maxEntries: 500,
     });
     expect(config.metrics.enabled).toBe(true);
     expect(config.backtest).toEqual({
@@ -31,6 +40,19 @@ describe('loadAppConfig', () => {
       maxOrderNotional: '25000',
       maxPositionPct: '25',
       minCashRemaining: '0',
+    });
+    expect(config.ai).toEqual({
+      enabled: false,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      dailyCallLimit: 20,
+      timeoutMs: 15_000,
+      maxRetries: 1,
+      maxOutputTokens: 1200,
+      maxContextChars: 12_000,
+      logContent: false,
+      openaiApiKey: undefined,
+      diffSuggestionsEnabled: false,
     });
     expect(config.auth).toEqual({
       sessionTtlSeconds: 43200,
@@ -61,6 +83,7 @@ describe('loadAppConfig', () => {
       LOG_FILE_PATH: '/tmp/api.log',
       READINESS_TIMEOUT_MS: '2500',
       DATABASE_URL: 'postgres://localhost:5432/bitstockerz',
+      CORS_ALLOWED_ORIGINS: 'https://app.bitstockerz.test',
       MARKET_DATA_HEALTH_URL: 'https://market-data.example.com/health',
       AUTH_SESSION_TTL_SECONDS: '7200',
       AUTH_CHALLENGE_TTL_SECONDS: '180',
@@ -85,6 +108,13 @@ describe('loadAppConfig', () => {
       MARKET_DATA_STALE_EQUITY_DAILY_MS: '86400000',
       MARKET_DATA_STALE_CRYPTO_DAILY_MS: '108000000',
       MARKET_DATA_STALE_CRYPTO_HOURLY_MS: '3600000',
+      MARKET_DATA_LIVE_ENABLED: 'true',
+      MARKET_DATA_CIRCUIT_FAILURES: '5',
+      MARKET_DATA_CIRCUIT_COOLDOWN_MS: '120000',
+      CACHE_ENABLED: 'false',
+      CACHE_CANDLES_TTL_MS: '30000',
+      CACHE_SYMBOLS_TTL_MS: '45000',
+      CACHE_MAX_ENTRIES: '250',
       METRICS_ENABLED: 'false',
       BACKTEST_TIMEOUT_MS: '7500',
       BACKTEST_MAX_BARS: '20000',
@@ -100,12 +130,21 @@ describe('loadAppConfig', () => {
     expect(config.server).toEqual({
       port: 4100,
       nodeEnv: 'production',
-      corsAllowedOrigins: [],
+      corsAllowedOrigins: ['https://app.bitstockerz.test'],
     });
     expect(config.marketData).toEqual({
       staleEquityDailyMs: 86_400_000,
       staleCryptoDailyMs: 108_000_000,
       staleCryptoHourlyMs: 3_600_000,
+      liveEnabled: true,
+      circuitFailures: 5,
+      circuitCooldownMs: 120_000,
+    });
+    expect(config.cache).toEqual({
+      enabled: false,
+      candlesTtlMs: 30_000,
+      symbolsTtlMs: 45_000,
+      maxEntries: 250,
     });
     expect(config.metrics.enabled).toBe(false);
     expect(config.backtest).toEqual({
@@ -275,6 +314,107 @@ describe('loadAppConfig', () => {
       'http://localhost:4200',
     ]);
   });
+
+  it('requires OpenAI credentials when AI is enabled with openai provider', () => {
+    expect(() =>
+      loadAppConfig({
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'openai',
+      }),
+    ).toThrow(/OPENAI_API_KEY/);
+
+    expect(() =>
+      loadAppConfig({
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'sk-test',
+        AI_MODEL: '',
+      }),
+    ).toThrow(/AI_MODEL/);
+
+    const config = loadAppConfig({
+      AI_ENABLED: 'true',
+      AI_PROVIDER: 'stub',
+      AI_DAILY_CALL_LIMIT: '5',
+      AI_TIMEOUT_MS: '2000',
+      AI_MAX_RETRIES: '0',
+      AI_MAX_OUTPUT_TOKENS: '800',
+      AI_MAX_CONTEXT_CHARS: '5000',
+      AI_DIFF_SUGGESTIONS_ENABLED: 'true',
+    });
+    expect(config.ai).toMatchObject({
+      enabled: true,
+      provider: 'stub',
+      dailyCallLimit: 5,
+      timeoutMs: 2000,
+      maxRetries: 0,
+      maxOutputTokens: 800,
+      maxContextChars: 5000,
+      diffSuggestionsEnabled: true,
+    });
+  });
+
+  it('rejects AI content logging and non-openai live provider in production', () => {
+    const productionBase = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'mysql://localhost:3306/bitstockerz',
+      CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+      WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com',
+    };
+
+    expect(() =>
+      loadAppConfig({
+        ...productionBase,
+        AI_LOG_CONTENT: 'true',
+      }),
+    ).toThrow(/AI_LOG_CONTENT/);
+
+    expect(() =>
+      loadAppConfig({
+        ...productionBase,
+        AI_ENABLED: 'true',
+        AI_PROVIDER: 'stub',
+      }),
+    ).toThrow(/AI_PROVIDER must be openai/);
+
+    expect(() =>
+      loadAppConfig({
+        AI_PROVIDER: 'anthropic',
+      }),
+    ).toThrow(/AI_PROVIDER must be one of/);
+  });
+
+  it('rejects missing production CORS and database settings', () => {
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: 'production',
+      }),
+    ).toThrow(/DATABASE_URL is required in production/);
+
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'mysql://localhost:3306/bitstockerz',
+        CORS_ALLOWED_ORIGINS: 'https://*.example.com',
+        WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com',
+      }),
+    ).toThrow(/wildcards/);
+  });
+
+  it('accepts live OpenAI configuration', () => {
+    const config = loadAppConfig({
+      AI_ENABLED: 'true',
+      AI_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-live',
+      AI_MODEL: 'gpt-4.1-mini',
+    });
+    expect(config.ai).toMatchObject({
+      enabled: true,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      openaiApiKey: 'sk-live',
+    });
+  });
 });
 
 describe('AppConfigService', () => {
@@ -342,6 +482,15 @@ describe('AppConfigService', () => {
       staleEquityDailyMs: 172_800_000,
       staleCryptoDailyMs: 129_600_000,
       staleCryptoHourlyMs: 7_200_000,
+      liveEnabled: false,
+      circuitFailures: 3,
+      circuitCooldownMs: 60_000,
+    });
+    expect(service.cache).toEqual({
+      enabled: true,
+      candlesTtlMs: 60_000,
+      symbolsTtlMs: 60_000,
+      maxEntries: 500,
     });
     expect(service.metrics).toEqual({ enabled: true });
     expect(service.backtest).toEqual({

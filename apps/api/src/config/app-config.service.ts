@@ -44,6 +44,18 @@ const DEFAULT_PAPER_STARTING_BALANCE = '100000.00';
 const DEFAULT_TRADING_MAX_ORDER_NOTIONAL = '25000';
 const DEFAULT_TRADING_MAX_POSITION_PCT = '25';
 const DEFAULT_TRADING_MIN_CASH_REMAINING = '0';
+const DEFAULT_AI_DAILY_CALL_LIMIT = 20;
+const DEFAULT_AI_TIMEOUT_MS = 15_000;
+const DEFAULT_AI_MAX_RETRIES = 1;
+const DEFAULT_AI_MAX_OUTPUT_TOKENS = 1200;
+const DEFAULT_AI_MAX_CONTEXT_CHARS = 12_000;
+const DEFAULT_AI_MODEL = 'gpt-4.1-mini';
+const DEFAULT_CACHE_CANDLES_TTL_MS = 60_000;
+const DEFAULT_CACHE_SYMBOLS_TTL_MS = 60_000;
+const DEFAULT_CACHE_MAX_ENTRIES = 500;
+const DEFAULT_CIRCUIT_FAILURES = 3;
+const DEFAULT_CIRCUIT_COOLDOWN_MS = 60_000;
+const AI_PROVIDERS = new Set<AiProviderName>(['stub', 'openai']);
 
 export interface ServerConfig {
   port: number;
@@ -96,6 +108,16 @@ export interface MarketDataConfig {
   staleEquityDailyMs: number;
   staleCryptoDailyMs: number;
   staleCryptoHourlyMs: number;
+  liveEnabled: boolean;
+  circuitFailures: number;
+  circuitCooldownMs: number;
+}
+
+export interface CacheConfig {
+  enabled: boolean;
+  candlesTtlMs: number;
+  symbolsTtlMs: number;
+  maxEntries: number;
 }
 
 export interface MetricsConfig {
@@ -117,6 +139,22 @@ export interface TradingConfig {
   minCashRemaining: string;
 }
 
+export type AiProviderName = 'stub' | 'openai';
+
+export interface AiConfig {
+  enabled: boolean;
+  provider: AiProviderName;
+  model: string;
+  dailyCallLimit: number;
+  timeoutMs: number;
+  maxRetries: number;
+  maxOutputTokens: number;
+  maxContextChars: number;
+  logContent: boolean;
+  openaiApiKey?: string;
+  diffSuggestionsEnabled: boolean;
+}
+
 export interface AppConfig {
   server: ServerConfig;
   logging: LoggingConfig;
@@ -125,9 +163,11 @@ export interface AppConfig {
   auth: AuthConfig;
   jobs: JobsConfig;
   marketData: MarketDataConfig;
+  cache: CacheConfig;
   metrics: MetricsConfig;
   backtest: BacktestConfig;
   trading: TradingConfig;
+  ai: AiConfig;
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -535,6 +575,58 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     true,
     errors,
   );
+  const cacheEnabled = parseBoolean(
+    'CACHE_ENABLED',
+    env.CACHE_ENABLED,
+    true,
+    errors,
+  );
+  const cacheCandlesTtlMs = parseInteger(
+    'CACHE_CANDLES_TTL_MS',
+    env.CACHE_CANDLES_TTL_MS,
+    DEFAULT_CACHE_CANDLES_TTL_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const cacheSymbolsTtlMs = parseInteger(
+    'CACHE_SYMBOLS_TTL_MS',
+    env.CACHE_SYMBOLS_TTL_MS,
+    DEFAULT_CACHE_SYMBOLS_TTL_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const cacheMaxEntries = parseInteger(
+    'CACHE_MAX_ENTRIES',
+    env.CACHE_MAX_ENTRIES,
+    DEFAULT_CACHE_MAX_ENTRIES,
+    10,
+    100_000,
+    errors,
+  );
+  const marketDataLiveEnabled = parseBoolean(
+    'MARKET_DATA_LIVE_ENABLED',
+    env.MARKET_DATA_LIVE_ENABLED,
+    false,
+    errors,
+  );
+  const marketDataCircuitFailures = parseInteger(
+    'MARKET_DATA_CIRCUIT_FAILURES',
+    env.MARKET_DATA_CIRCUIT_FAILURES,
+    DEFAULT_CIRCUIT_FAILURES,
+    1,
+    100,
+    errors,
+  );
+  const marketDataCircuitCooldownMs = parseInteger(
+    'MARKET_DATA_CIRCUIT_COOLDOWN_MS',
+    env.MARKET_DATA_CIRCUIT_COOLDOWN_MS,
+    DEFAULT_CIRCUIT_COOLDOWN_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
   const backtestTimeoutMs = parseInteger(
     'BACKTEST_TIMEOUT_MS',
     env.BACKTEST_TIMEOUT_MS,
@@ -604,6 +696,126 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     errors,
   );
 
+  const aiEnabled = parseBoolean('AI_ENABLED', env.AI_ENABLED, false, errors);
+  const aiProviderRaw =
+    normalizeOptional(env.AI_PROVIDER)?.toLowerCase() ??
+    (nodeEnv === 'test' ? 'stub' : 'openai');
+  if (!AI_PROVIDERS.has(aiProviderRaw as AiProviderName)) {
+    errors.push('AI_PROVIDER must be one of stub, openai');
+  }
+  const aiProvider = (
+    AI_PROVIDERS.has(aiProviderRaw as AiProviderName)
+      ? aiProviderRaw
+      : nodeEnv === 'test'
+        ? 'stub'
+        : 'openai'
+  ) as AiProviderName;
+  const aiDailyCallLimit = parseInteger(
+    'AI_DAILY_CALL_LIMIT',
+    env.AI_DAILY_CALL_LIMIT,
+    DEFAULT_AI_DAILY_CALL_LIMIT,
+    1,
+    1000,
+    errors,
+  );
+  const aiTimeoutMs = parseInteger(
+    'AI_TIMEOUT_MS',
+    env.AI_TIMEOUT_MS,
+    DEFAULT_AI_TIMEOUT_MS,
+    1000,
+    60_000,
+    errors,
+  );
+  const aiMaxRetries = parseInteger(
+    'AI_MAX_RETRIES',
+    env.AI_MAX_RETRIES,
+    DEFAULT_AI_MAX_RETRIES,
+    0,
+    3,
+    errors,
+  );
+  const aiMaxOutputTokens = parseInteger(
+    'AI_MAX_OUTPUT_TOKENS',
+    env.AI_MAX_OUTPUT_TOKENS,
+    DEFAULT_AI_MAX_OUTPUT_TOKENS,
+    1,
+    4000,
+    errors,
+  );
+  const aiMaxContextChars = parseInteger(
+    'AI_MAX_CONTEXT_CHARS',
+    env.AI_MAX_CONTEXT_CHARS,
+    DEFAULT_AI_MAX_CONTEXT_CHARS,
+    1000,
+    50_000,
+    errors,
+  );
+  const aiLogContent = parseBoolean(
+    'AI_LOG_CONTENT',
+    env.AI_LOG_CONTENT,
+    false,
+    errors,
+  );
+  const aiDiffSuggestionsEnabled = parseBoolean(
+    'AI_DIFF_SUGGESTIONS_ENABLED',
+    env.AI_DIFF_SUGGESTIONS_ENABLED,
+    false,
+    errors,
+  );
+  const openaiApiKey = normalizeOptional(env.OPENAI_API_KEY);
+  const aiModel =
+    normalizeOptional(env.AI_MODEL) ??
+    (aiEnabled && aiProvider === 'openai' ? '' : DEFAULT_AI_MODEL);
+
+  if (aiEnabled && aiProvider === 'openai') {
+    if (!openaiApiKey) {
+      errors.push(
+        'OPENAI_API_KEY is required when AI_ENABLED=true and AI_PROVIDER=openai',
+      );
+    }
+    if (!aiModel) {
+      errors.push(
+        'AI_MODEL is required when AI_ENABLED=true and AI_PROVIDER=openai',
+      );
+    }
+  }
+
+  if (nodeEnv === 'production' && aiEnabled && aiProvider !== 'openai') {
+    errors.push(
+      'AI_PROVIDER must be openai when AI_ENABLED=true in production',
+    );
+  }
+
+  if (aiLogContent && nodeEnv === 'production') {
+    errors.push('AI_LOG_CONTENT must remain false in production');
+  }
+
+  if (nodeEnv === 'production') {
+    if (!databaseUrl) {
+      errors.push('DATABASE_URL is required in production');
+    }
+    if (corsAllowedOrigins.length === 0) {
+      errors.push(
+        'CORS_ALLOWED_ORIGINS is required in production and must list exact origins',
+      );
+    }
+    if (corsAllowedOrigins.some((origin) => origin.includes('*'))) {
+      errors.push(
+        'CORS_ALLOWED_ORIGINS must not include wildcards in production',
+      );
+    }
+    if (webauthnAllowedOrigins.length === 0) {
+      errors.push(
+        'WEBAUTHN_ALLOWED_ORIGINS is required in production and must list exact origins',
+      );
+    }
+    if (webauthnAllowedOrigins.some((origin) => origin.includes('*'))) {
+      errors.push(
+        'WEBAUTHN_ALLOWED_ORIGINS must not include wildcards in production',
+      );
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -659,6 +871,15 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       staleEquityDailyMs,
       staleCryptoDailyMs,
       staleCryptoHourlyMs,
+      liveEnabled: marketDataLiveEnabled,
+      circuitFailures: marketDataCircuitFailures,
+      circuitCooldownMs: marketDataCircuitCooldownMs,
+    },
+    cache: {
+      enabled: cacheEnabled,
+      candlesTtlMs: cacheCandlesTtlMs,
+      symbolsTtlMs: cacheSymbolsTtlMs,
+      maxEntries: cacheMaxEntries,
     },
     metrics: {
       enabled: metricsEnabled,
@@ -675,6 +896,19 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       maxOrderNotional,
       maxPositionPct,
       minCashRemaining,
+    },
+    ai: {
+      enabled: aiEnabled,
+      provider: aiProvider,
+      model: aiModel || DEFAULT_AI_MODEL,
+      dailyCallLimit: aiDailyCallLimit,
+      timeoutMs: aiTimeoutMs,
+      maxRetries: aiMaxRetries,
+      maxOutputTokens: aiMaxOutputTokens,
+      maxContextChars: aiMaxContextChars,
+      logContent: aiLogContent,
+      openaiApiKey,
+      diffSuggestionsEnabled: aiDiffSuggestionsEnabled,
     },
   };
 }
@@ -715,6 +949,10 @@ export class AppConfigService {
     return this.config.marketData;
   }
 
+  get cache(): CacheConfig {
+    return this.config.cache;
+  }
+
   get metrics(): MetricsConfig {
     return this.config.metrics;
   }
@@ -725,5 +963,9 @@ export class AppConfigService {
 
   get trading(): TradingConfig {
     return this.config.trading;
+  }
+
+  get ai(): AiConfig {
+    return this.config.ai;
   }
 }

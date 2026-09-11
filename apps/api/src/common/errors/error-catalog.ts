@@ -124,6 +124,30 @@ export const ERROR_CATALOG: Record<ErrorCode, ErrorCatalogEntry> = {
     title: 'Trading risk limit',
     defaultDetail: 'The order exceeds a configured paper-trading risk limit.',
   },
+  [ErrorCode.AI_DISABLED]: {
+    httpStatus: 503,
+    typeSuffix: 'ai-disabled',
+    title: 'AI disabled',
+    defaultDetail: 'The Kernel AI assistant is disabled.',
+  },
+  [ErrorCode.AI_RATE_LIMIT]: {
+    httpStatus: 429,
+    typeSuffix: 'ai-rate-limit',
+    title: 'AI rate limit',
+    defaultDetail: 'Daily Kernel AI call limit exceeded.',
+  },
+  [ErrorCode.AI_PROVIDER_ERROR]: {
+    httpStatus: 502,
+    typeSuffix: 'ai-provider-error',
+    title: 'AI provider error',
+    defaultDetail: 'The Kernel AI provider failed to produce a valid response.',
+  },
+  [ErrorCode.AI_TIMEOUT]: {
+    httpStatus: 504,
+    typeSuffix: 'ai-timeout',
+    title: 'AI timeout',
+    defaultDetail: 'The Kernel AI provider exceeded its deadline.',
+  },
   [ErrorCode.CONFLICT]: {
     httpStatus: 409,
     typeSuffix: 'conflict',
