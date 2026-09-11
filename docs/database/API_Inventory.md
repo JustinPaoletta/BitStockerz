@@ -320,11 +320,13 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `series[]` — per asset type/interval: `latest_timestamp`, `age_ms`, `stale`, `stale_after_ms`, `symbol_count_with_data`
   - `sanity` — `{ checked, invalid, issues[] }` from a bounded sample
   - `source` — `seed` | `database`
+  - `provider` — `{ configured, last_success_at, circuit, last_error_code }` (Sprint 7.1)
 - Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
 - A daily bar covers its full UTC calendar day, so its `age_ms` starts at the
   end of that day; hourly age starts at the recorded timestamp.
 - Freshness and `symbol_count_with_data` consider bars for **active** symbols only (`symbol.isActive`).
-- Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates. Live vendor feeds remain Sprint 7.1.
+- Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates.
+- Candle/symbol reads use an in-process TTL cache (`CACHE_*`); transparent to clients. Live vendor adapter remains optional behind `MARKET_DATA_LIVE_ENABLED`.
 
 ### 2.7 Metrics Snapshot (implemented in Sprint 1.4)
 
@@ -332,7 +334,8 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
 
 - In-process JSON summary (not Prometheus text): HTTP request/error counts and
   duration stats, job counts/durations by type, backtest terminal
-  counts/durations, and errors by domain.
+  counts/durations, cache hit/miss/load_error/eviction by namespace
+  (`symbols`/`candles`), and errors by domain.
 - Cleared on process restart. Disable with `METRICS_ENABLED=false`.
 
 ### 2.8 Audit trail (implemented in Sprint 1.4)

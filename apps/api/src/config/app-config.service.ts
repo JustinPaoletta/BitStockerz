@@ -50,6 +50,11 @@ const DEFAULT_AI_MAX_RETRIES = 1;
 const DEFAULT_AI_MAX_OUTPUT_TOKENS = 1200;
 const DEFAULT_AI_MAX_CONTEXT_CHARS = 12_000;
 const DEFAULT_AI_MODEL = 'gpt-4.1-mini';
+const DEFAULT_CACHE_CANDLES_TTL_MS = 60_000;
+const DEFAULT_CACHE_SYMBOLS_TTL_MS = 60_000;
+const DEFAULT_CACHE_MAX_ENTRIES = 500;
+const DEFAULT_CIRCUIT_FAILURES = 3;
+const DEFAULT_CIRCUIT_COOLDOWN_MS = 60_000;
 const AI_PROVIDERS = new Set<AiProviderName>(['stub', 'openai']);
 
 export interface ServerConfig {
@@ -103,6 +108,16 @@ export interface MarketDataConfig {
   staleEquityDailyMs: number;
   staleCryptoDailyMs: number;
   staleCryptoHourlyMs: number;
+  liveEnabled: boolean;
+  circuitFailures: number;
+  circuitCooldownMs: number;
+}
+
+export interface CacheConfig {
+  enabled: boolean;
+  candlesTtlMs: number;
+  symbolsTtlMs: number;
+  maxEntries: number;
 }
 
 export interface MetricsConfig {
@@ -148,6 +163,7 @@ export interface AppConfig {
   auth: AuthConfig;
   jobs: JobsConfig;
   marketData: MarketDataConfig;
+  cache: CacheConfig;
   metrics: MetricsConfig;
   backtest: BacktestConfig;
   trading: TradingConfig;
@@ -559,6 +575,58 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     true,
     errors,
   );
+  const cacheEnabled = parseBoolean(
+    'CACHE_ENABLED',
+    env.CACHE_ENABLED,
+    true,
+    errors,
+  );
+  const cacheCandlesTtlMs = parseInteger(
+    'CACHE_CANDLES_TTL_MS',
+    env.CACHE_CANDLES_TTL_MS,
+    DEFAULT_CACHE_CANDLES_TTL_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const cacheSymbolsTtlMs = parseInteger(
+    'CACHE_SYMBOLS_TTL_MS',
+    env.CACHE_SYMBOLS_TTL_MS,
+    DEFAULT_CACHE_SYMBOLS_TTL_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
+  const cacheMaxEntries = parseInteger(
+    'CACHE_MAX_ENTRIES',
+    env.CACHE_MAX_ENTRIES,
+    DEFAULT_CACHE_MAX_ENTRIES,
+    10,
+    100_000,
+    errors,
+  );
+  const marketDataLiveEnabled = parseBoolean(
+    'MARKET_DATA_LIVE_ENABLED',
+    env.MARKET_DATA_LIVE_ENABLED,
+    false,
+    errors,
+  );
+  const marketDataCircuitFailures = parseInteger(
+    'MARKET_DATA_CIRCUIT_FAILURES',
+    env.MARKET_DATA_CIRCUIT_FAILURES,
+    DEFAULT_CIRCUIT_FAILURES,
+    1,
+    100,
+    errors,
+  );
+  const marketDataCircuitCooldownMs = parseInteger(
+    'MARKET_DATA_CIRCUIT_COOLDOWN_MS',
+    env.MARKET_DATA_CIRCUIT_COOLDOWN_MS,
+    DEFAULT_CIRCUIT_COOLDOWN_MS,
+    1_000,
+    3_600_000,
+    errors,
+  );
   const backtestTimeoutMs = parseInteger(
     'BACKTEST_TIMEOUT_MS',
     env.BACKTEST_TIMEOUT_MS,
@@ -722,6 +790,32 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     errors.push('AI_LOG_CONTENT must remain false in production');
   }
 
+  if (nodeEnv === 'production') {
+    if (!databaseUrl) {
+      errors.push('DATABASE_URL is required in production');
+    }
+    if (corsAllowedOrigins.length === 0) {
+      errors.push(
+        'CORS_ALLOWED_ORIGINS is required in production and must list exact origins',
+      );
+    }
+    if (corsAllowedOrigins.some((origin) => origin.includes('*'))) {
+      errors.push(
+        'CORS_ALLOWED_ORIGINS must not include wildcards in production',
+      );
+    }
+    if (webauthnAllowedOrigins.length === 0) {
+      errors.push(
+        'WEBAUTHN_ALLOWED_ORIGINS is required in production and must list exact origins',
+      );
+    }
+    if (webauthnAllowedOrigins.some((origin) => origin.includes('*'))) {
+      errors.push(
+        'WEBAUTHN_ALLOWED_ORIGINS must not include wildcards in production',
+      );
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -777,6 +871,15 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       staleEquityDailyMs,
       staleCryptoDailyMs,
       staleCryptoHourlyMs,
+      liveEnabled: marketDataLiveEnabled,
+      circuitFailures: marketDataCircuitFailures,
+      circuitCooldownMs: marketDataCircuitCooldownMs,
+    },
+    cache: {
+      enabled: cacheEnabled,
+      candlesTtlMs: cacheCandlesTtlMs,
+      symbolsTtlMs: cacheSymbolsTtlMs,
+      maxEntries: cacheMaxEntries,
     },
     metrics: {
       enabled: metricsEnabled,
@@ -844,6 +947,10 @@ export class AppConfigService {
 
   get marketData(): MarketDataConfig {
     return this.config.marketData;
+  }
+
+  get cache(): CacheConfig {
+    return this.config.cache;
   }
 
   get metrics(): MetricsConfig {

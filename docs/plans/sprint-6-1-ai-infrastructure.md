@@ -1,8 +1,8 @@
 # Sprint 6.1 — AI Infrastructure
 
-**Status:** Plan ready (not started)  
+**Status:** Shipped on `feat/milestone-6-ai-kernel` (combined with Milestone 7 in PR #12)  
 **Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
-**Branch (when implementing):** `feat/sprint-6-1-ai-infrastructure`  
+**Branch (when implementing):** `feat/milestone-6-ai-kernel`  
 **PR base:** `main` after Milestone 5 / PR #11 merges (or stack on
 `feat/sprint-5-dashboard-workflows` until then)
 

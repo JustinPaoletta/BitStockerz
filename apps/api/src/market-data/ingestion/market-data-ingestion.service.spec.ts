@@ -1,7 +1,12 @@
 import { DomainError } from '../../common/errors/domain-error';
 import { ErrorCode } from '../../common/errors/error-codes.enum';
+import { TtlCacheService } from '../../common/cache/ttl-cache.service';
 import type { AppConfigService } from '../../config/app-config.service';
+import { MetricsService } from '../../observability/metrics.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LiveMarketDataProvider } from '../providers/live.provider';
+import { ProviderRouterService } from '../providers/provider-router.service';
+import { SeedMarketDataProvider } from '../providers/seed.provider';
 import { CandleSanityService } from '../sanity/candle-sanity.service';
 import { MarketDataIngestionService } from './market-data-ingestion.service';
 
@@ -9,15 +14,49 @@ function createConfig(): AppConfigService {
   return {
     server: { nodeEnv: 'test', port: 4000 },
     dependencies: { databaseUrl: undefined },
+    marketData: {
+      liveEnabled: false,
+      circuitFailures: 3,
+      circuitCooldownMs: 60_000,
+      staleEquityDailyMs: 1,
+      staleCryptoDailyMs: 1,
+      staleCryptoHourlyMs: 1,
+    },
+    cache: {
+      enabled: true,
+      candlesTtlMs: 60_000,
+      symbolsTtlMs: 60_000,
+      maxEntries: 500,
+    },
+    metrics: { enabled: true },
   } as AppConfigService;
+}
+
+function createService(prisma?: PrismaService): MarketDataIngestionService {
+  const config = createConfig();
+  const prismaService = prisma ?? new PrismaService(config);
+  const metrics = new MetricsService(config);
+  const cache = new TtlCacheService(config, metrics);
+  const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const providers = new ProviderRouterService(
+    config,
+    prismaService,
+    new SeedMarketDataProvider(),
+    new LiveMarketDataProvider(),
+    metrics,
+    audit as never,
+  );
+  return new MarketDataIngestionService(
+    prismaService,
+    new CandleSanityService(),
+    providers,
+    cache,
+  );
 }
 
 describe('MarketDataIngestionService', () => {
   it('imports all seed equity bars in memory mode', async () => {
-    const service = new MarketDataIngestionService(
-      new PrismaService(createConfig()),
-      new CandleSanityService(),
-    );
+    const service = createService();
 
     const result = await service.importEquityDaily();
 
@@ -26,10 +65,7 @@ describe('MarketDataIngestionService', () => {
   });
 
   it('imports crypto daily and hourly bars for a single symbol', async () => {
-    const service = new MarketDataIngestionService(
-      new PrismaService(createConfig()),
-      new CandleSanityService(),
-    );
+    const service = createService();
 
     const result = await service.importCrypto({ symbol: 'BTC-USD' });
 
@@ -39,10 +75,7 @@ describe('MarketDataIngestionService', () => {
   });
 
   it('throws NOT_FOUND for unknown symbols', async () => {
-    const service = new MarketDataIngestionService(
-      new PrismaService(createConfig()),
-      new CandleSanityService(),
-    );
+    const service = createService();
 
     try {
       await service.importEquityDaily({ symbol: 'NOPE' });
@@ -64,10 +97,7 @@ describe('MarketDataIngestionService', () => {
       cryptoHourlyBar: { upsert: jest.fn() },
     };
 
-    const service = new MarketDataIngestionService(
-      prisma as never,
-      new CandleSanityService(),
-    );
+    const service = createService(prisma as never);
     const result = await service.importEquityDaily({ symbol: 'AAPL' });
 
     expect(result.symbolsProcessed).toBe(1);
@@ -88,10 +118,7 @@ describe('MarketDataIngestionService', () => {
       cryptoHourlyBar: { upsert: hourlyUpsert },
     };
 
-    const service = new MarketDataIngestionService(
-      prisma as never,
-      new CandleSanityService(),
-    );
+    const service = createService(prisma as never);
     const result = await service.importCrypto({
       symbol: 'BTC-USD',
       intervals: ['1d', '1h'],
@@ -104,10 +131,7 @@ describe('MarketDataIngestionService', () => {
   });
 
   it('imports only requested crypto intervals', async () => {
-    const service = new MarketDataIngestionService(
-      new PrismaService(createConfig()),
-      new CandleSanityService(),
-    );
+    const service = createService();
 
     const dailyOnly = await service.importCrypto({
       symbol: 'ETH-USD',
@@ -133,10 +157,7 @@ describe('MarketDataIngestionService', () => {
       cryptoHourlyBar: { upsert: jest.fn() },
     };
 
-    const service = new MarketDataIngestionService(
-      prisma as never,
-      new CandleSanityService(),
-    );
+    const service = createService(prisma as never);
     const result = await service.importEquityDaily();
 
     expect(result.symbolsProcessed).toBe(3);
@@ -155,10 +176,7 @@ describe('MarketDataIngestionService', () => {
       cryptoHourlyBar: { upsert: hourlyUpsert },
     };
 
-    const service = new MarketDataIngestionService(
-      prisma as never,
-      new CandleSanityService(),
-    );
+    const service = createService(prisma as never);
     const result = await service.importCrypto({
       symbol: 'ETH-USD',
       intervals: ['1h'],

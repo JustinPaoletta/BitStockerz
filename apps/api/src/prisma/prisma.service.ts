@@ -106,6 +106,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().$transaction(fn, options);
   }
 
+  async ping(): Promise<void> {
+    await this.requireClient().$queryRaw`SELECT 1`;
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.client) {
       await this.client.$disconnect();

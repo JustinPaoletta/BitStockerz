@@ -12,6 +12,7 @@ async function bootstrap() {
   const config = app.get(AppConfigService);
   app.useLogger(app.get(AppLogger));
   app.setGlobalPrefix('api');
+  app.enableShutdownHooks();
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

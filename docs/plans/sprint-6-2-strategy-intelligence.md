@@ -1,9 +1,9 @@
 # Sprint 6.2 — Strategy Intelligence
 
-**Status:** Plan ready (not started)  
+**Status:** Shipped on `feat/milestone-6-ai-kernel` (combined with Milestone 7 in PR #12)  
 **Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
-**Branch (when implementing):** `feat/sprint-6-2-strategy-intelligence`  
-**PR base:** `feat/sprint-6-1-ai-infrastructure` (stacked) → retarget `main` after 6.1 merges
+**Branch (when implementing):** `feat/milestone-6-ai-kernel`  
+**PR base:** stacked with 6.1 → combined into PR #12 vs `main`
 
 **Overview:** Expose advisory Kernel endpoints that explain a strategy in plain English and detect logical red flags. Built on Sprint 6.1 (`AiService`, usage limits, flags, logging). AI remains read-only — never edits strategies or places orders. Responses are non-streaming JSON with disclaimers.
 

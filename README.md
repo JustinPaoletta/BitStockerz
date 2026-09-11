@@ -9,9 +9,11 @@ with a working NestJS API and Angular application.
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–5 implemented; Milestone 5 Angular shell,
-  dashboard, Strategy Lab, and paper Trade desk ship in PR #11
-- Next ready sprint: 6.1 AI Infrastructure
+- Delivery state: Milestones 0–7 implemented in-repo on
+  `feat/sprint-7-1-polish-caching` (includes Milestone 6 Kernel AI). Live
+  Fly/Vercel/MySQL provisioning remains an external step for first production URL.
+- Next step: merge to `main`, then provision hosting secrets per
+  [docs/ops/deployment.md](./docs/ops/deployment.md)
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
 ## Quick Links
@@ -19,6 +21,7 @@ with a working NestJS API and Angular application.
 - Changelog: [CHANGELOG.md](./CHANGELOG.md)
 - Release process: [RELEASE.md](./RELEASE.md)
 - Product roadmap: [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
+- Deployment runbook: [docs/ops/deployment.md](./docs/ops/deployment.md)
 - MVP definition: [docs/product/MVP.md](./docs/product/MVP.md)
 - UX flows: [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - API inventory: [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)

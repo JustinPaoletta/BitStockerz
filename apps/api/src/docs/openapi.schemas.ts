@@ -193,7 +193,7 @@ export const API_SCHEMAS: OpenApiSchemas = {
   },
   MarketDataHealth: {
     type: 'object',
-    required: ['status', 'timestamp', 'series', 'sanity', 'source'],
+    required: ['status', 'timestamp', 'series', 'sanity', 'source', 'provider'],
     properties: {
       status: { type: 'string', enum: ['ok', 'degraded', 'unhealthy'] },
       timestamp,
@@ -223,6 +223,24 @@ export const API_SCHEMAS: OpenApiSchemas = {
       },
       sanity: { $ref: '#/components/schemas/SanitySummary' },
       source: { type: 'string', enum: ['seed', 'database'] },
+      provider: {
+        type: 'object',
+        required: [
+          'configured',
+          'last_success_at',
+          'circuit',
+          'last_error_code',
+        ],
+        properties: {
+          configured: { type: 'string' },
+          last_success_at: { ...timestamp, nullable: true },
+          circuit: {
+            type: 'string',
+            enum: ['closed', 'open', 'half_open'],
+          },
+          last_error_code: { type: 'string', nullable: true },
+        },
+      },
     },
   },
   DurationStats: {
@@ -237,7 +255,14 @@ export const API_SCHEMAS: OpenApiSchemas = {
   },
   MetricsSnapshot: {
     type: 'object',
-    required: ['timestamp', 'http', 'jobs', 'backtests', 'errors_by_domain'],
+    required: [
+      'timestamp',
+      'http',
+      'jobs',
+      'backtests',
+      'cache',
+      'errors_by_domain',
+    ],
     properties: {
       timestamp,
       http: {
@@ -257,6 +282,32 @@ export const API_SCHEMAS: OpenApiSchemas = {
         },
       },
       backtests: { type: 'object', additionalProperties: true },
+      cache: {
+        type: 'object',
+        required: ['symbols', 'candles'],
+        properties: {
+          symbols: {
+            type: 'object',
+            required: ['hit', 'miss', 'load_error', 'eviction'],
+            properties: {
+              hit: { type: 'integer', minimum: 0 },
+              miss: { type: 'integer', minimum: 0 },
+              load_error: { type: 'integer', minimum: 0 },
+              eviction: { type: 'integer', minimum: 0 },
+            },
+          },
+          candles: {
+            type: 'object',
+            required: ['hit', 'miss', 'load_error', 'eviction'],
+            properties: {
+              hit: { type: 'integer', minimum: 0 },
+              miss: { type: 'integer', minimum: 0 },
+              load_error: { type: 'integer', minimum: 0 },
+              eviction: { type: 'integer', minimum: 0 },
+            },
+          },
+        },
+      },
       errors_by_domain: {
         type: 'object',
         additionalProperties: { type: 'integer', minimum: 0 },

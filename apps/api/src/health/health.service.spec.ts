@@ -2,15 +2,26 @@ import { createServer, Socket, type Server } from 'net';
 import type { AppConfigService } from '../config/app-config.service';
 import { HealthService } from './health.service';
 
+function createPrisma(overrides?: {
+  isEnabled?: boolean;
+  ping?: () => Promise<void>;
+}) {
+  return {
+    isEnabled: overrides?.isEnabled ?? false,
+    ping: overrides?.ping ?? (async () => undefined),
+  } as never;
+}
+
 function createConfigService(overrides?: {
   databaseUrl?: string;
   marketDataHealthUrl?: string;
   timeoutMs?: number;
+  nodeEnv?: 'development' | 'test' | 'production';
 }): AppConfigService {
   return {
     server: {
       port: 4000,
-      nodeEnv: 'test',
+      nodeEnv: overrides?.nodeEnv ?? 'test',
     },
     logging: {
       level: 'info',
@@ -50,12 +61,12 @@ describe('HealthService', () => {
   });
 
   it('returns live ok payload', () => {
-    const service = new HealthService(createConfigService());
+    const service = new HealthService(createConfigService(), createPrisma());
     expect(service.live()).toEqual({ status: 'ok' });
   });
 
   it('returns ready when optional checks are not configured', async () => {
-    const service = new HealthService(createConfigService());
+    const service = new HealthService(createConfigService(), createPrisma());
 
     const result = await service.readiness();
 
@@ -70,6 +81,7 @@ describe('HealthService', () => {
       createConfigService({
         databaseUrl: 'not-a-url',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -87,6 +99,7 @@ describe('HealthService', () => {
       createConfigService({
         databaseUrl: 'postgres:///bitstockerz',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -103,6 +116,7 @@ describe('HealthService', () => {
       createConfigService({
         databaseUrl: 'oracle://localhost/bitstockerz',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -115,7 +129,7 @@ describe('HealthService', () => {
   });
 
   it('resolveDatabasePort handles explicit, invalid, and protocol-default ports', () => {
-    const service = new HealthService(createConfigService());
+    const service = new HealthService(createConfigService(), createPrisma());
     const resolveDatabasePort = (service as any).resolveDatabasePort.bind(
       service,
     );
@@ -146,6 +160,7 @@ describe('HealthService', () => {
         databaseUrl: `postgres://127.0.0.1:${address.port}/bitstockerz`,
         timeoutMs: 300,
       }),
+      createPrisma(),
     );
 
     try {
@@ -160,7 +175,10 @@ describe('HealthService', () => {
   });
 
   it('returns timeout details for TCP dependencies and ignores late follow-up errors', async () => {
-    const service = new HealthService(createConfigService({ timeoutMs: 50 }));
+    const service = new HealthService(
+      createConfigService({ timeoutMs: 50 }),
+      createPrisma(),
+    );
 
     jest
       .spyOn(Socket.prototype, 'connect')
@@ -179,7 +197,10 @@ describe('HealthService', () => {
   });
 
   it('uses stringified values for non-Error TCP failures', async () => {
-    const service = new HealthService(createConfigService({ timeoutMs: 50 }));
+    const service = new HealthService(
+      createConfigService({ timeoutMs: 50 }),
+      createPrisma(),
+    );
 
     jest
       .spyOn(Socket.prototype, 'connect')
@@ -206,6 +227,7 @@ describe('HealthService', () => {
       createConfigService({
         marketDataHealthUrl: 'https://market-data.example.com/health',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -225,6 +247,7 @@ describe('HealthService', () => {
       createConfigService({
         marketDataHealthUrl: 'https://market-data.example.com/health',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -263,6 +286,7 @@ describe('HealthService', () => {
         marketDataHealthUrl: 'https://market-data.example.com/health',
         timeoutMs: 50,
       }),
+      createPrisma(),
     );
 
     const readinessPromise = service.readiness();
@@ -283,6 +307,7 @@ describe('HealthService', () => {
       createConfigService({
         marketDataHealthUrl: 'https://market-data.example.com/health',
       }),
+      createPrisma(),
     );
 
     const result = await service.readiness();
@@ -290,5 +315,56 @@ describe('HealthService', () => {
     expect(result.ready).toBe(false);
     expect(result.checks.marketData.status).toBe('down');
     expect(result.checks.marketData.details).toBe('market-down');
+  });
+
+  it('fails closed in production when DATABASE_URL is missing', async () => {
+    const service = new HealthService(
+      createConfigService({ nodeEnv: 'production' }),
+      createPrisma(),
+    );
+
+    const result = await service.readiness();
+
+    expect(result.ready).toBe(false);
+    expect(result.checks.database).toEqual({
+      status: 'down',
+      details: 'DATABASE_URL is not configured',
+    });
+  });
+
+  it('pings Prisma when the client is enabled', async () => {
+    const ping = jest.fn().mockResolvedValue(undefined);
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: 'mysql://localhost:3306/bitstockerz',
+      }),
+      createPrisma({ isEnabled: true, ping }),
+    );
+
+    const result = await service.readiness();
+
+    expect(ping).toHaveBeenCalled();
+    expect(result.checks.database.status).toBe('up');
+    expect(result.ready).toBe(true);
+  });
+
+  it('marks database down when Prisma ping fails', async () => {
+    const service = new HealthService(
+      createConfigService({
+        databaseUrl: 'mysql://localhost:3306/bitstockerz',
+      }),
+      createPrisma({
+        isEnabled: true,
+        ping: async () => {
+          throw new Error('connection refused');
+        },
+      }),
+    );
+
+    const result = await service.readiness();
+
+    expect(result.ready).toBe(false);
+    expect(result.checks.database.status).toBe('down');
+    expect(result.checks.database.details).toBe('connection refused');
   });
 });

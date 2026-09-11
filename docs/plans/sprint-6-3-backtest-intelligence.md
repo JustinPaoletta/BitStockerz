@@ -1,9 +1,9 @@
 # Sprint 6.3 — Backtest Intelligence
 
-**Status:** Plan ready (not started)  
+**Status:** Shipped on `feat/milestone-6-ai-kernel` (combined with Milestone 7 in PR #12; `#6.4.2` deferred)  
 **Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
-**Branch (when implementing):** `feat/sprint-6-3-backtest-intelligence`  
-**PR base:** `feat/sprint-6-2-strategy-intelligence` (stacked) → retarget `main` after 6.2 merges
+**Branch (when implementing):** `feat/milestone-6-ai-kernel`  
+**PR base:** stacked with 6.2 → combined into PR #12 vs `main`
 
 **Overview:** Complete the Kernel advisory surface: explain backtest results, identify failure modes, and suggest strategy improvements. Optional diff-style explanation (#6.4.2) is stretch/deferrable. Same infrastructure as 6.1–6.2 (flags, limits, non-streaming, disclaimers, no mutations).
 

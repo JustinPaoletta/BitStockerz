@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Socket } from 'net';
 import { AppConfigService } from '../config/app-config.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 type DependencyStatus = 'up' | 'down' | 'not_configured';
 
@@ -39,7 +40,10 @@ function toErrorMessage(error: unknown): string {
 
 @Injectable()
 export class HealthService {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   live() {
     return { status: 'ok' };
@@ -65,11 +69,33 @@ export class HealthService {
 
   private async checkDatabase(): Promise<DependencyCheck> {
     const databaseUrl = this.config.dependencies.databaseUrl;
+    const isProduction = this.config.server.nodeEnv === 'production';
+
     if (!databaseUrl) {
+      if (isProduction) {
+        return {
+          status: 'down',
+          details: 'DATABASE_URL is not configured',
+        };
+      }
       return {
         status: 'not_configured',
         details: 'DATABASE_URL is not configured',
       };
+    }
+
+    if (this.prisma.isEnabled) {
+      const startTime = Date.now();
+      try {
+        await this.prisma.ping();
+        return { status: 'up', latencyMs: Date.now() - startTime };
+      } catch (error) {
+        return {
+          status: 'down',
+          latencyMs: Date.now() - startTime,
+          details: toErrorMessage(error),
+        };
+      }
     }
 
     let parsedUrl: URL;

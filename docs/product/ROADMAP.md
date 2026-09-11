@@ -9,7 +9,7 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — August 7, 2026
+## Current delivery state — September 10, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
@@ -17,10 +17,9 @@ Assumptions:
 | Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
 | Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
-| Sprints 6.1–6.3 | Implemented on `feat/milestone-6-ai-kernel` | Kernel AI infrastructure, strategy/backtest intelligence endpoints, stub provider e2e, and Angular Kernel panels. `#6.4.2` deferred. |
-| Sprints 7.1–7.2 | Plans ready; not started | Follow the linked implementation contract and predecessor dependency. External provisioning is only required where the plan says so. |
+| Sprints 6.1–6.3 + 7.1–7.2 | Completed in-repo on combined PR #12 | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. Next: merge + provision Fly/Vercel/MySQL secrets for first live URL. |
 
-The canonical readiness index is [docs/plans/README.md](../plans/README.md). Remaining Sprint 7.1–7.2 plans live there; completed Milestone 2–6 plan files may be removed after merge. “Ready” means the implementation contract has adopted defaults and can be developed when its predecessor is available; it does not mean the sprint has shipped.
+The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP feature sprints are complete in-repo; completed plan files may be removed after merge. Live hosting accounts remain an external prerequisite for production URLs.
 
 ---
 
@@ -418,6 +417,8 @@ Frontend note:
 
 ### Sprint 7.1 – Polish & Caching
 
+**Status: Completed (verified on `feat/sprint-7-1-polish-caching`)**
+
 **Implementation plan:** [docs/plans/sprint-7-1-polish-caching.md](../plans/sprint-7-1-polish-caching.md)
 
 **Stories**
@@ -431,6 +432,8 @@ Frontend note:
 ---
 
 ### Sprint 7.2 – Deployment & Hosting
+
+**Status: Completed in-repo (external Fly/Vercel/MySQL provisioning required for first live URL)**
 
 **Implementation plan:** [docs/plans/sprint-7-2-deployment-hosting.md](../plans/sprint-7-2-deployment-hosting.md)
 

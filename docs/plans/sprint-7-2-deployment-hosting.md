@@ -1,9 +1,9 @@
 # Sprint 7.2 — Deployment & Hosting
 
-**Status:** Plan ready (not started)  
+**Status:** Done in-repo — combined PR #12 (external hosting accounts still required for first live URL)  
 **Roadmap marker:** Milestone 7 — Polish & Resilience (final MVP sprint)  
-**Branch (when implementing):** `feat/sprint-7-2-deployment-hosting`  
-**PR base:** `feat/sprint-7-1-polish-caching` (stacked) → retarget `main` after 7.1 merges
+**Branch (when implementing):** `feat/milestone-6-ai-kernel` (combined M6+M7)  
+**PR base:** `main` via PR #12
 
 **Overview:** Make BitStockerz deployable in a **single region** with CI build/test/deploy for the Nest API, managed MySQL, scheduled jobs, and the Angular SPA. Default hosting recommendation is **Option A**: always-on Node host for API+scheduler, Vercel for static Angular, managed MySQL. Option B (Vercel Nest + Cron) is documented as an alternative when always-on is unacceptable.
 

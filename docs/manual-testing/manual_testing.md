@@ -1128,4 +1128,40 @@ curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
 
 ---
 
+## Section 15 – Cache, provider guardrails & deploy readiness (Milestone 7)
+
+### Cache hit behavior (seed mode)
+
+```bash
+# First candle read populates cache; second identical read should match body.
+curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c1.json
+curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c2.json
+diff /tmp/c1.json /tmp/c2.json
+
+# Metrics should show candles hit/miss counters when METRICS_ENABLED=true
+curl -s http://localhost:4000/api/metrics | jq '.cache'
+```
+
+### Provider / health
+
+```bash
+curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provider}'
+# expect provider.configured == "seed" when MARKET_DATA_LIVE_ENABLED=false
+# expect provider.circuit == "closed"
+```
+
+### Deploy artifacts checklist (no live accounts required)
+
+| # | Check | Expect |
+|---|-------|--------|
+| 1 | `.github/workflows/ci.yml` present | API + web jobs |
+| 2 | `.github/workflows/deploy.yml` present | migrate → Fly API → Vercel web |
+| 3 | `apps/api/Dockerfile` + `fly.toml` | Option A always-on API |
+| 4 | `apps/web/vercel.json` | SPA fallback rewrite |
+| 5 | `docs/ops/deployment.md` | secrets + smoke + rollback |
+
+Live Fly/Vercel/MySQL provisioning remains an operator step before first production URL.
+
+---
+
 **File:** `docs/manual-testing/manual_testing.md`

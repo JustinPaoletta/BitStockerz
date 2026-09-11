@@ -17,7 +17,7 @@ Scope includes:
 - Completed in Sprint 1.3 (July 11, 2026): #2.2.2, #2.3.2 (data ingestion)
 - Completed in Sprint 1.4 (July 24, 2026): #2.6.1–#2.6.2 (data quality and health endpoint)
 - Completed in Milestone 5 / PR #11: #2.4.2 (symbol search UI component)
-- Planned for Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
+- Completed in Sprint 7.1: #2.5.1–#2.5.2 (caching and provider guardrails)
 
 ---
 
@@ -107,7 +107,23 @@ Acceptance criteria:
 ## Epic 2.5 – Data Access Patterns & Caching
 
 ### Story 2.5.1 – In-memory cache for recent candles
+Acceptance criteria:
+- Custom in-process `TtlCacheService` (Map + TTL + deterministic LRU) caches symbol lookup/search and equity/crypto candle range reads.
+- Cache keys canonicalize symbol, asset type, interval, inclusive UTC range, order, and limit; config via `CACHE_ENABLED`, `CACHE_CANDLES_TTL_MS`, `CACHE_SYMBOLS_TTL_MS`, `CACHE_MAX_ENTRIES`.
+- Successful empty arrays are cached; thrown errors are not. Concurrent identical misses coalesce. Cached values are immutable to callers.
+- After successful ingestion for a symbol, candle cache keys for that symbol are prefix-invalidated.
+- Metrics expose hit/miss/load_error/eviction by namespace (`symbols`/`candles`) only.
+
+Status: Completed (Sprint 7.1)
+
 ### Story 2.5.2 – Guardrails for provider fallbacks
+Acceptance criteria:
+- `MarketDataProvider` interface with Seed + Live (skeleton) adapters; `ProviderRouterService` used by ingestion only.
+- Circuit breaker opens after N consecutive transient failures, cools down, half-open single probe; permanent misconfiguration does not trip the breaker.
+- On live failure: production retains last-known DB bars (no synthetic seed substitution); non-production seed mode may fall back to seed. Audit `market_data.provider_fallback`.
+- `GET /api/market-data/health` includes additive `provider: { configured, last_success_at, circuit, last_error_code }`.
+
+Status: Completed (Sprint 7.1)
 
 ---
 

@@ -14,7 +14,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
@@ -104,6 +104,7 @@
     ],
     "coveragePathIgnorePatterns": [
       "<rootDir>/common/errors/index.ts",
+      "<rootDir>/main.ts",
       "<rootDir>/auth/auth.service.ts",
       "<rootDir>/auth/auth.module.ts",
       "<rootDir>/jobs/job-scheduler.service.ts",
@@ -113,6 +114,7 @@
       "<rootDir>/jobs/dto/create-job.dto.ts",
       "<rootDir>/market-data/market-data.module.ts",
       "<rootDir>/market-data/market-data-health.controller.ts",
+      "<rootDir>/market-data/providers/live.provider.ts",
       "<rootDir>/observability/observability.module.ts",
       "<rootDir>/observability/metrics.controller.ts",
       "<rootDir>/ai/"

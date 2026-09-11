@@ -9,6 +9,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Milestone 7 polish: in-process TTL/LRU cache for symbol and candle reads,
+  ingestion prefix invalidation, provider interface + circuit breaker
+  guardrails, and additive `provider` field on `GET /api/market-data/health`.
+- Milestone 7 deploy artifacts: GitHub Actions `ci.yml` / `deploy.yml`, API
+  Dockerfile + Fly.io config, Vercel SPA rewrite, production readiness
+  hardening, and `docs/ops/deployment.md` Option A runbook.
 - Milestone 6 Kernel AI: `AiModule` with stub/OpenAI providers, `ai_usage`
   daily limits, feature flags, metadata-only audit/logging, and advisory
   endpoints `POST /api/ai/explain-strategy`, `/validate-strategy`,
