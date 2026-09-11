@@ -47,7 +47,7 @@ export class AiController {
     responseSchema: apiSchemaRef('AiExplainStrategyResponse'),
     errors: [400, 401, 404, 429, 500, 502, 503, 504],
   })
-  explainStrategy(
+  async explainStrategy(
     @Req() request: AuthenticatedRequest,
     @Body() dto: ExplainStrategyDto,
   ) {
@@ -68,7 +68,7 @@ export class AiController {
     responseSchema: apiSchemaRef('AiValidateStrategyResponse'),
     errors: [400, 401, 404, 429, 500, 502, 503, 504],
   })
-  validateStrategy(
+  async validateStrategy(
     @Req() request: AuthenticatedRequest,
     @Body() dto: ValidateStrategyAiDto,
   ) {
@@ -89,7 +89,7 @@ export class AiController {
     responseSchema: apiSchemaRef('AiExplainBacktestResponse'),
     errors: [400, 401, 404, 409, 429, 500, 502, 503, 504],
   })
-  explainBacktest(
+  async explainBacktest(
     @Req() request: AuthenticatedRequest,
     @Body() dto: ExplainBacktestDto,
   ) {
@@ -110,7 +110,7 @@ export class AiController {
     responseSchema: apiSchemaRef('AiSuggestImprovementsResponse'),
     errors: [400, 401, 404, 409, 429, 500, 502, 503, 504],
   })
-  suggestImprovements(
+  async suggestImprovements(
     @Req() request: AuthenticatedRequest,
     @Body() dto: SuggestImprovementsDto,
   ) {

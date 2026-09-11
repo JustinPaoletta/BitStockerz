@@ -8,8 +8,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
-import { Injectable, Optional } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { JWTPayload } from 'jose';
 import { DomainError } from '../common/errors/domain-error';
@@ -17,6 +16,19 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaperAccountProvisioner } from '../trading/paper-account-provisioner.service';
+import { AuthPersistenceService } from './auth-persistence.service';
+import type {
+  BaseCurrency,
+  OauthProvider,
+  OauthStateRecord,
+  PasskeyCredentialRecord,
+  SessionRecord,
+  UserRecord,
+  WebAuthnChallengePurpose,
+  WebAuthnChallengeRecord,
+} from './auth.records';
+
+export type { BaseCurrency, OauthProvider };
 
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -28,11 +40,6 @@ const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_AUTHORIZATION_ENDPOINT = 'https://appleid.apple.com/auth/authorize';
 const APPLE_TOKEN_ENDPOINT = 'https://appleid.apple.com/auth/token';
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
-
-export type BaseCurrency = 'USD';
-export type OauthProvider = 'google' | 'apple';
-
-type WebAuthnChallengePurpose = 'register' | 'login';
 
 export interface LinkedAuthMethods {
   passkeys: boolean;
@@ -123,44 +130,6 @@ interface ProfileUpdate {
   base_currency?: BaseCurrency;
 }
 
-interface UserRecord {
-  id: string;
-  email: string;
-  display_name?: string;
-  base_currency: BaseCurrency;
-  passkeyCredentialIds: Set<string>;
-  googleSubject?: string;
-  appleSubject?: string;
-}
-
-interface SessionRecord {
-  userId: string;
-  expiresAt: number;
-}
-
-interface PasskeyCredentialRecord {
-  credentialId: string;
-  userId: string;
-  credential: WebAuthnCredential;
-  aaguid?: string;
-  createdAt: string;
-}
-
-interface WebAuthnChallengeRecord {
-  challengeId: string;
-  purpose: WebAuthnChallengePurpose;
-  email: string;
-  challenge: string;
-  expiresAt: number;
-}
-
-interface OauthStateRecord {
-  state: string;
-  provider: OauthProvider;
-  nonce: string;
-  expiresAt: number;
-}
-
 interface OAuthIdentity {
   subject: string;
   email?: string;
@@ -168,13 +137,6 @@ interface OAuthIdentity {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
-}
-
-function isPrismaUniqueConstraintError(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  );
 }
 
 function normalizeDisplayName(
@@ -228,7 +190,7 @@ function toTransports(
 }
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly usersByEmail = new Map<string, UserRecord>();
   private readonly usersById = new Map<string, UserRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
@@ -248,9 +210,21 @@ export class AuthService {
   constructor(
     private readonly config: AppConfigService,
     private readonly prisma: PrismaService,
+    private readonly persistence: AuthPersistenceService,
     @Optional()
     private readonly paperAccounts?: PaperAccountProvisioner,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.persistence.hydrate({
+      usersByEmail: this.usersByEmail,
+      usersById: this.usersById,
+      sessions: this.sessions,
+      credentialsById: this.credentialsById,
+      googleSubjectsToUserIds: this.googleSubjectsToUserIds,
+      appleSubjectsToUserIds: this.appleSubjectsToUserIds,
+    });
+  }
 
   async ensurePaperAccountForUser(userId: string): Promise<void> {
     if (!this.paperAccounts) return;
@@ -271,170 +245,16 @@ export class AuthService {
       );
     }
 
-    const now = new Date();
-    const existingById = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (existingById) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          email: user.email,
-          updatedAt: now,
-        },
-      });
-      return;
-    }
-
-    const existingByEmail = await this.prisma.user.findUnique({
-      where: { email: user.email },
-    });
-    if (existingByEmail && existingByEmail.id !== userId) {
-      // Auth is in-memory today; after restart the same email gets a new id.
-      // Remap the persisted row and dependents instead of deleting history.
-      await this.remapPersistedUserIdentitySafely({
-        previousUserId: existingByEmail.id,
-        nextUserId: userId,
-        email: user.email,
-        createdAt: existingByEmail.createdAt,
-        updatedAt: now,
-      });
-      return;
-    }
-
-    try {
-      await this.prisma.user.create({
-        data: {
-          id: userId,
-          email: user.email,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-    } catch (error) {
-      if (!isPrismaUniqueConstraintError(error)) {
-        throw error;
-      }
-
-      // Concurrent first persist for the same user/email: treat as success when
-      // the winning row is already usable, otherwise remap a stale email row.
-      const createdById = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-      if (createdById) {
-        return;
-      }
-
-      const createdByEmail = await this.prisma.user.findUnique({
-        where: { email: user.email },
-      });
-      if (createdByEmail && createdByEmail.id !== userId) {
-        await this.remapPersistedUserIdentitySafely({
-          previousUserId: createdByEmail.id,
-          nextUserId: userId,
-          email: user.email,
-          createdAt: createdByEmail.createdAt,
-          updatedAt: now,
-        });
-        return;
-      }
-
-      throw error;
-    }
+    await this.persistence.saveUser(user);
   }
 
-  private async remapPersistedUserIdentitySafely(input: {
-    previousUserId: string;
-    nextUserId: string;
-    email: string;
-    createdAt: Date;
-    updatedAt: Date;
-  }): Promise<void> {
-    try {
-      await this.remapPersistedUserIdentity(input);
-    } catch (error) {
-      // Audit persistence and the requested domain operation may both try to
-      // repair the same post-restart identity. Treat a completed competing
-      // remap as success while preserving genuine database failures.
-      const remappedUser = await this.prisma.user.findUnique({
-        where: { id: input.nextUserId },
-      });
-      if (remappedUser?.email === input.email) {
-        return;
-      }
-      throw error;
-    }
-  }
-
-  private async remapPersistedUserIdentity(input: {
-    previousUserId: string;
-    nextUserId: string;
-    email: string;
-    createdAt: Date;
-    updatedAt: Date;
-  }): Promise<void> {
-    const tempEmail = `__remap_${input.previousUserId}@bitstockerz.invalid`;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: input.previousUserId },
-        data: {
-          email: tempEmail,
-          updatedAt: input.updatedAt,
-        },
-      });
-
-      await tx.user.create({
-        data: {
-          id: input.nextUserId,
-          email: input.email,
-          createdAt: input.createdAt,
-          updatedAt: input.updatedAt,
-        },
-      });
-
-      await tx.job.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.auditEvent.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.strategy.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.backtestRun.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.paperAccount.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.webAuthnCredential.updateMany({
-        where: { userId: input.previousUserId },
-        data: { userId: input.nextUserId },
-      });
-
-      await tx.user.delete({
-        where: { id: input.previousUserId },
-      });
-    });
-  }
-
-  register(email: string, displayName?: string): AuthResponse {
+  async register(email: string, displayName?: string): Promise<AuthResponse> {
+    this.assertDevEmailEnabled();
     const normalizedEmail = normalizeEmail(email);
-    const user = this.createUser(normalizedEmail, displayName);
+    const user = await this.createUser(normalizedEmail, displayName);
 
     // Backward-compatible placeholder for the legacy /auth/register endpoint.
-    this.addPasskeyCredential(user, {
+    await this.addPasskeyCredential(user, {
       credentialId: `legacy-${randomUUID()}`,
       credential: {
         id: `legacy-${randomUUID()}`,
@@ -448,7 +268,8 @@ export class AuthService {
     return this.createAuthResponse(user);
   }
 
-  login(email: string): AuthResponse {
+  async login(email: string): Promise<AuthResponse> {
+    this.assertDevEmailEnabled();
     const normalizedEmail = normalizeEmail(email);
     const user = this.usersByEmail.get(normalizedEmail);
 
@@ -471,7 +292,10 @@ export class AuthService {
       throw new DomainError(ErrorCode.CONFLICT, 'Email is already registered.');
     }
 
-    const challenge = this.createWebAuthnChallenge('register', normalizedEmail);
+    const challenge = await this.createWebAuthnChallenge(
+      'register',
+      normalizedEmail,
+    );
 
     const options = await generateRegistrationOptions({
       rpName: this.config.auth.webauthnRpName,
@@ -516,7 +340,7 @@ export class AuthService {
       );
     }
 
-    const challenge = this.consumeWebAuthnChallenge(
+    const challenge = await this.consumeWebAuthnChallenge(
       challengeId,
       'register',
       normalizedEmail,
@@ -540,9 +364,9 @@ export class AuthService {
         );
       }
 
-      const user = this.createUser(normalizedEmail, input.displayName);
+      const user = await this.createUser(normalizedEmail, input.displayName);
       try {
-        this.addPasskeyCredential(user, {
+        await this.addPasskeyCredential(user, {
           credentialId: verification.registrationInfo.credential.id,
           credential: {
             id: verification.registrationInfo.credential.id,
@@ -559,10 +383,11 @@ export class AuthService {
       return this.createAuthResponse(user);
     }
 
+    this.assertLegacyWebauthnEnabled();
     // Compatibility fallback for local/test requests that don't send a full WebAuthn response payload.
-    const user = this.createUser(normalizedEmail, input.displayName);
+    const user = await this.createUser(normalizedEmail, input.displayName);
     try {
-      this.verifyLegacyWebAuthnRegistration(user, challenge, input);
+      await this.verifyLegacyWebAuthnRegistration(user, challenge, input);
     } catch (error) {
       this.removeUser(user);
       throw error;
@@ -583,7 +408,7 @@ export class AuthService {
       );
     }
 
-    const challenge = this.createWebAuthnChallenge('login', normalizedEmail);
+    const challenge = await this.createWebAuthnChallenge('login', normalizedEmail);
 
     const options = await generateAuthenticationOptions({
       rpID: this.config.auth.webauthnRpId,
@@ -633,7 +458,7 @@ export class AuthService {
       );
     }
 
-    const challenge = this.consumeWebAuthnChallenge(
+    const challenge = await this.consumeWebAuthnChallenge(
       challengeId,
       'login',
       normalizedEmail,
@@ -676,14 +501,28 @@ export class AuthService {
 
       credential.credential.counter =
         verification.authenticationInfo.newCounter;
+      await this.persistence.updateCredentialCounter(
+        credential.credentialId,
+        credential.credential.counter,
+      );
     } else {
+      this.assertLegacyWebauthnEnabled();
       this.verifyLegacyWebAuthnLogin(user, input);
+      const legacyCredential = this.credentialsById.get(
+        normalizeOptional(input.credentialId) as string,
+      );
+      if (legacyCredential) {
+        await this.persistence.updateCredentialCounter(
+          legacyCredential.credentialId,
+          legacyCredential.credential.counter,
+        );
+      }
     }
 
     return this.createAuthResponse(user);
   }
 
-  createOAuthStart(provider: OauthProvider): OAuthStartResponse {
+  async createOAuthStart(provider: OauthProvider): Promise<OAuthStartResponse> {
     this.pruneExpiredOauthStates();
 
     const state = createRandomToken();
@@ -691,12 +530,17 @@ export class AuthService {
     const ttlSeconds = this.config.auth.oauthStateTtlSeconds;
     const expiresAt = Date.now() + ttlSeconds * 1000;
 
-    this.oauthStatesById.set(state, {
+    const record: OauthStateRecord = {
       state,
       provider,
       nonce,
       expiresAt,
-    });
+    };
+    if (this.persistence.enabled) {
+      await this.persistence.saveOAuthState(record);
+    } else {
+      this.oauthStatesById.set(state, record);
+    }
 
     return {
       provider,
@@ -713,7 +557,7 @@ export class AuthService {
   async completeGoogleOAuth(
     input: GoogleOAuthCallbackInput,
   ): Promise<AuthResponse> {
-    const state = this.consumeOauthState(input.state, 'google');
+    const state = await this.consumeOauthState(input.state, 'google');
     const identity = await this.resolveGoogleIdentity(input, state);
 
     const mappedUserId = this.googleSubjectsToUserIds.get(identity.subject);
@@ -731,18 +575,18 @@ export class AuthService {
     const user = mappedUserId
       ? this.requireUserById(mappedUserId)
       : (emailUser ??
-        this.createUser(
+        (await this.createUser(
           identity.email ?? `${identity.subject}@google.private`,
-        ));
+        )));
 
-    this.linkGoogleSubject(user, identity.subject);
+    await this.linkGoogleSubject(user, identity.subject, identity.email);
     return this.createAuthResponse(user);
   }
 
   async completeAppleOAuth(
     input: AppleOAuthCallbackInput,
   ): Promise<AuthResponse> {
-    const state = this.consumeOauthState(input.state, 'apple');
+    const state = await this.consumeOauthState(input.state, 'apple');
     const identity = await this.resolveAppleIdentity(input, state);
 
     const mappedUserId = this.appleSubjectsToUserIds.get(identity.subject);
@@ -757,21 +601,24 @@ export class AuthService {
           );
         }
       }
-      this.linkAppleSubject(user, identity.subject);
+      await this.linkAppleSubject(user, identity.subject, identity.email);
       return this.createAuthResponse(user);
     }
 
     const user = identity.email
       ? (this.usersByEmail.get(identity.email) ??
-        this.createUser(identity.email))
-      : this.createUser(`${identity.subject}@apple.private`);
+        (await this.createUser(identity.email)))
+      : await this.createUser(`${identity.subject}@apple.private`);
 
-    this.linkAppleSubject(user, identity.subject);
+    await this.linkAppleSubject(user, identity.subject, identity.email);
     return this.createAuthResponse(user);
   }
 
-  logout(sessionToken: string): void {
+  async logout(sessionToken: string): Promise<void> {
     const deleted = this.sessions.delete(sessionToken);
+    if (this.persistence.enabled) {
+      await this.persistence.deleteSession(sessionToken);
+    }
     if (!deleted) {
       throw new DomainError(ErrorCode.UNAUTHORIZED);
     }
@@ -781,10 +628,10 @@ export class AuthService {
     return this.toUserProfile(this.requireUserBySessionToken(sessionToken));
   }
 
-  updateProfileBySessionToken(
+  async updateProfileBySessionToken(
     sessionToken: string,
     update: ProfileUpdate,
-  ): UserProfile {
+  ): Promise<UserProfile> {
     const user = this.requireUserBySessionToken(sessionToken);
 
     if (update.display_name !== undefined) {
@@ -795,6 +642,7 @@ export class AuthService {
       user.base_currency = update.base_currency;
     }
 
+    await this.persistence.updateUserProfile(user);
     return this.toUserProfile(user);
   }
 
@@ -808,17 +656,35 @@ export class AuthService {
 
     if (session.expiresAt <= Date.now()) {
       this.sessions.delete(sessionToken);
+      if (this.persistence.enabled) {
+        void this.persistence.deleteSession(sessionToken);
+      }
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Session has expired.');
     }
 
     return this.requireUserById(session.userId);
   }
 
-  private verifyLegacyWebAuthnRegistration(
+  private assertDevEmailEnabled(): void {
+    if (!this.config.auth.devEmailEnabled) {
+      throw new DomainError(ErrorCode.NOT_FOUND);
+    }
+  }
+
+  private assertLegacyWebauthnEnabled(): void {
+    if (!this.config.auth.legacyWebauthnEnabled) {
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Passkey verification requires a WebAuthn response.',
+      );
+    }
+  }
+
+  private async verifyLegacyWebAuthnRegistration(
     user: UserRecord,
     challenge: WebAuthnChallengeRecord,
     input: WebAuthnRegistrationVerifyInput,
-  ): void {
+  ): Promise<void> {
     const challengeResponse = normalizeOptional(input.challenge);
     const credentialId = normalizeOptional(input.credentialId);
     const publicKey = normalizeOptional(input.publicKey);
@@ -843,7 +709,7 @@ export class AuthService {
       );
     }
 
-    this.addPasskeyCredential(user, {
+    await this.addPasskeyCredential(user, {
       credentialId,
       credential: {
         id: credentialId,
@@ -1320,7 +1186,10 @@ export class AuthService {
     return this.appleJwks;
   }
 
-  private createUser(email: string, displayName?: string): UserRecord {
+  private async createUser(
+    email: string,
+    displayName?: string,
+  ): Promise<UserRecord> {
     const normalizedEmail = normalizeEmail(email);
 
     if (this.usersByEmail.has(normalizedEmail)) {
@@ -1337,6 +1206,7 @@ export class AuthService {
 
     this.usersByEmail.set(normalizedEmail, user);
     this.usersById.set(user.id, user);
+    await this.persistence.saveUser(user);
 
     return user;
   }
@@ -1350,14 +1220,14 @@ export class AuthService {
     user.passkeyCredentialIds.clear();
   }
 
-  private addPasskeyCredential(
+  private async addPasskeyCredential(
     user: UserRecord,
     input: {
       credentialId: string;
       credential: WebAuthnCredential;
       aaguid?: string;
     },
-  ): void {
+  ): Promise<void> {
     const credentialId = normalizeOptional(input.credentialId);
     if (!credentialId) {
       throw new DomainError(
@@ -1373,7 +1243,7 @@ export class AuthService {
       );
     }
 
-    this.credentialsById.set(credentialId, {
+    const record: PasskeyCredentialRecord = {
       credentialId,
       userId: user.id,
       credential: {
@@ -1384,12 +1254,17 @@ export class AuthService {
       },
       aaguid: normalizeOptional(input.aaguid),
       createdAt: new Date().toISOString(),
-    });
-
+    };
+    this.credentialsById.set(credentialId, record);
     user.passkeyCredentialIds.add(credentialId);
+    await this.persistence.saveCredential(record);
   }
 
-  private linkGoogleSubject(user: UserRecord, subject: string): void {
+  private async linkGoogleSubject(
+    user: UserRecord,
+    subject: string,
+    email?: string,
+  ): Promise<void> {
     const normalizedSubject = normalizeOptional(subject);
     if (!normalizedSubject) {
       throw new DomainError(
@@ -1408,9 +1283,19 @@ export class AuthService {
 
     user.googleSubject = normalizedSubject;
     this.googleSubjectsToUserIds.set(normalizedSubject, user.id);
+    await this.persistence.saveOAuthIdentity(
+      'google',
+      normalizedSubject,
+      user.id,
+      email ?? user.email,
+    );
   }
 
-  private linkAppleSubject(user: UserRecord, subject: string): void {
+  private async linkAppleSubject(
+    user: UserRecord,
+    subject: string,
+    email?: string,
+  ): Promise<void> {
     const normalizedSubject = normalizeOptional(subject);
     if (!normalizedSubject) {
       throw new DomainError(
@@ -1429,12 +1314,18 @@ export class AuthService {
 
     user.appleSubject = normalizedSubject;
     this.appleSubjectsToUserIds.set(normalizedSubject, user.id);
+    await this.persistence.saveOAuthIdentity(
+      'apple',
+      normalizedSubject,
+      user.id,
+      email ?? user.email,
+    );
   }
 
-  private createWebAuthnChallenge(
+  private async createWebAuthnChallenge(
     purpose: WebAuthnChallengePurpose,
     email: string,
-  ): WebAuthnChallengeRecord {
+  ): Promise<WebAuthnChallengeRecord> {
     this.pruneExpiredChallenges();
 
     const challengeId = randomUUID();
@@ -1449,15 +1340,34 @@ export class AuthService {
       expiresAt,
     };
 
-    this.webAuthnChallengesById.set(challengeId, record);
+    if (this.persistence.enabled) {
+      await this.persistence.saveWebAuthnChallenge(record);
+    } else {
+      this.webAuthnChallengesById.set(challengeId, record);
+    }
     return record;
   }
 
-  private consumeWebAuthnChallenge(
+  private async consumeWebAuthnChallenge(
     challengeId: string,
     expectedPurpose: WebAuthnChallengePurpose,
     expectedEmail: string,
-  ): WebAuthnChallengeRecord {
+  ): Promise<WebAuthnChallengeRecord> {
+    if (this.persistence.enabled) {
+      const challenge = await this.persistence.consumeWebAuthnChallenge(
+        challengeId,
+        expectedPurpose,
+        expectedEmail,
+      );
+      if (!challenge) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'WebAuthn challenge is invalid or expired.',
+        );
+      }
+      return challenge;
+    }
+
     this.pruneExpiredChallenges();
 
     const challenge = this.webAuthnChallengesById.get(challengeId);
@@ -1483,10 +1393,24 @@ export class AuthService {
     return challenge;
   }
 
-  private consumeOauthState(
+  private async consumeOauthState(
     state: string,
     provider: OauthProvider,
-  ): OauthStateRecord {
+  ): Promise<OauthStateRecord> {
+    if (this.persistence.enabled) {
+      const stateRecord = await this.persistence.consumeOAuthState(
+        state,
+        provider,
+      );
+      if (!stateRecord) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'OAuth state is invalid or expired.',
+        );
+      }
+      return stateRecord;
+    }
+
     this.pruneExpiredOauthStates();
 
     const stateRecord = this.oauthStatesById.get(state);
@@ -1509,18 +1433,19 @@ export class AuthService {
     return stateRecord;
   }
 
-  private createAuthResponse(user: UserRecord): AuthResponse {
+  private async createAuthResponse(user: UserRecord): Promise<AuthResponse> {
     return {
-      access_token: this.createSession(user.id),
+      access_token: await this.createSession(user.id),
       token_type: 'Bearer',
       user: this.toUserProfile(user),
     };
   }
 
-  private createSession(userId: string): string {
+  private async createSession(userId: string): Promise<string> {
     const sessionToken = randomUUID();
     const expiresAt = Date.now() + this.config.auth.sessionTtlSeconds * 1000;
     this.sessions.set(sessionToken, { userId, expiresAt });
+    await this.persistence.saveSession(sessionToken, userId, expiresAt);
     return sessionToken;
   }
 

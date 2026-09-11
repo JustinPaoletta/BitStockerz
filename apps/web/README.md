@@ -25,9 +25,10 @@ npm run web:start
 ```
 
 Open `http://localhost:4200/`. `proxy.conf.json` forwards relative `/api`
-requests to `http://localhost:4000`. Passkeys are the primary login path;
-email register/login under **Email fallback** is for unsupported browsers and
-local automation.
+requests to `http://localhost:4000`. Passkeys are the primary login path.
+The **Email fallback** panel is shown only in non-production builds; it is
+for unsupported browsers and local automation when `AUTH_DEV_EMAIL_ENABLED=true`
+on the API.
 
 ## Quality gates
 

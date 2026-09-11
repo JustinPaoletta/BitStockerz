@@ -81,7 +81,8 @@ with a working NestJS API and Angular application.
 
 ## API Documentation
 
-With the API running, the generated contract is available at:
+With the API running and `OPENAPI_ENABLED=true` (the default outside production),
+the generated contract is available at:
 
 - Interactive Swagger UI: `http://localhost:4000/api/docs`
 - OpenAPI JSON: `http://localhost:4000/api/openapi.json`
@@ -137,8 +138,12 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `TRADING_MAX_ORDER_NOTIONAL` | Maximum unrounded market-order notional before a persisted rejection (default `25000`). |
 | `TRADING_MAX_POSITION_PCT` | Maximum resulting single-symbol percentage of pre-trade equity for BUY orders (default `25`). |
 | `TRADING_MIN_CASH_REMAINING` | Minimum cash required after a BUY using the rounded cash notional (default `0`). |
-| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony rate limits (defaults `60000` / `30`). |
+| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony and dev email register/login rate limits (defaults `60000` / `30`). |
 | `AUTH_SESSION_TTL_SECONDS` / `AUTH_CHALLENGE_TTL_SECONDS` / `AUTH_OAUTH_STATE_TTL_SECONDS` | Session/challenge/state lifetimes (defaults `43200` / `300` / `300`). |
+| `AUTH_DEV_EMAIL_ENABLED` | Dev email register/login shortcuts (default `true` outside production; must be `false` in production). |
+| `AUTH_LEGACY_WEBAUTHN_ENABLED` | Legacy WebAuthn bypass for local automation (default `true` outside production; must be `false` in production). |
+| `ERROR_TEST_ENABLED` | Forced-error test routes (default `true` only when `NODE_ENV=test`; must be `false` in production). |
+| `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
 | `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider credentials and callback URLs; each provider's required set must be complete. |
 | `LOG_LEVEL` / `LOG_TO_FILE` / `LOG_FILE_PATH` | Log level and optional file logging (see Observability.md). |

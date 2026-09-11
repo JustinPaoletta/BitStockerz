@@ -35,18 +35,18 @@ fixtures, jobs, strategies, backtests, paper trading, metrics, and audit events
 are in-memory.
 Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
 `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
-see [Local_MySQL.md](./Local_MySQL.md). Auth remains in-memory even with MySQL
-(the `webauthn_credentials` table exists but is unused by the auth runtime
-today); persisted job, strategy, and backtest operations create or remap a
-minimal `users` row for foreign keys via `ensureUserPersisted`; successful
-signup paths synchronously provision the paper account. If the same
-email is re-registered under a new in-memory user id, that helper atomically
-remaps the stale MySQL user row and reassigns its jobs, strategies, backtest
-runs, paper account (and therefore its trading history), audit events, and
-credentials instead of deleting history. Ingestion
-upserts those seed OHLCV bars into bar tables when the database is enabled
-(re-run ingestion after an API restart if you need DB health to match the
-latest seed window).
+see [Local_MySQL.md](./Local_MySQL.md). Auth users, sessions, passkeys,
+OAuth identities, WebAuthn challenges, and OAuth state persist in MySQL and
+hydrate into memory on startup; user ids remain stable across restarts.
+Successful signup paths write through to MySQL and provision the paper account.
+After an API restart, sign in again with passkey/OAuth or dev email login —
+do not register the same email twice. Production disables dev email shortcuts
+(`AUTH_DEV_EMAIL_ENABLED=false`), legacy WebAuthn bypass
+(`AUTH_LEGACY_WEBAUTHN_ENABLED=false`), forced-error routes
+(`ERROR_TEST_ENABLED=false`), and OpenAPI by default (`OPENAPI_ENABLED=false`).
+Ingestion upserts those seed OHLCV bars into bar tables when the database is
+enabled (re-run ingestion after an API restart if you need DB health to match
+the latest seed window).
 
 Sections still marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
 
@@ -174,10 +174,12 @@ The API never returns stack traces. `detail` is a generic message; use `requestI
 ### 1.1 Auth (implemented through Sprint 0.2)
 
 **POST `/auth/register`**  
-Create a user and issue a bearer session (dev/testing shortcut; production flow uses passkeys or OAuth).
+Create a user and issue a bearer session (dev/testing shortcut when
+`AUTH_DEV_EMAIL_ENABLED=true`; blocked in production). Rate-limited.
 
 **POST `/auth/login`**  
-Issue a bearer session for an existing user by email (dev/testing shortcut).
+Issue a bearer session for an existing user by email (dev/testing shortcut when
+`AUTH_DEV_EMAIL_ENABLED=true`; blocked in production). Rate-limited.
 
 **POST `/auth/webauthn/register/options`**  
 Start passkey registration; returns challenge metadata.
@@ -229,7 +231,8 @@ Return the current user’s paper trading account.
 
 Successful email, passkey-registration, Google, and Apple new-user paths await
 idempotent account provisioning. The read lazily heals a missing legacy
-account, and the MySQL owner-remap path retains the account and its history.
+account. With MySQL enabled, auth hydration on startup preserves the user id
+and therefore the linked paper account across API restarts.
 
 ---
 

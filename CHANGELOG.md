@@ -9,6 +9,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Auth persistence to MySQL: users, sessions, passkeys, OAuth identities,
+  WebAuthn challenges, and OAuth state hydrate on startup when `DATABASE_URL`
+  is set; user ids remain stable across API restarts.
+- Production auth hardening: `AUTH_DEV_EMAIL_ENABLED`, `AUTH_LEGACY_WEBAUTHN_ENABLED`,
+  `ERROR_TEST_ENABLED`, and `OPENAPI_ENABLED` config flags with production boot
+  validation; rate limits on dev email register/login; error-test route guard;
+  Angular hides email fallback in production builds.
 - Milestone 7 polish: in-process TTL/LRU cache for symbol and candle reads,
   ingestion prefix invalidation, provider interface + circuit breaker
   guardrails, and additive `provider` field on `GET /api/market-data/health`.
@@ -31,6 +38,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   mapper, display pipes, symbol search, client order ids) and Playwright
   seed-mode workflow e2e covering shell auth, Strategy Lab, backtests, and
   paper trade fill/reject/sell guards.
+
+### Changed
+
+- Replaced stale MySQL user-id remapping on same-email re-registration with
+  stable persisted auth identities; after an API restart, sign in again instead
+  of registering the same email twice.
 
 ### Fixed
 

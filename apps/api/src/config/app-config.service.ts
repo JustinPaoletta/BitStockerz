@@ -61,6 +61,8 @@ export interface ServerConfig {
   port: number;
   nodeEnv: NodeEnvironment;
   corsAllowedOrigins: string[];
+  errorTestEnabled: boolean;
+  openApiEnabled: boolean;
 }
 
 export interface LoggingConfig {
@@ -85,6 +87,8 @@ export interface AuthConfig {
   oauthStateTtlSeconds: number;
   rateLimitWindowMs: number;
   rateLimitMaxRequests: number;
+  devEmailEnabled: boolean;
+  legacyWebauthnEnabled: boolean;
   webauthnRpId: string;
   webauthnRpName: string;
   webauthnAllowedOrigins: string[];
@@ -467,6 +471,30 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     1000,
     errors,
   );
+  const devEmailEnabled = parseBoolean(
+    'AUTH_DEV_EMAIL_ENABLED',
+    env.AUTH_DEV_EMAIL_ENABLED,
+    nodeEnv !== 'production',
+    errors,
+  );
+  const legacyWebauthnEnabled = parseBoolean(
+    'AUTH_LEGACY_WEBAUTHN_ENABLED',
+    env.AUTH_LEGACY_WEBAUTHN_ENABLED,
+    nodeEnv !== 'production',
+    errors,
+  );
+  const errorTestEnabled = parseBoolean(
+    'ERROR_TEST_ENABLED',
+    env.ERROR_TEST_ENABLED,
+    nodeEnv === 'test',
+    errors,
+  );
+  const openApiEnabled = parseBoolean(
+    'OPENAPI_ENABLED',
+    env.OPENAPI_ENABLED,
+    nodeEnv !== 'production',
+    errors,
+  );
   const webauthnRpId =
     normalizeOptional(env.WEBAUTHN_RP_ID) ?? DEFAULT_WEBAUTHN_RP_ID;
   const webauthnRpName =
@@ -791,6 +819,15 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
 
   if (nodeEnv === 'production') {
+    if (devEmailEnabled) {
+      errors.push('AUTH_DEV_EMAIL_ENABLED must be false in production');
+    }
+    if (legacyWebauthnEnabled) {
+      errors.push('AUTH_LEGACY_WEBAUTHN_ENABLED must be false in production');
+    }
+    if (errorTestEnabled) {
+      errors.push('ERROR_TEST_ENABLED must be false in production');
+    }
     if (!databaseUrl) {
       errors.push('DATABASE_URL is required in production');
     }
@@ -830,6 +867,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
           : nodeEnv === 'production'
             ? []
             : ['http://localhost:4200'],
+      errorTestEnabled,
+      openApiEnabled,
     },
     logging: {
       level: logLevel,
@@ -850,6 +889,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       oauthStateTtlSeconds,
       rateLimitWindowMs,
       rateLimitMaxRequests,
+      devEmailEnabled,
+      legacyWebauthnEnabled,
       webauthnRpId,
       webauthnRpName,
       webauthnAllowedOrigins,

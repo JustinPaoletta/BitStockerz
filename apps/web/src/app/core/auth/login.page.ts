@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { environment } from '../../../environments/environment';
 import { AuthService, safeReturnUrl } from './auth.service';
 
 @Component({
@@ -36,21 +37,28 @@ import { AuthService, safeReturnUrl } from './auth.service';
         </div>
       </form>
 
-      <details class="fallback">
-        <summary>Email fallback</summary>
-        <p class="hint">
-          Use this only when passkeys are unavailable. It is the development shortcut, not the primary
-          production path.
-        </p>
-        <div class="actions">
-          <button class="button ghost" type="button" [disabled]="busy()" (click)="onEmail('login')">
-            Email log in
-          </button>
-          <button class="button ghost" type="button" [disabled]="busy()" (click)="onEmail('register')">
-            Email register
-          </button>
-        </div>
-      </details>
+      @if (!environment.production) {
+        <details class="fallback">
+          <summary>Email fallback</summary>
+          <p class="hint">
+            Use this only when passkeys are unavailable. It is the development shortcut, not the
+            primary production path.
+          </p>
+          <div class="actions">
+            <button class="button ghost" type="button" [disabled]="busy()" (click)="onEmail('login')">
+              Email log in
+            </button>
+            <button
+              class="button ghost"
+              type="button"
+              [disabled]="busy()"
+              (click)="onEmail('register')"
+            >
+              Email register
+            </button>
+          </div>
+        </details>
+      }
     </section>
   `,
   styles: `
@@ -80,6 +88,7 @@ import { AuthService, safeReturnUrl } from './auth.service';
   `,
 })
 export class LoginPage {
+  protected readonly environment = environment;
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,

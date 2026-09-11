@@ -44,7 +44,11 @@ Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on 
 | `METRICS_ENABLED` | Toggle in-process `GET /api/metrics` (default `true`). |
 | `AUTH_SESSION_TTL_SECONDS` | Bearer-session lifetime (default `43200`, maximum `604800`). |
 | `AUTH_CHALLENGE_TTL_SECONDS` / `AUTH_OAUTH_STATE_TTL_SECONDS` | WebAuthn challenge and OAuth state lifetimes (defaults `300`). |
-| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | WebAuthn/OAuth ceremony rate limit (defaults `60000` / `30`). |
+| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | WebAuthn/OAuth ceremony and dev email register/login rate limit (defaults `60000` / `30`). |
+| `AUTH_DEV_EMAIL_ENABLED` | Dev email register/login shortcuts (default `true` outside production; must be `false` in production). |
+| `AUTH_LEGACY_WEBAUTHN_ENABLED` | Legacy WebAuthn bypass for local automation (default `true` outside production; must be `false` in production). |
+| `ERROR_TEST_ENABLED` | Forced-error test routes (default `true` only when `NODE_ENV=test`; must be `false` in production). |
+| `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings. Production WebAuthn requires explicit allowed origins. |
 | `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider configuration; all required values for an enabled provider must be set together. |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine execution and allocation limits (defaults `5000` / `10000` / `250000`). |
@@ -62,6 +66,8 @@ KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify   # smoke + MySQL
 Manual curl tests: [docs/manual-testing/manual_testing.md](../../docs/manual-testing/manual_testing.md)
 
 ## Docs
+
+When `OPENAPI_ENABLED=true` (default outside production):
 
 - Swagger UI: `http://localhost:4000/api/docs`
 - OpenAPI JSON/YAML: `http://localhost:4000/api/openapi.json` and

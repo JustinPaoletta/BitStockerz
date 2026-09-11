@@ -9,11 +9,11 @@ describe('AuthController', () => {
   } as unknown as AuditService;
 
   it('registers users and awaits paper-account provisioning', async () => {
-    const registerMock = jest.fn(() => ({
+    const registerMock = jest.fn().mockResolvedValue({
       access_token: 'token-1',
       token_type: 'Bearer',
       user: { id: 'u1' },
-    }));
+    });
 
     const authService = {
       register: registerMock,
@@ -34,12 +34,12 @@ describe('AuthController', () => {
     expect(result.access_token).toBe('token-1');
   });
 
-  it('logs in users through the auth service', () => {
-    const loginMock = jest.fn(() => ({
+  it('logs in users through the auth service', async () => {
+    const loginMock = jest.fn().mockResolvedValue({
       access_token: 'token-2',
       token_type: 'Bearer',
       user: { id: 'u1' },
-    }));
+    });
 
     const authService = {
       register: jest.fn(),
@@ -49,14 +49,14 @@ describe('AuthController', () => {
     } as unknown as AuthService;
 
     const controller = new AuthController(authService, audit);
-    const result = controller.login({ email: 'user@example.com' });
+    const result = await controller.login({ email: 'user@example.com' });
 
     expect(loginMock).toHaveBeenCalledWith('user@example.com');
     expect(result.token_type).toBe('Bearer');
   });
 
-  it('logs out authenticated sessions', () => {
-    const logoutMock = jest.fn();
+  it('logs out authenticated sessions', async () => {
+    const logoutMock = jest.fn().mockResolvedValue(undefined);
     const authService = {
       register: jest.fn(),
       login: jest.fn(),
@@ -70,7 +70,7 @@ describe('AuthController', () => {
 
     const controller = new AuthController(authService, audit);
     const request = { authToken: 'token-3' } as unknown as AuthenticatedRequest;
-    const response = controller.logout(request);
+    const response = await controller.logout(request);
 
     expect(logoutMock).toHaveBeenCalledWith('token-3');
     expect(response).toEqual({ status: 'ok' });

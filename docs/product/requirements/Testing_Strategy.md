@@ -29,7 +29,7 @@ Focus: API + database working together.
 
 **Current state:** Covered HTTP integration runs in seed mode, while isolated
 real-MySQL scripts verify backtest persistence and paper-trading transaction,
-race, valuation, and restart-remap behavior. The full MySQL path is included in
+race, valuation, and post-restart auth hydration behavior. The full MySQL path is included in
 `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`.
 
 **Target coverage (as domains ship):**
