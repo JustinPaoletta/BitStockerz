@@ -77,4 +77,4 @@ Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`
 6.1 → 6.2 → 6.3 → 7.1 → 7.2
 ```
 
-Ops runbook: [docs/ops/deployment.md](../ops/deployment.md).
+Ops runbook / **what you still need to do (plain English):** [docs/ops/deployment.md](../ops/deployment.md).

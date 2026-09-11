@@ -17,9 +17,9 @@ Assumptions:
 | Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
 | Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
-| Sprints 6.1–6.3 + 7.1–7.2 | Completed in-repo on combined PR #12 | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. Next: merge + provision Fly/Vercel/MySQL secrets for first live URL. |
+| Sprints 6.1–6.3 + 7.1–7.2 | Completed in-repo on combined PR #12 | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. **Your remaining steps** (merge → accounts → secrets → first deploy) are spelled out in plain English in [docs/ops/deployment.md](../ops/deployment.md). |
 
-The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP feature sprints are complete in-repo; completed plan files may be removed after merge. Live hosting accounts remain an external prerequisite for production URLs.
+The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP feature sprints are complete in-repo; completed plan files may be removed after merge. Live hosting accounts remain an external prerequisite for production URLs — see the checklist at the top of [docs/ops/deployment.md](../ops/deployment.md).
 
 ---
 

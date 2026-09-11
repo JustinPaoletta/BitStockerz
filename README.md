@@ -11,9 +11,9 @@ with a working NestJS API and Angular application.
 - Current runnable surfaces: `apps/api` and `apps/web`
 - Delivery state: Milestones 0–7 complete in-repo on combined
   [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12)
-  (`#6.4.2` deferred). Live Fly/Vercel/MySQL provisioning remains an
-  external step for the first production URL.
-- Next step: merge PR #12, then provision hosting secrets per
+  (`#6.4.2` deferred).
+- **What you still need to do:** merge PR #12, create Fly + MySQL + Vercel,
+  add GitHub/`production` secrets, then first deploy. Plain-English checklist:
   [docs/ops/deployment.md](./docs/ops/deployment.md)
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
