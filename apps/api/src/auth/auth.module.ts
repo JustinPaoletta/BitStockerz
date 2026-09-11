@@ -6,6 +6,7 @@ import { PaperAccountProvisioningModule } from '../trading/paper-account-provisi
 import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
+import { AuthPersistenceService } from './auth-persistence.service';
 import { AuthService } from './auth.service';
 import { MeController } from './me.controller';
 
@@ -17,7 +18,7 @@ import { MeController } from './me.controller';
     forwardRef(() => ObservabilityModule),
   ],
   controllers: [AuthController, MeController],
-  providers: [AuthService, AuthGuard, AuthRateLimitGuard],
+  providers: [AuthPersistenceService, AuthService, AuthGuard, AuthRateLimitGuard],
   exports: [AuthService, AuthGuard, AuthRateLimitGuard],
 })
 export class AuthModule {}

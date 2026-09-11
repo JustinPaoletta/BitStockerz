@@ -11,7 +11,11 @@ const createMockApp = (port = 4000) => ({
   get: jest.fn((token) => {
     if (typeof token === 'function' && token.name === AppConfigService.name) {
       return {
-        server: { port, corsAllowedOrigins: ['http://localhost:4200'] },
+        server: {
+          port,
+          corsAllowedOrigins: ['http://localhost:4200'],
+          openApiEnabled: true,
+        },
       };
     }
     return token;

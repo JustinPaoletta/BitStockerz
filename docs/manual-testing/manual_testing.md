@@ -69,7 +69,7 @@ Expected: migrations apply successfully and `/api/health/ready` reports the data
 | Mode | When | Behavior |
 | --- | --- | --- |
 | **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, paper trading, metrics, and audit events live in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, backtests, and paper accounts/orders/executions/positions persist. Symbol/candle reads use DB rows (empty until ingestion). Auth sessions/passkeys remain in-memory; persisted ownership remaps a minimal `users` row across restarts. |
+| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, backtests, paper accounts/orders/executions/positions, and auth users/sessions/passkeys/OAuth links/challenges persist. Symbol/candle reads use DB rows (empty until ingestion). On startup the API hydrates auth state from MySQL into memory; user ids stay stable across restarts. After a restart, sign in with `POST /api/auth/login` (or passkey/OAuth), not another register for the same email. |
 
 ### Automated alternative
 
@@ -637,12 +637,12 @@ This check requires the strategy above to have been created while the API was in
    INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
    ```
 
-3. In **Terminal B**, keep the existing `$STRATEGY_EMAIL` and `$STRATEGY_ID`, register the same email again, and read the original strategy:
+3. In **Terminal B**, keep the existing `$STRATEGY_EMAIL` and `$STRATEGY_ID`, log in with the same email (do not register again), and read the original strategy:
 
    ```bash
-   TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/register \
+   TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/login \
      -H 'Content-Type: application/json' \
-     -d "{\"email\":\"$STRATEGY_EMAIL\",\"display_name\":\"Strategy Manual Restart\"}" \
+     -d "{\"email\":\"$STRATEGY_EMAIL\"}" \
      | jq -r '.access_token')
 
    curl -s -o /tmp/bitstockerz-strategy-restart.json -w '%{http_code}\n' \
@@ -652,7 +652,7 @@ This check requires the strategy above to have been created while the API was in
    jq < /tmp/bitstockerz-strategy-restart.json
    ```
 
-Expected: HTTP `200`, the same strategy id and definition, and `version_number: 1`. The read remaps the new in-memory user id to the persisted owner while retaining the strategy/version rows.
+Expected: HTTP `200`, the same strategy id and definition, and `version_number: 1`. The hydrated user id matches the pre-restart owner, so no ownership remap is required.
 
 ### Section 11 regression checklist
 
@@ -905,15 +905,15 @@ LOG_LEVEL=silent \
 Expected terminal line:
 
 ```text
-Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and restart ownership remap verified.
+Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and post-restart auth hydration verified.
 ```
 
 This gate creates isolated rows, sends two concurrent requests with the same
 client id, and proves one execution. It also fills a fractional order at the
 maximum `DECIMAL(18,6)` market-data price and verifies that `avg_cost`,
 `avg_fill_price`, and execution `price` retain it in MySQL. Finally, it restarts
-the Nest application context, re-registers the same email, proves the
-account/cash/position/history survived the user-id remap, and removes its
+the Nest application context, logs in with the same email after auth hydration,
+proves the account/cash/position/history survived the restart, and removes its
 fixtures.
 
 ### Section 12 regression checklist
@@ -931,7 +931,7 @@ fixtures.
 | 9 | SELL without quantity held | Persisted `INSUFFICIENT_POSITION` reject |
 | 10 | Numeric quantity / missing auth | `400 VALIDATION_ERROR` / `401 UNAUTHORIZED` |
 | 11 | Seed automated smoke | `--sprint 4`: 15 passed, 0 failed |
-| 12 | MySQL persistence gate | PASS including concurrent replay and restart remap |
+| 12 | MySQL persistence gate | PASS including concurrent replay and post-restart auth hydration |
 | 13 | Maximum market-data price | Fractional fill persists in all trading price columns |
 
 ### Cleanup
@@ -976,7 +976,7 @@ Work through these in order on a fresh browser session (or after Log out).
 
 | # | What to do | Pass when |
 | --- | --- | --- |
-| 1 | **Register (email fallback)** — open Email fallback, register a new email + display name | Lands on `/dashboard`, primary nav + user label + Log out appear |
+| 1 | **Register (email fallback)** — in a non-production build, open Email fallback, register a new email + display name | Lands on `/dashboard`, primary nav + user label + Log out appear |
 | 2 | **Shell** — click Dashboard / Trade / Strategies / Backtests; click logo | Each route loads; logo returns to dashboard |
 | 3 | **Log out / returnUrl** — Log out, visit `/trade` (should bounce to login), sign in again | After login you land back on `/trade`, not a blank shell |
 | 4 | **Session restore** — while signed in, hard-refresh `/dashboard` | Stay signed in; nav + widgets reload without re-login |

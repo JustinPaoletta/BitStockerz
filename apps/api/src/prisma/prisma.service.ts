@@ -95,6 +95,22 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().webAuthnCredential;
   }
 
+  get authSession() {
+    return this.requireClient().authSession;
+  }
+
+  get oAuthIdentity() {
+    return this.requireClient().oAuthIdentity;
+  }
+
+  get webAuthnChallenge() {
+    return this.requireClient().webAuthnChallenge;
+  }
+
+  get oAuthState() {
+    return this.requireClient().oAuthState;
+  }
+
   $transaction<R>(
     fn: (tx: Prisma.TransactionClient) => Promise<R>,
     options?: {

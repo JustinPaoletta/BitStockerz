@@ -11,13 +11,17 @@ datasource db {
 }
 
 model User {
-  id        String    @id @db.Char(36)
-  email     String    @unique
-  createdAt DateTime  @map("created_at")
-  updatedAt DateTime  @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id           String    @id @db.Char(36)
+  email        String    @unique
+  displayName  String?   @map("display_name") @db.VarChar(255)
+  baseCurrency String    @default("USD") @map("base_currency") @db.VarChar(8)
+  createdAt    DateTime  @map("created_at")
+  updatedAt    DateTime  @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   webauthnCredentials WebAuthnCredential[]
+  authSessions        AuthSession[]
+  oauthIdentities     OAuthIdentity[]
   jobs                Job[]
   auditEvents         AuditEvent[]
   strategies          Strategy[]
@@ -26,6 +30,56 @@ model User {
   aiUsage             AiUsage[]
 
   @@map("users")
+}
+
+model AuthSession {
+  token     String   @id @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model OAuthIdentity {
+  provider  String   @db.VarChar(16)
+  subject   String   @db.VarChar(255)
+  userId    String   @map("user_id") @db.Char(36)
+  email     String?  @db.VarChar(191)
+  createdAt DateTime @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, subject])
+  @@index([userId])
+  @@map("oauth_identities")
+}
+
+model WebAuthnChallenge {
+  id        String   @id @db.Char(36)
+  purpose   String   @db.VarChar(16)
+  email     String   @db.VarChar(191)
+  challenge String   @db.VarChar(512)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @map("created_at")
+
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
+}
+
+model OAuthState {
+  state     String   @id @db.VarChar(128)
+  provider  String   @db.VarChar(16)
+  nonce     String   @db.VarChar(128)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @map("created_at")
+
+  @@index([expiresAt])
+  @@map("oauth_states")
 }
 
 model AiUsage {

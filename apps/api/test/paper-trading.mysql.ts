@@ -35,7 +35,7 @@ async function main(): Promise<void> {
 
     const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     email = `trading-smoke-${suffix}@example.com`;
-    const registration = auth.register(email, 'Trading Persistence Smoke');
+    const registration = await auth.register(email, 'Trading Persistence Smoke');
     currentUserId = registration.user.id;
     await auth.ensurePaperAccountForUser(currentUserId);
     const account = await accounts.getForUser(currentUserId);
@@ -210,8 +210,9 @@ async function main(): Promise<void> {
     orders = app.get(OrdersService);
     views = app.get(TradingViewsService);
     prisma = app.get(PrismaService);
-    const restarted = auth.register(email, 'Trading Persistence Restart');
+    const restarted = await auth.login(email);
     currentUserId = restarted.user.id;
+    assert.equal(currentUserId, registration.user.id);
     const restartedAccount = await accounts.getForUser(currentUserId);
     assert.equal(restartedAccount.id, originalAccountId);
     assert.equal(restartedAccount.cashBalance.toFixed(2), '89400.00');
@@ -241,7 +242,7 @@ async function main(): Promise<void> {
     );
 
     process.stdout.write(
-      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and restart ownership remap verified.\n',
+      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and post-restart auth hydration verified.\n',
     );
   } finally {
     if (app) {

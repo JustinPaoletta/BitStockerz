@@ -121,7 +121,7 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Still in-memory today; a minimal `users` row is written when persisted ownership requires it (`ensureUserPersisted`). Successful signup provisions the paper account. The `webauthn_credentials` table is unused by the auth runtime. Same-email re-registration remaps the MySQL user id and retains jobs, strategies, backtests, paper account/trading history, audit events, and credential rows. |
+| Auth / sessions / passkeys | In-memory (tokens, credentials) | Persisted in MySQL (`users`, `auth_sessions`, `webauthn_credentials`, `oauth_identities`, `webauthn_challenges`, `oauth_states`) and hydrated into memory on startup. User ids stay stable across restarts; after a restart use login or passkey/OAuth instead of registering the same email again. Successful signup provisions the paper account. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
@@ -146,7 +146,7 @@ load_database_url_from_api_env "$PWD/apps/api"
 ./scripts/smoke-test-api.sh --sprint all
 ```
 
-The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run transactional backtest and paper-trading persistence round trips, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email re-registration. The trading gate checks provisioning, a concurrent idempotency race, risk rejection, cash/position/history/MTM state, and restart owner remap before removing its isolated fixtures.
+The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run transactional backtest and paper-trading persistence round trips, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email login. The trading gate checks provisioning, a concurrent idempotency race, risk rejection, cash/position/history/MTM state, and post-restart auth hydration before removing its isolated fixtures.
 
 The standalone smoke script deliberately does not load `.env`; it uses only an already-exported `DATABASE_URL` so its seed/MySQL assertions cannot silently disagree with the mode of the API process being tested.
 
@@ -175,15 +175,12 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 
 **Ingestion or `POST /jobs` returns `500 INTERNAL_ERROR`**
 
-- Ensure your checkout includes the current `AuthService.ensureUserPersisted`
-  implementation (PR #9 is not merged to `main` yet).
 - Restart the API after changing `.env`.
-- Re-register to get a fresh bearer token, then retry Section 8 curls.
-- If the error mentions `users_email_key`, a stale `users` row from a prior
-  session shares your email but not your current in-memory user id. Current
-  code remaps that row and its owned jobs, strategies, backtests, audit events,
-  and credentials to the new in-memory id automatically; otherwise reset the
-  dev DB (`./scripts/docker-mysql.sh reset`) or use a new email.
+- Log in (or register a new email) to get a fresh bearer token, then retry
+  Section 8 curls.
+- If the error mentions `users_email_key`, a stale `users` row from an earlier
+  experiment may conflict with a new signup. Reset the dev DB
+  (`./scripts/docker-mysql.sh reset`) or use a new email.
 
 **Migrations fail**
 

@@ -7,6 +7,8 @@ describe('loadAppConfig', () => {
     expect(config.server.port).toBe(4000);
     expect(config.server.nodeEnv).toBe('development');
     expect(config.server.corsAllowedOrigins).toEqual(['http://localhost:4200']);
+    expect(config.server.errorTestEnabled).toBe(false);
+    expect(config.server.openApiEnabled).toBe(true);
     expect(config.logging.level).toBe('info');
     expect(config.logging.writeToFile).toBe(false);
     expect(config.logging.filePath).toBe('logs/api.log');
@@ -60,6 +62,8 @@ describe('loadAppConfig', () => {
       oauthStateTtlSeconds: 300,
       rateLimitWindowMs: 60000,
       rateLimitMaxRequests: 30,
+      devEmailEnabled: true,
+      legacyWebauthnEnabled: true,
       webauthnRpId: 'localhost',
       webauthnRpName: 'BitStockerz',
       webauthnAllowedOrigins: [],
@@ -131,6 +135,8 @@ describe('loadAppConfig', () => {
       port: 4100,
       nodeEnv: 'production',
       corsAllowedOrigins: ['https://app.bitstockerz.test'],
+      errorTestEnabled: false,
+      openApiEnabled: false,
     });
     expect(config.marketData).toEqual({
       staleEquityDailyMs: 86_400_000,
@@ -177,6 +183,8 @@ describe('loadAppConfig', () => {
       oauthStateTtlSeconds: 240,
       rateLimitWindowMs: 45000,
       rateLimitMaxRequests: 15,
+      devEmailEnabled: false,
+      legacyWebauthnEnabled: false,
       webauthnRpId: 'api.bitstockerz.test',
       webauthnRpName: 'BitStockerz Test',
       webauthnAllowedOrigins: [
@@ -384,6 +392,36 @@ describe('loadAppConfig', () => {
     ).toThrow(/AI_PROVIDER must be one of/);
   });
 
+  it('rejects disabled production auth hardening flags', () => {
+    const productionBase = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'mysql://localhost:3306/bitstockerz',
+      CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+      WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.com',
+    };
+
+    expect(() =>
+      loadAppConfig({
+        ...productionBase,
+        AUTH_DEV_EMAIL_ENABLED: 'true',
+      }),
+    ).toThrow(/AUTH_DEV_EMAIL_ENABLED must be false in production/);
+
+    expect(() =>
+      loadAppConfig({
+        ...productionBase,
+        AUTH_LEGACY_WEBAUTHN_ENABLED: 'true',
+      }),
+    ).toThrow(/AUTH_LEGACY_WEBAUTHN_ENABLED must be false in production/);
+
+    expect(() =>
+      loadAppConfig({
+        ...productionBase,
+        ERROR_TEST_ENABLED: 'true',
+      }),
+    ).toThrow(/ERROR_TEST_ENABLED must be false in production/);
+  });
+
   it('rejects missing production CORS and database settings', () => {
     expect(() =>
       loadAppConfig({
@@ -464,6 +502,8 @@ describe('AppConfigService', () => {
       port: 4300,
       nodeEnv: 'test',
       corsAllowedOrigins: ['http://localhost:4200'],
+      errorTestEnabled: true,
+      openApiEnabled: true,
     });
     expect(service.logging).toEqual({
       level: 'debug',
@@ -517,6 +557,8 @@ describe('AppConfigService', () => {
       oauthStateTtlSeconds: 180,
       rateLimitWindowMs: 30000,
       rateLimitMaxRequests: 12,
+      devEmailEnabled: true,
+      legacyWebauthnEnabled: true,
       webauthnRpId: 'localhost',
       webauthnRpName: 'BitStockerz Local',
       webauthnAllowedOrigins: ['http://localhost:4200'],

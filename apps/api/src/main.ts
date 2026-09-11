@@ -29,7 +29,9 @@ async function bootstrap() {
       credentials: true,
     });
   }
-  configureOpenApi(app);
+  if (config.server.openApiEnabled) {
+    configureOpenApi(app);
+  }
   await app.listen(config.server.port);
 }
 void bootstrap();

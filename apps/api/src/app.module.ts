@@ -12,6 +12,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { ErrorTestController } from './error-test/error-test.controller';
+import { ErrorTestEnabledGuard } from './error-test/error-test-enabled.guard';
 import { buildPinoLoggerOptions } from './common/logging/pino.config';
 import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
 import { AppLogger } from './common/logging/app-logger';
@@ -51,6 +52,7 @@ import { PrismaModule } from './prisma/prisma.module';
   providers: [
     AppService,
     HealthService,
+    ErrorTestEnabledGuard,
     GlobalHttpExceptionFilter,
     AppLogger,
     {

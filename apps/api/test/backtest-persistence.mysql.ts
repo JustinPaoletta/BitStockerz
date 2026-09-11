@@ -41,7 +41,10 @@ async function main(): Promise<void> {
 
     const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     userEmail = `backtest-smoke-${suffix}@example.com`;
-    const registration = auth.register(userEmail, 'Backtest Persistence Smoke');
+    const registration = await auth.register(
+      userEmail,
+      'Backtest Persistence Smoke',
+    );
     userId = registration.user.id;
 
     const symbol = await prisma.symbol.create({
@@ -137,10 +140,9 @@ async function main(): Promise<void> {
     });
     const restartedAuth = app.get(AuthService);
     const restartedBacktests = app.get(BacktestsService);
-    restartedUserId = restartedAuth.register(
-      userEmail,
-      'Backtest Persistence Smoke Restart',
-    ).user.id;
+    const restartedAuthResponse = await restartedAuth.login(userEmail);
+    restartedUserId = restartedAuthResponse.user.id;
+    assert.equal(restartedUserId, userId);
     const restartedRuns = await restartedBacktests.listRuns(restartedUserId, {
       strategyId,
     });
@@ -153,7 +155,7 @@ async function main(): Promise<void> {
     );
 
     process.stdout.write(
-      'Backtest MySQL persistence smoke PASS: round-trip, terminal immutability, and post-restart ownership remap verified.\n',
+      'Backtest MySQL persistence smoke PASS: round-trip, terminal immutability, and post-restart auth hydration verified.\n',
     );
   } finally {
     if (app) {

@@ -3,6 +3,7 @@ import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import { AuthPersistenceService } from './auth-persistence.service';
 import { AuthService } from './auth.service';
 
 function createConfig(
@@ -12,6 +13,8 @@ function createConfig(
   return {
     server: {
       nodeEnv: 'test',
+      errorTestEnabled: true,
+      openApiEnabled: true,
       ...server,
     } as AppConfigService['server'],
     auth: {
@@ -20,6 +23,8 @@ function createConfig(
       oauthStateTtlSeconds: 300,
       rateLimitWindowMs: 60000,
       rateLimitMaxRequests: 30,
+      devEmailEnabled: true,
+      legacyWebauthnEnabled: true,
       webauthnRpId: 'localhost',
       webauthnRpName: 'BitStockerz',
       webauthnAllowedOrigins: [],
@@ -43,15 +48,39 @@ function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
   } as PrismaService;
 }
 
+function createPersistenceMock(): AuthPersistenceService {
+  return {
+    enabled: false,
+    hydrate: jest.fn().mockResolvedValue(undefined),
+    saveUser: jest.fn().mockResolvedValue(undefined),
+    updateUserProfile: jest.fn().mockResolvedValue(undefined),
+    saveSession: jest.fn().mockResolvedValue(undefined),
+    deleteSession: jest.fn().mockResolvedValue(undefined),
+    saveCredential: jest.fn().mockResolvedValue(undefined),
+    updateCredentialCounter: jest.fn().mockResolvedValue(undefined),
+    saveOAuthIdentity: jest.fn().mockResolvedValue(undefined),
+    saveWebAuthnChallenge: jest.fn().mockResolvedValue(undefined),
+    consumeWebAuthnChallenge: jest.fn().mockResolvedValue(null),
+    saveOAuthState: jest.fn().mockResolvedValue(undefined),
+    consumeOAuthState: jest.fn().mockResolvedValue(null),
+    findSession: jest.fn().mockResolvedValue(null),
+    ensureUserExists: jest.fn().mockResolvedValue(false),
+  } as unknown as AuthPersistenceService;
+}
+
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    service = new AuthService(createConfig(), createPrismaMock());
+    service = new AuthService(
+      createConfig(),
+      createPrismaMock(),
+      createPersistenceMock(),
+    );
   });
 
-  it('registers a user and creates a bearer token session', () => {
-    const result = service.register('USER@Example.com', '  Justin  ');
+  it('registers a user and creates a bearer token session', async () => {
+    const result = await service.register('USER@Example.com', '  Justin  ');
 
     expect(result.token_type).toBe('Bearer');
     expect(result.access_token).toBeDefined();
@@ -66,249 +95,88 @@ describe('AuthService', () => {
     expect(result.user.passkey_count).toBe(1);
   });
 
-  it('persists registered users to mysql when prisma is enabled', async () => {
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null);
-    const create = jest.fn().mockResolvedValue({});
-    const prisma = createPrismaMock({
-      isEnabled: true,
-      user: { findUnique, create, update: jest.fn(), delete: jest.fn() },
-      $transaction: jest.fn(),
-    } as Partial<PrismaService>);
-    const dbService = new AuthService(createConfig(), prisma);
-    const result = dbService.register('persist@example.com', 'Persist User');
+  it('persists registered users through auth persistence when prisma is enabled', async () => {
+    const saveUser = jest.fn().mockResolvedValue(undefined);
+    const persistence = createPersistenceMock();
+    Object.assign(persistence, { enabled: true, saveUser });
+    const prisma = createPrismaMock({ isEnabled: true });
+    const dbService = new AuthService(createConfig(), prisma, persistence);
+    const result = await dbService.register('persist@example.com', 'Persist User');
 
     await dbService.ensureUserPersisted(result.user.id);
 
-    expect(findUnique).toHaveBeenCalledWith({ where: { id: result.user.id } });
-    expect(findUnique).toHaveBeenCalledWith({
-      where: { email: 'persist@example.com' },
-    });
-    expect(create).toHaveBeenCalledWith(
+    expect(saveUser).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          id: result.user.id,
-          email: 'persist@example.com',
-        }),
-      }),
-    );
-  });
-
-  it('remaps stale mysql users and keeps jobs when email matches a new in-memory id', async () => {
-    const staleUserId = '00000000-0000-4000-8000-000000000099';
-    const createdAt = new Date('2026-01-01T00:00:00.000Z');
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: staleUserId,
-        email: 'persist@example.com',
-        createdAt,
-      });
-    const update = jest.fn().mockResolvedValue({});
-    const create = jest.fn().mockResolvedValue({});
-    const deleteUser = jest.fn().mockResolvedValue({});
-    const updateManyJobs = jest.fn().mockResolvedValue({ count: 2 });
-    const updateManyAuditEvents = jest.fn().mockResolvedValue({ count: 0 });
-    const updateManyStrategies = jest.fn().mockResolvedValue({ count: 0 });
-    const updateManyBacktestRuns = jest.fn().mockResolvedValue({ count: 0 });
-    const updateManyCredentials = jest.fn().mockResolvedValue({ count: 0 });
-    const updateManyPaperAccounts = jest.fn().mockResolvedValue({ count: 1 });
-    const transaction = jest.fn(async (fn) =>
-      fn({
-        user: { update, create, delete: deleteUser },
-        job: { updateMany: updateManyJobs },
-        auditEvent: { updateMany: updateManyAuditEvents },
-        strategy: { updateMany: updateManyStrategies },
-        backtestRun: { updateMany: updateManyBacktestRuns },
-        webAuthnCredential: { updateMany: updateManyCredentials },
-        paperAccount: { updateMany: updateManyPaperAccounts },
-      }),
-    );
-    const prisma = createPrismaMock({
-      isEnabled: true,
-      user: {
-        findUnique,
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      $transaction: transaction,
-    } as Partial<PrismaService>);
-    const dbService = new AuthService(createConfig(), prisma);
-    const result = dbService.register('persist@example.com', 'Persist User');
-
-    await dbService.ensureUserPersisted(result.user.id);
-
-    expect(transaction).toHaveBeenCalled();
-    expect(update).toHaveBeenCalledWith({
-      where: { id: staleUserId },
-      data: expect.objectContaining({
-        email: `__remap_${staleUserId}@bitstockerz.invalid`,
-      }),
-    });
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          id: result.user.id,
-          email: 'persist@example.com',
-          createdAt,
-        }),
-      }),
-    );
-    expect(updateManyJobs).toHaveBeenCalledWith({
-      where: { userId: staleUserId },
-      data: { userId: result.user.id },
-    });
-    expect(updateManyCredentials).toHaveBeenCalledWith({
-      where: { userId: staleUserId },
-      data: { userId: result.user.id },
-    });
-    expect(updateManyStrategies).toHaveBeenCalledWith({
-      where: { userId: staleUserId },
-      data: { userId: result.user.id },
-    });
-    expect(updateManyBacktestRuns).toHaveBeenCalledWith({
-      where: { userId: staleUserId },
-      data: { userId: result.user.id },
-    });
-    expect(updateManyPaperAccounts).toHaveBeenCalledWith({
-      where: { userId: staleUserId },
-      data: { userId: result.user.id },
-    });
-    expect(deleteUser).toHaveBeenCalledWith({ where: { id: staleUserId } });
-  });
-
-  it('treats concurrent unique constraint races as successful user persistence', async () => {
-    const create = jest.fn().mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-        code: 'P2002',
-        clientVersion: 'test',
-      }),
-    );
-    const findUnique = jest.fn();
-    const prisma = createPrismaMock({
-      isEnabled: true,
-      user: { findUnique, create, update: jest.fn(), delete: jest.fn() },
-      $transaction: jest.fn(),
-    } as Partial<PrismaService>);
-    const dbService = new AuthService(createConfig(), prisma);
-    const result = dbService.register('persist@example.com', 'Persist User');
-
-    findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
         id: result.user.id,
         email: 'persist@example.com',
-      });
-
-    await expect(
-      dbService.ensureUserPersisted(result.user.id),
-    ).resolves.toBeUndefined();
-    expect(create).toHaveBeenCalled();
-  });
-
-  it('treats a completed competing identity remap as success', async () => {
-    const staleUserId = '00000000-0000-4000-8000-000000000099';
-    const transaction = jest
-      .fn()
-      .mockRejectedValue(new Error('stale remap target disappeared'));
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: staleUserId,
-        email: 'persist@example.com',
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      });
-    const prisma = createPrismaMock({
-      isEnabled: true,
-      user: {
-        findUnique,
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      $transaction: transaction,
-    } as Partial<PrismaService>);
-    const dbService = new AuthService(createConfig(), prisma);
-    const result = dbService.register('persist@example.com', 'Persist User');
-    findUnique.mockResolvedValueOnce({
-      id: result.user.id,
-      email: 'persist@example.com',
-    });
-
-    await expect(
-      dbService.ensureUserPersisted(result.user.id),
-    ).resolves.toBeUndefined();
-  });
-
-  it('rethrows an identity remap failure when no competing remap completed', async () => {
-    const transaction = jest
-      .fn()
-      .mockRejectedValue(new Error('database transaction failed'));
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: '00000000-0000-4000-8000-000000000099',
-        email: 'persist@example.com',
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      })
-      .mockResolvedValueOnce(null);
-    const prisma = createPrismaMock({
-      isEnabled: true,
-      user: {
-        findUnique,
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      $transaction: transaction,
-    } as Partial<PrismaService>);
-    const dbService = new AuthService(createConfig(), prisma);
-    const result = dbService.register('persist@example.com', 'Persist User');
-
-    await expect(dbService.ensureUserPersisted(result.user.id)).rejects.toThrow(
-      'database transaction failed',
+      }),
     );
   });
 
-  it('rejects duplicate registration for the same email', () => {
-    service.register('user@example.com');
+  it('rejects dev email auth when disabled', async () => {
+    const locked = new AuthService(
+      createConfig({ devEmailEnabled: false }),
+      createPrismaMock(),
+      createPersistenceMock(),
+    );
 
-    expect(() => service.register('USER@example.com')).toThrow(DomainError);
+    await expect(locked.register('user@example.com')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
   });
 
-  it('logs in an existing user and returns a fresh token', () => {
-    const registered = service.register('user@example.com');
+  it('rejects legacy webauthn registration when disabled', async () => {
+    const locked = new AuthService(
+      createConfig({ legacyWebauthnEnabled: false }),
+      createPrismaMock(),
+      createPersistenceMock(),
+    );
+    const options = await locked.createWebAuthnRegisterOptions(
+      'legacy@example.com',
+    );
 
-    const login = service.login('user@example.com');
+    await expect(
+      locked.verifyWebAuthnRegistration({
+        email: 'legacy@example.com',
+        challengeId: options.challenge_id,
+        challenge: options.challenge,
+        credentialId: 'cred-1',
+        publicKey: 'pk-1',
+        signCount: 1,
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+  });
+
+  it('rejects duplicate registration for the same email', async () => {
+    await service.register('user@example.com');
+
+    await expect(service.register('USER@example.com')).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT,
+    });
+  });
+
+  it('logs in an existing user and returns a fresh token', async () => {
+    const registered = await service.register('user@example.com');
+
+    const login = await service.login('user@example.com');
 
     expect(login.user.id).toBe(registered.user.id);
     expect(login.access_token).not.toBe(registered.access_token);
   });
 
-  it('rejects login for unknown users', () => {
-    try {
-      service.login('missing@example.com');
-      fail('Expected missing user login to throw');
-    } catch (error) {
-      expect(error).toBeInstanceOf(DomainError);
-      expect((error as DomainError).code).toBe(ErrorCode.UNAUTHORIZED);
-    }
+  it('rejects login for unknown users', async () => {
+    await expect(service.login('missing@example.com')).rejects.toMatchObject({
+      code: ErrorCode.UNAUTHORIZED,
+    });
   });
 
-  it('returns and updates profile by session token', () => {
-    const registration = service.register('user@example.com');
+  it('returns and updates profile by session token', async () => {
+    const registration = await service.register('user@example.com');
 
     const profile = service.getProfileBySessionToken(registration.access_token);
     expect(profile.email).toBe('user@example.com');
 
-    const updated = service.updateProfileBySessionToken(
+    const updated = await service.updateProfileBySessionToken(
       registration.access_token,
       {
         display_name: '  Trader Joe  ',
@@ -320,10 +188,10 @@ describe('AuthService', () => {
     expect(updated.base_currency).toBe('USD');
   });
 
-  it('clears display name when updated with blank spaces', () => {
-    const registration = service.register('user@example.com', 'Named User');
+  it('clears display name when updated with blank spaces', async () => {
+    const registration = await service.register('user@example.com', 'Named User');
 
-    const updated = service.updateProfileBySessionToken(
+    const updated = await service.updateProfileBySessionToken(
       registration.access_token,
       {
         display_name: '   ',
@@ -333,9 +201,9 @@ describe('AuthService', () => {
     expect(updated.display_name).toBeUndefined();
   });
 
-  it('invalidates tokens on logout', () => {
-    const registration = service.register('user@example.com');
-    service.logout(registration.access_token);
+  it('invalidates tokens on logout', async () => {
+    const registration = await service.register('user@example.com');
+    await service.logout(registration.access_token);
 
     expect(() =>
       service.getProfileBySessionToken(registration.access_token),
@@ -445,10 +313,10 @@ describe('AuthService', () => {
   });
 
   it('creates and consumes google oauth state, linking by email', async () => {
-    const seeded = service.register('oauth@example.com');
+    const seeded = await service.register('oauth@example.com');
     expect(seeded.user.linked_auth_methods.google).toBe(false);
 
-    const start = service.createOAuthStart('google');
+    const start = await service.createOAuthStart('google');
     const callback = await service.completeGoogleOAuth({
       state: start.state,
       code: 'oauth-code-1',
@@ -459,7 +327,7 @@ describe('AuthService', () => {
     expect(callback.user.linked_auth_methods.google).toBe(true);
     expect(callback.user.email).toBe('oauth@example.com');
 
-    const secondStart = service.createOAuthStart('google');
+    const secondStart = await service.createOAuthStart('google');
     const secondLogin = await service.completeGoogleOAuth({
       state: secondStart.state,
       code: 'oauth-code-2',
@@ -471,7 +339,7 @@ describe('AuthService', () => {
   });
 
   it('creates apple oauth user when email is not available, then reuses by subject', async () => {
-    const start = service.createOAuthStart('apple');
+    const start = await service.createOAuthStart('apple');
     const first = await service.completeAppleOAuth({
       state: start.state,
       code: 'apple-code-1',
@@ -481,7 +349,7 @@ describe('AuthService', () => {
     expect(first.user.email).toBe('apple-subject-1@apple.private');
     expect(first.user.linked_auth_methods.apple).toBe(true);
 
-    const secondStart = service.createOAuthStart('apple');
+    const secondStart = await service.createOAuthStart('apple');
     const second = await service.completeAppleOAuth({
       state: secondStart.state,
       code: 'apple-code-2',
@@ -492,15 +360,16 @@ describe('AuthService', () => {
     expect(second.user.id).toBe(first.user.id);
   });
 
-  it('expires sessions based on configured ttl', () => {
+  it('expires sessions based on configured ttl', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
 
     const shortTtlService = new AuthService(
       createConfig({ sessionTtlSeconds: 1 }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
-    const registration = shortTtlService.register('ttl@example.com');
+    const registration = await shortTtlService.register('ttl@example.com');
 
     jest.advanceTimersByTime(1100);
 
@@ -512,7 +381,7 @@ describe('AuthService', () => {
   });
 
   it('rejects webauthn registration options when the email is already registered', async () => {
-    service.register('dup@example.com');
+    await service.register('dup@example.com');
 
     await expect(
       service.createWebAuthnRegisterOptions('dup@example.com'),
@@ -610,6 +479,7 @@ describe('AuthService', () => {
     const configuredService = new AuthService(
       createConfig({ webauthnAllowedOrigins: ['https://app.example.com'] }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
 
     await expect(
@@ -619,11 +489,11 @@ describe('AuthService', () => {
     });
   });
 
-  it('rejects logout for unknown session tokens', () => {
-    expect(() => service.logout('missing-token')).toThrow(DomainError);
+  it('rejects logout for unknown session tokens', async () => {
+    await expect(service.logout('missing-token')).rejects.toThrow(DomainError);
   });
 
-  it('builds provider authorization urls when oauth credentials are configured', () => {
+  it('builds provider authorization urls when oauth credentials are configured', async () => {
     const configuredService = new AuthService(
       createConfig({
         googleClientId: 'google-client',
@@ -638,15 +508,16 @@ describe('AuthService', () => {
         appleRedirectUri: 'http://localhost:4000/api/auth/oauth/apple/callback',
       }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
 
-    const googleStart = configuredService.createOAuthStart('google');
+    const googleStart = await configuredService.createOAuthStart('google');
     expect(googleStart.authorization_url).toContain(
       'accounts.google.com/o/oauth2/v2/auth',
     );
     expect(googleStart.authorization_url).toContain('client_id=google-client');
 
-    const appleStart = configuredService.createOAuthStart('apple');
+    const appleStart = await configuredService.createOAuthStart('apple');
     expect(appleStart.authorization_url).toContain(
       'appleid.apple.com/auth/authorize',
     );
@@ -654,7 +525,7 @@ describe('AuthService', () => {
   });
 
   it('rejects google fallback callbacks without subject or email', async () => {
-    const start = service.createOAuthStart('google');
+    const start = await service.createOAuthStart('google');
 
     await expect(
       service.completeGoogleOAuth({
@@ -667,7 +538,7 @@ describe('AuthService', () => {
   });
 
   it('rejects apple fallback callbacks without subject', async () => {
-    const start = service.createOAuthStart('apple');
+    const start = await service.createOAuthStart('apple');
 
     await expect(
       service.completeAppleOAuth({
@@ -680,7 +551,7 @@ describe('AuthService', () => {
   });
 
   it('parses apple user email payloads from the callback user field', async () => {
-    const start = service.createOAuthStart('apple');
+    const start = await service.createOAuthStart('apple');
     const callback = await service.completeAppleOAuth({
       state: start.state,
       code: 'apple-code',
@@ -692,7 +563,7 @@ describe('AuthService', () => {
   });
 
   it('ignores malformed apple user payloads', async () => {
-    const start = service.createOAuthStart('apple');
+    const start = await service.createOAuthStart('apple');
     const callback = await service.completeAppleOAuth({
       state: start.state,
       code: 'apple-code',
@@ -704,10 +575,10 @@ describe('AuthService', () => {
   });
 
   it('rejects google account conflicts when subject and email map to different users', async () => {
-    service.register('google-a@example.com');
-    const other = service.register('google-b@example.com');
+    await service.register('google-a@example.com');
+    const other = await service.register('google-b@example.com');
 
-    const firstStart = service.createOAuthStart('google');
+    const firstStart = await service.createOAuthStart('google');
     await service.completeGoogleOAuth({
       state: firstStart.state,
       code: 'oauth-code-1',
@@ -715,7 +586,7 @@ describe('AuthService', () => {
       sub: 'google-subject-conflict',
     });
 
-    const secondStart = service.createOAuthStart('google');
+    const secondStart = await service.createOAuthStart('google');
     await expect(
       service.completeGoogleOAuth({
         state: secondStart.state,
@@ -731,7 +602,7 @@ describe('AuthService', () => {
   });
 
   it('rejects replayed oauth state and provider mismatches', async () => {
-    const googleStart = service.createOAuthStart('google');
+    const googleStart = await service.createOAuthStart('google');
 
     await service.completeGoogleOAuth({
       state: googleStart.state,
@@ -751,7 +622,7 @@ describe('AuthService', () => {
       code: ErrorCode.UNAUTHORIZED,
     });
 
-    const appleStart = service.createOAuthStart('apple');
+    const appleStart = await service.createOAuthStart('apple');
     await expect(
       service.completeGoogleOAuth({
         state: appleStart.state,
@@ -872,16 +743,16 @@ describe('AuthService', () => {
   });
 
   it('rejects apple account email conflicts for an already mapped subject', async () => {
-    const firstStart = service.createOAuthStart('apple');
+    const firstStart = await service.createOAuthStart('apple');
     await service.completeAppleOAuth({
       state: firstStart.state,
       code: 'apple-code-1',
       sub: 'apple-conflict-subject',
     });
 
-    service.register('conflict@example.com');
+    await service.register('conflict@example.com');
 
-    const secondStart = service.createOAuthStart('apple');
+    const secondStart = await service.createOAuthStart('apple');
     await expect(
       service.completeAppleOAuth({
         state: secondStart.state,
@@ -925,10 +796,10 @@ describe('AuthService', () => {
     });
   });
 
-  it('updates base currency on profile changes', () => {
-    const registration = service.register('profile-currency@example.com');
+  it('updates base currency on profile changes', async () => {
+    const registration = await service.register('profile-currency@example.com');
 
-    const updated = service.updateProfileBySessionToken(
+    const updated = await service.updateProfileBySessionToken(
       registration.access_token,
       {
         base_currency: 'USD',
@@ -947,6 +818,7 @@ describe('AuthService', () => {
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
@@ -957,7 +829,7 @@ describe('AuthService', () => {
         }),
     } as Response);
 
-    const start = configuredService.createOAuthStart('google');
+    const start = await configuredService.createOAuthStart('google');
     await expect(
       configuredService.completeGoogleOAuth({
         state: start.state,
@@ -979,8 +851,9 @@ describe('AuthService', () => {
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
-    const start = configuredService.createOAuthStart('google');
+    const start = await configuredService.createOAuthStart('google');
 
     await expect(
       configuredService.completeGoogleOAuth({
@@ -1001,11 +874,12 @@ describe('AuthService', () => {
           'http://localhost:4000/api/auth/oauth/google/callback',
       }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
     const fetchMock = jest
       .spyOn(global, 'fetch')
       .mockRejectedValue(new Error('network down'));
-    const start = configuredService.createOAuthStart('google');
+    const start = await configuredService.createOAuthStart('google');
 
     await expect(
       configuredService.completeGoogleOAuth({
@@ -1020,7 +894,7 @@ describe('AuthService', () => {
   });
 
   it('ignores apple user payloads without an email field', async () => {
-    const start = service.createOAuthStart('apple');
+    const start = await service.createOAuthStart('apple');
     const callback = await service.completeAppleOAuth({
       state: start.state,
       code: 'apple-code',
@@ -1031,16 +905,17 @@ describe('AuthService', () => {
     expect(callback.user.email).toBe('apple-user-no-email@apple.private');
   });
 
-  it('rejects oauth starts in production when provider credentials are missing', () => {
+  it('rejects oauth starts in production when provider credentials are missing', async () => {
     const productionService = new AuthService(
       createConfig(undefined, { nodeEnv: 'production' }),
       createPrismaMock(),
+      createPersistenceMock(),
     );
 
-    expect(() => productionService.createOAuthStart('google')).toThrow(
+    await expect(productionService.createOAuthStart('google')).rejects.toThrow(
       DomainError,
     );
-    expect(() => productionService.createOAuthStart('apple')).toThrow(
+    await expect(productionService.createOAuthStart('apple')).rejects.toThrow(
       DomainError,
     );
   });

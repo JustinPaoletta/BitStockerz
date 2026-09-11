@@ -69,11 +69,17 @@ On the Fly app, set at least:
 | `CORS_ALLOWED_ORIGINS` | Exact website URL(s), e.g. `https://your-app.vercel.app` (no `*`) |
 | `WEBAUTHN_RP_ID` | Domain used for passkeys (often the website hostname) |
 | `WEBAUTHN_ALLOWED_ORIGINS` | Exact website origin(s), same idea as CORS |
+| `AUTH_DEV_EMAIL_ENABLED=false` | Disable dev email register/login in production |
+| `AUTH_LEGACY_WEBAUTHN_ENABLED=false` | Disable legacy WebAuthn bypass in production |
+| `ERROR_TEST_ENABLED=false` | Keep forced-error test routes off in production |
+| `OPENAPI_ENABLED=false` | Keep Swagger/OpenAPI off in production unless you explicitly want it |
 | `INGESTION_SCHEDULER_ENABLED=true` | Turn on background market-data imports |
 | `AI_ENABLED=false` | Keep Kernel AI off in production until you intentionally enable it |
 | `JOBS_SYSTEM_USER_ID` | System user id for scheduled jobs (see `apps/api/.env.example`) |
 
 Only add Google/Apple OAuth and `OPENAI_API_KEY` when you decide to turn those on.
+Auth users, sessions, and passkeys persist in MySQL after migrations are applied;
+restart the API once after the first deploy so auth state hydrates from the database.
 
 ### 5. First production deploy
 
@@ -150,7 +156,7 @@ Workflows live in:
 
 - [ ] `GET /api/health/live` → ok
 - [ ] `GET /api/health/ready` → ready with DB up (503 if DB missing in production)
-- [ ] Auth session (passkey or email fallback)
+- [ ] Auth session (passkey; email fallback only in non-production builds)
 - [ ] Symbols search
 - [ ] Paper account portfolio read
 - [ ] SPA deep-link refresh (`/strategies/...`)
