@@ -104,7 +104,7 @@ These are **not** blocking go-live:
 | Item | Meaning |
 |------|---------|
 | Turn on live Kernel AI | Set `AI_ENABLED=true`, use OpenAI provider + key, after you’re ok with cost/disclaimer |
-| Wire a paid market-data vendor | Interface exists; seed/DB path works today |
+| Wire a market-data vendor | Live adapter is a stub. Production retains existing DB bars and never synthesizes prices; populate real data before offering current-market workflows. |
 | Google / Apple login polish | APIs exist; register real production redirect URLs when you enable them |
 | `#6.4.2` AI “diff” suggestions | Explicitly deferred product feature |
 
@@ -142,7 +142,7 @@ Store in GitHub Environment `production` and/or host dashboards. **Never commit.
 
 1. CI green on `main` (build/lint/unit/coverage/e2e + web build).
 2. Serialized production concurrency group.
-3. `prisma migrate status` → `prisma migrate deploy` **once**.
+3. `prisma migrate deploy` **once**, then `prisma migrate status` to verify.
 4. Deploy API; wait for `/api/health/live` and `/api/health/ready`.
 5. Build web with `environment.prod.ts` `apiBaseUrl` set to the verified API.
 6. Deploy web to Vercel production.

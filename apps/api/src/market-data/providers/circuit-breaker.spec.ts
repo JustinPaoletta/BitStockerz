@@ -17,9 +17,9 @@ describe('isTransientProviderError', () => {
   });
 
   it('classifies network/timeout/5xx style errors as transient', () => {
-    expect(isTransientProviderError(new Error('timeout contacting vendor'))).toBe(
-      true,
-    );
+    expect(
+      isTransientProviderError(new Error('timeout contacting vendor')),
+    ).toBe(true);
     expect(isTransientProviderError(new Error('HTTP 502 bad gateway'))).toBe(
       true,
     );

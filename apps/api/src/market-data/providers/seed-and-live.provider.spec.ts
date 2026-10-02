@@ -24,9 +24,9 @@ describe('LiveMarketDataProvider', () => {
     await expect(provider.fetchEquityDaily(1, 'AAPL')).rejects.toBeInstanceOf(
       PermanentProviderError,
     );
-    await expect(provider.fetchCryptoDaily(4, 'BTC-USD')).rejects.toBeInstanceOf(
-      PermanentProviderError,
-    );
+    await expect(
+      provider.fetchCryptoDaily(4, 'BTC-USD'),
+    ).rejects.toBeInstanceOf(PermanentProviderError);
     await expect(
       provider.fetchCryptoHourly(4, 'BTC-USD'),
     ).rejects.toBeInstanceOf(PermanentProviderError);

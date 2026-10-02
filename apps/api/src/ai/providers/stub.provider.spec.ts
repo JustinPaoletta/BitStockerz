@@ -52,14 +52,17 @@ describe('isAiOperation', () => {
 describe('AiUsageService prisma path', () => {
   it('creates and increments usage rows transactionally', async () => {
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       aiUsage: {
-        findUnique: jest
+        updateMany: jest
           .fn()
-          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ count: 1 })
+          .mockResolvedValueOnce({ count: 1 })
+          .mockResolvedValueOnce({ count: 0 }),
+        findUniqueOrThrow: jest
+          .fn()
           .mockResolvedValueOnce({ calls: 1 })
           .mockResolvedValueOnce({ calls: 2 }),
-        create: jest.fn().mockResolvedValue({ calls: 1 }),
-        update: jest.fn().mockResolvedValue({ calls: 2 }),
       },
     };
     const prisma = {

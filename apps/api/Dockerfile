@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24.11.1-bookworm-slim AS deps
+FROM node:24.21.0-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
@@ -12,7 +12,7 @@ COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24.11.1-bookworm-slim AS runtime
+FROM node:24.21.0-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN groupadd --system bitstockerz && useradd --system --gid bitstockerz bitstockerz

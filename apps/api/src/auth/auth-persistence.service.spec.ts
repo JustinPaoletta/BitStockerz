@@ -13,9 +13,7 @@ function createUser(overrides?: Partial<UserRecord>): UserRecord {
   };
 }
 
-function createPrismaMock(
-  overrides?: Partial<PrismaService>,
-): PrismaService {
+function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
   return {
     isEnabled: true,
     user: {
@@ -280,7 +278,9 @@ describe('AuthPersistenceService', () => {
     expect(snapshot.appleSubjectsToUserIds.get('apple-sub')).toBe('user-2');
     expect(snapshot.usersById.get('user-2')?.appleSubject).toBe('apple-sub');
     expect(snapshot.usersById.get('user-2')?.base_currency).toBe('USD');
-    expect(snapshot.credentialsById.get('cred-2')?.credential.transports).toBeUndefined();
+    expect(
+      snapshot.credentialsById.get('cred-2')?.credential.transports,
+    ).toBeUndefined();
   });
 
   it('decodes non-array and invalid transport payloads', async () => {
@@ -391,7 +391,9 @@ describe('AuthPersistenceService', () => {
     await expect(
       service.consumeWebAuthnChallenge('id', 'login', 'user@example.com'),
     ).resolves.toBeNull();
-    await expect(service.consumeOAuthState('state', 'google')).resolves.toBeNull();
+    await expect(
+      service.consumeOAuthState('state', 'google'),
+    ).resolves.toBeNull();
     await expect(service.findSession('token')).resolves.toBeNull();
     await expect(service.ensureUserExists('user-1')).resolves.toBe(false);
   });
@@ -464,11 +466,15 @@ describe('AuthPersistenceService', () => {
     } as Partial<PrismaService>);
     const service = new AuthPersistenceService(prisma);
 
-    await expect(service.consumeOAuthState('expired', 'google')).resolves.toBeNull();
+    await expect(
+      service.consumeOAuthState('expired', 'google'),
+    ).resolves.toBeNull();
     await expect(
       service.consumeOAuthState('wrong-provider', 'google'),
     ).resolves.toBeNull();
-    await expect(service.consumeOAuthState('missing', 'google')).resolves.toBeNull();
+    await expect(
+      service.consumeOAuthState('missing', 'google'),
+    ).resolves.toBeNull();
     expect(deleteState).toHaveBeenCalledWith({ where: { state: 'expired' } });
   });
 

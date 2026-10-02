@@ -65,7 +65,7 @@ with a working NestJS API and Angular application.
 
 ## Prerequisites
 
-- Node.js `24.11.1` for `apps/api` and `apps/web`
+- Node.js `24.21.0` for `apps/api` and `apps/web`
 - npm
 
 ## Local Setup

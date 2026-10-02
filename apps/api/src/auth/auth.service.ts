@@ -133,6 +133,7 @@ interface ProfileUpdate {
 interface OAuthIdentity {
   subject: string;
   email?: string;
+  canLinkByEmail?: boolean;
 }
 
 function normalizeEmail(email: string): string {
@@ -408,7 +409,10 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    const challenge = await this.createWebAuthnChallenge('login', normalizedEmail);
+    const challenge = await this.createWebAuthnChallenge(
+      'login',
+      normalizedEmail,
+    );
 
     const options = await generateAuthenticationOptions({
       rpID: this.config.auth.webauthnRpId,
@@ -564,6 +568,13 @@ export class AuthService implements OnModuleInit {
     const emailUser = identity.email
       ? this.usersByEmail.get(identity.email)
       : undefined;
+
+    if (!mappedUserId && emailUser && identity.canLinkByEmail === false) {
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Sign in to the existing account before linking this provider.',
+      );
+    }
 
     if (mappedUserId && emailUser && mappedUserId !== emailUser.id) {
       throw new DomainError(
@@ -870,7 +881,20 @@ export class AuthService implements OnModuleInit {
         typeof payload.email === 'string'
           ? normalizeEmail(payload.email)
           : undefined;
-      return { subject, email };
+      if (email && payload.email_verified !== true) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Google email is not verified.',
+        );
+      }
+      return {
+        subject,
+        email,
+        canLinkByEmail: Boolean(
+          email?.endsWith('@gmail.com') ||
+          (typeof payload.hd === 'string' && payload.hd.trim()),
+        ),
+      };
     }
 
     if (this.canUseDevFallback()) {
@@ -913,15 +937,17 @@ export class AuthService implements OnModuleInit {
         typeof payload.email === 'string'
           ? normalizeEmail(payload.email)
           : undefined;
-      const userEmail = this.parseAppleUserEmail(input.user);
-      const fallbackEmail = normalizeOptional(input.email)
-        ? normalizeEmail(input.email as string)
-        : undefined;
-
-      return {
-        subject,
-        email: tokenEmail ?? userEmail ?? fallbackEmail,
-      };
+      if (
+        tokenEmail &&
+        payload.email_verified !== true &&
+        payload.email_verified !== 'true'
+      ) {
+        throw new DomainError(
+          ErrorCode.UNAUTHORIZED,
+          'Apple email is not verified.',
+        );
+      }
+      return { subject, email: tokenEmail };
     }
 
     if (this.canUseDevFallback()) {
@@ -1028,15 +1054,13 @@ export class AuthService implements OnModuleInit {
         idToken,
         await this.getGoogleJwks(),
         {
+          requiredClaims: ['sub', 'exp', 'nonce'],
           issuer: GOOGLE_ISSUERS,
           audience: this.config.auth.googleClientId,
         },
       );
 
-      if (
-        typeof verification.payload.nonce === 'string' &&
-        verification.payload.nonce !== nonce
-      ) {
+      if (verification.payload.nonce !== nonce) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
           'Google ID token nonce did not match the auth request.',
@@ -1119,15 +1143,13 @@ export class AuthService implements OnModuleInit {
         idToken,
         await this.getAppleJwks(),
         {
+          requiredClaims: ['sub', 'exp', 'nonce'],
           issuer: APPLE_ISSUER,
           audience: this.config.auth.appleClientId,
         },
       );
 
-      if (
-        typeof verification.payload.nonce === 'string' &&
-        verification.payload.nonce !== nonce
-      ) {
+      if (verification.payload.nonce !== nonce) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
           'Apple ID token nonce did not match the auth request.',

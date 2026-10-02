@@ -168,7 +168,9 @@ describe('TtlCacheService', () => {
         return [9];
       },
     );
-    expect(local.deleteByPrefix('candles:equity:IBM:')).toBeGreaterThanOrEqual(0);
+    expect(local.deleteByPrefix('candles:equity:IBM:')).toBeGreaterThanOrEqual(
+      0,
+    );
     release();
     await expect(pending).resolves.toEqual([9]);
   });

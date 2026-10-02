@@ -7,6 +7,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Security and merge readiness
+
+- Refresh compatible dependencies and security overrides across all lockfiles;
+  align CI and API containers on Node 24.21.0. Add dependency audit gates.
+- Require OAuth nonce, subject and expiry claims; reject unverified Google/Apple
+  emails and unsigned Apple callback emails. Require authenticated linking for
+  Google third-party email collisions.
+- Serialize MySQL AI quota updates so concurrent calls cannot exceed the cap or
+  fail with counter-creation conflicts. Keep synthetic ingestion out of production.
+- Apply migrations before checking their final status; configure the migration
+  job's Node runtime, pin action revisions, and restrict deployments to main.
+- Add signed-token and MySQL auth/quota regression checks, and repair database
+  smoke-test cleanup for persisted passkeys and paper accounts.
+
 ### Added
 
 - Auth persistence to MySQL: users, sessions, passkeys, OAuth identities,

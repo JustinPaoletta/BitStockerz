@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": "24.11.1"
+    "node": "24.21.0"
   },
   "scripts": {
     "build": "prisma generate && nest build",
@@ -27,7 +27,9 @@
     "test:mysql:backtest": "ts-node --transpile-only test/backtest-persistence.mysql.ts",
     "test:mysql:trading": "ts-node --transpile-only test/paper-trading.mysql.ts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:oauth": "node --test test/oauth-token-security.mjs",
+    "test:mysql:security": "ts-node --transpile-only test/auth-ai-security.mysql.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",
@@ -78,15 +80,22 @@
     "typescript-eslint": "^8.56.0"
   },
   "overrides": {
-    "brace-expansion": "5.0.8",
+    "brace-expansion": "5.0.12",
     "find-my-way": "9.7.0",
     "valibot": "1.4.2",
     "@nestjs/swagger": {
-      "js-yaml": "5.2.3"
+      "js-yaml": "5.4.2"
     },
     "@angular-devkit/core": {
       "ajv": "8.18.0"
-    }
+    },
+    "@prisma/adapter-mariadb": {
+      "mariadb": "$mariadb"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    },
+    "mysql2": "3.24.5"
   },
   "jest": {
     "moduleFileExtensions": [

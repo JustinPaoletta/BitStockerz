@@ -5,7 +5,7 @@ shell, dashboard widgets, Strategy Lab, backtest workflows, and paper Trade
 desk. Stack: Angular CLI/build 21.2.19, Angular 21.2.x, standalone components,
 Vitest, Playwright, `@simplewebauthn/browser`, and Lightweight Charts 5.2.
 
-The repository pins Node 24.11.1. Angular 22.0.8 requires Node 24.15 or newer,
+The repository pins Node 24.21.0. Angular 22.0.8 requires Node 24.15 or newer,
 so Angular 21 is the newest supported line compatible with the repository pin.
 
 ## Development server

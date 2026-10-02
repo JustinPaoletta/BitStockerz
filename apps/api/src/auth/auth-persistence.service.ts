@@ -111,7 +111,9 @@ export class AuthPersistenceService {
     }
 
     await Promise.all([
-      this.prisma.authSession.deleteMany({ where: { expiresAt: { lte: now } } }),
+      this.prisma.authSession.deleteMany({
+        where: { expiresAt: { lte: now } },
+      }),
       this.prisma.webAuthnChallenge.deleteMany({
         where: { expiresAt: { lte: now } },
       }),
@@ -247,9 +249,7 @@ export class AuthPersistenceService {
     });
   }
 
-  async saveWebAuthnChallenge(
-    record: WebAuthnChallengeRecord,
-  ): Promise<void> {
+  async saveWebAuthnChallenge(record: WebAuthnChallengeRecord): Promise<void> {
     if (!this.prisma.isEnabled) {
       return;
     }
@@ -283,7 +283,9 @@ export class AuthPersistenceService {
     }
 
     if (row.expiresAt.getTime() <= Date.now()) {
-      await this.prisma.webAuthnChallenge.delete({ where: { id: challengeId } });
+      await this.prisma.webAuthnChallenge.delete({
+        where: { id: challengeId },
+      });
       return null;
     }
 
@@ -295,7 +297,7 @@ export class AuthPersistenceService {
 
     return {
       challengeId: row.id,
-      purpose: row.purpose as WebAuthnChallengePurpose,
+      purpose: row.purpose,
       email: row.email,
       challenge: row.challenge,
       expiresAt: row.expiresAt.getTime(),
@@ -344,7 +346,7 @@ export class AuthPersistenceService {
 
     return {
       state: row.state,
-      provider: row.provider as OauthProvider,
+      provider: row.provider,
       nonce: row.nonce,
       expiresAt: row.expiresAt.getTime(),
     };

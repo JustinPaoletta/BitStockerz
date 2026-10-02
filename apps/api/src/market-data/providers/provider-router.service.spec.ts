@@ -169,7 +169,10 @@ describe('ProviderRouterService', () => {
     const emptyMessage = new Error('');
     const failingLive: MarketDataProvider = {
       name: 'fake-live',
-      fetchEquityDaily: jest.fn().mockRejectedValueOnce(emptyMessage).mockRejectedValueOnce(42),
+      fetchEquityDaily: jest
+        .fn()
+        .mockRejectedValueOnce(emptyMessage)
+        .mockRejectedValueOnce(42),
       fetchCryptoDaily: jest.fn(),
       fetchCryptoHourly: jest.fn(),
     };
@@ -184,5 +187,24 @@ describe('ProviderRouterService', () => {
     await router.fetchEquityDaily(1, 'AAPL');
     expect(audit.record).toHaveBeenCalled();
     expect(router.getHealthInfo().last_error_code).toBeTruthy();
+  });
+});
+
+it('preserves real production data when live ingestion is disabled', async () => {
+  const { router, seed } = createRouter({
+    liveEnabled: false,
+    nodeEnv: 'production',
+    prismaEnabled: true,
+  });
+  expect(await router.fetchEquityDaily(1, 'AAPL')).toEqual({
+    bars: [],
+    source: 'none',
+    provider: 'none',
+  });
+  expect(seed.fetchEquityDaily).not.toHaveBeenCalled();
+  expect(router.getHealthInfo()).toMatchObject({
+    configured: 'none',
+    last_success_at: null,
+    last_error_code: 'PROVIDER_NOT_CONFIGURED',
   });
 });

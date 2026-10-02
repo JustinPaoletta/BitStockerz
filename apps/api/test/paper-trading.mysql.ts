@@ -35,7 +35,10 @@ async function main(): Promise<void> {
 
     const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     email = `trading-smoke-${suffix}@example.com`;
-    const registration = await auth.register(email, 'Trading Persistence Smoke');
+    const registration = await auth.register(
+      email,
+      'Trading Persistence Smoke',
+    );
     currentUserId = registration.user.id;
     await auth.ensurePaperAccountForUser(currentUserId);
     const account = await accounts.getForUser(currentUserId);
@@ -268,6 +271,9 @@ async function main(): Promise<void> {
               });
             }
             await transaction.auditEvent.deleteMany({
+              where: { userId: currentUserId },
+            });
+            await transaction.webAuthnCredential.deleteMany({
               where: { userId: currentUserId },
             });
             await transaction.user.deleteMany({

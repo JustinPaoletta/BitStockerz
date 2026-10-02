@@ -48,29 +48,28 @@ export class AiUsageService {
     const date = utcDateOnly();
 
     const calls = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.aiUsage.findUnique({
-        where: { userId_date: { userId, date } },
+      // Create the counter once, then increment only while below the cap.
+      // A read followed by an unconditional increment races across requests.
+      // Native MySQL upsert takes an exclusive row lock, including when the
+      // counter exists. INSERT IGNORE can deadlock on a shared-lock upgrade.
+      await tx.$executeRaw`
+        INSERT INTO ai_usage (user_id, date, calls) VALUES (${userId}, ${date}, 0)
+        ON DUPLICATE KEY UPDATE calls = calls
+      `;
+      const updated = await tx.aiUsage.updateMany({
+        where: { userId, date, calls: { lt: limit } },
+        data: { calls: { increment: 1 } },
       });
-
-      if (!existing) {
-        const created = await tx.aiUsage.create({
-          data: { userId, date, calls: 1 },
-        });
-        return created.calls;
-      }
-
-      if (existing.calls >= limit) {
+      if (updated.count !== 1) {
         throw new DomainError(
           ErrorCode.AI_RATE_LIMIT,
           `Daily Kernel AI call limit of ${limit} exceeded.`,
         );
       }
-
-      const updated = await tx.aiUsage.update({
+      const counter = await tx.aiUsage.findUniqueOrThrow({
         where: { userId_date: { userId, date } },
-        data: { calls: { increment: 1 } },
       });
-      return updated.calls;
+      return counter.calls;
     });
 
     if (calls > limit) {

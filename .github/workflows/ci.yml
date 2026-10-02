@@ -6,29 +6,69 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  tooling-audit:
+    name: Root dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - run: npm audit --audit-level=moderate
+
   api:
     name: API build/test
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci-local-only
+          MYSQL_DATABASE: bitstockerz_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci-local-only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
     defaults:
       run:
         working-directory: apps/api
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.11.1'
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run build
       - run: npm run lint
       - run: npm test -- --coverage --watch=false
       - run: npm run test:e2e
+      - run: npm run test:oauth
+      - name: MySQL persistence and security regressions
+        env:
+          DATABASE_URL: mysql://root:ci-local-only@127.0.0.1:3306/bitstockerz_ci
+          NODE_ENV: development
+          INGESTION_SCHEDULER_ENABLED: 'false'
+        run: |
+          npm run db:deploy
+          npm run test:mysql:backtest
+          npm run test:mysql:trading
+          npm run test:mysql:security
+      - name: Build production API image
+        run: docker build -t bitstockerz-api:ci .
 
   web:
     name: Web build/test
@@ -37,13 +77,14 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.11.1'
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run lint
       - run: npm test -- --watch=false
       - run: npm run build

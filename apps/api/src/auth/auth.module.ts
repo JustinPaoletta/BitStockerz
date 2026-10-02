@@ -18,7 +18,12 @@ import { MeController } from './me.controller';
     forwardRef(() => ObservabilityModule),
   ],
   controllers: [AuthController, MeController],
-  providers: [AuthPersistenceService, AuthService, AuthGuard, AuthRateLimitGuard],
+  providers: [
+    AuthPersistenceService,
+    AuthService,
+    AuthGuard,
+    AuthRateLimitGuard,
+  ],
   exports: [AuthService, AuthGuard, AuthRateLimitGuard],
 })
 export class AuthModule {}

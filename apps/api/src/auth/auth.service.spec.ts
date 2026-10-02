@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { AppConfigService } from '../config/app-config.service';
@@ -101,7 +100,10 @@ describe('AuthService', () => {
     Object.assign(persistence, { enabled: true, saveUser });
     const prisma = createPrismaMock({ isEnabled: true });
     const dbService = new AuthService(createConfig(), prisma, persistence);
-    const result = await dbService.register('persist@example.com', 'Persist User');
+    const result = await dbService.register(
+      'persist@example.com',
+      'Persist User',
+    );
 
     await dbService.ensureUserPersisted(result.user.id);
 
@@ -131,9 +133,8 @@ describe('AuthService', () => {
       createPrismaMock(),
       createPersistenceMock(),
     );
-    const options = await locked.createWebAuthnRegisterOptions(
-      'legacy@example.com',
-    );
+    const options =
+      await locked.createWebAuthnRegisterOptions('legacy@example.com');
 
     await expect(
       locked.verifyWebAuthnRegistration({
@@ -189,7 +190,10 @@ describe('AuthService', () => {
   });
 
   it('clears display name when updated with blank spaces', async () => {
-    const registration = await service.register('user@example.com', 'Named User');
+    const registration = await service.register(
+      'user@example.com',
+      'Named User',
+    );
 
     const updated = await service.updateProfileBySessionToken(
       registration.access_token,
@@ -919,4 +923,130 @@ describe('AuthService', () => {
       DomainError,
     );
   });
+});
+
+describe('configured OAuth identity security', () => {
+  function configured(
+    provider: 'google' | 'apple',
+    claims: Record<string, unknown>,
+  ) {
+    const service = new AuthService(
+      createConfig({
+        googleClientId: 'client',
+        googleClientSecret: 'secret',
+        googleRedirectUri: 'https://example.com/google',
+        appleClientId: 'client',
+        appleTeamId: 'team',
+        appleKeyId: 'key',
+        applePrivateKey: 'key',
+        appleRedirectUri: 'https://example.com/apple',
+      }),
+      createPrismaMock(),
+      createPersistenceMock(),
+    );
+    const internals = service as unknown as {
+      exchangeGoogleCodeForIdToken(code: string): Promise<string>;
+      verifyGoogleIdToken(
+        token: string,
+        nonce: string,
+      ): Promise<Record<string, unknown>>;
+      exchangeAppleCodeForIdToken(code: string): Promise<string>;
+      verifyAppleIdToken(
+        token: string,
+        nonce: string,
+      ): Promise<Record<string, unknown>>;
+    };
+    if (provider === 'google') {
+      jest
+        .spyOn(internals, 'exchangeGoogleCodeForIdToken')
+        .mockResolvedValue('signed');
+      jest.spyOn(internals, 'verifyGoogleIdToken').mockResolvedValue(claims);
+    } else {
+      jest
+        .spyOn(internals, 'exchangeAppleCodeForIdToken')
+        .mockResolvedValue('signed');
+      jest.spyOn(internals, 'verifyAppleIdToken').mockResolvedValue(claims);
+    }
+    return service;
+  }
+
+  it.each([false, undefined, 'true'])(
+    'rejects Google email_verified=%s without linking an existing user',
+    async (email_verified) => {
+      const service = configured('google', {
+        sub: 'attacker',
+        email: 'victim@gmail.com',
+        email_verified,
+      });
+      const victim = await service.register('victim@gmail.com');
+      const start = await service.createOAuthStart('google');
+      await expect(
+        service.completeGoogleOAuth({ state: start.state, code: 'code' }),
+      ).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+      expect(
+        service.getProfileBySessionToken(victim.access_token)
+          .linked_auth_methods.google,
+      ).toBe(false);
+    },
+  );
+
+  it('requires authenticated linking for a Google third-party email collision', async () => {
+    const service = configured('google', {
+      sub: 'attacker',
+      email: 'victim@example.com',
+      email_verified: true,
+    });
+    await service.register('victim@example.com');
+    const start = await service.createOAuthStart('google');
+    await expect(
+      service.completeGoogleOAuth({ state: start.state, code: 'code' }),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+  });
+
+  it('links an authoritative verified Gmail identity to the existing user', async () => {
+    const service = configured('google', {
+      sub: 'owner',
+      email: 'owner@gmail.com',
+      email_verified: true,
+    });
+    const owner = await service.register('owner@gmail.com');
+    const start = await service.createOAuthStart('google');
+    expect(
+      (await service.completeGoogleOAuth({ state: start.state, code: 'code' }))
+        .user.id,
+    ).toBe(owner.user.id);
+  });
+
+  it('ignores unsigned Apple callback email when the signed token omits it', async () => {
+    const service = configured('apple', { sub: 'attacker' });
+    const victim = await service.register('victim@example.com');
+    const start = await service.createOAuthStart('apple');
+    const result = await service.completeAppleOAuth({
+      state: start.state,
+      code: 'code',
+      email: 'victim@example.com',
+      user: JSON.stringify({ email: 'victim@example.com' }),
+    });
+    expect(result.user.id).not.toBe(victim.user.id);
+    expect(result.user.email).toBe('attacker@apple.private');
+    expect(
+      service.getProfileBySessionToken(victim.access_token).linked_auth_methods
+        .apple,
+    ).toBe(false);
+  });
+
+  it.each([false, undefined, 'false'])(
+    'rejects an unverified signed Apple email (%s)',
+    async (email_verified) => {
+      const service = configured('apple', {
+        sub: 'attacker',
+        email: 'victim@example.com',
+        email_verified,
+      });
+      const start = await service.createOAuthStart('apple');
+      await expect(
+        service.completeAppleOAuth({ state: start.state, code: 'code' }),
+      ).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+    },
+  );
 });

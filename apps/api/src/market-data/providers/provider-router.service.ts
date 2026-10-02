@@ -61,7 +61,11 @@ export class ProviderRouterService {
     const liveEnabled = this.config.marketData.liveEnabled;
     const breaker = this.getBreaker('equity_daily');
     return {
-      configured: liveEnabled ? 'live' : 'seed',
+      configured: liveEnabled
+        ? 'live'
+        : this.config.server.nodeEnv === 'production'
+          ? 'none'
+          : 'seed',
       last_success_at: this.lastSuccessAt,
       circuit: liveEnabled ? breaker.getStatus().state : 'closed',
       last_error_code: this.lastErrorCode,
@@ -136,6 +140,11 @@ export class ProviderRouterService {
           provider: live.name,
         };
       }
+    }
+
+    if (this.config.server.nodeEnv === 'production') {
+      this.lastErrorCode = 'PROVIDER_NOT_CONFIGURED';
+      return { bars: emptyBars<T>(), source: 'none', provider: 'none' };
     }
 
     const bars = await invoke(this.seedProvider);

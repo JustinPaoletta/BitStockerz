@@ -185,6 +185,12 @@ async function main(): Promise<void> {
             await transaction.symbol.deleteMany({ where: { id: symbolId } });
           }
           if (userIds.length > 0) {
+            await transaction.webAuthnCredential.deleteMany({
+              where: { userId: { in: userIds } },
+            });
+            await transaction.paperAccount.deleteMany({
+              where: { userId: { in: userIds } },
+            });
             await transaction.user.deleteMany({
               where: { id: { in: userIds } },
             });
