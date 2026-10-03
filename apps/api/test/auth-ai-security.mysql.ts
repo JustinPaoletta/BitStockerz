@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash, randomBytes } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { AuthService } from '../src/auth/auth.service';
@@ -9,6 +10,12 @@ async function main() {
   assert.ok(process.env.DATABASE_URL, 'Use an isolated MySQL database');
   process.env.AI_DAILY_CALL_LIMIT = '3';
   process.env.INGESTION_SCHEDULER_ENABLED = 'false';
+  process.env.AUTH_OAUTH_BROWSER_CALLBACK_URL =
+    'http://localhost:4200/auth/oauth/callback';
+  process.env.GOOGLE_OAUTH_CLIENT_ID = 'mysql-smoke-client';
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'mysql-smoke-only';
+  process.env.GOOGLE_OAUTH_REDIRECT_URI =
+    'http://localhost:4000/api/auth/oauth/google/callback';
   let app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
   });
@@ -19,13 +26,53 @@ async function main() {
       `security-${crypto.randomUUID()}@example.com`,
     );
     userId = registration.user.id;
-    const start = await auth.createOAuthStart('google');
-    const linked = await auth.completeGoogleOAuth({
-      state: start.state,
-      code: 'dev',
-      sub: `security-${userId}`,
-      email: registration.user.email,
+    // Mock only the verified-provider boundary; signed JWTs have a separate
+    // native verifier suite. Exercise the real DB linking transaction here.
+    Object.assign(auth, {
+      resolveGoogleIdentity: async () => ({
+        subject: `security-${userId}`,
+        email: registration.user.email,
+      }),
     });
+    const collision = await auth.createOAuthStart('google');
+    await assert.rejects(
+      auth.completeGoogleOAuth({ state: collision.state, code: 'mock-code' }),
+      { code: 'CONFLICT' },
+    );
+    assert.equal(
+      auth.getProfileBySessionToken(registration.access_token)
+        .linked_auth_methods.google,
+      false,
+    );
+    const verifier = randomBytes(32).toString('base64url');
+    const start = await auth.createOAuthBrowserStart(
+      'google',
+      {
+        code_challenge: createHash('sha256')
+          .update(verifier)
+          .digest('base64url'),
+        return_path: '/profile',
+      },
+      registration.access_token,
+    );
+    const callback = await auth.handleOAuthCallback('google', {
+      state: start.state,
+      code: 'mock-code',
+    });
+    assert.ok('redirect_url' in callback);
+    const fragment = new URLSearchParams(
+      new URL(callback.redirect_url).hash.slice(1),
+    );
+    assert.equal(fragment.get('error'), null);
+    assert.equal(fragment.get('state'), start.state);
+    const code = fragment.get('code');
+    assert.ok(code);
+    const linked = await auth.exchangeOAuthSession(
+      { code, verifier },
+      registration.access_token,
+    );
+    assert.equal(linked.intent, 'link');
+    assert.equal(linked.access_token, registration.access_token);
     assert.equal(linked.user.id, userId);
     await app.close();
     app = await NestFactory.createApplicationContext(AppModule, {

@@ -1,24 +1,30 @@
 :root {
   color-scheme: dark;
-  --accent: #39ff14;
-  --accent-strong: #00c853;
-  --accent-deep: #004d00;
-  --background: #05080f;
-  --surface: #0b1220;
-  --surface-2: #121c2e;
-  --border: #243147;
-  --text: #f4f7fb;
-  --muted: #9eabc0;
-  --positive: #39ff14;
+  --accent: #d7f86b;
+  --accent-strong: #e5ff97;
+  --accent-deep: #3a4624;
+  --background: #10120f;
+  --surface: #181b16;
+  --surface-2: #22261e;
+  --border: #363c30;
+  --text: #f3f4ed;
+  --muted: #acb3a3;
+  --positive: #80e8c0;
   --negative: #ff7b87;
   --danger-bg: #321b25;
-  font-family:
-    'Segoe UI',
-    Inter,
-    ui-sans-serif,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  --on-accent: #10120f;
+  --surface-inset: #121510;
+  --grid: #292e24;
+  --skeleton-highlight: #30382a;
+  --error-text: #ff9aa4;
+  --positive-border: #80e8c059;
+  --negative-border: #ff7b8759;
+  --focus-ring: #d7f86b40;
+  --header-background: #10120ff0;
+  --motif-grid: #363c3040;
+  --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-wordmark: Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
 }
 
 * {
@@ -26,7 +32,7 @@
 }
 body {
   background:
-    radial-gradient(circle at 10% -10%, rgba(54, 94, 140, 0.28), transparent 32rem),
+    radial-gradient(ellipse at 0% 0%, rgba(215, 248, 107, 0.035), transparent 45rem),
     var(--background);
   color: var(--text);
   margin: 0;
@@ -34,7 +40,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 h1,
@@ -43,31 +50,33 @@ p {
   text-wrap: pretty;
 }
 h1 {
-  font-size: clamp(2.5rem, 8vw, 5.6rem);
+  font-weight: 500;
+  font-size: clamp(2rem, 4vw, 3rem);
   letter-spacing: -0.055em;
-  line-height: 0.95;
+  line-height: 1.08;
   margin: 0.25rem 0 1rem;
 }
 h2 {
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 .panel {
-  background: linear-gradient(145deg, rgba(20, 34, 54, 0.96), rgba(13, 25, 42, 0.96));
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 1rem;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 .page-heading {
   align-items: end;
   display: flex;
   gap: 2rem;
   justify-content: space-between;
-  margin-bottom: 2.25rem;
+  margin-bottom: 1.75rem;
 }
 .eyebrow {
   color: var(--accent);
   font-size: 0.72rem;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.14em;
   margin: 0;
   text-transform: uppercase;
@@ -91,7 +100,7 @@ h2 {
   border-radius: 0.65rem;
   cursor: pointer;
   display: inline-flex;
-  font-weight: 700;
+  font-weight: 600;
   justify-content: center;
   min-height: 2.7rem;
   padding: 0.65rem 1rem;
@@ -99,7 +108,7 @@ h2 {
 }
 .button.primary {
   background: var(--accent);
-  color: #06130e;
+  color: var(--on-accent);
 }
 .button.primary:hover {
   background: var(--accent-strong);
@@ -130,12 +139,13 @@ h2 {
 label {
   display: block;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: 0.45rem;
 }
 input,
-select {
-  background: #0b1626;
+select,
+textarea {
+  background: var(--surface-inset);
   border: 1px solid var(--border);
   border-radius: 0.6rem;
   color: var(--text);
@@ -144,12 +154,13 @@ select {
   width: 100%;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--accent);
-  outline: 2px solid rgba(94, 230, 176, 0.18);
+  outline: 2px solid var(--focus-ring);
 }
 .error {
-  color: #ff9aa4;
+  color: var(--error-text);
 }
 .state {
   padding: clamp(2rem, 7vw, 5rem);
@@ -164,18 +175,18 @@ select:focus {
   border-radius: 99px;
   color: var(--muted);
   font-size: 0.7rem;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.06em;
   padding: 0.4rem 0.65rem;
   text-transform: uppercase;
 }
 .status.completed {
-  border-color: rgba(94, 230, 176, 0.35);
+  border-color: var(--positive-border);
   color: var(--positive);
 }
 .status.failed,
 .status.timed_out {
-  border-color: rgba(255, 123, 135, 0.35);
+  border-color: var(--negative-border);
   color: var(--negative);
 }
 .positive {
@@ -255,3 +266,11 @@ select:focus {
     flex-direction: column;
   }
 }
+
+:where(a, button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+::selection { background: var(--accent); color: var(--on-accent); }
+.metric-grid strong, .table-wrap td { font-variant-numeric: tabular-nums; }

@@ -10,6 +10,7 @@ import { JobHandlersService } from './job-handlers.service';
 import { JobSchedulerService } from './job-scheduler.service';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
+import { ManualIngestionGuard } from './manual-ingestion.guard';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { JobsService } from './jobs.service';
     JobExecutorService,
     JobHandlersService,
     JobSchedulerService,
+    ManualIngestionGuard,
   ],
   exports: [JobsService, JobHandlersService, JobExecutorService],
 })

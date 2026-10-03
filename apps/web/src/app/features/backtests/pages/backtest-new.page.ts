@@ -1,21 +1,32 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { catchError, distinctUntilChanged, firstValueFrom, map, of, switchMap, timer } from 'rxjs';
+import { PageGuideComponent } from '../../../shared/ui/page-guide.component';
 import { SymbolSearchComponent } from '../../../shared/symbols/symbol-search.component';
 import { StrategiesApiService } from '../../strategies/data/strategies-api.service';
 import { BacktestsApiService } from '../backtests-api.service';
 
 @Component({
   selector: 'app-backtest-new-page',
-  imports: [ReactiveFormsModule, RouterLink, SymbolSearchComponent],
+  imports: [ReactiveFormsModule, RouterLink, SymbolSearchComponent, PageGuideComponent],
   template: `
     <section class="page-heading">
       <div>
         <p class="eyebrow">New research run</p>
         <h1>Run a backtest</h1>
         @if (strategyName()) {
-          <p class="lede">Strategy: {{ strategyName() }} · timeframe locked to {{ form.controls.timeframe.value }}</p>
+          <p class="lede">{{ strategyName() }} · {{ form.controls.timeframe.value }}</p>
+        } @else {
+          <app-page-guide
+            description="Simulate how your strategy would have traded over a date range."
+            [steps]="[
+              'Paste or confirm the strategy ID from Strategy Lab.',
+              'Pick a symbol and UTC date range that has price data.',
+              'Run backtest and wait for the results page.',
+            ]"
+          />
         }
       </div>
       <a class="text-link" routerLink="/backtests">Back to history</a>
@@ -23,11 +34,10 @@ import { BacktestsApiService } from '../backtests-api.service';
     <form class="panel form-panel" [formGroup]="form" (ngSubmit)="submit()">
       <div class="field full">
         <label for="strategy">Strategy ID</label>
-        <input
-          id="strategy"
-          formControlName="strategy_id"
-          placeholder="UUID from Strategy Lab"
-        />
+        <input id="strategy" formControlName="strategy_id" placeholder="Strategy ID" />
+        @if (strategyLoading()) {
+          <p class="hint" role="status">Loading strategy…</p>
+        }
       </div>
       <div class="field">
         <app-symbol-search
@@ -59,13 +69,18 @@ import { BacktestsApiService } from '../backtests-api.service';
         <p class="error full" role="alert">{{ error() }}</p>
       }
       <div class="actions full">
-        <button class="button primary" type="submit" [disabled]="form.invalid || busy()">
+        <button
+          class="button primary"
+          type="submit"
+          [disabled]="form.invalid || busy() || !strategyResolved()"
+        >
           {{ busy() ? 'Running…' : 'Run backtest' }}
         </button>
         <a class="button ghost" routerLink="/backtests">Cancel</a>
       </div>
     </form>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .form-panel {
       display: grid;
@@ -93,6 +108,8 @@ export class BacktestNewPage {
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly strategyName = signal('');
+  protected readonly strategyLoading = signal(false);
+  protected readonly strategyResolved = signal(false);
   protected readonly assetType = signal<'EQUITY' | 'CRYPTO' | ''>('');
   protected readonly form = new FormGroup({
     strategy_id: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -110,36 +127,59 @@ export class BacktestNewPage {
   private readonly router = inject(Router);
 
   constructor() {
+    this.form.controls.timeframe.disable({ emitEvent: false });
+    this.form.controls.strategy_id.valueChanges
+      .pipe(
+        map((id) => id.trim()),
+        distinctUntilChanged(),
+        switchMap((id) => {
+          this.strategyName.set('');
+          this.assetType.set('');
+          this.strategyResolved.set(false);
+          this.form.controls.timeframe.setValue('1d', { emitEvent: false });
+          this.error.set('');
+          this.strategyLoading.set(Boolean(id));
+          if (!id) return of(null);
+
+          return timer(250).pipe(
+            switchMap(() => this.strategiesApi.get(id)),
+            catchError((error: unknown) => {
+              this.error.set(error instanceof Error ? error.message : 'Unable to load strategy.');
+              return of(null);
+            }),
+          );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((strategy) => {
+        this.strategyLoading.set(false);
+        if (!strategy) return;
+        this.strategyName.set(strategy.name);
+        this.assetType.set(strategy.asset_type);
+        this.form.controls.timeframe.setValue(strategy.timeframe, { emitEvent: false });
+        this.strategyResolved.set(true);
+      });
+
     const strategyId = inject(ActivatedRoute).snapshot.queryParamMap.get('strategy_id');
     if (strategyId) {
       this.form.controls.strategy_id.setValue(strategyId);
-      void this.resolveStrategy(strategyId);
     }
   }
 
   protected async submit(): Promise<void> {
-    if (this.form.invalid || this.busy()) return;
+    if (this.form.invalid || this.busy() || !this.strategyResolved()) return;
     this.busy.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.api.create(this.form.getRawValue()));
+      const values = this.form.getRawValue();
+      const response = await firstValueFrom(
+        this.api.create({ ...values, strategy_id: values.strategy_id.trim() }),
+      );
       await this.router.navigate(['/backtests', response.run.id]);
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'The backtest could not be run.');
     } finally {
       this.busy.set(false);
-    }
-  }
-
-  private async resolveStrategy(id: string): Promise<void> {
-    try {
-      const strategy = await firstValueFrom(this.strategiesApi.get(id));
-      this.strategyName.set(strategy.name);
-      this.assetType.set(strategy.asset_type);
-      this.form.controls.timeframe.setValue(strategy.timeframe);
-      this.form.controls.timeframe.disable({ emitEvent: false });
-    } catch {
-      this.strategyName.set('');
     }
   }
 }

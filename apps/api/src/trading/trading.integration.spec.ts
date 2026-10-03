@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../app.module';
 import { DomainError } from '../common/errors/domain-error';
@@ -155,6 +156,89 @@ describe('paper trading covered HTTP integration', () => {
       .expect((response) =>
         expect(response.body.order.reject_reason).toBe('INSUFFICIENT_POSITION'),
       );
+  });
+
+  it('aggregates average-cost realized gains and losses through partial sales, replay, and reopening', async () => {
+    const token = await register();
+    const auth = `Bearer ${token}`;
+    const other = await register();
+    const prices = app.get(FillPriceService);
+    let fill = '100';
+    jest.spyOn(prices, 'getLatestClose').mockImplementation(async () => ({
+      symbolId: 1,
+      symbol: 'AAPL',
+      price: new Prisma.Decimal(fill),
+      asOf: new Date(),
+      interval: '1d',
+    }));
+    jest
+      .spyOn(prices, 'getLatestClosesByIds')
+      .mockImplementation(
+        async (ids) => new Map(ids.map((id) => [id, new Prisma.Decimal(fill)])),
+      );
+    const order = (side: string, quantity: string, key: string) =>
+      request(app.getHttpServer())
+        .post('/api/trading/orders')
+        .set('Authorization', auth)
+        .send({ symbol: 'AAPL', side, quantity, client_order_id: key })
+        .expect(200);
+    const summary = async (
+      expected: Record<string, string>,
+      authorization = auth,
+    ) => {
+      await request(app.getHttpServer())
+        .get('/api/trading/portfolio-summary')
+        .set('Authorization', authorization)
+        .expect(200)
+        .expect((response) => {
+          expect(response.body).toMatchObject(expected);
+          expect(
+            new Prisma.Decimal(response.body.realized_pnl_total)
+              .add(response.body.unrealized_pnl_total)
+              .toFixed(2),
+          ).toBe(response.body.total_pnl);
+        });
+    };
+    await order('BUY', '2', 'pnl-buy-1');
+    fill = '120';
+    await order('BUY', '2', 'pnl-buy-2');
+    await summary({
+      realized_pnl_total: '0.00',
+      unrealized_pnl_total: '40.00',
+      total_pnl: '40.00',
+    });
+    fill = '125';
+    await order('SELL', '1.5', 'pnl-partial');
+    await summary({
+      realized_pnl_total: '22.50',
+      unrealized_pnl_total: '37.50',
+      total_pnl: '60.00',
+    });
+    await order('SELL', '1.5', 'pnl-partial');
+    await order('SELL', '99', 'pnl-reject');
+    await summary({ realized_pnl_total: '22.50', total_pnl: '60.00' });
+    await summary(
+      {
+        realized_pnl_total: '0.00',
+        unrealized_pnl_total: '0.00',
+        total_pnl: '0.00',
+      },
+      `Bearer ${other}`,
+    );
+    fill = '90';
+    await order('SELL', '2.5', 'pnl-close');
+    await summary({
+      realized_pnl_total: '-27.50',
+      unrealized_pnl_total: '0.00',
+      total_pnl: '-27.50',
+    });
+    fill = '80';
+    await order('BUY', '1', 'pnl-reopen');
+    await summary({
+      realized_pnl_total: '-27.50',
+      unrealized_pnl_total: '0.00',
+      total_pnl: '-27.50',
+    });
   });
 
   it('returns a persisted NO_MARKET_PRICE reject and fails MTM closed', async () => {

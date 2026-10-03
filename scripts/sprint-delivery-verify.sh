@@ -132,6 +132,10 @@ verify_all() {
         INGESTION_SCHEDULER_ENABLED=false \
         LOG_LEVEL=silent \
         npm --prefix apps/api run test:mysql:trading
+      run_gate "auth:recovery:mysql" env \
+        INGESTION_SCHEDULER_ENABLED=false \
+        LOG_LEVEL=silent \
+        npm --prefix apps/api run test:mysql:auth
       STRATEGY_STATE_FILE="$(mktemp)"
     else
       log "KEEP_DATABASE_URL=1 but DATABASE_URL not found — persistence test will skip"

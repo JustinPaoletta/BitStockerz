@@ -21,8 +21,11 @@
   profile data.
 - Completed in Milestone 5 / PR #11: Angular **passkey register/login** is the
   primary browser auth UI (#1.1.1–#1.1.2), with email kept as
-  unsupported-browser / automation fallback. Google/Apple OAuth browser polish
-  and deployed redirect hosting remain Sprint 7.2.
+  local-development / automation fallback, disabled in production. Google/Apple
+  browser login and profile/recovery are implemented and verified locally in
+  Sprints 8.1–8.2 (October 2, 2026).
+  Production provider configuration and real-provider smoke remain external
+  prerequisites.
 - Completed in Sprint 4.1 (verified August 2, 2026): #1.3.1 provisions
   exactly one default paper account after successful email, passkey, Google,
   or Apple signup and exposes the authenticated account read API.
@@ -93,7 +96,13 @@
 **Acceptance criteria**
 - User can initiate Google OAuth flow.
 - On callback, user is logged in.
-- If email matches an existing user, accounts are linked (no duplicates).
+- Returning users resolve by the stored Google subject, even if email changes.
+- A new subject never claims an existing account through a matching email.
+  The user signs into that account first and explicitly links Google in Profile.
+- Adding a recovery method requires a sign-in within five minutes and redemption
+  by the initiating browser and same valid session.
+- Browser callbacks issue a one-use, 60-second verifier-bound handoff; bearer
+  session tokens never appear in redirect URLs.
 - If not, create a new user and default paper account.
 
 **Frontend (Angular) tasks**
@@ -114,7 +123,12 @@
 
 **Acceptance criteria**
 - User can complete Apple sign-in flow.
-- Existing-user linking by stable Apple subject identifier (and email when available).
+- Existing users resolve by stable Apple subject, including later logins with
+  no email or a private relay address.
+- New Apple subjects require authenticated explicit linking to an existing
+  account; unsigned form fields and matching email never prove ownership.
+- Apple's form-post callback supports cancellation and signed-token identity
+  verification without requiring an unsigned subject field in the form.
 - New user gets default paper account.
 
 **Frontend (Angular) tasks**
@@ -157,6 +171,11 @@
 **Acceptance criteria**
 - If user has OAuth linked (Google/Apple), they can recover by signing in via OAuth.
 - UI clearly communicates “Try Google/Apple sign-in if you lost your passkey device.”
+- Profile shows recovery readiness and offers configured unlinked providers.
+- Failed/cancelled/conflicting links preserve the current session and methods.
+- Lost-device recovery returns the same user id, portfolio and owned data after
+  an API restart. Users with no linked alternative receive honest help, without
+  an email-only ownership bypass.
 - (Optional MVP+) allow registering an additional passkey from within the account.
 
 **Frontend (Angular) tasks**
@@ -178,6 +197,7 @@
 **Acceptance criteria**
 - Profile shows email and linked auth methods (Passkeys, Google, Apple).
 - Profile endpoint requires auth.
+- Profile loads with retryable error states and is usable on mobile and keyboard.
 
 **Frontend (Angular) tasks**
 - Profile page
@@ -197,6 +217,9 @@
 **Acceptance criteria**
 - User can set display name (optional) and base currency display (USD for MVP default).
 - Persisted and returned on `/me`.
+- Display name is trimmed, optional, limited to 80 characters, and updates the
+  shared shell after saving. Failed saves preserve edits.
+- Email is read-only; currency stays USD and does not convert the paper ledger.
 
 **Frontend (Angular) tasks**
 - Simple form + save

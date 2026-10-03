@@ -4,9 +4,65 @@ import {
   mapBacktestList,
   mapCreateBacktest,
   toChartPoints,
+  toTradeMarkers,
 } from './backtest.mapper';
 
 describe('backtest mapper contract', () => {
+  it('sorts UTC daily markers, keeps same-bar entries and exits, and deduplicates pages', () => {
+    const trade = mapBacktestDetail(fixture).trades[0];
+    const points = [
+      { timestamp: '2026-07-02T00:00:00Z', equity: '10000' },
+      { timestamp: '2026-07-01T00:00:00Z', equity: '10000' },
+    ];
+    const trades = [
+      { ...trade, id: 2, entry_time: '2026-07-02T00:00:00Z', exit_time: '2026-07-02T01:00:00Z' },
+      {
+        ...trade,
+        id: 1,
+        entry_time: '2026-06-30T20:00:00-04:00',
+        exit_time: '2026-07-02T00:00:00Z',
+      },
+    ];
+    const markers = toTradeMarkers([...trades, trades[0]], points, '1d');
+    expect(markers.map(({ id, time }) => ({ id, time }))).toEqual([
+      { id: 'entry-1', time: '2026-07-01' },
+      { id: 'entry-2', time: '2026-07-02' },
+      { id: 'exit-2', time: '2026-07-02' },
+      { id: 'exit-1', time: '2026-07-02' },
+    ]);
+    expect(markers[0]).toMatchObject({ text: 'Entry', shape: 'arrowUp', position: 'belowBar' });
+    expect(markers[2]).toMatchObject({ text: 'Exit', shape: 'arrowDown', position: 'aboveBar' });
+    expect(toChartPoints([...points, points[0]], '1d')).toHaveLength(2);
+  });
+
+  it('uses distinct hourly timestamps and omits malformed or off-curve events', () => {
+    const trade = {
+      ...mapBacktestDetail(fixture).trades[0],
+      entry_time: '2026-01-01T00:00:00Z',
+      exit_time: '2026-01-01T01:00:00Z',
+    };
+    const points = [
+      { timestamp: trade.entry_time, equity: '10000' },
+      { timestamp: trade.exit_time, equity: '10010' },
+    ];
+    expect(toTradeMarkers([trade], points, '1h').map((marker) => marker.time)).toEqual([
+      1767225600, 1767229200,
+    ]);
+    expect(
+      toTradeMarkers(
+        [
+          { ...trade, entry_time: 'invalid' },
+          { ...trade, id: 2, exit_time: '2025-01-01' },
+        ],
+        points,
+        '1h',
+      ),
+    ).toEqual([]);
+    expect(toTradeMarkers([trade], [], '1d')).toEqual([]);
+    expect(toTradeMarkers([trade], [points[0]], '1h').map((marker) => marker.id)).toEqual([
+      `entry-${trade.id}`,
+    ]);
+  });
   it('maps the checked-in API fixture and preserves decimal strings', () => {
     const detail = mapBacktestDetail(fixture);
     expect(detail.run.symbol).toBe('AAPL');

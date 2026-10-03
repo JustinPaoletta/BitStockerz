@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-inline-error',
@@ -10,11 +10,12 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .inline-error {
       align-items: center;
       background: var(--danger-bg);
-      border: 1px solid rgba(255, 123, 135, 0.35);
+      border: 1px solid var(--negative-border);
       border-radius: 0.75rem;
       display: flex;
       gap: 0.75rem;
@@ -22,7 +23,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
       padding: 0.85rem 1rem;
     }
     p {
-      color: #ff9aa4;
+      color: var(--error-text);
       margin: 0;
     }
   `,

@@ -9,7 +9,7 @@ Assumptions:
 - Stories referenced exactly as numbered in the MVP docs
 - Frontend implementation target is Angular for all UI/application work; no React frontend is planned
 
-## Current delivery state — September 10, 2026
+## Current delivery state — October 2, 2026
 
 | Scope | State | Evidence / next action |
 | --- | --- | --- |
@@ -17,9 +17,13 @@ Assumptions:
 | Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
 | Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
-| Sprints 6.1–6.3 + 7.1–7.2 | Completed in-repo on combined PR #12 | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. **Your remaining steps** (merge → accounts → secrets → first deploy) are spelled out in plain English in [docs/ops/deployment.md](../ops/deployment.md). |
+| Sprints 6.1–6.3 + 7.1–7.2 | Merged in combined PR #12 (October 2, 2026) | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. **Your remaining steps** (prelaunch PR → accounts → secrets → first deploy) are spelled out in plain English in [docs/ops/deployment.md](../ops/deployment.md). |
 
-The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP feature sprints are complete in-repo; completed plan files may be removed after merge. Live hosting accounts remain an external prerequisite for production URLs — see the checklist at the top of [docs/ops/deployment.md](../ops/deployment.md).
+The canonical readiness index is [docs/plans/README.md](../plans/README.md).
+Original Milestone 0–7 feature sprints are complete in-repo. The additional
+prelaunch P&L/chart work below is complete in the working tree; OAuth and
+profile/recovery are implemented and verified locally. Live hosting accounts remain an external
+prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 
 ---
 
@@ -51,9 +55,8 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP
 - Status: Backend/API implementation completed (verified July 3, 2026).
   Milestone 5 ships the Angular **passkey register/login** UI (#1.1.1–#1.1.2)
   with email kept as unsupported-browser / automation fallback. Google/Apple
-  OAuth browser polish and deployed redirect hosting remain Sprint 7.2.
-  Profile recovery UX beyond passkey primary flows stays follow-up frontend
-  work.
+  OAuth browser login and profile/recovery shipped locally in Sprints 8.1–8.2;
+  real provider setup and deployment smoke remain external checks.
 - Follow-up: #1.3.1 shipped in Sprint 4.1 so every successful new-user signup path provisions one paper account.
 
 **Exit**
@@ -246,9 +249,10 @@ The canonical readiness index is [docs/plans/README.md](../plans/README.md). MVP
 - Status: Implementation complete locally (verified with build, lint, unit,
   API regression, desktop browser, and 390px mobile browser checks August 1,
   2026); stacked with Sprints 2.1–3.3 in draft PR #9
-- Note: Sprint 3.4 owns the thin Angular 21.2.19 scaffold compatible with the
-  repository's pinned Node 24.11.1. Sprint 5.1 extends it rather than
-  re-scaffolding.
+- Note: Sprint 3.4 introduced the thin Angular scaffold; Sprint 5.1 extends it.
+  The prelaunch security review upgrades the framework and build tools to Angular
+  22.2.1 with TypeScript 6.0.3 and Node 24.21.0. The official change-detection
+  migration preserves existing component behavior.
 
 **Exit**
 - Strategy → Backtest → Results fully demoable
@@ -444,6 +448,36 @@ Frontend note:
 **Exit**
 - Application deployable to a single-region hosting environment
 - CI builds and deploys the API and Angular frontend to the chosen target
+
+---
+
+## Milestone 8 — Requested Prelaunch Completion
+
+### Paper P&L and backtest trade markers
+
+**Status:** Implemented in the working tree, September 30, 2026.
+
+- Portfolio summary adds cumulative `realized_pnl_total` and `total_pnl` using
+  the persisted cash and average-cost ledger; the dashboard and Trade desk show both.
+- Equity curves show daily/hourly entry and exit arrows for loaded trades.
+  Pagination adds markers without resetting chart zoom; partial coverage is labeled.
+- No schema migration is required for either feature.
+
+### Sprint 8.1 — Google/Apple Browser Login
+
+**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending. [implementation plan](../plans/sprint-8-1-oauth-browser-readiness.md).
+
+- #1.1.3–#1.1.4: provider buttons, callback/session handoff, identity hardening,
+  authenticated recovery-method linking, provider setup and production smoke.
+- Estimate: 3–5 engineering days plus account/domain setup.
+
+### Sprint 8.2 — Profile and Account Recovery
+
+**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending. [implementation plan](../plans/sprint-8-2-profile-recovery.md).
+
+- #1.2.1–#1.2.2 and #1.1.6: profile form over existing APIs, recovery-method
+  settings, and lost-device login using an already linked OAuth identity.
+- Estimate: 2–3 engineering days after 8.1; additional passkeys optional (+1–2 days).
 
 ---
 

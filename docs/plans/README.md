@@ -1,4 +1,4 @@
-# BitStockerz — Sprint Plans (remaining)
+# BitStockerz — Sprint Plans and Prelaunch Follow-ups
 
 Active implementation contracts. Completed Milestone 2–7 plan files may be
 removed after merge to `main`; recover them from git history if needed.
@@ -11,6 +11,14 @@ Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
 | 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Done — combined PR #12 (`#6.4.2` deferred) | Explain-backtest, failure modes, and improvement suggestions. |
 | 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Done — combined PR #12 | In-memory candle/symbol cache TTL and provider fallback guardrails. |
 | 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Done in-repo — combined PR #12; live deploy needs secrets | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
+| 8.1 | [sprint-8-1-oauth-browser-readiness.md](./sprint-8-1-oauth-browser-readiness.md) | Auth persistence + provider configuration | Implemented locally; production provider smoke pending | Google/Apple browser login, verified identity linking, one-use session handoff. |
+| 8.2 | [sprint-8-2-profile-recovery.md](./sprint-8-2-profile-recovery.md) | 8.1 | Implemented locally; production provider smoke pending | Profile editing, linked-method settings, lost-device recovery through OAuth. |
+
+Realized/total paper P&L and equity-curve entry/exit markers are implemented in
+the working tree as of September 30, 2026. The requested remaining prelaunch
+work **8.1 + 8.2** is implemented and verified locally as of October 2. Real
+provider credentials/callback setup and production smoke remain external release
+checks; additional passkeys remain an optional 1–2-day extension.
 
 **Completed (plans removed; see ROADMAP + merged PRs)**
 

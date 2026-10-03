@@ -32,7 +32,7 @@ test.describe('Milestone 5 workflows', () => {
     let strategyId = '';
 
     await register(page, email);
-    await expect(page.getByRole('heading', { name: 'Your trading workspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Trading Workspace' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
     await expect(page.getByText('Checklist Trader')).toBeVisible();
@@ -63,17 +63,24 @@ test.describe('Milestone 5 workflows', () => {
     await page.reload();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Your trading workspace' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Portfolio summary', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Trading Workspace' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Portfolio summary', exact: true }),
+    ).toBeVisible();
     await expect(page.getByText('$100,000.00').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Positions', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Strategies', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Recent backtests', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Recent backtests', exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Recent trades', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Symbol search', exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Find a symbol to trade' })).toBeVisible();
 
     await goNav(page, 'Strategies');
-    await page.locator('section.page-heading').getByRole('link', { name: 'Create strategy' }).click();
+    await page
+      .locator('section.page-heading')
+      .getByRole('link', { name: 'Create strategy' })
+      .click();
     await page.locator('#name').fill(strategyName);
     await page.getByRole('button', { name: 'Validate' }).click();
     await expect(page.getByText('Definition is valid.')).toBeVisible();
@@ -112,16 +119,16 @@ test.describe('Milestone 5 workflows', () => {
 
     await page.getByRole('link', { name: 'Run backtest' }).click();
     await expect(page).toHaveURL(new RegExp(`/backtests/new\\?strategy_id=${strategyId}`));
-    await expect(page.getByText(new RegExp(`Strategy: ${strategyName}`))).toBeVisible();
+    await expect(page.getByText(new RegExp(strategyName))).toBeVisible();
     await page.locator('#start').fill(dateOffset(-90));
     await page.locator('#end').fill(dateOffset(0));
     await page.getByRole('button', { name: 'Run backtest' }).click();
     await expect(page).toHaveURL(/\/backtests\/[0-9a-f-]+/i, { timeout: 60_000 });
-    await expect(page.getByText('Equity curve')).toBeVisible();
-    await expect(page.getByText('Final equity')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Equity curve', exact: true })).toBeVisible();
+    await expect(page.getByText('Final equity', { exact: true })).toBeVisible();
 
     await goNav(page, 'Dashboard');
-    const input = page.getByRole('combobox', { name: 'Symbol' });
+    const input = page.getByRole('combobox', { name: 'Find a symbol to trade' });
     await input.click();
     await input.fill('AA');
     await expect(page.getByRole('option').filter({ hasText: 'AAPL' }).first()).toBeVisible({
@@ -129,7 +136,8 @@ test.describe('Milestone 5 workflows', () => {
     });
     await input.press('ArrowDown');
     await input.press('Enter');
-    await expect(input).toHaveValue(/AAPL/i);
+    await expect(page).toHaveURL(/\/trade\?symbol=AAPL/);
+    await expect(page.getByRole('combobox', { name: 'Symbol', exact: true })).toHaveValue('AAPL');
 
     await goNav(page, 'Trade');
     await page.locator('#qty').fill('1');

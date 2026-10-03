@@ -472,6 +472,107 @@ describe('GlobalHttpExceptionFilter', () => {
     );
   });
 
+  it.each([
+    new Error('code=secret-provider-code', {
+      cause: new Error('verifier=secret-browser-verifier'),
+    }),
+    'secret-provider-code',
+  ])(
+    'redacts unexpected OAuth errors and URL fields from logs and problem details',
+    (exception) => {
+      const host = mockArgumentsHost({
+        path: undefined,
+        url: '/api/auth/oauth/google/callback?code=secret-query-code&state=secret-state',
+        requestId: 'req-oauth-error',
+      });
+
+      filter.catch(exception, host);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        {
+          requestId: 'req-oauth-error',
+          code: ErrorCode.INTERNAL_ERROR,
+          status: 500,
+          instance: '/api/auth/oauth/google/callback',
+          error: { message: 'OAuth request failed' },
+        },
+        'Unhandled error',
+      );
+      const res = host.switchToHttp().getResponse();
+      const body = res.json.mock.calls[0][0];
+      expect(body).toMatchObject({
+        detail: 'An unexpected error occurred.',
+        instance: '/api/auth/oauth/google/callback',
+        code: ErrorCode.INTERNAL_ERROR,
+      });
+      expect(JSON.stringify(body)).not.toContain('secret');
+    },
+  );
+
+  it('redacts untrusted OAuth framework validation errors while preserving a stable error code', () => {
+    const host = mockArgumentsHost({
+      path: '/api/auth/oauth/session/exchange',
+    });
+    filter.catch(
+      new HttpException(
+        { message: ['verifier secret-browser-verifier is invalid'] },
+        400,
+      ),
+      host,
+    );
+
+    const res = host.switchToHttp().getResponse();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: ErrorCode.VALIDATION_ERROR,
+        detail: 'One or more fields are invalid.',
+      }),
+    );
+    expect(res.json.mock.calls[0][0]).not.toHaveProperty('fieldErrors');
+    expect(JSON.stringify(res.json.mock.calls)).not.toContain('secret');
+  });
+
+  it('preserves bounded application OAuth domain errors needed by the linking UX', () => {
+    const host = mockArgumentsHost({
+      path: '/api/auth/oauth/google/link/start',
+    });
+    filter.catch(
+      new DomainError(
+        ErrorCode.FORBIDDEN,
+        'Sign in again before linking a provider.',
+      ),
+      host,
+    );
+
+    const res = host.switchToHttp().getResponse();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: ErrorCode.FORBIDDEN,
+        detail: 'Sign in again before linking a provider.',
+      }),
+    );
+  });
+
+  it('detects OAuth requests through originalUrl inside a mounted router', () => {
+    const host = mockArgumentsHost({
+      path: '/callback',
+      url: '/callback?code=secret',
+      originalUrl: '/api/auth/oauth/apple/callback?code=secret',
+    });
+    filter.catch(new Error('provider code=secret'), host);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instance: '/api/auth/oauth/apple/callback',
+        error: { message: 'OAuth request failed' },
+      }),
+      'Unhandled error',
+    );
+    expect(
+      JSON.stringify(host.switchToHttp().getResponse().json.mock.calls),
+    ).not.toContain('secret');
+  });
+
   it('records http and domain metrics for exceptions when not already recorded', () => {
     const metrics = {
       enabled: true,

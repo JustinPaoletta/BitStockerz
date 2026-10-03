@@ -67,6 +67,7 @@ describe('loadAppConfig', () => {
       webauthnRpId: 'localhost',
       webauthnRpName: 'BitStockerz',
       webauthnAllowedOrigins: [],
+      oauthBrowserCallbackUrl: undefined,
       googleClientId: undefined,
       googleClientSecret: undefined,
       googleRedirectUri: undefined,
@@ -86,7 +87,7 @@ describe('loadAppConfig', () => {
       LOG_TO_FILE: 'true',
       LOG_FILE_PATH: '/tmp/api.log',
       READINESS_TIMEOUT_MS: '2500',
-      DATABASE_URL: 'postgres://localhost:5432/bitstockerz',
+      DATABASE_URL: 'mysql://localhost:3306/bitstockerz',
       CORS_ALLOWED_ORIGINS: 'https://app.bitstockerz.test',
       MARKET_DATA_HEALTH_URL: 'https://market-data.example.com/health',
       AUTH_SESSION_TTL_SECONDS: '7200',
@@ -135,6 +136,7 @@ describe('loadAppConfig', () => {
       port: 4100,
       nodeEnv: 'production',
       corsAllowedOrigins: ['https://app.bitstockerz.test'],
+      trustedProxyCidrs: [],
       errorTestEnabled: false,
       openApiEnabled: false,
     });
@@ -174,7 +176,7 @@ describe('loadAppConfig', () => {
     });
     expect(config.readiness.timeoutMs).toBe(2500);
     expect(config.dependencies).toEqual({
-      databaseUrl: 'postgres://localhost:5432/bitstockerz',
+      databaseUrl: 'mysql://localhost:3306/bitstockerz',
       marketDataHealthUrl: 'https://market-data.example.com/health',
     });
     expect(config.auth).toEqual({
@@ -502,6 +504,7 @@ describe('AppConfigService', () => {
       port: 4300,
       nodeEnv: 'test',
       corsAllowedOrigins: ['http://localhost:4200'],
+      trustedProxyCidrs: [],
       errorTestEnabled: true,
       openApiEnabled: true,
     });
@@ -577,5 +580,77 @@ describe('AppConfigService', () => {
   it('throws when process.env contains invalid configuration', () => {
     process.env.PORT = 'abc';
     expect(() => new AppConfigService()).toThrow(/Invalid configuration/);
+  });
+});
+
+describe('browser OAuth callback deployment config', () => {
+  it('accepts the exact SPA callback destination for a trusted HTTPS production origin', () => {
+    const config = loadAppConfig({
+      NODE_ENV: 'production',
+      CORS_ALLOWED_ORIGINS: 'https://web.test',
+      AUTH_OAUTH_BROWSER_CALLBACK_URL: 'https://web.test/auth/oauth/callback',
+      DATABASE_URL: 'mysql://localhost:3306/test',
+      WEBAUTHN_ALLOWED_ORIGINS: 'https://web.test',
+    });
+    expect(config.auth.oauthBrowserCallbackUrl).toBe(
+      'https://web.test/auth/oauth/callback',
+    );
+  });
+  it.each([
+    'http://web.test/auth/oauth/callback',
+    'https://untrusted.test/auth/oauth/callback',
+    'https://web.test/evil',
+    'https://user:password@web.test/auth/oauth/callback',
+    'https://web.test/auth/oauth/callback?next=evil',
+    'https://web.test/auth/oauth/callback#evil',
+  ])('rejects unsafe production callback %s', (url) => {
+    expect(() =>
+      loadAppConfig({
+        NODE_ENV: 'production',
+        CORS_ALLOWED_ORIGINS: 'https://web.test',
+        AUTH_OAUTH_BROWSER_CALLBACK_URL: url,
+      }),
+    ).toThrow('AUTH_OAUTH_BROWSER_CALLBACK_URL');
+  });
+});
+
+describe('production persistence and proxy boundaries', () => {
+  const production = {
+    NODE_ENV: 'production',
+    DATABASE_URL: 'mysql://localhost:3306/bitstockerz',
+    CORS_ALLOWED_ORIGINS: 'https://app.example.test',
+    WEBAUTHN_ALLOWED_ORIGINS: 'https://app.example.test',
+  };
+  it.each([
+    'postgres://localhost/db',
+    'https://localhost/db',
+    'mysql://localhost',
+    'mysql:///db',
+  ])('rejects unsupported production persistence %s', (DATABASE_URL) => {
+    expect(() => loadAppConfig({ ...production, DATABASE_URL })).toThrow(
+      /MySQL\/MariaDB host and database/,
+    );
+  });
+  it('defaults to no trusted proxies and accepts explicit ingress CIDRs', () => {
+    expect(loadAppConfig({}).server.trustedProxyCidrs).toEqual([]);
+    expect(
+      loadAppConfig({
+        TRUSTED_PROXY_CIDRS: '127.0.0.1, 10.2.0.0/24, fd12::/64',
+      }).server.trustedProxyCidrs,
+    ).toEqual(['127.0.0.1', '10.2.0.0/24', 'fd12::/64']);
+  });
+  it.each([
+    'true',
+    '*',
+    '0.0.0.0/0',
+    '::/0',
+    '0.0.0.0/33',
+    '::/129',
+    '10.0.0.1/',
+    '10.0.0.1/8/2',
+  ])('rejects ambiguous proxy trust %s', (TRUSTED_PROXY_CIDRS) => {
+    expect(() => loadAppConfig({ TRUSTED_PROXY_CIDRS })).toThrow(
+      /TRUSTED_PROXY_CIDRS/,
+    );
   });
 });

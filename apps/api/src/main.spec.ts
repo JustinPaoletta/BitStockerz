@@ -1,6 +1,7 @@
 import { AppConfigService } from './config/app-config.service';
 
 const createMockApp = (port = 4000) => ({
+  getHttpAdapter: jest.fn(() => ({ getInstance: () => ({ set: jest.fn() }) })),
   useLogger: jest.fn(),
   setGlobalPrefix: jest.fn(),
   useGlobalPipes: jest.fn(),
@@ -14,6 +15,7 @@ const createMockApp = (port = 4000) => ({
         server: {
           port,
           corsAllowedOrigins: ['http://localhost:4200'],
+          trustedProxyCidrs: [],
           openApiEnabled: true,
         },
       };

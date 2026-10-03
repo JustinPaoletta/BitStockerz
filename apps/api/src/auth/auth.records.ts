@@ -17,6 +17,7 @@ export interface UserRecord {
 export interface SessionRecord {
   userId: string;
   expiresAt: number;
+  signedInAt?: number;
 }
 
 export interface PasskeyCredentialRecord {
@@ -40,6 +41,12 @@ export interface OauthStateRecord {
   provider: OauthProvider;
   nonce: string;
   expiresAt: number;
+  mode?: 'json' | 'browser';
+  intent?: 'login' | 'link';
+  codeChallenge?: string;
+  returnPath?: string;
+  initiatingUserId?: string;
+  initiatingSessionHash?: string;
 }
 
 export interface AuthMemorySnapshot {
@@ -49,4 +56,17 @@ export interface AuthMemorySnapshot {
   credentialsById: Map<string, PasskeyCredentialRecord>;
   googleSubjectsToUserIds: Map<string, string>;
   appleSubjectsToUserIds: Map<string, string>;
+}
+
+export interface OAuthHandoffRecord {
+  codeHash: string;
+  userId: string;
+  provider: OauthProvider;
+  intent: 'login' | 'link';
+  subject?: string;
+  email?: string;
+  codeChallenge: string;
+  returnPath: string;
+  initiatingSessionHash?: string;
+  expiresAt: number;
 }

@@ -10,7 +10,8 @@ out/
 
 # Environment and secrets
 .env
-.env.local
+.env.*
+!.env.example
 .env.*.local
 .env.development
 .env.test
@@ -61,3 +62,14 @@ temp/
 .codex/environments/environment.toml
 .playwright-cli/
 .playwright-mcp/
+
+# Private keys, browser sessions and generated local review output
+*.key
+*.p12
+*.pfx
+*.jks
+playwright/.auth/
+/auth-state*.json
+/storage-state*.json
+/output/
+/artifacts/

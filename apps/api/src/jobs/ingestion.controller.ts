@@ -8,14 +8,15 @@ import {
 import { AuthService } from '../auth/auth.service';
 import { ApiEndpoint, apiSchemaRef } from '../docs/openapi.decorators';
 import { AuditService } from '../observability/audit.service';
-import { CreateJobDto } from './dto/create-job.dto';
+import { EquityIngestionDto, CryptoIngestionDto } from './dto/ingestion.dto';
+import { ManualIngestionGuard } from './manual-ingestion.guard';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
 import type { JobPayload } from './jobs.types';
 
 @ApiTags('Market Data Ingestion')
 @Controller('market-data/ingestion')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ManualIngestionGuard)
 export class IngestionController {
   constructor(
     private readonly jobHandlers: JobHandlersService,
@@ -43,16 +44,16 @@ export class IngestionController {
   @ApiEndpoint({
     summary: 'Import equity daily fixtures',
     description:
-      'Runs the deterministic equity fixture importer and upserts bars when MySQL is enabled.',
+      'Development/testing only. Runs the deterministic equity fixture importer and upserts bars when MySQL is enabled. Manual ingestion is denied in production.',
     status: 201,
     authenticated: true,
     responseDescription: 'Completed equity import job.',
     responseSchema: apiSchemaRef('Job'),
-    errors: [400, 401, 404, 500, 504],
+    errors: [400, 401, 403, 404, 500, 504],
   })
   async importEquity(
     @Req() request: AuthenticatedRequest,
-    @Body() body: Pick<CreateJobDto, 'symbol'>,
+    @Body() body: EquityIngestionDto = {},
   ) {
     const userId = this.requireUserId(request);
     const payload: JobPayload = body.symbol
@@ -95,16 +96,16 @@ export class IngestionController {
   @ApiEndpoint({
     summary: 'Import crypto fixtures',
     description:
-      'Runs the deterministic crypto fixture importer and upserts daily/hourly bars when MySQL is enabled.',
+      'Development/testing only. Runs the deterministic crypto fixture importer and upserts daily/hourly bars when MySQL is enabled. Manual ingestion is denied in production.',
     status: 201,
     authenticated: true,
     responseDescription: 'Completed crypto import job.',
     responseSchema: apiSchemaRef('Job'),
-    errors: [400, 401, 404, 500, 504],
+    errors: [400, 401, 403, 404, 500, 504],
   })
   async importCrypto(
     @Req() request: AuthenticatedRequest,
-    @Body() body: Pick<CreateJobDto, 'symbol' | 'intervals'>,
+    @Body() body: CryptoIngestionDto = {},
   ) {
     const userId = this.requireUserId(request);
     const payload: JobPayload = {

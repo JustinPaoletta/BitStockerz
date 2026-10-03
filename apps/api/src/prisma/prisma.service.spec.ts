@@ -51,6 +51,7 @@ describe('PrismaService', () => {
     expect(() => service.backtestTrade).toThrow(expectedMessage);
     expect(() => service.backtestEquityPoint).toThrow(expectedMessage);
     expect(() => service.user).toThrow(expectedMessage);
+    expect(() => service.oAuthHandoff).toThrow(expectedMessage);
     expect(() => service.webAuthnCredential).toThrow(expectedMessage);
     expect(() => service.$transaction(async () => undefined)).toThrow(
       expectedMessage,
@@ -105,6 +106,7 @@ describe('PrismaService', () => {
     expect(service.backtestTrade).toBeDefined();
     expect(service.backtestEquityPoint).toBeDefined();
     expect(service.user).toBeDefined();
+    expect(service.oAuthHandoff).toBeDefined();
     expect(service.webAuthnCredential).toBeDefined();
     expect(typeof service.$transaction).toBe('function');
     await expect(service.onModuleDestroy()).resolves.toBeUndefined();

@@ -1,10 +1,11 @@
-import { Component, input } from '@angular/core';
+import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import type { BacktestTrade } from '../models/backtest.models';
 
 @Component({
   selector: 'app-trades-table',
   imports: [DatePipe, DecimalPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (trades().length === 0) {
       <p class="empty">No trades were generated for this run.</p>
@@ -13,8 +14,8 @@ import type { BacktestTrade } from '../models/backtest.models';
         <table>
           <thead>
             <tr>
-              <th scope="col">Entry</th>
-              <th scope="col">Exit</th>
+              <th scope="col">Entry (UTC)</th>
+              <th scope="col">Exit (UTC)</th>
               <th scope="col">Entry price</th>
               <th scope="col">Exit price</th>
               <th scope="col">Quantity</th>
@@ -25,8 +26,8 @@ import type { BacktestTrade } from '../models/backtest.models';
           <tbody>
             @for (trade of trades(); track trade.id) {
               <tr>
-                <td>{{ trade.entry_time | date: 'medium' }}</td>
-                <td>{{ trade.exit_time | date: 'medium' }}</td>
+                <td>{{ trade.entry_time | date: 'medium' : 'UTC' }}</td>
+                <td>{{ trade.exit_time | date: 'medium' : 'UTC' }}</td>
                 <td>{{ number(trade.entry_price) | number: '1.2-8' }}</td>
                 <td>{{ number(trade.exit_price) | number: '1.2-8' }}</td>
                 <td>{{ number(trade.quantity) | number: '1.2-8' }}</td>

@@ -4,6 +4,11 @@ import { strategyEditorCanDeactivate } from './features/strategies/pages/strateg
 
 export const routes: Routes = [
   {
+    path: 'auth/oauth/callback',
+    loadComponent: () =>
+      import('./core/auth/oauth-callback.page').then((module) => module.OAuthCallbackPage),
+  },
+  {
     path: 'login',
     loadComponent: () => import('./core/auth/login.page').then((module) => module.LoginPage),
   },
@@ -12,6 +17,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/profile/profile.page').then((module) => module.ProfilePage),
+      },
       {
         path: 'dashboard',
         loadComponent: () =>

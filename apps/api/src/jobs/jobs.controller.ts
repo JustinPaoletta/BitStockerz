@@ -17,6 +17,7 @@ import {
 import { AuthService } from '../auth/auth.service';
 import { ApiEndpoint, apiSchemaRef } from '../docs/openapi.decorators';
 import { CreateJobDto } from './dto/create-job.dto';
+import { ManualIngestionGuard } from './manual-ingestion.guard';
 import { JobHandlersService } from './job-handlers.service';
 import { JobsService } from './jobs.service';
 import type { JobPayload, JobRecord } from './jobs.types';
@@ -32,15 +33,16 @@ export class JobsController {
   ) {}
 
   @Post()
+  @UseGuards(ManualIngestionGuard)
   @ApiEndpoint({
     summary: 'Create and execute a job',
     description:
-      'Creates a supported market-data job and executes it synchronously for the MVP.',
+      'Development/testing only. Creates a supported market-data job and executes it synchronously. Manual job creation is denied in production; owned job reads remain available.',
     status: 201,
     authenticated: true,
     responseDescription: 'Final job record after synchronous execution.',
     responseSchema: apiSchemaRef('Job'),
-    errors: [400, 401, 404, 500, 504],
+    errors: [400, 401, 403, 404, 500, 504],
   })
   async createJob(
     @Req() request: AuthenticatedRequest,

@@ -115,3 +115,55 @@ describe('AuthRateLimitGuard', () => {
     jest.useRealTimers();
   });
 });
+
+describe('auth limiter resource bounds', () => {
+  afterEach(() => jest.useRealTimers());
+  it('releases inactive client buckets after the window', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(100_000);
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitWindowMs: 1000 }),
+    );
+    const first = {
+      path: '/api/auth/login',
+      ip: '198.51.100.1',
+    } as AuthenticatedRequest;
+    guard.canActivate(createExecutionContext(first));
+    jest.advanceTimersByTime(1001);
+    guard.canActivate(
+      createExecutionContext({
+        ...first,
+        ip: '198.51.100.2',
+      } as AuthenticatedRequest),
+    );
+    expect(guard['buckets'].size).toBe(1);
+  });
+  it('bounds distinct active clients without resetting their allowance', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(100_000);
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitMaxRequests: 1 }),
+    );
+    for (let i = 0; i < 10_000; i++)
+      guard['buckets'].set(`/api/auth/login:client-${i}`, {
+        timestamps: [Date.now()],
+      });
+    expect(() =>
+      guard.canActivate(
+        createExecutionContext({
+          path: '/api/auth/login',
+          ip: 'new-client',
+        } as AuthenticatedRequest),
+      ),
+    ).toThrow(DomainError);
+    expect(guard['buckets'].size).toBe(10_000);
+    expect(() =>
+      guard.canActivate(
+        createExecutionContext({
+          path: '/api/auth/login',
+          ip: 'client-0',
+        } as AuthenticatedRequest),
+      ),
+    ).toThrow(DomainError);
+  });
+});

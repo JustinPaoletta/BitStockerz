@@ -1,0 +1,7 @@
+# Exact historical false positives reviewed October 2, 2026.
+# Two synthetic invalid bearer samples in manual testing; two public Nest badge URLs.
+# No path-wide or provider-wide suppression. See docs/ops/security-review.md.
+5d966f52ab60d10bb8dc88aa46ce05313f9d56f1:docs/manual-testing/manual_testing.md:curl-auth-header:74
+93a32cded61e8cf4b8fbbec98386745224e1313e:docs/manual-testing/manual_testing.md:curl-auth-header:117
+bdc882b4d25c0bd26f42be1b6a74f69c33b21192:apps/api/README.md:generic-api-key:5
+d0a0afc8db03d68f4a703ed18bd9136d90e9997a:apps/api/README.md:generic-api-key:5

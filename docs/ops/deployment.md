@@ -1,8 +1,9 @@
 # What you still need to do (go-live)
 
-MVP **code and docs are done** in the repo. What’s left is human/ops work: merge
-the open PR, create cloud accounts, put secrets in the right places, then run
-the first deploy.
+MVP features, including the requested prelaunch P&L, chart markers, browser
+OAuth and profile/recovery, are implemented in the prelaunch PR. Review and merge that PR before deploying it. Then
+create cloud accounts, configure secrets/provider callbacks and run the first
+deploy plus real-provider smoke tests.
 
 Start here. Technical detail is further down.
 
@@ -21,11 +22,13 @@ They cannot create your accounts or paste your passwords for you.
 
 ### 1. Finish and merge the code PR
 
-- [ ] Open [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12)
-- [ ] Review it (Milestone 6 AI + Milestone 7 cache/deploy)
-- [ ] Merge it into `main` when you’re happy
+[PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12) merged on October 2, 2026 and contains Milestones 6–7 and their security fixes.
 
-Until this merges, production deploy from `main` will not include the latest work.
+- [ ] Review and merge the prelaunch PR for P&L, chart markers, browser login,
+  profile/recovery and the additional security review fixes.
+- [ ] Require all CI gates to pass; local verification does not deploy the work.
+
+The prelaunch features reach production only after their PR merges and deployment succeeds.
 
 ### 2. Create the three cloud pieces (accounts)
 
@@ -66,6 +69,7 @@ On the Fly app, set at least:
 | Setting | Plain English |
 |---------|----------------|
 | `DATABASE_URL` | Same MySQL string as above |
+| `TRUSTED_PROXY_CIDRS` | Actual ingress proxy IPs/CIDRs, determined from the deployed network; empty ignores forwarded IP headers. Never trust all addresses. |
 | `CORS_ALLOWED_ORIGINS` | Exact website URL(s), e.g. `https://your-app.vercel.app` (no `*`) |
 | `WEBAUTHN_RP_ID` | Domain used for passkeys (often the website hostname) |
 | `WEBAUTHN_ALLOWED_ORIGINS` | Exact website origin(s), same idea as CORS |
@@ -77,7 +81,8 @@ On the Fly app, set at least:
 | `AI_ENABLED=false` | Keep Kernel AI off in production until you intentionally enable it |
 | `JOBS_SYSTEM_USER_ID` | System user id for scheduled jobs (see `apps/api/.env.example`) |
 
-Only add Google/Apple OAuth and `OPENAI_API_KEY` when you decide to turn those on.
+Configure Google/Apple before enabling their login and recovery buttons, using
+the provider checklist below. Add `OPENAI_API_KEY` when enabling live Kernel AI.
 Auth users, sessions, and passkeys persist in MySQL after migrations are applied;
 restart the API once after the first deploy so auth state hydrates from the database.
 
@@ -105,7 +110,6 @@ These are **not** blocking go-live:
 |------|---------|
 | Turn on live Kernel AI | Set `AI_ENABLED=true`, use OpenAI provider + key, after you’re ok with cost/disclaimer |
 | Wire a market-data vendor | Live adapter is a stub. Production retains existing DB bars and never synthesizes prices; populate real data before offering current-market workflows. |
-| Google / Apple login polish | APIs exist; register real production redirect URLs when you enable them |
 | `#6.4.2` AI “diff” suggestions | Explicitly deferred product feature |
 
 ---
@@ -163,6 +167,68 @@ Workflows live in:
 - [ ] CORS preflight from the Vercel origin
 - [ ] AI remains disabled (`AI_ENABLED=false`) until approved
 - [ ] Exactly one scheduled import job/audit event (single API replica)
+- [ ] Configure only the actual trusted ingress CIDRs; verify two client IPs have separate auth rate-limit buckets and spoofed earlier forwarded hops cannot select an arbitrary IP. Do not guess a broad Fly private-network range.
+- [ ] Authenticated POST `/api/jobs` and POST `/api/market-data/ingestion/{equity/daily,crypto}` return 403 in production; only internal scheduling updates shared market data.
+- [ ] Database/provider outages return bounded public readiness details without hostnames, credentials or driver errors.
+- [ ] Vercel responses include framing, MIME-sniffing and referrer security headers.
+
+## Google/Apple login and recovery setup
+
+The browser implementation cannot prove the live provider setup through mocked
+tests. Complete this checklist on the real HTTPS deployments before claiming
+Google/Apple recovery is production ready.
+
+1. Set `AUTH_OAUTH_BROWSER_CALLBACK_URL` on the API to the exact SPA callback,
+   for example `https://app.example.com/auth/oauth/callback`. This is the fixed
+   browser destination; provider return URLs below point to the API instead.
+2. Google: create a web OAuth client, configure consent/branding and allowed
+   users as needed, and register the exact API return URL
+   `https://api.example.com/api/auth/oauth/google/callback`. Set
+   `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+   `GOOGLE_OAUTH_REDIRECT_URI` in API host secrets.
+3. Apple: configure Sign in with Apple for the app/Services ID and website
+   domain; register `https://api.example.com/api/auth/oauth/apple/callback`.
+   Set `APPLE_OAUTH_CLIENT_ID`, `APPLE_OAUTH_TEAM_ID`, `APPLE_OAUTH_KEY_ID`,
+   `APPLE_OAUTH_PRIVATE_KEY`, and `APPLE_OAUTH_REDIRECT_URI`. Preserve the signing
+   key's newlines using host secret storage. Apple's callback is a form POST.
+4. Before migrating an existing database, check for multiple identities for a
+   single user's provider (the older auto-linking behavior allowed this):
+
+   ```sql
+   SELECT user_id, provider, COUNT(*) AS identity_count
+   FROM oauth_identities
+   GROUP BY user_id, provider
+   HAVING COUNT(*) > 1;
+   ```
+
+   The new uniqueness rule allows one identity per provider per user. Resolve
+   any returned rows with an explicit account-owner decision before migration;
+   the migration does not silently delete recovery identities. Then deploy auth
+   migrations before the API. Confirm `/api/auth/providers`
+   reports only fully configured providers. The SPA callback must load directly
+   and on refresh via its normal rewrite. Keep one API instance while the app
+   uses its current in-memory auth cache/scheduler architecture.
+5. For each enabled provider, test new signup and returning login. Verify only
+   one user/paper account is created; verify email collisions ask for existing
+   account sign-in and linking, and never silently attach an identity.
+6. With a fresh passkey sign-in, open Profile and link a provider. Sign out, use
+   that linked provider as the lost-device recovery method, and verify original
+   user id, paper-account id/cash, strategies and backtests. Repeat after API
+   restart. Include Apple relay and a second login without its first-login form.
+7. Test denial/cancellation, expired callback, refresh/replay and failed links.
+   An unsuccessful link must preserve the existing session. Linking after five
+   minutes asks for a fresh sign-in; restarting the API must not reset that age.
+8. Save a display name, refresh and sign in again; confirm it persists. Check
+   desktop/mobile keyboard flow and ensure callback URLs/logs contain no session
+   bearer token or provider identity payload.
+
+Recovery requires a provider linked before device loss. There is no email reset
+or manual ownership bypass in this release. Additional passkeys remain optional
+MVP+ work. Track each enabled provider's live smoke result separately from local
+unit, HTTP, browser-mock and MySQL verification.
+
+Provider setup references: [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect)
+and [Apple environment configuration](https://developer.apple.com/documentation/signinwithapple/configuring-your-environment-for-sign-in-with-apple).
 
 ## Rollback
 
@@ -184,3 +250,14 @@ Workflows live in:
 - Product roadmap status: [docs/product/ROADMAP.md](../product/ROADMAP.md)
 - Manual smoke (AI + cache): [docs/manual-testing/manual_testing.md](../manual-testing/manual_testing.md) (Sections 14–15)
 - API env template: [apps/api/.env.example](../../apps/api/.env.example)
+
+## Prelaunch security review
+
+See [security-review.md](security-review.md) for scope, findings, fixes and verification.
+The new identifier migration preserves existing data while giving OAuth subjects,
+states, bearer tokens and passkey IDs binary collation. Apply it after the browser
+handoff migration; neither migration rewrites previously deployed migration files.
+The existing duplicate-provider preflight remains required before the unique index.
+Authentication rate limits are process-local: keep one API replica or add a shared
+limiter before scaling. Trusted ingress configuration must be checked on the live
+network; defaulting to socket IPs is safe against spoofing but can group proxy clients.

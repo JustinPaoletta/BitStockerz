@@ -111,6 +111,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().oAuthState;
   }
 
+  get oAuthHandoff() {
+    return this.requireClient().oAuthHandoff;
+  }
+
   $transaction<R>(
     fn: (tx: Prisma.TransactionClient) => Promise<R>,
     options?: {

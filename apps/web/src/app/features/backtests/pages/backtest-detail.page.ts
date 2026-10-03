@@ -1,8 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { BacktestKernelPanelComponent } from '../../ai/components/backtest-kernel-panel.component';
+import { PageGuideComponent } from '../../../shared/ui/page-guide.component';
+import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
 import { BacktestsApiService } from '../backtests-api.service';
 import { EquityCurveChartComponent } from '../components/equity-curve-chart.component';
 import { TradesTableComponent } from '../components/trades-table.component';
@@ -17,6 +19,8 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
     EquityCurveChartComponent,
     TradesTableComponent,
     BacktestKernelPanelComponent,
+    PageGuideComponent,
+    InlineErrorComponent,
   ],
   template: `
     @if (loading()) {
@@ -34,6 +38,9 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
             {{ data.run.start_date | date: 'mediumDate' : 'UTC' }} –
             {{ data.run.end_date | date: 'mediumDate' : 'UTC' }}
           </p>
+          <app-page-guide
+            description="Review final equity, drawdown-style metrics, the equity curve, and each simulated fill."
+          />
         </div>
         <span class="status" [class]="data.run.status">{{ data.run.status }}</span>
       </section>
@@ -77,7 +84,21 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
               <h2>Equity curve</h2>
             </div>
           </div>
-          <app-equity-curve-chart [points]="data.equity_curve" [timeframe]="data.run.timeframe" />
+          <p class="marker-legend">
+            <span class="entry">↑ Entry</span> · <span class="exit">↓ Exit</span>
+            · Markers show trade timing. Fill prices are listed below.
+          </p>
+          <app-equity-curve-chart
+            [points]="data.equity_curve"
+            [timeframe]="data.run.timeframe"
+            [trades]="trades()"
+          />
+          @if (data.trades_page.has_more) {
+            <p class="marker-note" role="status">
+              Markers cover {{ trades().length }} of {{ results.num_trades }} trades. Load more
+              trades below to show the remaining entries and exits.
+            </p>
+          }
         </section>
 
         <app-backtest-kernel-panel
@@ -100,7 +121,11 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
           <span>{{ trades().length }} loaded</span>
         </div>
         <app-trades-table [trades]="trades()" />
-        @if (data.trades_page.has_more) {
+        @if (loadMoreError()) {
+          <div class="load-more">
+            <app-inline-error [message]="loadMoreError()" (retry)="loadMore()" />
+          </div>
+        } @else if (data.trades_page.has_more) {
           <button
             class="button secondary load-more"
             type="button"
@@ -117,6 +142,7 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
       </p>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .page-heading h1 span {
       color: var(--muted);
@@ -144,6 +170,17 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
     .load-more {
       margin-top: 1.25rem;
     }
+    .marker-legend,
+    .marker-note {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .entry {
+      color: #d7f86b;
+    }
+    .exit {
+      color: #ffad75;
+    }
   `,
 })
 export class BacktestDetailPage implements OnInit {
@@ -151,6 +188,7 @@ export class BacktestDetailPage implements OnInit {
   protected readonly trades = signal<BacktestTrade[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
+  protected readonly loadMoreError = signal('');
   protected readonly error = signal('');
   private readonly api = inject(BacktestsApiService);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('id') ?? '';
@@ -171,6 +209,7 @@ export class BacktestDetailPage implements OnInit {
     const current = this.detail();
     if (!current?.trades_page.has_more || this.loadingMore()) return;
     this.loadingMore.set(true);
+    this.loadMoreError.set('');
     try {
       const page = await firstValueFrom(this.api.detail(this.id, 500, this.trades().length));
       const byId = new Map(this.trades().map((trade) => [trade.id, trade]));
@@ -178,7 +217,9 @@ export class BacktestDetailPage implements OnInit {
       this.trades.set([...byId.values()]);
       this.detail.set({ ...current, trades_page: page.trades_page });
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Unable to load more trades.');
+      this.loadMoreError.set(
+        error instanceof Error ? error.message : 'Unable to load more trades.',
+      );
     } finally {
       this.loadingMore.set(false);
     }

@@ -171,7 +171,33 @@ The API never returns stack traces. `detail` is a generic message; use `requestI
 
 ## 1. Auth & User / Account APIs (#1)
 
-### 1.1 Auth (implemented through Sprint 0.2)
+### 1.1 Auth (Sprint 0.2 APIs; Sprint 8.1 browser completion)
+
+Browser OAuth uses these additional contracts. Google/Apple availability requires
+complete provider configuration; the fixed SPA callback is separate from each
+provider's API return URL.
+
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| GET | `/api/auth/providers` | Public | `{ google: boolean, apple: boolean }`, no configuration secrets |
+| POST | `/api/auth/oauth/:provider/browser/start` | Public, rate limited | `{ code_challenge, return_path }` → existing OAuth start response |
+| POST | `/api/auth/oauth/:provider/link/start` | Same session, sign-in within five minutes | Start explicit recovery-method linking to the authenticated user |
+| POST | `/api/auth/oauth/session/exchange` | Public for login; initiating bearer required for link | `{ code, verifier }` → normal auth response plus `return_path` and `intent` |
+
+Browser callbacks redirect to the fixed SPA `/auth/oauth/callback` with a
+one-use 60-second code and state in the fragment. Session bearer tokens never
+appear there. State/nonce, handoffs and original session sign-in age persist in
+MySQL. Redeeming a handoff requires the initiating browser's verifier; pending
+links also require the same valid bearer session and attach only at redemption.
+Return paths must be local application paths. Provider denial produces bounded
+error identifiers. Callback codes/verifiers and provider payloads are redacted
+from HTTP logs.
+
+Provider subjects are the stable ownership keys. An email collision with an
+unlinked subject requires sign-in to the existing account and explicit linking;
+it never automatically attaches a provider. Verified signed claims provide new
+user emails; Apple form fields cannot prove ownership. Recovery through an
+already linked subject preserves the original user and paper account.
 
 **POST `/auth/register`**  
 Create a user and issue a bearer session (dev/testing shortcut when
@@ -417,8 +443,16 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `total_position_value`
   - `total_equity`
   - `unrealized_pnl_total`
+  - `realized_pnl_total`
+  - `total_pnl`
 - All fields are 2-decimal strings. If any held symbol lacks an eligible close,
   fail closed with `422 TRADING_NO_MARKET_PRICE`.
+- Realized P&L = cash + remaining average-cost basis − starting balance,
+  including fill cash-rounding residuals. Total P&L = equity − starting balance;
+  unrealized P&L = total − realized at displayed precision. Results include all
+  prior fills and survive restarts without replaying paginated history.
+- Account/positions are read consistently (MySQL repeatable-read transaction or
+  the seed account lock). This assumes no external deposits/withdrawals/resets.
 
 ---
 
@@ -799,3 +833,12 @@ Each module owns the endpoints listed above in its domain.
 
 **Recommended Filename:**  
 `docs/database/API_Inventory.md`
+
+### Manual ingestion production boundary
+
+`POST /jobs`, `POST /market-data/ingestion/equity/daily` and
+`POST /market-data/ingestion/crypto` are authenticated development/test tools and
+return `403 FORBIDDEN` in production. Production ingestion runs through the internal
+scheduler. Request DTOs reject unknown fields, malformed symbols (max 32 characters),
+and interval arrays other than one or two unique values from `1d` / `1h`.
+Owned job reads remain available to authenticated users.

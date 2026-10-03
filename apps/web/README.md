@@ -2,11 +2,13 @@
 
 Milestone 5 Angular SPA: passkey-first auth (email fallback), dark branded
 shell, dashboard widgets, Strategy Lab, backtest workflows, and paper Trade
-desk. Stack: Angular CLI/build 21.2.19, Angular 21.2.x, standalone components,
+desk. Stack: Angular framework/CLI/build 22.2.1, TypeScript 6.0.3, standalone components,
 Vitest, Playwright, `@simplewebauthn/browser`, and Lightweight Charts 5.2.
 
-The repository pins Node 24.21.0. Angular 22.0.8 requires Node 24.15 or newer,
-so Angular 21 is the newest supported line compatible with the repository pin.
+Use the repository's Node 24.21.0 pin (`.nvmrc`) before installing or running
+the app. The Angular 22 upgrade removes the vulnerable registry-cache dependency
+from the build toolchain. Its official migration explicitly keeps existing
+components on Eager change detection to preserve their previous behavior.
 
 ## Development server
 
@@ -40,7 +42,8 @@ npm --prefix apps/web run e2e
 npm --prefix apps/web audit
 ```
 
-Unit tests use Vitest. Playwright e2e (`e2e/milestone-5-workflows.spec.ts`)
+Unit tests use Vitest with file isolation so third-party module mocks cannot
+reuse a real module loaded by another spec. Playwright e2e (`e2e/milestone-5-workflows.spec.ts`)
 starts the API in seed mode and the web app when they are not already running.
 Manual UI walkthrough: `docs/manual-testing/manual_testing.md` Section 13.
 The client contract fixture used by the backtest mapper test is

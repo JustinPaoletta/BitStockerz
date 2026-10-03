@@ -9,10 +9,11 @@ with a working NestJS API and Angular application.
 - Current repo version: `0.0.0`
 - Maturity: pre-1.0 documentation and API foundation
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–7 complete in-repo on combined
+- Delivery state: Milestones 0–7 merged in combined
   [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12)
   (`#6.4.2` deferred).
-- **What you still need to do:** merge PR #12, create Fly + MySQL + Vercel,
+- **What you still need to do:** review and merge the prelaunch features/security
+  [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13), create Fly + MySQL + Vercel,
   add GitHub/`production` secrets, then first deploy. Plain-English checklist:
   [docs/ops/deployment.md](./docs/ops/deployment.md)
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
@@ -49,7 +50,7 @@ with a working NestJS API and Angular application.
 
 - Root tooling: npm, Husky, and commitlint
 - API app: NestJS 11, TypeScript, Jest, Pino, and WebAuthn foundations
-- Web app: Angular 21.2, TypeScript, Vitest, ESLint, and Lightweight Charts 5.2
+- Web app: Angular 22.2.1, TypeScript 6.0.3, Vitest, ESLint, and Lightweight Charts 5.2
 - Database: MySQL 8 through Prisma, with a runnable schema/migrations plus
   separate full-MVP target schema and SQL design documents
 
@@ -67,6 +68,9 @@ with a working NestJS API and Angular application.
 
 - Node.js `24.21.0` for `apps/api` and `apps/web`
 - npm
+
+The root `.nvmrc` matches CI and the API container. If you use nvm, run
+`nvm install && nvm use` before installing dependencies.
 
 ## Local Setup
 
@@ -146,6 +150,7 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
 | `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider credentials and callback URLs; each provider's required set must be complete. |
+| `AUTH_OAUTH_BROWSER_CALLBACK_URL` | Fixed SPA OAuth callback destination (`/auth/oauth/callback`); use the exact HTTPS URL in production. |
 | `LOG_LEVEL` / `LOG_TO_FILE` / `LOG_FILE_PATH` | Log level and optional file logging (see Observability.md). |
 
 The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Restart after editing `.env`.

@@ -1,8 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.models';
+import { EquityCurveChartComponent } from '../components/equity-curve-chart.component';
 import { BacktestDetailPage } from './backtest-detail.page';
 
 describe('BacktestDetailPage', () => {
@@ -72,6 +74,97 @@ describe('BacktestDetailPage', () => {
     expect(element.querySelectorAll('tbody tr')).toHaveLength(501);
     expect(element.textContent).toContain('501 loaded');
     expect(element.querySelector('button.load-more')).toBeNull();
+  });
+
+  it('keeps loaded details visible after a trade-page failure and retries the same offset', async () => {
+    const fixture = TestBed.createComponent(BacktestDetailPage);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http
+      .expectOne((request) => request.url === `/api/backtests/${runId}`)
+      .flush(detailWithTrades([trade(1)], true));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('button.load-more')!.click();
+    http
+      .expectOne(
+        (request) =>
+          request.url === `/api/backtests/${runId}` && request.params.get('trades_offset') === '1',
+      )
+      .flush(
+        { detail: 'Temporary connection failure.' },
+        { status: 503, statusText: 'Unavailable' },
+      );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('h1')?.textContent).toContain('AAPL');
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(element.textContent).toContain('1 loaded');
+    expect(element.querySelector('app-inline-error')?.textContent).toContain(
+      'Temporary connection failure.',
+    );
+    const retry = element.querySelector<HTMLButtonElement>('app-inline-error button');
+    expect(retry?.textContent).toContain('Retry');
+    retry!.click();
+    fixture.detectChanges();
+    expect(element.querySelector('app-inline-error')).toBeNull();
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(element.querySelector<HTMLButtonElement>('button.load-more')?.disabled).toBe(true);
+
+    http
+      .expectOne(
+        (request) =>
+          request.url === `/api/backtests/${runId}` && request.params.get('trades_offset') === '1',
+      )
+      .flush(detailWithTrades([trade(2)], false, 1));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(element.textContent).toContain('2 loaded');
+    expect(element.querySelector('app-inline-error')).toBeNull();
+    expect(element.querySelector('button.load-more')).toBeNull();
+  });
+
+  it('labels partial marker coverage and passes newly loaded trades to the chart', async () => {
+    const fixture = TestBed.createComponent(BacktestDetailPage);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    const first = detailWithTrades([trade(1)], true);
+    first.results = {
+      final_equity: '10002.00',
+      total_return_pct: '0.0200',
+      max_drawdown_pct: '0',
+      win_rate_pct: '100',
+      num_trades: 2,
+      avg_win_pct: '1',
+      avg_loss_pct: '0',
+      sharpe_ratio: null,
+    };
+    http.expectOne((request) => request.url === `/api/backtests/${runId}`).flush(first);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const chart = fixture.debugElement.query(By.directive(EquityCurveChartComponent))
+      .componentInstance as EquityCurveChartComponent;
+    expect(chart.trades()).toHaveLength(1);
+    expect(element.querySelector('th')?.textContent).toContain('Entry (UTC)');
+    expect(element.querySelector('tbody td')?.textContent).toContain('Aug 1, 2026');
+    expect(element.querySelector('.marker-note')?.textContent).toContain('1 of 2 trades');
+    element.querySelector<HTMLButtonElement>('button.load-more')!.click();
+    http
+      .expectOne(
+        (request) =>
+          request.url === `/api/backtests/${runId}` && request.params.get('trades_offset') === '1',
+      )
+      .flush(detailWithTrades([trade(2)], false, 1));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(chart.trades()).toHaveLength(2);
+    expect(element.querySelector('.marker-note')).toBeNull();
   });
 });
 

@@ -7,8 +7,22 @@ import { environment } from '../../../environments/environment';
  */
 export const apiBaseInterceptor: HttpInterceptorFn = (req, next) => {
   const base = environment.apiBaseUrl?.replace(/\/$/, '') ?? '';
-  if (!base || !req.url.startsWith('/api')) {
+  if (!base || !isLocalApiRequest(req.url)) {
     return next(req);
   }
   return next(req.clone({ url: `${base}${req.url}` }));
 };
+
+export function isApiPath(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/');
+}
+
+function isLocalApiRequest(url: string): boolean {
+  if (!/^\/api(?:[/?#]|$)/.test(url)) return false;
+  try {
+    const destination = new URL(url, window.location.origin);
+    return destination.origin === window.location.origin && isApiPath(destination.pathname);
+  } catch {
+    return false;
+  }
+}

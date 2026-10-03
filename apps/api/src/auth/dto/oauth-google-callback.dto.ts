@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class OAuthGoogleCallbackDto {
@@ -6,11 +6,16 @@ export class OAuthGoogleCallbackDto {
     description: 'Short-lived state returned by the start route.',
   })
   @IsString()
+  @MaxLength(128)
   state!: string;
 
-  @ApiProperty({ description: 'Authorization code returned by Google.' })
+  @ApiPropertyOptional({
+    description: 'Authorization code returned by Google.',
+  })
+  @IsOptional()
   @IsString()
-  code!: string;
+  @MaxLength(4096)
+  code?: string;
 
   @ApiPropertyOptional({
     format: 'email',
@@ -28,4 +33,46 @@ export class OAuthGoogleCallbackDto {
   @IsOptional()
   @IsString()
   sub?: string;
+  @ApiPropertyOptional({
+    description: 'Provider cancellation/error identifier.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  error?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  error_description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  error_uri?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  scope?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  authuser?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  prompt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  hd?: string;
 }

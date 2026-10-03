@@ -2160,6 +2160,8 @@ describe('Milestone 4 paper trading (e2e)', () => {
           total_position_value: expect.stringMatching(/^\d+\.\d{2}$/),
           total_equity: expect.stringMatching(/^\d+\.\d{2}$/),
           unrealized_pnl_total: '0.00',
+          realized_pnl_total: '0.00',
+          total_pnl: '0.00',
         });
       });
     await request(app.getHttpServer())

@@ -15,6 +15,8 @@ module.exports = defineConfig([
     ],
     processor: angular.processInlineTemplates,
     rules: {
+      // Retain the pre-Angular 22 behavior preserved by the official Eager migration.
+      '@angular-eslint/prefer-on-push-component-change-detection': 'off',
       '@angular-eslint/directive-selector': [
         'error',
         {

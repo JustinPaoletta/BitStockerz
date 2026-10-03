@@ -368,3 +368,57 @@ describe('HealthService', () => {
     expect(result.checks.database.details).toBe('connection refused');
   });
 });
+
+describe('production readiness disclosure', () => {
+  it('does not return connection credentials or internal details', async () => {
+    const service = new HealthService(
+      createConfigService({
+        nodeEnv: 'production',
+        databaseUrl: 'mysql://localhost/db',
+      }),
+      createPrisma({
+        isEnabled: true,
+        ping: async () => {
+          throw new Error('sensitive internal database detail');
+        },
+      }),
+    );
+    expect((await service.readiness()).checks.database.details).toBe(
+      'Database connection failed',
+    );
+  });
+  it('cannot report ready with an inactive persistence adapter', async () => {
+    const service = new HealthService(
+      createConfigService({
+        nodeEnv: 'production',
+        databaseUrl: 'postgres://localhost/db',
+      }),
+      createPrisma(),
+    );
+    const result = await service.readiness();
+    expect(result.ready).toBe(false);
+    expect(result.checks.database.details).toBe(
+      'Database persistence is unavailable',
+    );
+  });
+  it('does not disclose upstream fetch errors', async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('sensitive vendor credentials'));
+    try {
+      const service = new HealthService(
+        createConfigService({
+          nodeEnv: 'production',
+          databaseUrl: 'mysql://localhost/db',
+          marketDataHealthUrl: 'https://vendor.example.test/health',
+        }),
+        createPrisma({ isEnabled: true }),
+      );
+      expect((await service.readiness()).checks.marketData.details).toBe(
+        'Market data health check failed',
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+});

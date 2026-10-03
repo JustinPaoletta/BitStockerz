@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, inject, input, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
   AiApiService,
@@ -14,6 +14,10 @@ import {
         <div>
           <p class="eyebrow">Kernel</p>
           <h2>Strategy insights</h2>
+          <p class="hint">
+            Optional AI help: explain the rules in plain language or flag possible logic issues. Not
+            trading advice.
+          </p>
         </div>
         <div class="actions">
           <button
@@ -63,6 +67,7 @@ import {
       }
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .kernel-panel {
       display: grid;
@@ -95,7 +100,7 @@ import {
       white-space: pre-wrap;
     }
     .kernel-error {
-      color: #b42318;
+      color: var(--error-text);
       margin: 0;
     }
     ul {
