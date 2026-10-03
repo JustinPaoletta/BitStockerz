@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-page-guide',
@@ -14,6 +14,7 @@ import { Component, Input } from '@angular/core';
       </ol>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .page-guide-steps {
       color: var(--muted);

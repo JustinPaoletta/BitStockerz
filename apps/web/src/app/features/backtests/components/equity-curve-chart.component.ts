@@ -5,6 +5,7 @@ import {
   input,
   OnDestroy,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import {
   ColorType,
@@ -33,6 +34,7 @@ import type { BacktestTrade, EquityPoint } from '../models/backtest.models';
       ></div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .chart {
       height: 320px;

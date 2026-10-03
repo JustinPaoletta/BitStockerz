@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { BacktestKernelPanelComponent } from '../../ai/components/backtest-kernel-panel.component';
@@ -142,6 +142,7 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
       </p>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .page-heading h1 span {
       color: var(--muted);

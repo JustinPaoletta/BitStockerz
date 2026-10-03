@@ -14,9 +14,13 @@ host secrets, production traffic or external infrastructure.
   manual-testing docs and two public Nest scaffold badge URL tokens. Their exact
   fingerprints are recorded in `.gitleaksignore`; no files or provider rules are
   broadly exempted. Scanner output stays redacted.
-- Root, API and web `npm audit` report zero known vulnerabilities with the merged
-  main lockfiles. These are advisory results at review time, not proof that every
-  dependency is safe. CI/runtime retain main's patched Node 24.21.0 configuration.
+- Root and API dependency audits pass on CI. The frontend audit identified
+  GHSA-ch52-4w7c-c8xp in the Angular 21 registry-cache toolchain; its upstream
+  dependency has no patched release. Upgrading Angular framework/build tools
+  together to 22.2.1 removes that dependency, with the official Eager migration
+  preserving existing component behavior. The updated frontend audit reports
+  zero known vulnerabilities. CI/runtime and `.nvmrc` use Node 24.21.0. Advisory results are
+  time-dependent and do not prove every dependency is safe.
 - Local `.env` files, private-key formats and browser artifacts are ignored.
   The API lacked `.dockerignore`: remote build contexts could receive ignored
   local credentials even though the Dockerfile never copied them into the image.
@@ -59,9 +63,10 @@ cleanup retain their existing regression coverage.
 - HTTP integration: 67 tests pass.
 - Native signed-provider token smoke: 16 tests pass; the larger signed-token
   verifier matrix also runs inside the API suite.
-- Web: 20 files / 93 unit tests, lint and production build pass.
+- Web: Angular 22.2.1 with TypeScript 6.0.3 on Node 24.21.0 passes 20 files / 93 unit tests, lint and production build. The installed dependency tree has no invalid peers and the flagged registry-cache package is absent from the lockfile.
 - Browser integration: 5 tests pass against real local API/web servers, with external providers mocked.
-- New MySQL checks run in PR CI; the local Docker daemon was unavailable during this review. Earlier baseline recovery/P&L database checks passed before the new binary migration.
+- Desktop and mobile profile save, shell update and reload also pass without overflow or page errors.
+- GitHub CI run `37086177933` passed all new migrations, backtest/P&L persistence, explicit recovery linking/restart/logout, concurrent AI quotas, case-sensitive auth identifiers and recovery ownership checks on fresh MySQL. The production API container build passed. Local Docker was unavailable, so CI supplied this database verification.
 - Redacted history and working-tree scans pass after exact false-positive review.
   CI now repeats both scans with a pinned version and archive checksum, and runs
   the new auth recovery MySQL harness and browser integration suite.
@@ -89,3 +94,4 @@ review remain follow-ups.
 - [OWASP OAuth protections and transaction binding](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)
 - [OpenID Connect case-sensitive subject identifiers](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
 - [Express trusted proxy behavior](https://expressjs.com/en/guide/behind-proxies.html)
+- [Registry cache advisory GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)

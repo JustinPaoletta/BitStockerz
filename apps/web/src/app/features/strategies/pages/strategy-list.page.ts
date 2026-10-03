@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
@@ -105,6 +105,7 @@ import { StrategiesApiService, StrategySummary } from '../data/strategies-api.se
       </nav>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .strategy-link {
       color: var(--accent);

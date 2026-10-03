@@ -249,9 +249,10 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - Status: Implementation complete locally (verified with build, lint, unit,
   API regression, desktop browser, and 390px mobile browser checks August 1,
   2026); stacked with Sprints 2.1–3.3 in draft PR #9
-- Note: Sprint 3.4 owns the thin Angular 21.2.19 scaffold compatible with the
-  repository's pinned Node 24.11.1. Sprint 5.1 extends it rather than
-  re-scaffolding.
+- Note: Sprint 3.4 introduced the thin Angular scaffold; Sprint 5.1 extends it.
+  The prelaunch security review upgrades the framework and build tools to Angular
+  22.2.1 with TypeScript 6.0.3 and Node 24.21.0. The official change-detection
+  migration preserves existing component behavior.
 
 **Exit**
 - Strategy → Backtest → Results fully demoable

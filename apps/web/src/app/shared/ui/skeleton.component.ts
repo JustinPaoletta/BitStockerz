@@ -1,8 +1,9 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-skeleton',
   template: `<div class="skeleton" [style.minHeight]="height" [attr.aria-busy]="true"></div>`,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .skeleton {
       animation: pulse 1.2s ease-in-out infinite;

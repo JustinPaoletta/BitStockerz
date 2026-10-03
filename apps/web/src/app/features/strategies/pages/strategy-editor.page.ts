@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -165,6 +165,7 @@ type EditorForm = FormGroup<{
       </form>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .form-panel {
       display: grid;

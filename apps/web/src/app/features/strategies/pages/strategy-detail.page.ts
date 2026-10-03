@@ -1,6 +1,6 @@
 import { JsonPipe } from '@angular/common';
 import { BsDateTimePipe } from '../../../shared/format/display.pipes';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -96,6 +96,7 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
       }
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .meta-panel {
       display: grid;

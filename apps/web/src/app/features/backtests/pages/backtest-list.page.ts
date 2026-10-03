@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
@@ -118,6 +118,7 @@ import type { BacktestListItem } from '../models/backtest.models';
       </nav>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .run-grid {
       display: grid;

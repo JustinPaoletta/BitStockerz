@@ -1,10 +1,11 @@
-import { Component, input } from '@angular/core';
+import { Component, input, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import type { BacktestTrade } from '../models/backtest.models';
 
 @Component({
   selector: 'app-trades-table',
   imports: [DatePipe, DecimalPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (trades().length === 0) {
       <p class="empty">No trades were generated for this run.</p>

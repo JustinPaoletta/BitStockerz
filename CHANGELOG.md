@@ -22,6 +22,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   smoke-test cleanup for persisted passkeys and paper accounts.
 ### Prelaunch security review
 
+- Upgrade Angular framework/build tools together to 22.2.1 with TypeScript 6.0.3,
+  removing the vulnerable registry-cache dependency. Preserve component behavior
+  through the official Eager migration and pin local Node to CI's 24.21.0.
 - Restrict browser bearer headers and session-expiry handling to the configured
   API origin and path; reject traversal and credential-bearing URLs.
 - Deny manual shared-market ingestion in production and validate concrete bounded
