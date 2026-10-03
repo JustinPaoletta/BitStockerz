@@ -1,11 +1,15 @@
 # Local MySQL (Docker)
 
-The BitStockerz API uses **MySQL 8** via Prisma. Database backing is **optional**: without `DATABASE_URL`, the API runs in in-memory seed mode (fine for unit/e2e tests and quick API exploration). Use MySQL when you want persisted jobs, ingested OHLCV bars, symbol rows after import, audit events, strategies, immutable strategy versions, backtests, and paper accounts/orders/executions/positions.
+The BitStockerz API uses **MySQL 8** via Prisma. Database backing is optional for
+local development/tests: without `DATABASE_URL`, the API runs in in-memory seed
+mode. Production requires configured MySQL/MariaDB persistence and fails closed
+without it. Use MySQL to persist auth/recovery state, jobs, ingested OHLCV bars,
+symbols, audit events, strategies/versions, backtests, paper trading and AI quotas.
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) running on your machine
-- Node.js `24.11.1` and npm (see root `README.md`)
+- Node.js `24.21.0` and npm (see root `.nvmrc` and `README.md`)
 
 ## Quick start
 
@@ -16,7 +20,7 @@ From the repo root:
 ./scripts/docker-mysql.sh start
 
 # 2. Configure the API
-cp apps/api/.env.example apps/api/.env
+test -f apps/api/.env || cp apps/api/.env.example apps/api/.env
 # Edit apps/api/.env — uncomment DATABASE_URL if still commented
 
 # 3. Apply Prisma migrations
@@ -121,13 +125,14 @@ Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md
 
 | Feature | No `DATABASE_URL` | With MySQL |
 | --- | --- | --- |
-| Auth / sessions / passkeys | In-memory (tokens, credentials) | Persisted in MySQL (`users`, `auth_sessions`, `webauthn_credentials`, `oauth_identities`, `webauthn_challenges`, `oauth_states`) and hydrated into memory on startup. User ids stay stable across restarts; after a restart use login or passkey/OAuth instead of registering the same email again. Successful signup provisions the paper account. |
+| Auth / sessions / passkeys / OAuth handoffs | Process-local auth and one-use ceremony state | Persisted in MySQL (`users`, `auth_sessions`, `webauthn_credentials`, `oauth_identities`, `webauthn_challenges`, `oauth_states`, `oauth_handoffs`); users and sessions hydrate on startup and one-use ceremonies redeem through persistence. User ids stay stable across restarts; use passkey/OAuth or dev email login instead of registering the same email again. Successful signup provisions the paper account. |
 | Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
 | Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
 | Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
 | Strategies | In-memory owner-scoped store | `strategies` + immutable `strategy_versions`; metadata/version 1 survive API restarts |
 | Backtests | In-memory owner-scoped copy-on-write aggregates | `backtest_runs`, one-to-one results, trades, and equity points; terminal completion is transactional and immutable |
 | Paper trading | Per-account mutex/copy-on-write maps | `paper_accounts`, `orders`, `executions`, and `positions`; serializable fills lock the account and commit terminal state atomically |
+| AI daily quota | Per-user/day process-local map | `ai_usage` with serialized concurrent quota updates |
 | `/health/ready` `database` | `{ status: "not_configured" }` | `{ status: "up", latencyMs }` when reachable |
 
 After enabling MySQL on a fresh database, run ingestion (manual testing **Section 8**) before expecting candle endpoints to return data.

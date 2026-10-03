@@ -29,6 +29,8 @@ Dependencies:
 - Milestone 5 / PR #11 completed the dashboard route, symbol search, widgets,
   Strategy Lab, and paper-trading Trade desk (#7.1–#7.6 and related workflow
   coverage).
+- PR #13 adds realized/total P&L, trade markers, Profile navigation, Offset branding
+  and dashboard/workflow usability fixes; all frontend/browser CI gates pass.
 
 ---
 
@@ -80,6 +82,8 @@ Dependencies:
   - Cash balance
   - Total equity
   - Unrealized P&L
+  - Realized P&L
+  - Total P&L (realized + unrealized reconcile to the displayed cent)
 - Data sourced from Paper Trading APIs.
 - Numbers formatted consistently (currency, +/- coloring).
 

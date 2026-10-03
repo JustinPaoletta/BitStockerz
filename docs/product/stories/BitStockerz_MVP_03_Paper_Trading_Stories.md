@@ -19,7 +19,7 @@ Scope includes:
   portfolio unrealized P&L, and owner-scoped order/execution history.
 - Angular Trade desk and dashboard portfolio/position widgets shipped in
   Milestone 5 / PR #11.
-- Prelaunch follow-up (September 30, 2026): cumulative realized and total P&L
+- Prelaunch follow-up (merged in PR #13, October 2, 2026): cumulative realized and total P&L
   implemented in the portfolio summary, dashboard, and Trade desk.
 - Shorts/margin, account reset, and non-market order types remain outside scope.
 
@@ -34,7 +34,8 @@ Persistent paper account per user with starting balance and cash tracking.
 - One `paper_accounts` row per user (`UNIQUE user_id`) with $100,000.00 USD
   starting/cash balance and active lifecycle state.
 - Signup provisioning and lazy reads are idempotent; MySQL ownership survives
-  same-email registration after restart.
+  signing in to the same persisted user after restart. Duplicate signup is not a
+  recovery mechanism.
 - `GET /api/paper-account` returns owner-only snake-case fixed-scale data.
 
 ---

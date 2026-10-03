@@ -3,12 +3,15 @@
 This document defines **how data is deleted, retained, or archived** in BitStockerz.
 It is authoritative for **cascade vs soft delete** decisions and complements the ERD.
 
-This is the full-MVP target policy. In the current runnable API through Sprint
-4.3, account-deletion and retention/purge jobs are not exposed, AI tables are
-not migrated, and authentication state remains in memory. Implemented
-strategy, backtest, and paper-trading foreign-key/cascade behavior matches the
-rules below; `apps/api/prisma/schema.prisma` and its migrations remain the
-authority for what exists in the runnable database today.
+This is the full-MVP target policy. The current API persists users, sessions,
+passkeys, OAuth identities/ceremonies/handoffs and AI daily quotas when MySQL is
+enabled. Expired auth ceremonies are pruned when new ceremonies start; logout
+revokes sessions. Account deletion/anonymization, credential removal and general
+retention/purge jobs are not exposed. Strategy, backtest and paper-trading
+foreign-key behavior follows the implemented migrations;
+`apps/api/prisma/schema.prisma` and its migrations remain the authority for the
+runnable database. The deletion/retention rules below are requirements for
+future maintenance work, not claims that those workflows are implemented.
 
 ---
 

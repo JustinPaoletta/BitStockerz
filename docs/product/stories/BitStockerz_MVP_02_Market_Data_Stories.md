@@ -39,7 +39,7 @@ Scope includes:
 ### Story 2.2.1 – Equity daily OHLCV schema
 ### Story 2.2.2 – Equity daily history import (initial backfill)
 Acceptance criteria:
-- Authenticated `POST /api/market-data/ingestion/equity` creates and runs an `equity_daily_import` job synchronously.
+- Authenticated development/test `POST /api/market-data/ingestion/equity` runs an `equity_daily_import` job synchronously; production returns 403 and uses internal scheduling.
 - Imports deterministic seed OHLCV bars into `equity_daily_bars` when `DATABASE_URL` is configured; counts imported bars in job payload without `DATABASE_URL`.
 - Optional body `symbol` limits import to one active equity ticker; unknown symbols return `404 NOT_FOUND`.
 
@@ -62,7 +62,7 @@ Acceptance criteria:
 ### Story 2.3.1 – Crypto OHLCV schema
 ### Story 2.3.2 – Crypto daily/hourly import
 Acceptance criteria:
-- Authenticated `POST /api/market-data/ingestion/crypto` creates and runs a `crypto_import` job synchronously.
+- Authenticated development/test `POST /api/market-data/ingestion/crypto` runs a `crypto_import` job synchronously; production returns 403 and uses internal scheduling.
 - Supports optional `symbol` and `intervals` (`1d`, `1h`); defaults to both intervals for all active crypto symbols.
 - Upserts seed bars into `crypto_daily_bars` and `crypto_hourly_bars` when Prisma is enabled.
 

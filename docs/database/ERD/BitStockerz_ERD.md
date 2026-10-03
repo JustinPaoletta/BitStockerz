@@ -4,10 +4,12 @@ This document is the **authoritative ERD (Entity–Relationship Definition)** fo
 It is derived from stories **#1–#8** and is intended to be implementation-grade.
 
 It describes the **full MVP target**, not only the tables migrated today. The
-runnable database currently implements auth/reference/jobs/audit, Strategy
-Lab, backtesting, and paper trading through Sprint 4.3; use
+runnable database includes persisted auth and browser handoffs, reference data,
+jobs/audit, Strategy Lab, backtesting, paper trading and AI daily usage; use
 `apps/api/prisma/schema.prisma` plus `apps/api/prisma/migrations/` for the
-current deployable schema. AI models below remain planned.
+current deployable schema. `ai_usage` is implemented; other AI models below
+remain design targets. The conceptual ERD omits newer auth ceremony tables and
+must not be used directly as a production migration source.
 
 Use this to:
 - Validate table relationships before coding

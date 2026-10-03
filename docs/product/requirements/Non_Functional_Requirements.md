@@ -1,5 +1,9 @@
 # BitStockerz – Non-Functional Requirements (NFRs)
 
+These are engineering targets, not measured production guarantees. No production
+hosting is provisioned yet. The backtest fixture has automated timing coverage;
+end-to-end latency and data freshness still require deployment/vendor verification.
+
 ## 1. Performance
 - Backtest (1 year daily bars): < 2 seconds (single symbol)
 - Dashboard load (cached data): < 500ms

@@ -1,9 +1,9 @@
 # Sprint 8.1 — Google and Apple browser login
 
-**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending.
-**Stories:** #1.1.3, #1.1.4; prerequisite for #1.1.6 recovery.
-**Estimate:** 3–5 engineering days, plus provider account/domain setup.
-**Depends on:** Existing auth persistence, passkey UI, production API/web origins.
+- **Status:** Merged in [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) on October 2, 2026; CI verified, production provider setup/smoke outstanding.
+- **Stories:** #1.1.3, #1.1.4; prerequisite for #1.1.6 recovery.
+- **Original planning estimate (implementation now merged):** 3–5 engineering days, plus provider account/domain setup.
+- **Depends on:** Existing auth persistence, passkey UI, production API/web origins.
 
 ## Outcome
 
@@ -19,8 +19,8 @@ in account settings as recovery methods.
 - `auth.service.ts` exchanges provider codes, validates JWTs, links subjects, and
   creates bearer sessions. The OAuth state and nonce persist in MySQL.
 - `auth-persistence.service.ts` persists users, identities, and sessions.
-- Angular `core/auth/auth.service.ts` handles bearer sessions and passkeys but has
-  no OAuth redirect/callback flow. `/login` has no production provider buttons.
+- Before this sprint, Angular's auth service handled bearer sessions and passkeys
+  without an OAuth callback flow or production provider buttons.
 - Before this sprint, token verification permitted a missing nonce, Google
   email linking did not require a verified email claim, and Apple callback form
   fields could become linking inputs. This implementation closes those gaps.
@@ -171,20 +171,21 @@ runbook, manual testing, and the roadmap when implemented.
 The session-handoff design above is a project implementation decision layered on
 the providers' authorization-code flows.
 
-## Local delivery evidence — October 2, 2026
+## Merged delivery evidence — October 2, 2026
 
-- API: 94 unit suites / 846 tests, 67 HTTP e2e tests; coverage gates passed
-  (98.35% statements, 90.42% branches, 98.37% functions, 98.32% lines).
-- Web: 66 unit tests and five browser e2e tests, including Google/Apple mocked
-  callbacks, profile persistence, mobile forms and failed-link session retention.
-- Real locally signed JWT regression: 29 production-verifier checks for both
-  providers, invalid signatures/claims/nonce/expiry/algorithms; no provider network.
-- MySQL migration preflight and deploy passed locally. Auth smoke verifies state
-  and handoff restart persistence, exact-session linking, wrong-verifier/replay
-  protection, cross-instance one-use redemption, stable original account/cash/
-  strategy/backtest ownership, conflict rejection and original sign-in age.
-- API/web builds and full lint passed. Desktop/mobile save/reload visual checks
-  passed. Changes remain local and uncommitted; no PR or deployment is implied.
+- PR #13 merged; [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994) passes.
+- API: 98 suites / 910 unit tests, 67 HTTP tests and 16 native signed-token smoke
+  tests. Coverage gates pass (98.36% statements, 90.52% branches, 98.38% functions,
+  98.34% lines). The larger signed-token verifier matrix is included in unit tests.
+- Web: 93 unit tests and five browser tests, including mocked-provider callbacks,
+  profile persistence and failed-link session retention. File isolation prevents
+  test module mocks from depending on load order.
+- Fresh MySQL CI applies all migrations and verifies state/handoff persistence,
+  original-session linking, wrong-verifier/replay protection, cross-instance
+  one-use redemption, stable original account/data, conflicts, case-sensitive
+  opaque identifiers, expiry cleanup and original sign-in age.
+- API/web build and lint, dependency audits and redacted secret scans pass.
+  Desktop/mobile save/reload visual checks also passed locally.
 - Real provider credentials, HTTPS callback registration and each enabled
-  provider's production smoke remain required release checks. Optional extra
-  passkeys remain deferred.
+  provider's production smoke remain required release checks. No production
+  hosting is provisioned; optional extra passkeys remain deferred.

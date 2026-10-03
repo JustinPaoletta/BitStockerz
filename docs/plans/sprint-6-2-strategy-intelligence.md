@@ -1,9 +1,9 @@
 # Sprint 6.2 — Strategy Intelligence
 
-**Status:** Shipped on `feat/milestone-6-ai-kernel` (combined with Milestone 7 in PR #12)  
-**Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
-**Branch (when implementing):** `feat/milestone-6-ai-kernel`  
-**PR base:** stacked with 6.1 → combined into PR #12 vs `main`
+- **Status:** Merged in PR #12 (combined Milestones 6–7)
+- **Roadmap marker:** Milestone 6 — AI Assistant / Kernel
+- **Implementation branch (historical):** `feat/milestone-6-ai-kernel`
+- **PR base:** stacked with 6.1 → combined into PR #12 vs `main`
 
 **Overview:** Expose advisory Kernel endpoints that explain a strategy in plain English and detect logical red flags. Built on Sprint 6.1 (`AiService`, usage limits, flags, logging). AI remains read-only — never edits strategies or places orders. Responses are non-streaming JSON with disclaimers.
 
@@ -291,12 +291,12 @@ apps/web/src/app/features/strategies/  # required minimal Kernel panel
 
 ## Definition of done
 
-- [ ] Both endpoints implemented per inventory + AC
-- [ ] Flag, quota, disclaimer, audit/logging honored
-- [ ] StubProvider e2e green without OpenAI key
-- [ ] Strategy detail Kernel panel handles success, disabled, quota, and provider-error states safely
-- [ ] Docs/API inventory updated
-- [ ] PR: `feat: add ai strategy explain and validate endpoints`
+- [x] Both endpoints implemented per inventory + AC
+- [x] Flag, quota, disclaimer, audit/logging honored
+- [x] StubProvider e2e green without OpenAI key
+- [x] Strategy detail Kernel panel handles success, disabled, quota, and provider-error states safely
+- [x] Docs/API inventory updated
+- [x] Implementation merged in PR #12; regression/security updates merged in PR #13
 
 ---
 

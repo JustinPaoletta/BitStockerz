@@ -16,14 +16,17 @@ Assumptions:
 | Milestones 0–1 | Backend/platform scope completed | Platform, auth APIs, market data, ingestion/jobs, and observability are implemented and verified. |
 | Sprints 2.1–3.4 | Completed and merged in PR #9 | Strategy Lab, deterministic resource-bounded engine, transactional persistence, authenticated backtest APIs, and the initial Angular results app. |
 | Sprints 4.1–4.3 | Completed and merged in PR #10 | Paper-account provisioning, atomic market fills, positions/cash, risk and idempotency, order/execution history, and portfolio MTM are verified in seed and MySQL modes. |
-| Sprints 5.1–5.3 | Completed in PR #11 (`feat/sprint-5-dashboard-workflows`) | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
-| Sprints 6.1–6.3 + 7.1–7.2 | Merged in combined PR #12 (October 2, 2026) | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. **Your remaining steps** (prelaunch PR → accounts → secrets → first deploy) are spelled out in plain English in [docs/ops/deployment.md](../ops/deployment.md). |
+| Sprints 5.1–5.3 | Completed and merged in PR #11 | Passkey-first shell, dashboard widgets, Strategy Lab, backtest launch, and paper Trade desk with unit + Playwright coverage. |
+| Sprints 6.1–6.3 + 7.1–7.2 | Code/artifacts merged in PR #12 (October 2, 2026); live hosting outstanding | Kernel AI (stub/OpenAI), TTL cache + provider guardrails, CI/deploy artifacts, ops runbook. `#6.4.2` deferred. **Your remaining steps** (hosting → secrets/data → first deploy → production smoke) are spelled out in plain English in [docs/ops/deployment.md](../ops/deployment.md). |
+| Prelaunch P&L/markers + Sprints 8.1–8.2 | Merged in PR #13 (October 2, 2026) | Realized/total P&L, UTC markers, Google/Apple browser login, profile/recovery and security fixes. Provider credentials/callbacks and live smoke remain outstanding. |
 
 The canonical readiness index is [docs/plans/README.md](../plans/README.md).
 Original Milestone 0–7 feature sprints are complete in-repo. The additional
-prelaunch P&L/chart work below is complete in the working tree; OAuth and
-profile/recovery are implemented and verified locally. Live hosting accounts remain an external
-prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
+prelaunch P&L/chart work and OAuth/profile/recovery merged in PR #13 on October 2,
+2026, with passing PR and main CI. No production hosting is provisioned; the
+automatic deployment workflow cannot finish without a database and hosting
+credentials. Hosting, legitimate market data and real-provider smoke remain launch
+prerequisites — see [docs/ops/deployment.md](../ops/deployment.md).
 
 ---
 
@@ -55,7 +58,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - Status: Backend/API implementation completed (verified July 3, 2026).
   Milestone 5 ships the Angular **passkey register/login** UI (#1.1.1–#1.1.2)
   with email kept as unsupported-browser / automation fallback. Google/Apple
-  OAuth browser login and profile/recovery shipped locally in Sprints 8.1–8.2;
+  OAuth browser login and profile/recovery merged in PR #13 (Sprints 8.1–8.2);
   real provider setup and deployment smoke remain external checks.
 - Follow-up: #1.3.1 shipped in Sprint 4.1 so every successful new-user signup path provisions one paper account.
 
@@ -133,7 +136,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 **Stories**
 - #4.1.1 – Strategy schema
 - #4.1.2 – Strategy versioning
-- Status: Implementation complete locally (verified in seed and MySQL modes July 26, 2026); included in draft PR #9
+- Status: Completed and merged in PR #9 (verified in seed and MySQL modes July 26, 2026)
 
 **Exit**
 - Authenticated strategy creation persists metadata and immutable version 1
@@ -152,7 +155,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - #4.3.3 – Exit rules (AND-only)
 - #4.4.1 – Stop loss configuration
 - #4.4.2 – Take profit configuration
-- Status: Implementation complete locally (verified July 27, 2026); stacked with Sprint 2.1 in draft PR #9
+- Status: Completed and merged in PR #9 (verified July 27, 2026)
 
 ---
 
@@ -168,7 +171,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - #4.5.5 – Delete strategy
 - #4.6.1 – Strategy validation endpoint
 - #4.6.2 – Human-readable strategy summary
-- Status: Implementation complete locally (verified July 28, 2026); stacked with Sprints 2.1–2.2 in draft PR #9
+- Status: Completed and merged in PR #9 (verified July 28, 2026)
 
 **Exit**
 - Users can create and manage valid strategies
@@ -189,7 +192,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - #5.2.5 – Stop loss / take profit handling
 - #8.2.1 – Execution sandbox boundaries
 - #8.2.2 – Runtime & memory limits per backtest
-- Status: Implementation complete locally (verified July 28, 2026); stacked with Sprints 2.1–2.3 in draft PR #9
+- Status: Completed and merged in PR #9 (verified July 28, 2026)
 
 **Exit**
 - Deterministic in-memory engine returns closed trades, one equity point per
@@ -206,8 +209,8 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - #5.1.2 – Backtest result storage
 - #5.1.3 – Trades & equity curve storage
 - #5.6.1 – Strategy version pinning
-- Status: Implementation complete locally (verified in seed and MySQL modes
-  July 28, 2026); stacked with Sprints 2.1–3.1 in draft PR #9
+- Status: Completed and merged in PR #9 (verified in seed and MySQL modes
+  July 28, 2026)
 
 **Exit**
 - Runs pin immutable owned strategy versions and persist deterministic results,
@@ -227,8 +230,7 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 - #5.3.3 – Backtest details API
 - #5.5.1 – Bar count limits
 - #5.5.2 – Logging & diagnostics
-- Status: Implementation complete locally (verified July 28, 2026); stacked
-  with Sprints 2.1–3.2 in draft PR #9
+- Status: Completed and merged in PR #9 (verified July 28, 2026)
 
 **Exit**
 - Authenticated users can synchronously run a backtest through the jobs
@@ -246,9 +248,9 @@ prerequisite — see [docs/ops/deployment.md](../ops/deployment.md).
 **Stories**
 - #5.4.1 – Equity curve chart
 - #5.4.2 – Trades table
-- Status: Implementation complete locally (verified with build, lint, unit,
+- Status: Completed and merged in PR #9 (verified with build, lint, unit,
   API regression, desktop browser, and 390px mobile browser checks August 1,
-  2026); stacked with Sprints 2.1–3.3 in draft PR #9
+  2026)
 - Note: Sprint 3.4 introduced the thin Angular scaffold; Sprint 5.1 extends it.
   The prelaunch security review upgrades the framework and build tools to Angular
   22.2.1 with TypeScript 6.0.3 and Node 24.21.0. The official change-detection
@@ -375,7 +377,7 @@ Frontend note:
 
 ### Sprint 6.1 – AI Infrastructure
 
-**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`)**
+**Status: Merged in PR #12; originally verified August 7, 2026**
 
 **Implementation plan:** [docs/plans/sprint-6-1-ai-infrastructure.md](../plans/sprint-6-1-ai-infrastructure.md)
 
@@ -390,7 +392,7 @@ Frontend note:
 
 ### Sprint 6.2 – Strategy Intelligence
 
-**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`)**
+**Status: Merged in PR #12; originally verified August 7, 2026**
 
 **Implementation plan:** [docs/plans/sprint-6-2-strategy-intelligence.md](../plans/sprint-6-2-strategy-intelligence.md)
 
@@ -402,7 +404,7 @@ Frontend note:
 
 ### Sprint 6.3 – Backtest Intelligence
 
-**Status: Completed (verified August 7, 2026 on `feat/milestone-6-ai-kernel`; #6.4.2 deferred)**
+**Status: Merged in PR #12; originally verified August 7, 2026; #6.4.2 deferred**
 
 **Implementation plan:** [docs/plans/sprint-6-3-backtest-intelligence.md](../plans/sprint-6-3-backtest-intelligence.md)
 
@@ -421,7 +423,7 @@ Frontend note:
 
 ### Sprint 7.1 – Polish & Caching
 
-**Status: Completed (verified on `feat/sprint-7-1-polish-caching`)**
+**Status: Merged in PR #12; cache/provider regressions pass in CI**
 
 **Implementation plan:** [docs/plans/sprint-7-1-polish-caching.md](../plans/sprint-7-1-polish-caching.md)
 
@@ -437,7 +439,7 @@ Frontend note:
 
 ### Sprint 7.2 – Deployment & Hosting
 
-**Status: Completed in-repo (external Fly/Vercel/MySQL provisioning required for first live URL)**
+**Status: Artifacts merged in PR #12; hosting, credentials and first live deployment outstanding**
 
 **Implementation plan:** [docs/plans/sprint-7-2-deployment-hosting.md](../plans/sprint-7-2-deployment-hosting.md)
 
@@ -455,7 +457,7 @@ Frontend note:
 
 ### Paper P&L and backtest trade markers
 
-**Status:** Implemented in the working tree, September 30, 2026.
+**Status:** Merged in PR #13 on October 2, 2026; no production release yet.
 
 - Portfolio summary adds cumulative `realized_pnl_total` and `total_pnl` using
   the persisted cash and average-cost ledger; the dashboard and Trade desk show both.
@@ -465,19 +467,19 @@ Frontend note:
 
 ### Sprint 8.1 — Google/Apple Browser Login
 
-**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending. [implementation plan](../plans/sprint-8-1-oauth-browser-readiness.md).
+**Status:** Merged in PR #13 on October 2, 2026; CI verified, production provider setup/smoke outstanding. [implementation plan](../plans/sprint-8-1-oauth-browser-readiness.md).
 
 - #1.1.3–#1.1.4: provider buttons, callback/session handoff, identity hardening,
   authenticated recovery-method linking, provider setup and production smoke.
-- Estimate: 3–5 engineering days plus account/domain setup.
+- Original planning estimate: 3–5 engineering days. Implementation is merged; account/domain setup and live smoke remain.
 
 ### Sprint 8.2 — Profile and Account Recovery
 
-**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending. [implementation plan](../plans/sprint-8-2-profile-recovery.md).
+**Status:** Merged in PR #13 on October 2, 2026; CI verified, production provider setup/smoke outstanding. [implementation plan](../plans/sprint-8-2-profile-recovery.md).
 
 - #1.2.1–#1.2.2 and #1.1.6: profile form over existing APIs, recovery-method
   settings, and lost-device login using an already linked OAuth identity.
-- Estimate: 2–3 engineering days after 8.1; additional passkeys optional (+1–2 days).
+- Original planning estimate: 2–3 engineering days. Implementation is merged; additional passkeys remain optional (original estimate +1–2 days).
 
 ---
 
@@ -487,7 +489,7 @@ Frontend note:
 - Each sprint can be converted directly into tickets
 - If a sprint slips, later sprints do not collapse
 - Cutting scope is easiest in Milestones 6–7
-- Ready-for-dev contracts for remaining sprints live under [docs/plans/](../plans/README.md). Completed Milestone 2–5 plans were removed after merge; adopted cross-sprint contracts in that README remain binding
+- Retained implementation contracts and outstanding production prerequisites live under [docs/plans/](../plans/README.md). Completed Milestone 2–5 plans were removed after merge; cross-sprint contracts in that README remain binding
 
 ---
 

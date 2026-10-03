@@ -2,6 +2,10 @@
 
 NestJS API for BitStockerz (`apps/api`). Global prefix: `/api`. Default port: **4000**.
 
+Use Node.js **24.21.0** (root `.nvmrc`). Features through browser OAuth/profile
+and recovery are merged in PR #13; hosting and real-provider production smoke
+are outstanding. See [deployment.md](../../docs/ops/deployment.md).
+
 ## Quick start
 
 ```bash
@@ -22,6 +26,9 @@ MySQL setup: [docs/database/Local_MySQL.md](../../docs/database/Local_MySQL.md)
 | `npm run test` | Unit tests |
 | `npm run test:cov` | Unit tests + **90%** global coverage gates |
 | `npm run test:e2e` | E2E suite (forces seed mode via `test/setup-e2e.ts`) |
+| `npm run test:oauth` | Native signed-provider token smoke (after build) |
+| `npm run test:mysql:backtest` / `test:mysql:trading` | Isolated MySQL backtest/P&L round trips |
+| `npm run test:mysql:security` / `test:mysql:auth` | MySQL auth/quota and explicit-link/recovery regressions |
 | `npm run db:deploy` | Apply Prisma migrations |
 
 ## Configuration
@@ -31,8 +38,9 @@ Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on 
 | Variable | Notes |
 | --- | --- |
 | `NODE_ENV` | `development`, `test`, or `production` (default `development`). |
-| `DATABASE_URL` | MySQL URL. Omit for in-memory seed mode. |
+| `DATABASE_URL` | MySQL/MariaDB URL. Omit only for local/test seed mode; production requires active persistence. |
 | `PORT` | Listen port (default `4000`). |
+| `TRUSTED_PROXY_CIDRS` | Actual ingress IP/CIDR allowlist; empty trusts no proxy. Never trust all addresses. |
 | `READINESS_TIMEOUT_MS` | Per-dependency readiness timeout (default `1500`, range `100`–`30000`). |
 | `LOG_LEVEL` | Pino level (default `info`). |
 | `LOG_TO_FILE` / `LOG_FILE_PATH` | Optional file logging; a path alone also enables it. |
@@ -51,8 +59,13 @@ Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on 
 | `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings. Production WebAuthn requires explicit allowed origins. |
 | `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider configuration; all required values for an enabled provider must be set together. |
+| `AUTH_OAUTH_BROWSER_CALLBACK_URL` | Fixed SPA callback; set to its exact HTTPS URL for production browser login/linking. |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine execution and allocation limits (defaults `5000` / `10000` / `250000`). |
 | `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS` | Per-user backtest-create rate limit (defaults `60000` / `10`). |
+
+Manual job/ingestion POSTs require a bearer session and are allowed only in
+development/test; production returns 403. Profile/recovery uses explicit
+authenticated provider linking, never email-only account ownership.
 
 ## Verification
 

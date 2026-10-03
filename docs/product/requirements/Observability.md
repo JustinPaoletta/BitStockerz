@@ -20,19 +20,26 @@ Baseline request log fields:
 Redaction:
 - req.headers.authorization
 - req.headers.cookie
+- Request bodies, referrer headers, response cookies and redirect locations
+- OAuth request URL query/params and code/state/verifier/token fields; unexpected
+  OAuth errors use a bounded generic message rather than raw provider error text
 
 Structured logs for (as domains ship):
 - Market data ingestion errors (jobs / ingestion handlers)
 - Backtest start / completion / failure, with ids, bar counts, bounded timing,
   status, error code, and request id (shipped in Sprint 3.3)
-- Order placement and execution (planned)
-- AI invocation failures (planned)
+- Order fills/rejections record bounded `trading.order_filled` /
+  `trading.order_rejected` audit metadata; idempotent replays do not repeat events
+- AI invocations record provider/model/operation, success, timing, prompt
+  length/hash and token counts. Production excludes prompt/response content;
+  optional prompt previews are allowed only by the development logging flag
 
 ## 2. Metrics
 Shipped in Sprint 1.4 (in-process; `GET /api/metrics`):
 - API request latency / counts / errors
 - Job duration and terminal counts by `job_type`
 - Backtest duration and terminal counts (`completed`, `failed`, `timed_out`)
+- Symbol/candle cache hits, misses, load errors and evictions
 - Error counts by domain (`auth`, `market_data`, `jobs`, `backtest`, `unknown`)
 
 Track later (domain sprints):
@@ -49,6 +56,9 @@ Track later (domain sprints):
 - Events include auth register/login/logout, job lifecycle, market-data
   ingestion requests, strategy create/update/delete, and bounded
   `backtest.requested` metadata.
+- Trading fills/rejections, provider fallback and AI invocations also emit
+  bounded audit metadata. Cache outcomes are exposed through metrics;
+  `ai_usage` persists per-user daily quota counters.
 
 ## 5. Debugging
 - Correlate logs via request IDs

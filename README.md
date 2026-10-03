@@ -7,14 +7,18 @@ with a working NestJS API and Angular application.
 
 - Type: private product monorepo
 - Current repo version: `0.0.0`
-- Maturity: pre-1.0 documentation and API foundation
+- Maturity: prelaunch MVP implementation; production hosting is not configured
 - Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–7 merged in combined
-  [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12)
+- Delivery state: Milestones 0–7 are merged; Milestones 6–7 are in
+  [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12), and P&L, chart
+  markers, browser OAuth, profile/recovery and security fixes are merged in
+  [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13)
   (`#6.4.2` deferred).
-- **What you still need to do:** review and merge the prelaunch features/security
-  [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13), create Fly + MySQL + Vercel,
-  add GitHub/`production` secrets, then first deploy. Plain-English checklist:
+- **What you still need to do:** provision Fly + managed MySQL + Vercel,
+  configure GitHub/host secrets and provider callbacks, then deploy and run
+  production smoke checks. No hosting has been provisioned for this project;
+  repository and `production` environment secrets are empty as of October 2,
+  2026. Plain-English checklist:
   [docs/ops/deployment.md](./docs/ops/deployment.md)
 - Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
 
@@ -185,8 +189,9 @@ The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Re
 - [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
 - [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
 - [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema through Sprint 4.3 / Milestone 5)
-- [docs/plans/README.md](./docs/plans/README.md) (remaining Sprint 6.1–7.2 plans and cross-sprint contracts)
+- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema including AI usage and browser OAuth/recovery)
+- [docs/plans/README.md](./docs/plans/README.md) (retained implementation contracts and remaining release prerequisites)
+- [docs/ops/security-review.md](./docs/ops/security-review.md) (review findings, verification and rollout limits)
 - [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
 - [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
 

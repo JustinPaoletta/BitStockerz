@@ -26,6 +26,7 @@ npm --prefix apps/api run lint
 npm --prefix apps/api run test
 npm --prefix apps/api run test:cov
 npm --prefix apps/api run test:e2e
+npm --prefix apps/api run test:oauth
 ```
 
 For web-impacting releases, run:
@@ -34,10 +35,20 @@ For web-impacting releases, run:
 npm run web:lint
 npm run web:test
 npm run web:build
+npm --prefix apps/web run e2e
 ```
 
 Run `npm audit`, `npm --prefix apps/api audit`, and
 `npm --prefix apps/web audit` before releasing dependency changes.
+
+For persisted behavior, verify fresh MySQL migrations and the existing
+`test:mysql:backtest`, `test:mysql:trading`, `test:mysql:security` and
+`test:mysql:auth` gates. CI provisions its own MySQL service for these checks.
+
+Merging a release PR into `main` starts `.github/workflows/deploy.yml`; it reruns
+CI before migrations and deployment. Hosting, database credentials and provider
+configuration must exist for a live release. As of October 2, 2026, these are not
+configured, so a merge/tag/GitHub Release alone does not publish the application.
 
 For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema docs stay consistent with the release notes.
 

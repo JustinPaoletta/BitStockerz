@@ -1,9 +1,9 @@
 # Sprint 8.2 — Profile and account recovery
 
-**Status:** Implemented and verified locally October 2, 2026; production provider setup/smoke pending.
-**Stories:** #1.2.1, #1.2.2, #1.1.6; authenticated extra passkeys are optional MVP+.
-**Estimate:** 2–3 engineering days for required scope; +1–2 days for extra passkeys.
-**Depends on:** Sprint 8.1 browser OAuth and authenticated provider linking.
+- **Status:** Merged in [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) on October 2, 2026; CI verified, production provider setup/smoke outstanding.
+- **Stories:** #1.2.1, #1.2.2, #1.1.6; authenticated extra passkeys are optional MVP+.
+- **Original planning estimate (implementation now merged):** 2–3 engineering days for required scope; +1–2 days for extra passkeys.
+- **Depends on:** Sprint 8.1 browser OAuth and authenticated provider linking.
 
 ## Outcome
 
@@ -18,8 +18,8 @@ identity and regain access to the same strategies, backtests, and paper portfoli
 - `UpdateProfileDto` supports an optional display name up to 80 characters and
   only USD as base currency. Profile changes persist through the auth persistence
   service. Existing profile responses include linked-method information.
-- Angular's auth user model currently covers basic identity fields; there is no
-  profile route or settings form.
+- Before this sprint, Angular's auth model covered basic identity fields without
+  a Profile route or settings form.
 - Story #1.1.6 defines minimum recovery as linked OAuth login and a lost-device
   hint. It does not require email magic links or manual account resets.
 
@@ -113,20 +113,21 @@ linking persistence and recovery regressions, excluding external provider setup.
 Implementation and local verification are now complete; that estimate is no
 longer remaining development work.
 
-## Local delivery evidence — October 2, 2026
+## Merged delivery evidence — October 2, 2026
 
-- API: 94 unit suites / 846 tests, 67 HTTP e2e tests; coverage gates passed
-  (98.35% statements, 90.42% branches, 98.37% functions, 98.32% lines).
-- Web: 66 unit tests and five browser e2e tests, including Google/Apple mocked
-  callbacks, profile persistence, mobile forms and failed-link session retention.
-- Real locally signed JWT regression: 29 production-verifier checks for both
-  providers, invalid signatures/claims/nonce/expiry/algorithms; no provider network.
-- MySQL migration preflight and deploy passed locally. Auth smoke verifies state
-  and handoff restart persistence, exact-session linking, wrong-verifier/replay
-  protection, cross-instance one-use redemption, stable original account/cash/
-  strategy/backtest ownership, conflict rejection and original sign-in age.
-- API/web builds and full lint passed. Desktop/mobile save/reload visual checks
-  passed. Changes remain local and uncommitted; no PR or deployment is implied.
+- PR #13 merged; [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994) passes.
+- API: 98 suites / 910 unit tests, 67 HTTP tests and 16 native signed-token smoke
+  tests. Coverage gates pass (98.36% statements, 90.52% branches, 98.38% functions,
+  98.34% lines). The larger signed-token verifier matrix is included in unit tests.
+- Web: 93 unit tests and five browser tests, including mocked-provider callbacks,
+  profile persistence and failed-link session retention. File isolation prevents
+  test module mocks from depending on load order.
+- Fresh MySQL CI applies all migrations and verifies state/handoff persistence,
+  original-session linking, wrong-verifier/replay protection, cross-instance
+  one-use redemption, stable original account/data, conflicts, case-sensitive
+  opaque identifiers, expiry cleanup and original sign-in age.
+- API/web build and lint, dependency audits and redacted secret scans pass.
+  Desktop/mobile save/reload visual checks also passed locally.
 - Real provider credentials, HTTPS callback registration and each enabled
-  provider's production smoke remain required release checks. Optional extra
-  passkeys remain deferred.
+  provider's production smoke remain required release checks. No production
+  hosting is provisioned; optional extra passkeys remain deferred.

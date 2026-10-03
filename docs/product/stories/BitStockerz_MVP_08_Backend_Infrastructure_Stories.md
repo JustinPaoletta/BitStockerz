@@ -48,7 +48,7 @@ Acceptance criteria:
 ### Story 8.1.2 – Synchronous executor (async-ready design)
 Acceptance criteria:
 - `JobExecutorService` runs registered handlers inline in the API process.
-- `POST /api/jobs` creates a job and executes it before returning the final status.
+- Authenticated development/test `POST /api/jobs` executes a job before returning its final status. Production returns 403; internal scheduled execution remains available.
 
 ### Story 8.1.3 – Job timeout & cancellation rules
 Acceptance criteria:
@@ -152,7 +152,7 @@ Acceptance criteria:
 - `deploy.yml` on `main` runs CI, migrates once, deploys API then web; fails closed on test failure.
 - Secrets live only in GitHub Environments / host dashboards.
 
-Status: Completed in-repo (Sprint 7.2); first live deploy requires external account secrets.
+Status: Artifacts merged in PR #12 with security updates in PR #13; no hosting is provisioned. The first live deployment requires an API app, web project, database and their credentials.
 
 ### Story 8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
 Acceptance criteria:
@@ -160,7 +160,7 @@ Acceptance criteria:
 - Production config requires `DATABASE_URL`, exact CORS/WebAuthn origins; readiness uses Prisma `SELECT 1` when enabled and fails closed without DB in production.
 - Single API replica while in-process scheduler is enabled; runbook in `docs/ops/deployment.md`.
 
-Status: Completed in-repo (Sprint 7.2); provisioning Fly/Vercel/MySQL is an external prerequisite.
+Status: Host configuration is merged; actual Fly/Vercel/MySQL provisioning and live verification remain outstanding. Only development and CI MySQL instances have been verified.
 
 ---
 

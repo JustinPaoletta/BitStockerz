@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Documentation accuracy
+
+- Align delivery status with merged PRs #12/#13 and passing main CI; distinguish
+  prepared deployment automation from unprovisioned production hosting.
+- Refresh Node prerequisites, auth/recovery and API contracts, migration inventory,
+  testing/security/observability guides and remaining launch checks.
+
 ### Security and merge readiness
 
 - Refresh compatible dependencies and security overrides across all lockfiles;

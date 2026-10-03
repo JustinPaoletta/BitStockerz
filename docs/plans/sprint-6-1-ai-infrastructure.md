@@ -1,9 +1,9 @@
 # Sprint 6.1 — AI Infrastructure
 
-**Status:** Shipped on `feat/milestone-6-ai-kernel` (combined with Milestone 7 in PR #12)  
-**Roadmap marker:** Milestone 6 — AI Assistant / Kernel  
-**Branch (when implementing):** `feat/milestone-6-ai-kernel`  
-**PR base:** `main` after Milestone 5 / PR #11 merges (or stack on
+- **Status:** Merged in PR #12 (combined Milestones 6–7)
+- **Roadmap marker:** Milestone 6 — AI Assistant / Kernel
+- **Implementation branch (historical):** `feat/milestone-6-ai-kernel`
+- **PR base:** `main` after Milestone 5 / PR #11 merges (or stack on
 `feat/sprint-5-dashboard-workflows` until then)
 
 **Overview:** Stand up the Kernel AI foundation: a typed provider abstraction using AI SDK v6 structured output, direct OpenAI adapter + explicit stub provider, atomic daily usage limits (`ai_usage` / migration V0600), feature flag `AI_ENABLED`, metadata-only AI observability, and user-facing “not financial advice” disclaimers. No public explain/validate routes yet (6.2/6.3); Sprint 6.1 exports the tested `AiService` contract used by later sprints.
@@ -322,12 +322,12 @@ npm --prefix apps/api run test:e2e
 
 ## Definition of done
 
-- [ ] `ai_usage` migration applies; model in Prisma schema
-- [ ] `AiService` + Stub/OpenAI providers; flag + rate limit enforced
-- [ ] Pino + `ai.invocation` audit per JC-4
-- [ ] Disclaimer fields defined on shared envelope
-- [ ] build/lint/test/cov/e2e green; docs synced
-- [ ] PR: `feat: add ai kernel infrastructure and usage limits`
+- [x] `ai_usage` migration applies; model in Prisma schema
+- [x] `AiService` + Stub/OpenAI providers; flag + rate limit enforced
+- [x] Pino + `ai.invocation` audit per JC-4
+- [x] Disclaimer fields defined on shared envelope
+- [x] build/lint/test/cov/e2e green; docs synced
+- [x] Implementation merged in PR #12; regression/security updates merged in PR #13
 
 ---
 
