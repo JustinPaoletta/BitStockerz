@@ -26,6 +26,7 @@
     "test:cov": "jest --coverage",
     "test:mysql:backtest": "ts-node --transpile-only test/backtest-persistence.mysql.ts",
     "test:mysql:trading": "ts-node --transpile-only test/paper-trading.mysql.ts",
+    "test:mysql:auth": "ts-node --transpile-only test/auth-recovery.mysql.ts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:oauth": "node --test test/oauth-token-security.mjs",

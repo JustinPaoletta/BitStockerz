@@ -84,6 +84,10 @@ export class HealthService {
       };
     }
 
+    if (isProduction && !this.prisma.isEnabled) {
+      return { status: 'down', details: 'Database persistence is unavailable' };
+    }
+
     if (this.prisma.isEnabled) {
       const startTime = Date.now();
       try {
@@ -93,7 +97,9 @@ export class HealthService {
         return {
           status: 'down',
           latencyMs: Date.now() - startTime,
-          details: toErrorMessage(error),
+          details: isProduction
+            ? 'Database connection failed'
+            : toErrorMessage(error),
         };
       }
     }
@@ -221,7 +227,9 @@ export class HealthService {
       const detail =
         error instanceof Error && error.name === 'AbortError'
           ? `Request timed out after ${timeoutMs}ms`
-          : toErrorMessage(error);
+          : this.config.server.nodeEnv === 'production'
+            ? 'Market data health check failed'
+            : toErrorMessage(error);
 
       return {
         status: 'down',

@@ -1,10 +1,12 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
+import { distinctUntilChanged, firstValueFrom, map } from 'rxjs';
 import { BsCurrencyPipe, BsDateTimePipe } from '../../../shared/format/display.pipes';
 import { SymbolSearchComponent } from '../../../shared/symbols/symbol-search.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
+import { PageGuideComponent } from '../../../shared/ui/page-guide.component';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton.component';
 import {
@@ -24,6 +26,7 @@ import { nextClientOrderId } from '../data/client-order-id';
     SkeletonComponent,
     InlineErrorComponent,
     EmptyStateComponent,
+    PageGuideComponent,
     BsCurrencyPipe,
     BsDateTimePipe,
   ],
@@ -32,23 +35,43 @@ import { nextClientOrderId } from '../data/client-order-id';
       <div>
         <p class="eyebrow">Paper trading</p>
         <h1>Trade desk</h1>
-        <p class="lede">Market orders fill at the latest eligible close. Quantity must be a decimal string.</p>
+        <app-page-guide
+          description="Practice with simulated money. Orders fill at the latest available price for the symbol."
+          [steps]="[
+            'Search for a symbol in the order ticket.',
+            'Choose BUY or SELL and enter a quantity (decimals allowed).',
+            'Submit market order and watch positions and executions update.',
+          ]"
+        />
       </div>
     </section>
 
     <div class="trade-grid">
       <section class="panel block">
         <h2>Account</h2>
+        <p class="hint">Starting balance is $100,000 paper USD when you first sign up.</p>
         @if (summaryLoading()) {
           <app-skeleton />
         } @else if (summaryError()) {
           <app-inline-error [message]="summaryError()" (retry)="refreshSummary()" />
         } @else if (summary(); as account) {
           <div class="metric-grid compact">
-            <article><span>Cash</span><strong>{{ account.cash_balance | bsCurrency }}</strong></article>
-            <article><span>Equity</span><strong>{{ account.total_equity | bsCurrency }}</strong></article>
             <article>
-              <span>Unrealized</span><strong>{{ account.unrealized_pnl_total | bsCurrency }}</strong>
+              <span>Cash</span><strong>{{ account.cash_balance | bsCurrency }}</strong>
+            </article>
+            <article>
+              <span>Equity</span><strong>{{ account.total_equity | bsCurrency }}</strong>
+            </article>
+            <article>
+              <span>Unrealized</span
+              ><strong>{{ account.unrealized_pnl_total | bsCurrency }}</strong>
+            </article>
+            <article>
+              <span>Realized P&amp;L</span
+              ><strong>{{ account.realized_pnl_total | bsCurrency }}</strong>
+            </article>
+            <article>
+              <span>Total P&amp;L</span><strong>{{ account.total_pnl | bsCurrency }}</strong>
             </article>
           </div>
         }
@@ -89,7 +112,7 @@ import { nextClientOrderId } from '../data/client-order-id';
           <app-empty-state title="No open positions" message="Filled BUY orders appear here." />
         } @else {
           <div class="table-wrap">
-            <table>
+            <table class="positions-table">
               <thead>
                 <tr>
                   <th>Symbol</th>
@@ -119,7 +142,7 @@ import { nextClientOrderId } from '../data/client-order-id';
           <app-inline-error [message]="ordersError()" (retry)="refreshOrders()" />
         } @else {
           <div class="table-wrap">
-            <table>
+            <table class="orders-table">
               <thead>
                 <tr>
                   <th>Status</th>
@@ -143,7 +166,9 @@ import { nextClientOrderId } from '../data/client-order-id';
             </table>
           </div>
           @if (ordersHasMore()) {
-            <button class="button ghost small" type="button" (click)="loadMoreOrders()">Load more</button>
+            <button class="button ghost small" type="button" (click)="loadMoreOrders()">
+              Load more
+            </button>
           }
         }
       </section>
@@ -199,14 +224,24 @@ import { nextClientOrderId } from '../data/client-order-id';
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .block {
+      min-width: 0;
       padding: 1.25rem;
     }
     .wide {
       grid-column: 1 / -1;
     }
     .metric-grid.compact {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin: 0;
+    }
+    .metric-grid.compact article {
+      min-width: 0;
+    }
+    .positions-table {
+      min-width: 24rem;
+    }
+    .orders-table {
+      min-width: 36rem;
     }
     form {
       display: grid;
@@ -218,6 +253,11 @@ import { nextClientOrderId } from '../data/client-order-id';
       }
       .wide {
         grid-column: auto;
+      }
+    }
+    @media (max-width: 580px) {
+      .metric-grid.compact {
+        grid-template-columns: 1fr;
       }
     }
   `,
@@ -254,12 +294,24 @@ export class TradingWorkspacePage implements OnInit {
   private ordersOffset = 0;
   private executionsOffset = 0;
   private readonly api = inject(TradingApiService);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.ticket.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.clientOrderId = nextClientOrderId(this.clientOrderId, true, false);
+      this.orderError.set('');
+      this.orderResult.set('');
     });
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get('symbol')?.trim().toUpperCase() ?? ''),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((symbol) => {
+        if (symbol) this.ticket.controls.symbol.setValue(symbol);
+      });
     this.refreshAll();
   }
 
@@ -318,9 +370,7 @@ export class TradingWorkspacePage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (value) => {
-          this.orders.update((current) =>
-            reset ? value.orders : [...current, ...value.orders],
-          );
+          this.orders.update((current) => (reset ? value.orders : [...current, ...value.orders]));
           this.ordersHasMore.set(value.has_more);
           this.ordersLoading.set(false);
         },

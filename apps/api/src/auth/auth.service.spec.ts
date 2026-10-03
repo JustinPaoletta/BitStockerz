@@ -316,10 +316,7 @@ describe('AuthService', () => {
     ).rejects.toBeInstanceOf(DomainError);
   });
 
-  it('creates and consumes google oauth state, linking by email', async () => {
-    const seeded = await service.register('oauth@example.com');
-    expect(seeded.user.linked_auth_methods.google).toBe(false);
-
+  it('creates a new Google subject and reuses its user on later login', async () => {
     const start = await service.createOAuthStart('google');
     const callback = await service.completeGoogleOAuth({
       state: start.state,
@@ -578,31 +575,32 @@ describe('AuthService', () => {
     expect(callback.user.email).toBe('apple-user-malformed@apple.private');
   });
 
-  it('rejects google account conflicts when subject and email map to different users', async () => {
+  it('requires explicit linking for an email collision and returns known subjects first', async () => {
     await service.register('google-a@example.com');
-    const other = await service.register('google-b@example.com');
-
     const firstStart = await service.createOAuthStart('google');
-    await service.completeGoogleOAuth({
+    const owner = await service.completeGoogleOAuth({
       state: firstStart.state,
-      code: 'oauth-code-1',
+      code: 'code',
       email: 'google-b@example.com',
       sub: 'google-subject-conflict',
     });
-
     const secondStart = await service.createOAuthStart('google');
+    const returned = await service.completeGoogleOAuth({
+      state: secondStart.state,
+      code: 'code',
+      email: 'google-a@example.com',
+      sub: 'google-subject-conflict',
+    });
+    expect(returned.user.id).toBe(owner.user.id);
+    const collisionStart = await service.createOAuthStart('google');
     await expect(
       service.completeGoogleOAuth({
-        state: secondStart.state,
-        code: 'oauth-code-2',
+        state: collisionStart.state,
+        code: 'code',
         email: 'google-a@example.com',
-        sub: 'google-subject-conflict',
+        sub: 'new-subject',
       }),
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT,
-    });
-
-    expect(other.user.id).toBeDefined();
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
   });
 
   it('rejects replayed oauth state and provider mismatches', async () => {
@@ -746,7 +744,7 @@ describe('AuthService', () => {
     });
   });
 
-  it('rejects apple account email conflicts for an already mapped subject', async () => {
+  it('returns an Apple subject owner even when the provider email changes', async () => {
     const firstStart = await service.createOAuthStart('apple');
     await service.completeAppleOAuth({
       state: firstStart.state,
@@ -757,16 +755,13 @@ describe('AuthService', () => {
     await service.register('conflict@example.com');
 
     const secondStart = await service.createOAuthStart('apple');
-    await expect(
-      service.completeAppleOAuth({
-        state: secondStart.state,
-        code: 'apple-code-2',
-        sub: 'apple-conflict-subject',
-        email: 'conflict@example.com',
-      }),
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT,
+    const returned = await service.completeAppleOAuth({
+      state: secondStart.state,
+      code: 'apple-code-2',
+      sub: 'apple-conflict-subject',
+      email: 'conflict@example.com',
     });
+    expect(returned.user.email).toBe('apple-conflict-subject@apple.private');
   });
 
   it('rejects duplicate passkey credentials during registration', async () => {
@@ -1003,7 +998,7 @@ describe('configured OAuth identity security', () => {
     ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
   });
 
-  it('links an authoritative verified Gmail identity to the existing user', async () => {
+  it('requires explicit linking even for a verified Gmail identity', async () => {
     const service = configured('google', {
       sub: 'owner',
       email: 'owner@gmail.com',
@@ -1011,24 +1006,27 @@ describe('configured OAuth identity security', () => {
     });
     const owner = await service.register('owner@gmail.com');
     const start = await service.createOAuthStart('google');
+    await expect(
+      service.completeGoogleOAuth({ state: start.state, code: 'code' }),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
     expect(
-      (await service.completeGoogleOAuth({ state: start.state, code: 'code' }))
-        .user.id,
-    ).toBe(owner.user.id);
+      service.getProfileBySessionToken(owner.access_token).linked_auth_methods
+        .google,
+    ).toBe(false);
   });
 
   it('ignores unsigned Apple callback email when the signed token omits it', async () => {
     const service = configured('apple', { sub: 'attacker' });
     const victim = await service.register('victim@example.com');
     const start = await service.createOAuthStart('apple');
-    const result = await service.completeAppleOAuth({
-      state: start.state,
-      code: 'code',
-      email: 'victim@example.com',
-      user: JSON.stringify({ email: 'victim@example.com' }),
-    });
-    expect(result.user.id).not.toBe(victim.user.id);
-    expect(result.user.email).toBe('attacker@apple.private');
+    await expect(
+      service.completeAppleOAuth({
+        state: start.state,
+        code: 'code',
+        email: 'victim@example.com',
+        user: JSON.stringify({ email: 'victim@example.com' }),
+      }),
+    ).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
     expect(
       service.getProfileBySessionToken(victim.access_token).linked_auth_methods
         .apple,

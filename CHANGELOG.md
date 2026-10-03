@@ -20,6 +20,51 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   job's Node runtime, pin action revisions, and restrict deployments to main.
 - Add signed-token and MySQL auth/quota regression checks, and repair database
   smoke-test cleanup for persisted passkeys and paper accounts.
+### Prelaunch security review
+
+- Restrict browser bearer headers and session-expiry handling to the configured
+  API origin and path; reject traversal and credential-bearing URLs.
+- Deny manual shared-market ingestion in production and validate concrete bounded
+  request DTOs. Require production MySQL persistence and redact public health errors.
+- Add binary auth identifier collation, strict persisted identifier matching,
+  expiry cleanup, bounded auth limiter storage and explicit ingress proxy trust.
+- Add checksum-pinned, redacted CI secret scanning with four exact historical
+  false-positive exceptions; ignore local credentials and browser artifacts, and
+  add Vercel framing, MIME-sniffing and referrer headers.
+
+### Browser login, profile and recovery
+
+- Added configured Google/Apple browser login, fixed callback redirects and
+  one-use verifier-bound handoffs without session tokens in URLs.
+- Added explicit recovery-provider linking bound to a fresh original session,
+  strict signed identity claims and safe existing-account/email conflict handling.
+- Added Profile/Account settings, display-name persistence and shell updates,
+  linked-method status and lost-device help without an email-only reset bypass.
+- Added atomic MySQL auth persistence/migration, signed JWT regressions, HTTP
+  secret redaction, browser tests and recovery/restart ownership checks.
+- Documented provider configuration, duplicate-identity migration preflight and
+  real-provider production smoke; optional extra passkeys remain deferred.
+
+### Prelaunch P&L and trade markers
+
+- Added cumulative realized and total paper P&L to the portfolio API, dashboard,
+  and Trade desk, with consistent ledger snapshots and cent-level reconciliation.
+- Added entry/exit arrows to backtest equity curves, including daily/hourly UTC
+  mapping, paginated marker updates, partial-coverage copy, and chart cleanup.
+- Added Sprint 8.1/8.2 plans for Google/Apple browser login and profile/recovery;
+  synchronized MVP, roadmap, stories, and API documentation.
+
+### Branding
+
+- Unified all application screens, charts, loading states, validation feedback, code previews, and raster logo/favicons with the Offset brand tokens.
+
+- Introduced the Offset logo system with citron, ink, and chalk colors, monochrome variants, an SVG favicon, lowercase wordmark, and a research-led sign-in experience.
+
+### Dashboard usability review
+
+- Simplified dashboard hierarchy and removed repeated navigation actions; fixed mobile metric overflow and linked symbol selection to a prefilled paper Trade ticket.
+- Added keyboard-accessible strategy links, strategy/backtest history pagination, retryable trade pagination, and race-safe backtest strategy resolution.
+- Corrected combobox cancellation/ARIA behavior, historical strategy backtest actions, and stale trade feedback; added regression coverage.
 
 ### Added
 

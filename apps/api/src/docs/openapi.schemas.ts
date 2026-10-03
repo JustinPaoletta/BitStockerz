@@ -125,6 +125,24 @@ export const API_SCHEMAS: OpenApiSchemas = {
       options: { type: 'object', additionalProperties: true },
     },
   },
+  OAuthProviders: {
+    type: 'object',
+    required: ['google', 'apple'],
+    properties: { google: { type: 'boolean' }, apple: { type: 'boolean' } },
+  },
+  OAuthSessionExchangeResponse: {
+    allOf: [
+      { $ref: '#/components/schemas/AuthResponse' },
+      {
+        type: 'object',
+        required: ['return_path', 'intent'],
+        properties: {
+          return_path: { type: 'string' },
+          intent: { type: 'string', enum: ['login', 'link'] },
+        },
+      },
+    ],
+  },
   OAuthStartResponse: {
     type: 'object',
     required: ['provider', 'state', 'authorization_url', 'expires_in_seconds'],
@@ -846,12 +864,23 @@ export const API_SCHEMAS: OpenApiSchemas = {
       'total_position_value',
       'total_equity',
       'unrealized_pnl_total',
+      'realized_pnl_total',
+      'total_pnl',
     ],
     properties: {
       cash_balance: decimal,
       total_position_value: decimal,
       total_equity: decimal,
       unrealized_pnl_total: decimal,
+      realized_pnl_total: {
+        ...decimal,
+        description:
+          'Cumulative average-cost realized P&L, including fill cash-rounding residuals. Total P&L minus unrealized P&L.',
+      },
+      total_pnl: {
+        ...decimal,
+        description: 'Total equity minus starting balance.',
+      },
     },
   },
   Liveness: {

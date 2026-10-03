@@ -35,6 +35,7 @@ for (const [provider, issuer] of [
         iss: issuer,
         aud: 'client',
         nonce: 'expected',
+        iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 60,
       };
       if (scenario === 'missing nonce') delete claims.nonce;

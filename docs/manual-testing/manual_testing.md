@@ -23,6 +23,7 @@ Choose the smallest relevant test set:
 | Strategy CRUD/versioning/validation or backtest APIs | Sections 11 (and 3.4 UI paths in Section 13 when touching Angular) |
 | Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes |
 | Angular shell, passkeys, dashboard widgets, Strategy Lab, or Trade desk | Section 13 (`npm --prefix apps/web run e2e` for the automated seed path) |
+| Google/Apple browser login, Profile, or recovery linking | Section 16; real-provider smoke in `docs/ops/deployment.md` |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
 Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -795,7 +796,8 @@ curl -s "$BASE_URL/trading/portfolio-summary" \
 jq -e '
   .total_equity == "100000.00" and
   .unrealized_pnl_total == "0.00" and
-  ([.cash_balance,.total_position_value,.total_equity,.unrealized_pnl_total]
+  .realized_pnl_total == "0.00" and .total_pnl == "0.00" and
+  ([.cash_balance,.total_position_value,.total_equity,.unrealized_pnl_total,.realized_pnl_total,.total_pnl]
     | all(test("^-?[0-9]+\\.[0-9]{2}$")))
 ' /tmp/bitstockerz-trading-summary.json
 
@@ -945,6 +947,28 @@ Stop the API in Terminal A with `Ctrl+C`. Paper-trading rows created by the
 manual HTTP flow intentionally remain in a local MySQL dev database as useful
 history; the isolated MySQL gate cleans up its own fixtures.
 
+### 12.9 Prelaunch realized P&L regression
+
+The API now returns `realized_pnl_total` and `total_pnl` as 2dp strings.
+Realized P&L is cash + remaining average-cost basis − initial funding, including
+fill cash rounding. It is independent of current market prices. Total P&L equals
+equity − starting balance; displayed unrealized P&L is total − realized.
+
+Run the seed HTTP regression with `LOG_LEVEL=silent npm --prefix apps/api test --
+--runInBand trading.integration.spec.ts`. It buys 2 shares at $100 and 2 at $120
+(average cost $110), sells 1.5 at $125 (realized $22.50, unrealized $37.50),
+replays the sale, rejects an oversell, then closes 2.5 at $90 (cumulative realized
+−$27.50, unrealized $0). A new purchase keeps the previous realized total.
+
+For real persistence, export the local `DATABASE_URL` and run
+`npm --prefix apps/api run test:mysql:trading`. Its isolated records verify a
+profitable partial sale, $50 cumulative realized P&L after an API restart, and
+replay without double counting. The harness cleans up its own users/symbols.
+
+In the Angular dashboard and Trade desk, check both “Realized P&L” and “Total
+P&L”, including a loss. A second user's summary must not include the first
+user's activity. Missing held-symbol prices still fail the summary closed.
+
 ## Section 13 – Angular Milestone 5 (Sprints 5.1–5.3)
 
 Automated gates (seed mode; starts API + web):
@@ -986,10 +1010,12 @@ Work through these in order on a fresh browser session (or after Log out).
 | 8 | **Strategy Lab create** — Strategies → Create → Validate → Save | “Definition is valid.” then detail page with name/version |
 | 9 | **Strategy edit + dirty guard** — Edit, change name, click Back without saving | Browser confirm appears; Cancel keeps you on the editor |
 | 10 | **Versioning** — Edit definition (e.g. period), Save, on detail switch Version dropdown | New version number; older version is read-only (no Edit/Delete) |
-| 11 | **Backtest from strategy** — Detail → Run backtest; confirm strategy name + locked timeframe; pick dates covering seed AAPL (e.g. last ~3 months), Run | Navigates to detail with Equity curve + Final equity |
+| 11 | **Backtest from strategy** — Detail → Run backtest; confirm strategy name + locked timeframe; pick dates covering seed AAPL (e.g. last ~3 months), Run | Navigates to detail with Equity curve + Final equity; ↑ Entry / ↓ Exit arrows match trade dates |
+| 11a | **Marker pagination / hourly** — inspect a run with >500 trades, zoom the chart, then load more; inspect an hourly crypto run | Partial coverage is labeled, markers update without resetting zoom, same-bar entry/exit both show, hourly events stay distinct |
 | 12 | **Trade BUY** — Trade desk, AAPL BUY qty `1`, Submit | Status “Filled BUY…”, cash drops, position + executions update |
 | 13 | **Trade reject** — same ticket qty `9999`, Submit | Status shows `Rejected: MAX_ORDER_NOTIONAL` (or similar); order history shows REJECTED |
 | 14 | **Trade SELL** — SELL qty equal to open AAPL position, Submit | Fills; position clears/reduces; cash increases |
+| 14a | **Paper P&L** — inspect Portfolio summary and Trade desk after partial/full sales | Realized and Total P&L appear; realized + unrealized = total to the cent, and a rejected/replayed order does not double count |
 | 15 | **SELL oversize client guard** — SELL more than displayed position | Inline error; no order submitted |
 | 16 | **Passkey path (if device supports it)** — Log out, Register/Sign in with passkey | Session created; dashboard loads. If WebAuthn unavailable, email fallback still works |
 | 17 | **401 handling** — DevTools → Application → Session Storage → delete `bs.access_token`, click Trade | Redirect to login; signing in restores access |
@@ -1163,5 +1189,53 @@ curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provid
 Live Fly/Vercel/MySQL provisioning remains an operator step before first production URL.
 
 ---
+
+## Section 16 – Browser OAuth, Profile and lost-device recovery (Sprints 8.1–8.2)
+
+For real Google/Apple accounts, complete the configuration and smoke checklist
+in [deployment.md](../ops/deployment.md#googleapple-login-and-recovery-setup).
+Local mocks verify application behavior; they do not verify provider consent,
+Apple keys, registered domains or live return URLs.
+
+1. Open `/login`. Only configured providers should have login actions. Passkey
+   and local development login must remain usable. Production must hide local
+   email shortcuts. Test denial/cancellation, callback refresh and an expired
+   flow; each should offer a clean retry without showing provider error payloads.
+2. Sign in and open `/profile` using shell navigation. Confirm email, USD,
+   passkey count and linked provider flags. Edit the display name, save, refresh,
+   sign out and sign in again. The shell and page should show the saved name.
+   Test an empty optional name, 80-character limit and failed-save retry.
+3. Link an available unlinked provider while the sign-in is under five minutes
+   old. Confirm that Profile refreshes the linked status. Repeat with an older
+   session and confirm a sign-in-again message. Cancel or cause a conflict and
+   confirm the original session and sign-in methods survive.
+4. Sign out and recover through the linked provider without using the passkey.
+   Verify the original portfolio and strategies/backtests. Repeat after API
+   restart. Apple returning login must work without first-login user/email form
+   fields. A new provider subject with a matching email must ask the user to sign
+   into the existing account and explicitly link; it must not claim that account.
+5. In browser developer tools, confirm the callback fragment is removed before
+   exchange. Its code must expire after 60 seconds and succeed only once with
+   the initiating browser's verifier. A linking handoff also requires its
+   original bearer session. Confirm logs redact codes, verifiers and provider
+   payloads. Never paste production session codes/tokens into reports.
+6. Repeat the Profile and recovery-help paths at a phone width with keyboard
+   navigation. Users with no linked alternative must receive accurate guidance,
+   without any promise that an email address alone can restore access.
+
+Automated database verification (isolated test fixtures, mocked verified
+provider identity, real MySQL persistence):
+
+```bash
+source scripts/lib/load-api-env.sh
+load_database_url_from_api_env "$PWD/apps/api"
+npm --prefix apps/api run db:deploy
+INGESTION_SCHEDULER_ENABLED=false LOG_LEVEL=silent \
+  npm --prefix apps/api run test:mysql:auth
+```
+
+This test covers restart persistence, verifier/replay protection, explicit
+linking, original account/data ownership and original sign-in age. Real-provider
+production smoke is a separate required release check for each enabled provider.
 
 **File:** `docs/manual-testing/manual_testing.md`

@@ -7,6 +7,8 @@ export interface PortfolioSummary {
   total_position_value: string;
   total_equity: string;
   unrealized_pnl_total: string;
+  realized_pnl_total: string;
+  total_pnl: string;
 }
 
 export interface PositionRow {
@@ -64,7 +66,10 @@ export class TradingApiService {
       .pipe(catchError(toUserError));
   }
 
-  executions(limit = 5, offset = 0): Observable<{
+  executions(
+    limit = 5,
+    offset = 0,
+  ): Observable<{
     executions: ExecutionRow[];
     limit: number;
     offset: number;
@@ -81,7 +86,10 @@ export class TradingApiService {
       .pipe(catchError(toUserError));
   }
 
-  orders(limit = 10, offset = 0): Observable<{
+  orders(
+    limit = 10,
+    offset = 0,
+  ): Observable<{
     orders: OrderRow[];
     limit: number;
     offset: number;

@@ -1,8 +1,10 @@
+import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts';
 import type {
   BacktestDetailResponse,
   BacktestListResponse,
   BacktestResults,
   BacktestRun,
+  BacktestTrade,
   ChartPoint,
   CreateBacktestResponse,
   EquityPoint,
@@ -95,20 +97,63 @@ export function mapCreateBacktest(value: unknown): CreateBacktestResponse {
 }
 
 export function toChartPoints(points: EquityPoint[], timeframe: '1d' | '1h'): ChartPoint[] {
-  return points.flatMap((point) => {
+  const byTime = new Map<string | number, ChartPoint>();
+  for (const point of points) {
     const value = Number(point.equity);
     const milliseconds = Date.parse(point.timestamp);
-    if (!Number.isFinite(value) || !Number.isFinite(milliseconds)) return [];
-    return [
-      {
-        time:
-          timeframe === '1d'
-            ? new Date(milliseconds).toISOString().slice(0, 10)
-            : Math.floor(milliseconds / 1000),
-        value,
-      },
-    ];
-  });
+    if (!Number.isFinite(value) || !Number.isFinite(milliseconds)) continue;
+    const time = chartTime(milliseconds, timeframe);
+    byTime.set(time, { time, value });
+  }
+  return [...byTime.values()].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+}
+
+export function toTradeMarkers(
+  trades: BacktestTrade[],
+  points: EquityPoint[],
+  timeframe: '1d' | '1h',
+): SeriesMarker<Time>[] {
+  const times = new Set(toChartPoints(points, timeframe).map((point) => point.time));
+  const markers: SeriesMarker<Time>[] = [];
+  const seen = new Set<number>();
+  for (const trade of trades) {
+    const entry = Date.parse(trade.entry_time);
+    const exit = Date.parse(trade.exit_time);
+    if (seen.has(trade.id) || !Number.isFinite(entry) || !Number.isFinite(exit) || exit < entry) {
+      continue;
+    }
+    seen.add(trade.id);
+    const entryTime = chartTime(entry, timeframe);
+    const exitTime = chartTime(exit, timeframe);
+    if (times.has(entryTime)) {
+      markers.push({
+        id: `entry-${trade.id}`,
+        time: entryTime as Time,
+        position: 'belowBar',
+        color: '#d7f86b',
+        shape: 'arrowUp',
+        text: 'Entry',
+      });
+    }
+    if (times.has(exitTime)) {
+      markers.push({
+        id: `exit-${trade.id}`,
+        time: exitTime as Time,
+        position: 'aboveBar',
+        color: '#ffad75',
+        shape: 'arrowDown',
+        text: 'Exit',
+      });
+    }
+  }
+  // The plugin requires chronological order; stable ties retain entry before exit.
+  return markers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+}
+
+function chartTime(milliseconds: number, timeframe: '1d' | '1h'): string | UTCTimestamp {
+  return timeframe === '1d'
+    ? new Date(milliseconds).toISOString().slice(0, 10)
+    : (Math.floor(milliseconds / 1000) as UTCTimestamp);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

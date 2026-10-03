@@ -8,6 +8,7 @@ import {
 import { ActivatedRoute, CanDeactivateFn, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
+import { PageGuideComponent } from '../../../shared/ui/page-guide.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton.component';
 import {
   StrategiesApiService,
@@ -39,12 +40,26 @@ type EditorForm = FormGroup<{
 
 @Component({
   selector: 'app-strategy-editor-page',
-  imports: [ReactiveFormsModule, RouterLink, SkeletonComponent, InlineErrorComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    SkeletonComponent,
+    InlineErrorComponent,
+    PageGuideComponent,
+  ],
   template: `
     <section class="page-heading">
       <div>
         <p class="eyebrow">{{ isNew() ? 'Create' : 'Edit' }} strategy</p>
         <h1>{{ isNew() ? 'New strategy' : 'Edit strategy' }}</h1>
+        <app-page-guide
+          description="Define what the bot watches (indicator and timeframe) and when it should buy or sell."
+          [steps]="[
+            'Pick asset type and timeframe (crypto can use hourly bars).',
+            'Set entry and exit conditions and optional stop loss / take profit.',
+            'Validate to check the rules, then Save. Edits create a new version.',
+          ]"
+        />
       </div>
       <a class="text-link" routerLink="/strategies">Back to list</a>
     </section>
@@ -161,7 +176,7 @@ type EditorForm = FormGroup<{
       grid-column: 1 / -1;
     }
     pre {
-      background: #0b1626;
+      background: var(--surface-inset);
       border-radius: 0.75rem;
       padding: 1rem;
       white-space: pre-wrap;

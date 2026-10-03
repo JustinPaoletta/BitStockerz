@@ -10,6 +10,31 @@ export interface AuthUser {
   email: string;
   display_name?: string | null;
   base_currency?: string;
+  linked_auth_methods?: {
+    passkeys: boolean;
+    google: boolean;
+    apple: boolean;
+  };
+  passkey_count?: number;
+}
+
+export type OAuthProvider = 'google' | 'apple';
+
+export interface AuthProviders {
+  google: boolean;
+  apple: boolean;
+}
+
+export interface OAuthStartResponse {
+  provider: OAuthProvider;
+  state: string;
+  authorization_url: string;
+  expires_in_seconds: number;
+}
+
+export interface OAuthSessionResponse extends AuthResponse {
+  return_path: string;
+  intent: 'login' | 'link';
 }
 
 export interface ProblemDetails {

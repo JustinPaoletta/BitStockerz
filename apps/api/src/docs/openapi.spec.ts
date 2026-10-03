@@ -25,6 +25,10 @@ const EXPECTED_OPERATIONS: Record<string, HttpMethod[]> = {
   '/api/auth/oauth/apple/start': ['get'],
   '/api/auth/oauth/google/callback': ['get'],
   '/api/auth/oauth/apple/callback': ['get', 'post'],
+  '/api/auth/providers': ['get'],
+  '/api/auth/oauth/{provider}/browser/start': ['post'],
+  '/api/auth/oauth/{provider}/link/start': ['post'],
+  '/api/auth/oauth/session/exchange': ['post'],
   '/api/auth/logout': ['post'],
   '/api/auth/me': ['get'],
   '/api/me': ['get', 'patch'],
@@ -56,6 +60,7 @@ const EXPECTED_OPERATIONS: Record<string, HttpMethod[]> = {
 };
 
 const PROTECTED_OPERATIONS = new Set([
+  'post /api/auth/oauth/{provider}/link/start',
   'post /api/auth/logout',
   'get /api/auth/me',
   'get /api/me',

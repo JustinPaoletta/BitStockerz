@@ -2,11 +2,13 @@
 
 This is the complete MVP **target**, not a list of features already shipped.
 For current implementation state and the next development owner, use the
-[roadmap](./ROADMAP.md). As of August 7, 2026, delivery is complete through
-Milestone 5 (API through Sprint 4.3 plus the Angular shell, dashboard,
-Strategy Lab, backtest, and paper Trade workflows in PR #11). Sprint 6.1 is
-next; AI assistance, realized-P&L analytics, and backtest entry/exit chart
-markers remain future work.
+[roadmap](./ROADMAP.md). Original Milestones 0–7 are complete in-repo.
+As of September 30, 2026, realized/total paper P&L and backtest entry/exit
+markers are also implemented in the working tree. Google/Apple browser login
+and profile/account recovery are implemented and verified locally under
+[Sprint 8.1](../plans/sprint-8-1-oauth-browser-readiness.md) and
+[Sprint 8.2](../plans/sprint-8-2-profile-recovery.md). Live deployment still
+requires hosting accounts/configuration; AI diff-style suggestions remain deferred.
 
 ## 1. User & Account
 - Passkeys (WebAuthn) / OAuth login

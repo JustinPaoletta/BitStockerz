@@ -1,0 +1,19 @@
+# Remote builders must never receive local credentials or browser/test output.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+.aws
+.ssh
+.git
+node_modules
+dist
+coverage
+logs
+*.log
+test-results
+playwright-report
+output
+artifacts

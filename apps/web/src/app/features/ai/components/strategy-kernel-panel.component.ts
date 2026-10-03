@@ -14,6 +14,10 @@ import {
         <div>
           <p class="eyebrow">Kernel</p>
           <h2>Strategy insights</h2>
+          <p class="hint">
+            Optional AI help: explain the rules in plain language or flag possible logic issues. Not
+            trading advice.
+          </p>
         </div>
         <div class="actions">
           <button
@@ -95,7 +99,7 @@ import {
       white-space: pre-wrap;
     }
     .kernel-error {
-      color: #b42318;
+      color: var(--error-text);
       margin: 0;
     }
     ul {

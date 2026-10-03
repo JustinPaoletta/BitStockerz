@@ -3,11 +3,18 @@ import {
   Controller,
   Get,
   Post,
+  Param,
+  Res,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { OAuthBrowserStartDto } from './dto/oauth-browser-start.dto';
+import { OAuthSessionExchangeDto } from './dto/oauth-session-exchange.dto';
+import { extractBearerToken } from './auth.guard';
+import type { OauthProvider } from './auth.records';
+import { ApiConsumes, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AuditService } from '../observability/audit.service';
@@ -25,6 +32,22 @@ import { WebAuthnLoginOptionsDto } from './dto/webauthn-login-options.dto';
 import { WebAuthnLoginVerifyDto } from './dto/webauthn-login-verify.dto';
 import { WebAuthnRegisterOptionsDto } from './dto/webauthn-register-options.dto';
 import { WebAuthnRegisterVerifyDto } from './dto/webauthn-register-verify.dto';
+
+const BROWSER_CALLBACK_RESPONSE = {
+  status: 303,
+  description:
+    'Browser flow redirects to the configured SPA callback with a one-use handoff or bounded error. No bearer token appears in the URL.',
+  headers: {
+    Location: {
+      description: 'Configured SPA callback URL.',
+      schema: { type: 'string' },
+    },
+    'x-request-id': {
+      description: 'Request correlation id.',
+      schema: { type: 'string' },
+    },
+  },
+};
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -149,6 +172,93 @@ export class AuthController {
     return result;
   }
 
+  @Get('providers')
+  @ApiEndpoint({
+    summary: 'Read configured browser identity providers',
+    responseSchema: apiSchemaRef('OAuthProviders'),
+    responseDescription: 'Provider availability.',
+  })
+  providers() {
+    return this.authService.getOAuthProviders();
+  }
+
+  @Post('oauth/:provider/browser/start')
+  @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin browser OAuth login',
+    status: 201,
+    responseSchema: apiSchemaRef('OAuthStartResponse'),
+    responseDescription: 'Provider redirect and browser state.',
+    errors: [400, 429, 500],
+  })
+  oauthBrowserStart(
+    @Param('provider') provider: string,
+    @Body() dto: OAuthBrowserStartDto,
+  ) {
+    return this.authService.createOAuthBrowserStart(
+      this.requireProvider(provider),
+      dto,
+    );
+  }
+
+  @Post('oauth/:provider/link/start')
+  @UseGuards(AuthGuard, AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Begin linking a recovery provider after recent sign-in',
+    authenticated: true,
+    status: 201,
+    responseSchema: apiSchemaRef('OAuthStartResponse'),
+    responseDescription:
+      'Provider redirect bound to original user and session.',
+    errors: [400, 401, 429, 500],
+  })
+  oauthLinkStart(
+    @Param('provider') provider: string,
+    @Body() dto: OAuthBrowserStartDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.authService.createOAuthBrowserStart(
+      this.requireProvider(provider),
+      dto,
+      this.getAuthToken(request),
+    );
+  }
+
+  @Post('oauth/session/exchange')
+  @UseGuards(AuthRateLimitGuard)
+  @ApiEndpoint({
+    summary: 'Redeem a one-use browser OAuth handoff',
+    status: 201,
+    responseSchema: apiSchemaRef('OAuthSessionExchangeResponse'),
+    responseDescription:
+      'Bearer session and validated local destination; linking requires original bearer.',
+    errors: [400, 401, 409, 429, 500],
+  })
+  async oauthSessionExchange(
+    @Body() dto: OAuthSessionExchangeDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const result = await this.authService.exchangeOAuthSession(
+      dto,
+      extractBearerToken(request.headers.authorization),
+    );
+    this.auditAuth(
+      result.intent === 'link' ? 'auth.provider_linked' : 'auth.login',
+      result,
+      { method: 'oauth' },
+    );
+    return result;
+  }
+
+  private requireProvider(provider: string): OauthProvider {
+    if (provider !== 'google' && provider !== 'apple')
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'Unsupported provider.',
+      );
+    return provider;
+  }
+
   @Get('oauth/google/start')
   @UseGuards(AuthRateLimitGuard)
   @ApiEndpoint({
@@ -174,6 +284,8 @@ export class AuthController {
   }
 
   @Get('oauth/google/callback')
+  @UseGuards(AuthRateLimitGuard)
+  @ApiResponse(BROWSER_CALLBACK_RESPONSE)
   @ApiEndpoint({
     summary: 'Complete Google OAuth',
     description:
@@ -182,7 +294,12 @@ export class AuthController {
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 401, 409, 500],
   })
-  async oauthGoogleCallback(@Query() dto: OAuthGoogleCallbackDto) {
+  async oauthGoogleCallback(
+    @Query() dto: OAuthGoogleCallbackDto,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    if (response)
+      return this.completeHttpOAuthCallback('google', dto, response);
     const result = await this.authService.completeGoogleOAuth({
       state: dto.state,
       code: dto.code,
@@ -195,13 +312,19 @@ export class AuthController {
   }
 
   @Get('oauth/apple/callback')
+  @UseGuards(AuthRateLimitGuard)
+  @ApiResponse(BROWSER_CALLBACK_RESPONSE)
   @ApiEndpoint({
     summary: 'Complete Apple OAuth by query callback',
     responseDescription: 'OAuth identity linked and bearer session issued.',
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 401, 409, 500],
   })
-  async oauthAppleCallbackGet(@Query() dto: OAuthAppleCallbackDto) {
+  async oauthAppleCallbackGet(
+    @Query() dto: OAuthAppleCallbackDto,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    if (response) return this.completeHttpOAuthCallback('apple', dto, response);
     const result = await this.authService.completeAppleOAuth({
       state: dto.state,
       code: dto.code,
@@ -215,6 +338,8 @@ export class AuthController {
   }
 
   @Post('oauth/apple/callback')
+  @UseGuards(AuthRateLimitGuard)
+  @ApiResponse(BROWSER_CALLBACK_RESPONSE)
   @ApiConsumes('application/x-www-form-urlencoded', 'application/json')
   @ApiEndpoint({
     summary: 'Complete Apple OAuth form-post callback',
@@ -223,7 +348,11 @@ export class AuthController {
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 401, 409, 500],
   })
-  async oauthAppleCallbackPost(@Body() dto: OAuthAppleCallbackDto) {
+  async oauthAppleCallbackPost(
+    @Body() dto: OAuthAppleCallbackDto,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    if (response) return this.completeHttpOAuthCallback('apple', dto, response);
     const result = await this.authService.completeAppleOAuth({
       state: dto.state,
       code: dto.code,
@@ -272,6 +401,23 @@ export class AuthController {
     return this.authService.getProfileBySessionToken(
       this.getAuthToken(request),
     );
+  }
+
+  private async completeHttpOAuthCallback(
+    provider: OauthProvider,
+    dto: OAuthGoogleCallbackDto | OAuthAppleCallbackDto,
+    response: Response,
+  ) {
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    const result = await this.authService.handleOAuthCallback(provider, dto);
+    if ('redirect_url' in result) {
+      response.redirect(303, result.redirect_url);
+      return;
+    }
+    await this.authService.ensurePaperAccountForUser(result.user.id);
+    this.auditAuth('auth.login', result, { method: `oauth_${provider}` });
+    return result;
   }
 
   private getAuthToken(request: AuthenticatedRequest): string {

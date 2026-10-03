@@ -55,6 +55,7 @@ model OAuthIdentity {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, subject])
+  @@unique([userId, provider])
   @@index([userId])
   @@map("oauth_identities")
 }
@@ -75,11 +76,34 @@ model OAuthState {
   state     String   @id @db.VarChar(128)
   provider  String   @db.VarChar(16)
   nonce     String   @db.VarChar(128)
+  mode      String   @default("json") @db.VarChar(16)
+  intent    String   @default("login") @db.VarChar(16)
+  codeChallenge String? @map("code_challenge") @db.Char(43)
+  returnPath String? @map("return_path") @db.VarChar(2048)
+  initiatingUserId String? @map("initiating_user_id") @db.Char(36)
+  initiatingSessionHash String? @map("initiating_session_hash") @db.Char(64)
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @map("created_at")
 
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+model OAuthHandoff {
+  codeHash String @id @map("code_hash") @db.Char(64)
+  userId String @map("user_id") @db.Char(36)
+  provider String @db.VarChar(16)
+  intent String @db.VarChar(16)
+  subject String? @db.VarChar(255)
+  email String? @db.VarChar(191)
+  codeChallenge String @map("code_challenge") @db.Char(43)
+  returnPath String @map("return_path") @db.VarChar(2048)
+  initiatingSessionHash String? @map("initiating_session_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @map("created_at")
+
+  @@index([expiresAt])
+  @@map("oauth_handoffs")
 }
 
 model AiUsage {

@@ -146,6 +146,7 @@ Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never
 | `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
 | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
 | `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider credentials and callback URLs; each provider's required set must be complete. |
+| `AUTH_OAUTH_BROWSER_CALLBACK_URL` | Fixed SPA OAuth callback destination (`/auth/oauth/callback`); use the exact HTTPS URL in production. |
 | `LOG_LEVEL` / `LOG_TO_FILE` / `LOG_FILE_PATH` | Log level and optional file logging (see Observability.md). |
 
 The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Restart after editing `.env`.

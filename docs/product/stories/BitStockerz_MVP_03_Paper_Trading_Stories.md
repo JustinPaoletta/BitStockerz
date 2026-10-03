@@ -19,8 +19,9 @@ Scope includes:
   portfolio unrealized P&L, and owner-scoped order/execution history.
 - Angular Trade desk and dashboard portfolio/position widgets shipped in
   Milestone 5 / PR #11.
-- Realized-P&L aggregation, shorts/margin, account reset, and non-market order
-  types remain explicitly outside the Milestone 4 contract.
+- Prelaunch follow-up (September 30, 2026): cumulative realized and total P&L
+  implemented in the portfolio summary, dashboard, and Trade desk.
+- Shorts/margin, account reset, and non-market order types remain outside scope.
 
 ---
 
@@ -84,10 +85,21 @@ Persistent paper account per user with starting balance and cash tracking.
 - `GET /api/trading/positions` returns owner-only non-zero positions ordered
   by symbol with 8dp quantity and average cost.
 
-### Story 3.4.2 – Portfolio summary & unrealized P&L
+### Story 3.4.2 – Portfolio summary & realized/unrealized P&L
 
 - `GET /api/trading/portfolio-summary` returns 2dp cash, position value,
-  equity, and unrealized P&L using the same close rules as fills.
+  equity, `unrealized_pnl_total`, `realized_pnl_total`, and `total_pnl` using the
+  same close rules as fills.
+- Cumulative realized P&L equals cash plus remaining average-cost basis minus
+  starting balance, including cash-rounding residuals from fractional fills.
+  It does not depend on current market prices or history pagination. Existing
+  trades are included automatically, including after an API restart.
+- Total P&L equals equity minus starting balance. Displayed unrealized P&L is
+  total minus realized so all three 2dp totals reconcile exactly. Cash and
+  positions come from one consistent ledger snapshot.
+- This identity assumes the current fill-only account model. Deposits,
+  withdrawals, resets, or funding adjustments require explicit cash-flow accounting
+  before adding them; they must not be counted as trading profits.
 - Missing/stale prices fail closed with `422 TRADING_NO_MARKET_PRICE`.
 
 ---

@@ -3,10 +3,13 @@ import { Prisma } from '@prisma/client';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { MarketDataService } from '../market-data/market-data.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { FillPriceService } from './fill-price.service';
 import { PaperAccountsService } from './paper-accounts.service';
 import { PositionsService } from './positions.service';
 import { formatMoney, formatTrading } from './trading-decimals';
+import { TradingMemoryStore } from './trading-memory.store';
+import type { TradingTransaction } from './trading.types';
 
 @Injectable()
 export class TradingViewsService {
@@ -15,6 +18,8 @@ export class TradingViewsService {
     private readonly positions: PositionsService,
     private readonly prices: FillPriceService,
     private readonly marketData: MarketDataService,
+    private readonly prisma: PrismaService,
+    private readonly memory: TradingMemoryStore,
   ) {}
 
   async listPositions(userId: string) {
@@ -48,10 +53,24 @@ export class TradingViewsService {
   }
 
   async getPortfolioSummary(userId: string) {
-    const account = await this.accounts.getForUser(userId);
-    const positions = await this.positions.listForAccount(account.id);
+    const provisioned = await this.accounts.getForUser(userId);
+    const readSnapshot = async (tx?: TradingTransaction) => {
+      const account = await this.accounts.getById(provisioned.id, tx);
+      if (!account) throw new DomainError(ErrorCode.NOT_FOUND);
+      const positions = await this.positions.listForAccount(account.id, tx);
+      return { account, positions };
+    };
+    // Read both sides of the ledger consistently while fills update them atomically.
+    const { account, positions } = this.prisma.isEnabled
+      ? await this.prisma.$transaction(readSnapshot, {
+          isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+        })
+      : await this.memory.runAccountTransaction(provisioned.id, readSnapshot);
     let totalPositionValue = new Prisma.Decimal(0);
-    let unrealizedPnl = new Prisma.Decimal(0);
+    const openCostBasis = positions.reduce(
+      (cost, position) => cost.add(position.quantity.mul(position.avgCost)),
+      new Prisma.Decimal(0),
+    );
 
     if (positions.length > 0) {
       let closes: Map<number, Prisma.Decimal>;
@@ -78,17 +97,27 @@ export class TradingViewsService {
         totalPositionValue = totalPositionValue.add(
           position.quantity.mul(close),
         );
-        unrealizedPnl = unrealizedPnl.add(
-          close.sub(position.avgCost).mul(position.quantity),
-        );
       }
     }
 
+    const totalEquity = account.cashBalance.add(totalPositionValue);
+    const totalPnl = formatMoney(totalEquity.sub(account.startingBalance));
+    // Only fills change cash in the MVP. Equity minus initial funding decomposes
+    // into open-position P&L and realized P&L, including cash-rounding residuals.
+    // Realized P&L depends only on the ledger, never on current market prices.
+    const realizedTotal = formatMoney(
+      account.cashBalance.add(openCostBasis).sub(account.startingBalance),
+    );
+    const unrealizedTotal = formatMoney(
+      new Prisma.Decimal(totalPnl).sub(realizedTotal),
+    );
     return {
       cash_balance: formatMoney(account.cashBalance),
       total_position_value: formatMoney(totalPositionValue),
-      total_equity: formatMoney(account.cashBalance.add(totalPositionValue)),
-      unrealized_pnl_total: formatMoney(unrealizedPnl),
+      total_equity: formatMoney(totalEquity),
+      unrealized_pnl_total: unrealizedTotal,
+      realized_pnl_total: realizedTotal,
+      total_pnl: totalPnl,
     };
   }
 }

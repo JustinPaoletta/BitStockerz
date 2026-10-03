@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isIP } from 'node:net';
 
 export type NodeEnvironment = 'development' | 'test' | 'production';
 
@@ -61,6 +62,7 @@ export interface ServerConfig {
   port: number;
   nodeEnv: NodeEnvironment;
   corsAllowedOrigins: string[];
+  trustedProxyCidrs: string[];
   errorTestEnabled: boolean;
   openApiEnabled: boolean;
 }
@@ -92,6 +94,7 @@ export interface AuthConfig {
   webauthnRpId: string;
   webauthnRpName: string;
   webauthnAllowedOrigins: string[];
+  oauthBrowserCallbackUrl?: string;
   googleClientId?: string;
   googleClientSecret?: string;
   googleRedirectUri?: string;
@@ -410,6 +413,26 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     env.CORS_ALLOWED_ORIGINS,
     errors,
   );
+  const trustedProxyCidrs = (env.TRUSTED_PROXY_CIDRS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  for (const cidr of trustedProxyCidrs) {
+    const [address, mask, ...extra] = cidr.split('/');
+    const family = isIP(address);
+    if (
+      !family ||
+      extra.length > 0 ||
+      (mask !== undefined &&
+        (!/^\d+$/.test(mask) ||
+          Number(mask) === 0 ||
+          Number(mask) > (family === 4 ? 32 : 128)))
+    ) {
+      errors.push(
+        'TRUSTED_PROXY_CIDRS must contain only exact proxy IP addresses or CIDRs',
+      );
+    }
+  }
   const logLevel = parseLogLevel(env.LOG_LEVEL, errors);
   const logFilePath = normalizeOptional(env.LOG_FILE_PATH);
   const logToFile =
@@ -504,6 +527,28 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     env.WEBAUTHN_ALLOWED_ORIGINS,
     errors,
   );
+  const oauthBrowserCallbackUrl = parseOptionalUrl(
+    'AUTH_OAUTH_BROWSER_CALLBACK_URL',
+    env.AUTH_OAUTH_BROWSER_CALLBACK_URL,
+    errors,
+  );
+  if (oauthBrowserCallbackUrl) {
+    const callback = new URL(oauthBrowserCallbackUrl);
+    if (
+      callback.username ||
+      callback.password ||
+      callback.search ||
+      callback.hash ||
+      callback.pathname !== '/auth/oauth/callback' ||
+      (nodeEnv === 'production' && callback.protocol !== 'https:') ||
+      (nodeEnv === 'production' &&
+        !corsAllowedOrigins.includes(callback.origin))
+    ) {
+      errors.push(
+        'AUTH_OAUTH_BROWSER_CALLBACK_URL must be a trusted SPA /auth/oauth/callback URL without credentials, query or fragment; production requires HTTPS and a CORS allowed origin',
+      );
+    }
+  }
   const googleClientId = normalizeOptional(env.GOOGLE_OAUTH_CLIENT_ID);
   const googleClientSecret = normalizeOptional(env.GOOGLE_OAUTH_CLIENT_SECRET);
   const googleRedirectUri = parseOptionalUrl(
@@ -830,6 +875,17 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     }
     if (!databaseUrl) {
       errors.push('DATABASE_URL is required in production');
+    } else {
+      const database = new URL(databaseUrl);
+      if (
+        !['mysql:', 'mariadb:'].includes(database.protocol) ||
+        !database.hostname ||
+        database.pathname.length < 2
+      ) {
+        errors.push(
+          'DATABASE_URL must name a MySQL/MariaDB host and database in production',
+        );
+      }
     }
     if (corsAllowedOrigins.length === 0) {
       errors.push(
@@ -867,6 +923,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
           : nodeEnv === 'production'
             ? []
             : ['http://localhost:4200'],
+      trustedProxyCidrs,
       errorTestEnabled,
       openApiEnabled,
     },
@@ -894,6 +951,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       webauthnRpId,
       webauthnRpName,
       webauthnAllowedOrigins,
+      oauthBrowserCallbackUrl,
       googleClientId,
       googleClientSecret,
       googleRedirectUri,

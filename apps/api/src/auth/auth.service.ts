@@ -10,17 +10,24 @@ import {
 } from '@simplewebauthn/server';
 import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { JWTPayload } from 'jose';
+import { isEmail } from 'class-validator';
+import type { JWTPayload, JWTVerifyOptions } from 'jose';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaperAccountProvisioner } from '../trading/paper-account-provisioner.service';
 import { AuthPersistenceService } from './auth-persistence.service';
+import {
+  hashOAuthSecret,
+  oauthVerifierChallenge,
+  validateOAuthReturnPath,
+} from './oauth-browser.helpers';
 import type {
   BaseCurrency,
   OauthProvider,
   OauthStateRecord,
+  OAuthHandoffRecord,
   PasskeyCredentialRecord,
   SessionRecord,
   UserRecord,
@@ -40,6 +47,9 @@ const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_AUTHORIZATION_ENDPOINT = 'https://appleid.apple.com/auth/authorize';
 const APPLE_TOKEN_ENDPOINT = 'https://appleid.apple.com/auth/token';
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
+
+/** Must match verify* `requireUserVerification` (true only when `'required'`). */
+const WEBAUTHN_USER_VERIFICATION: 'preferred' | 'required' = 'preferred';
 
 export interface LinkedAuthMethods {
   passkeys: boolean;
@@ -112,14 +122,16 @@ export interface WebAuthnLoginVerifyInput {
 
 export interface GoogleOAuthCallbackInput {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
   email?: string;
   sub?: string;
 }
 
 export interface AppleOAuthCallbackInput {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
   sub?: string;
   email?: string;
   user?: string;
@@ -133,7 +145,6 @@ interface ProfileUpdate {
 interface OAuthIdentity {
   subject: string;
   email?: string;
-  canLinkByEmail?: boolean;
 }
 
 function normalizeEmail(email: string): string {
@@ -162,6 +173,25 @@ function normalizeOptional(value: string | undefined): string | undefined {
 
 function createRandomToken(size = 32): string {
   return randomBytes(size).toString('base64url');
+}
+
+function createWebAuthnChallengeEntropy(): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(randomBytes(32));
+}
+
+function webAuthnRequireUserVerification(): boolean {
+  return WEBAUTHN_USER_VERIFICATION === 'required';
+}
+
+function toWebAuthnDomainError(error: unknown, fallback: string): DomainError {
+  if (error instanceof DomainError) {
+    return error;
+  }
+  const detail =
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message
+      : fallback;
+  return new DomainError(ErrorCode.UNAUTHORIZED, detail);
 }
 
 function normalizePrivateKey(input: string): string {
@@ -200,6 +230,8 @@ export class AuthService implements OnModuleInit {
     string,
     WebAuthnChallengeRecord
   >();
+  private readonly oauthHandoffs = new Map<string, OAuthHandoffRecord>();
+  private oauthQueue: Promise<void> = Promise.resolve();
   private readonly oauthStatesById = new Map<string, OauthStateRecord>();
   private readonly googleSubjectsToUserIds = new Map<string, string>();
   private readonly appleSubjectsToUserIds = new Map<string, string>();
@@ -293,25 +325,26 @@ export class AuthService implements OnModuleInit {
       throw new DomainError(ErrorCode.CONFLICT, 'Email is already registered.');
     }
 
-    const challenge = await this.createWebAuthnChallenge(
-      'register',
-      normalizedEmail,
-    );
-
     const options = await generateRegistrationOptions({
       rpName: this.config.auth.webauthnRpName,
       rpID: this.config.auth.webauthnRpId,
       userName: normalizedEmail,
       userID: new TextEncoder().encode(normalizedEmail),
       userDisplayName: normalizedEmail,
-      challenge: challenge.challenge,
+      challenge: createWebAuthnChallengeEntropy(),
       timeout: this.config.auth.challengeTtlSeconds * 1000,
       attestationType: 'none',
       authenticatorSelection: {
         residentKey: 'preferred',
-        userVerification: 'preferred',
+        userVerification: WEBAUTHN_USER_VERIFICATION,
       },
     });
+
+    const challenge = await this.createWebAuthnChallenge(
+      'register',
+      normalizedEmail,
+      options.challenge,
+    );
 
     return {
       challenge_id: challenge.challengeId,
@@ -350,13 +383,21 @@ export class AuthService implements OnModuleInit {
     if (input.response) {
       const registrationResponse =
         input.response as unknown as RegistrationResponseJSON;
-      const verification = await verifyRegistrationResponse({
-        response: registrationResponse,
-        expectedChallenge: challenge.challenge,
-        expectedOrigin: this.getExpectedWebAuthnOrigins(),
-        expectedRPID: this.config.auth.webauthnRpId,
-        requireUserVerification: true,
-      });
+      let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
+      try {
+        verification = await verifyRegistrationResponse({
+          response: registrationResponse,
+          expectedChallenge: challenge.challenge,
+          expectedOrigin: this.getExpectedWebAuthnOrigins(),
+          expectedRPID: this.config.auth.webauthnRpId,
+          requireUserVerification: webAuthnRequireUserVerification(),
+        });
+      } catch (error) {
+        throw toWebAuthnDomainError(
+          error,
+          'Passkey registration verification failed.',
+        );
+      }
 
       if (!verification.verified || !verification.registrationInfo) {
         throw new DomainError(
@@ -409,16 +450,11 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    const challenge = await this.createWebAuthnChallenge(
-      'login',
-      normalizedEmail,
-    );
-
     const options = await generateAuthenticationOptions({
       rpID: this.config.auth.webauthnRpId,
-      challenge: challenge.challenge,
+      challenge: createWebAuthnChallengeEntropy(),
       timeout: this.config.auth.challengeTtlSeconds * 1000,
-      userVerification: 'preferred',
+      userVerification: WEBAUTHN_USER_VERIFICATION,
       allowCredentials: [...user.passkeyCredentialIds]
         .map((credentialId) => this.credentialsById.get(credentialId))
         .filter((credential): credential is PasskeyCredentialRecord =>
@@ -429,6 +465,12 @@ export class AuthService implements OnModuleInit {
           transports: credential.credential.transports,
         })),
     });
+
+    const challenge = await this.createWebAuthnChallenge(
+      'login',
+      normalizedEmail,
+      options.challenge,
+    );
 
     return {
       challenge_id: challenge.challengeId,
@@ -487,14 +529,24 @@ export class AuthService implements OnModuleInit {
         );
       }
 
-      const verification = await verifyAuthenticationResponse({
-        response: authenticationResponse,
-        expectedChallenge: challenge.challenge,
-        expectedOrigin: this.getExpectedWebAuthnOrigins(),
-        expectedRPID: this.config.auth.webauthnRpId,
-        credential: credential.credential,
-        requireUserVerification: true,
-      });
+      let verification: Awaited<
+        ReturnType<typeof verifyAuthenticationResponse>
+      >;
+      try {
+        verification = await verifyAuthenticationResponse({
+          response: authenticationResponse,
+          expectedChallenge: challenge.challenge,
+          expectedOrigin: this.getExpectedWebAuthnOrigins(),
+          expectedRPID: this.config.auth.webauthnRpId,
+          credential: credential.credential,
+          requireUserVerification: webAuthnRequireUserVerification(),
+        });
+      } catch (error) {
+        throw toWebAuthnDomainError(
+          error,
+          'Passkey authentication verification failed.',
+        );
+      }
 
       if (!verification.verified) {
         throw new DomainError(
@@ -526,34 +578,82 @@ export class AuthService implements OnModuleInit {
     return this.createAuthResponse(user);
   }
 
-  async createOAuthStart(provider: OauthProvider): Promise<OAuthStartResponse> {
-    this.pruneExpiredOauthStates();
+  getOAuthProviders(): { google: boolean; apple: boolean } {
+    return {
+      google:
+        Boolean(this.config.auth.oauthBrowserCallbackUrl) &&
+        this.isGoogleConfigured(),
+      apple:
+        Boolean(this.config.auth.oauthBrowserCallbackUrl) &&
+        this.isAppleConfigured(),
+    };
+  }
 
+  async createOAuthStart(provider: OauthProvider): Promise<OAuthStartResponse> {
+    return this.saveOAuthStart(provider, {});
+  }
+
+  async createOAuthBrowserStart(
+    provider: OauthProvider,
+    input: { code_challenge: string; return_path: string },
+    sessionToken?: string,
+  ): Promise<OAuthStartResponse> {
+    if (!this.getOAuthProviders()[provider])
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'This provider is not available.',
+      );
+    if (!/^[A-Za-z0-9_-]{43}$/.test(input.code_challenge))
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'Invalid verifier challenge.',
+      );
+    const returnPath = validateOAuthReturnPath(input.return_path);
+    const session = sessionToken
+      ? await this.requireRecentOAuthSession(sessionToken)
+      : undefined;
+    return this.saveOAuthStart(provider, {
+      mode: 'browser',
+      intent: session ? 'link' : 'login',
+      codeChallenge: input.code_challenge,
+      returnPath,
+      initiatingUserId: session?.userId,
+      initiatingSessionHash: sessionToken
+        ? hashOAuthSecret(sessionToken)
+        : undefined,
+    });
+  }
+
+  private async saveOAuthStart(
+    provider: OauthProvider,
+    metadata: Partial<OauthStateRecord>,
+  ): Promise<OAuthStartResponse> {
+    this.pruneExpiredOauthStates();
+    for (const [hash, record] of this.oauthHandoffs) {
+      if (record.expiresAt <= Date.now()) this.oauthHandoffs.delete(hash);
+    }
+    if (this.persistence.enabled) await this.persistence.pruneOAuthHandoffs();
     const state = createRandomToken();
     const nonce = createRandomToken();
     const ttlSeconds = this.config.auth.oauthStateTtlSeconds;
-    const expiresAt = Date.now() + ttlSeconds * 1000;
-
+    const authorizationUrl = this.buildOAuthAuthorizationUrl(
+      provider,
+      state,
+      nonce,
+    );
     const record: OauthStateRecord = {
       state,
       provider,
       nonce,
-      expiresAt,
+      expiresAt: Date.now() + ttlSeconds * 1000,
+      ...metadata,
     };
-    if (this.persistence.enabled) {
-      await this.persistence.saveOAuthState(record);
-    } else {
-      this.oauthStatesById.set(state, record);
-    }
-
+    if (this.persistence.enabled) await this.persistence.saveOAuthState(record);
+    else this.oauthStatesById.set(state, record);
     return {
       provider,
       state,
-      authorization_url: this.buildOAuthAuthorizationUrl(
-        provider,
-        state,
-        nonce,
-      ),
+      authorization_url: authorizationUrl,
       expires_in_seconds: ttlSeconds,
     };
   }
@@ -561,68 +661,319 @@ export class AuthService implements OnModuleInit {
   async completeGoogleOAuth(
     input: GoogleOAuthCallbackInput,
   ): Promise<AuthResponse> {
-    const state = await this.consumeOauthState(input.state, 'google');
-    const identity = await this.resolveGoogleIdentity(input, state);
-
-    const mappedUserId = this.googleSubjectsToUserIds.get(identity.subject);
-    const emailUser = identity.email
-      ? this.usersByEmail.get(identity.email)
-      : undefined;
-
-    if (!mappedUserId && emailUser && identity.canLinkByEmail === false) {
-      throw new DomainError(
-        ErrorCode.CONFLICT,
-        'Sign in to the existing account before linking this provider.',
-      );
-    }
-
-    if (mappedUserId && emailUser && mappedUserId !== emailUser.id) {
-      throw new DomainError(
-        ErrorCode.CONFLICT,
-        'Google account is already linked to a different user.',
-      );
-    }
-
-    const user = mappedUserId
-      ? this.requireUserById(mappedUserId)
-      : (emailUser ??
-        (await this.createUser(
-          identity.email ?? `${identity.subject}@google.private`,
-        )));
-
-    await this.linkGoogleSubject(user, identity.subject, identity.email);
-    return this.createAuthResponse(user);
+    return this.completeJsonOAuth('google', input);
   }
 
   async completeAppleOAuth(
     input: AppleOAuthCallbackInput,
   ): Promise<AuthResponse> {
-    const state = await this.consumeOauthState(input.state, 'apple');
-    const identity = await this.resolveAppleIdentity(input, state);
+    return this.completeJsonOAuth('apple', input);
+  }
 
-    const mappedUserId = this.appleSubjectsToUserIds.get(identity.subject);
-    if (mappedUserId) {
-      const user = this.requireUserById(mappedUserId);
-      if (identity.email) {
-        const emailUser = this.usersByEmail.get(identity.email);
-        if (emailUser && emailUser.id !== user.id) {
-          throw new DomainError(
-            ErrorCode.CONFLICT,
-            'Apple account is already linked to a different user.',
-          );
-        }
-      }
-      await this.linkAppleSubject(user, identity.subject, identity.email);
-      return this.createAuthResponse(user);
+  private async completeJsonOAuth(
+    provider: OauthProvider,
+    input: GoogleOAuthCallbackInput | AppleOAuthCallbackInput,
+  ): Promise<AuthResponse> {
+    const state = await this.consumeOauthState(input.state, provider);
+    if (state.mode === 'browser')
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Browser OAuth requires a session exchange.',
+      );
+    if (input.error)
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Provider authentication was cancelled.',
+      );
+    const identity = await this.resolveOAuthIdentity(provider, input, state);
+    return this.withOAuthLock(async () =>
+      this.createAuthResponse(
+        await this.resolveOAuthLoginUser(provider, identity),
+      ),
+    );
+  }
+
+  /** Browser mode is selected exclusively by persisted state, never by callback parameters. */
+  async handleOAuthCallback(
+    provider: OauthProvider,
+    input: GoogleOAuthCallbackInput | AppleOAuthCallbackInput,
+  ): Promise<AuthResponse | { redirect_url: string }> {
+    const known = this.persistence.enabled
+      ? await this.persistence.findOAuthState(input.state)
+      : this.oauthStatesById.get(input.state);
+    if (!known && this.config.auth.oauthBrowserCallbackUrl) {
+      return this.oauthRedirect(input.state, undefined, 'invalid_state');
     }
+    if (!known || known.mode !== 'browser') {
+      return provider === 'google'
+        ? this.completeGoogleOAuth(input)
+        : this.completeAppleOAuth(input);
+    }
+    try {
+      const state = await this.consumeOauthState(input.state, provider);
+      if (input.error)
+        return this.oauthRedirect(
+          state.state,
+          undefined,
+          input.error === 'access_denied' ? 'cancelled' : 'provider_failed',
+        );
+      const identity = await this.resolveOAuthIdentity(provider, input, state);
+      return await this.withOAuthLock(async () => {
+        const code = createRandomToken();
+        const handoff: OAuthHandoffRecord = {
+          codeHash: hashOAuthSecret(code),
+          userId: state.initiatingUserId ?? '',
+          provider,
+          intent: state.intent ?? 'login',
+          subject: state.intent === 'link' ? identity.subject : undefined,
+          email: state.intent === 'link' ? identity.email : undefined,
+          codeChallenge: state.codeChallenge!,
+          returnPath: state.returnPath!,
+          initiatingSessionHash: state.initiatingSessionHash,
+          expiresAt: Date.now() + 60_000,
+        };
+        if (handoff.intent === 'link') {
+          if (this.persistence.enabled)
+            await this.persistence.saveOAuthHandoff(handoff);
+          else this.oauthHandoffs.set(handoff.codeHash, handoff);
+        } else {
+          const user = await this.resolveOAuthLoginUser(
+            provider,
+            identity,
+            handoff,
+          );
+          if (!this.persistence.enabled)
+            this.oauthHandoffs.set(handoff.codeHash, {
+              ...handoff,
+              userId: user.id,
+            });
+        }
+        return this.oauthRedirect(state.state, code);
+      });
+    } catch (error) {
+      const failure =
+        error instanceof DomainError && error.code === ErrorCode.CONFLICT
+          ? 'account_conflict'
+          : 'provider_failed';
+      return this.oauthRedirect(known.state, undefined, failure);
+    }
+  }
 
-    const user = identity.email
-      ? (this.usersByEmail.get(identity.email) ??
-        (await this.createUser(identity.email)))
-      : await this.createUser(`${identity.subject}@apple.private`);
+  private oauthRedirect(
+    state: string,
+    code?: string,
+    error?: string,
+  ): { redirect_url: string } {
+    const callback = new URL(this.config.auth.oauthBrowserCallbackUrl!);
+    callback.hash = new URLSearchParams(
+      code ? { code, state } : { error: error ?? 'provider_failed', state },
+    ).toString();
+    return { redirect_url: callback.toString() };
+  }
 
-    await this.linkAppleSubject(user, identity.subject, identity.email);
-    return this.createAuthResponse(user);
+  private resolveOAuthIdentity(
+    provider: OauthProvider,
+    input: GoogleOAuthCallbackInput | AppleOAuthCallbackInput,
+    state: OauthStateRecord,
+  ): Promise<OAuthIdentity> {
+    return provider === 'google'
+      ? this.resolveGoogleIdentity(input, state)
+      : this.resolveAppleIdentity(input, state);
+  }
+
+  private cacheOAuthUser(user: UserRecord): UserRecord {
+    this.usersById.set(user.id, user);
+    this.usersByEmail.set(user.email, user);
+    if (user.googleSubject)
+      this.googleSubjectsToUserIds.set(user.googleSubject, user.id);
+    if (user.appleSubject)
+      this.appleSubjectsToUserIds.set(user.appleSubject, user.id);
+    return user;
+  }
+
+  private async resolveOAuthLoginUser(
+    provider: OauthProvider,
+    identity: OAuthIdentity,
+    handoff?: OAuthHandoffRecord,
+  ): Promise<UserRecord> {
+    if (this.persistence.enabled) {
+      return this.cacheOAuthUser(
+        await this.persistence.resolveOAuthUser(
+          provider,
+          identity,
+          this.config.trading.paperStartingBalance,
+          handoff,
+        ),
+      );
+    }
+    const subjects =
+      provider === 'google'
+        ? this.googleSubjectsToUserIds
+        : this.appleSubjectsToUserIds;
+    const known = subjects.get(identity.subject);
+    if (known) return this.requireUserById(known);
+    if (identity.email && this.usersByEmail.has(identity.email)) {
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Sign in to the existing account and link this provider in account settings.',
+      );
+    }
+    if (
+      !identity.email &&
+      ((provider === 'google'
+        ? this.isGoogleConfigured()
+        : this.isAppleConfigured()) ||
+        !this.canUseDevFallback())
+    )
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'A verified provider email is required for signup.',
+      );
+    const user: UserRecord = {
+      id: randomUUID(),
+      email: identity.email ?? `${identity.subject}@${provider}.private`,
+      base_currency: 'USD',
+      passkeyCredentialIds: new Set(),
+    };
+    // Provision before publishing to the in-memory identity maps.
+    if (this.paperAccounts) await this.paperAccounts.ensureForUser(user.id);
+    if (provider === 'google') user.googleSubject = identity.subject;
+    else user.appleSubject = identity.subject;
+    subjects.set(identity.subject, user.id);
+    return this.cacheOAuthUser(user);
+  }
+
+  async exchangeOAuthSession(
+    input: { code: string; verifier: string },
+    sessionToken?: string,
+  ): Promise<AuthResponse & { return_path: string; intent: 'login' | 'link' }> {
+    if (
+      !/^[A-Za-z0-9_-]{43}$/.test(input.code) ||
+      !/^[A-Za-z0-9_-]{43,128}$/.test(input.verifier)
+    )
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'OAuth handoff is invalid.',
+      );
+    return this.withOAuthLock(async () => {
+      const codeHash = hashOAuthSecret(input.code);
+      const codeChallenge = oauthVerifierChallenge(input.verifier);
+      const signedInAt = Date.now();
+      const loginSession = {
+        token: randomUUID(),
+        expiresAt: signedInAt + this.config.auth.sessionTtlSeconds * 1000,
+        signedInAt,
+      };
+      let handoff: OAuthHandoffRecord;
+      let user: UserRecord;
+      if (this.persistence.enabled) {
+        const result = await this.persistence.redeemOAuthHandoff(
+          codeHash,
+          codeChallenge,
+          sessionToken,
+          loginSession,
+        );
+        handoff = result.handoff;
+        user = this.cacheOAuthUser(result.user);
+      } else {
+        const stored = this.oauthHandoffs.get(codeHash);
+        if (
+          !stored ||
+          stored.expiresAt <= Date.now() ||
+          stored.codeChallenge !== codeChallenge
+        )
+          throw new DomainError(
+            ErrorCode.UNAUTHORIZED,
+            'OAuth handoff is invalid or expired.',
+          );
+        handoff = stored;
+        user = this.requireUserById(handoff.userId);
+        if (handoff.intent === 'link') {
+          const session = sessionToken
+            ? await this.requireRecentOAuthSession(sessionToken)
+            : undefined;
+          if (
+            !session ||
+            session.userId !== user.id ||
+            hashOAuthSecret(sessionToken!) !== handoff.initiatingSessionHash
+          )
+            throw new DomainError(
+              ErrorCode.UNAUTHORIZED,
+              'The original signed-in session is required.',
+            );
+          const subjects =
+            handoff.provider === 'google'
+              ? this.googleSubjectsToUserIds
+              : this.appleSubjectsToUserIds;
+          const subjectUser = subjects.get(handoff.subject!);
+          const currentSubject =
+            handoff.provider === 'google'
+              ? user.googleSubject
+              : user.appleSubject;
+          if (
+            (subjectUser && subjectUser !== user.id) ||
+            (currentSubject && currentSubject !== handoff.subject)
+          )
+            throw new DomainError(
+              ErrorCode.CONFLICT,
+              'This provider is already linked to an account.',
+            );
+          subjects.set(handoff.subject!, user.id);
+          if (handoff.provider === 'google')
+            user.googleSubject = handoff.subject;
+          else user.appleSubject = handoff.subject;
+        }
+        this.oauthHandoffs.delete(codeHash);
+      }
+      const token =
+        handoff.intent === 'link' ? sessionToken! : loginSession.token;
+      if (handoff.intent === 'login')
+        this.sessions.set(token, {
+          userId: user.id,
+          expiresAt: loginSession.expiresAt,
+          signedInAt,
+        });
+      return {
+        access_token: token,
+        token_type: 'Bearer',
+        user: this.toUserProfile(user),
+        return_path: handoff.returnPath,
+        intent: handoff.intent,
+      };
+    });
+  }
+
+  private async requireRecentOAuthSession(
+    token: string,
+  ): Promise<SessionRecord> {
+    this.requireUserBySessionToken(token);
+    const session = this.persistence.enabled
+      ? await this.persistence.findSession(token)
+      : this.sessions.get(token);
+    if (
+      !session ||
+      !session.signedInAt ||
+      session.signedInAt < Date.now() - 300_000
+    )
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Sign in again before linking this provider.',
+      );
+    return session;
+  }
+
+  private async withOAuthLock<T>(work: () => Promise<T>): Promise<T> {
+    const pending = this.oauthQueue;
+    let release!: () => void;
+    this.oauthQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await pending;
+    try {
+      return await work();
+    } finally {
+      release();
+    }
   }
 
   async logout(sessionToken: string): Promise<void> {
@@ -645,15 +996,14 @@ export class AuthService implements OnModuleInit {
   ): Promise<UserProfile> {
     const user = this.requireUserBySessionToken(sessionToken);
 
-    if (update.display_name !== undefined) {
-      user.display_name = normalizeDisplayName(update.display_name);
-    }
-
-    if (update.base_currency !== undefined) {
-      user.base_currency = update.base_currency;
-    }
-
-    await this.persistence.updateUserProfile(user);
+    const updated: UserRecord = { ...user };
+    if (update.display_name !== undefined)
+      updated.display_name = normalizeDisplayName(update.display_name);
+    if (update.base_currency !== undefined)
+      updated.base_currency = update.base_currency;
+    await this.persistence.updateUserProfile(updated);
+    user.display_name = updated.display_name;
+    user.base_currency = updated.base_currency;
     return this.toUserProfile(user);
   }
 
@@ -867,9 +1217,19 @@ export class AuthService implements OnModuleInit {
     state: OauthStateRecord,
   ): Promise<OAuthIdentity> {
     if (this.isGoogleConfigured()) {
-      const idToken = await this.exchangeGoogleCodeForIdToken(input.code);
+      const idToken = await this.exchangeGoogleCodeForIdToken(input.code ?? '');
       const payload = await this.verifyGoogleIdToken(idToken, state.nonce);
-      const subject = normalizeOptional(payload.sub);
+      const subject =
+        typeof payload.sub === 'string' &&
+        payload.sub.length <= 255 &&
+        !Array.from(payload.sub).some(
+          (char) =>
+            /\s/.test(char) ||
+            char.charCodeAt(0) < 32 ||
+            char.charCodeAt(0) === 127,
+        )
+          ? payload.sub
+          : undefined;
       if (!subject) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
@@ -877,23 +1237,24 @@ export class AuthService implements OnModuleInit {
         );
       }
 
-      const email =
-        typeof payload.email === 'string'
-          ? normalizeEmail(payload.email)
-          : undefined;
-      if (email && payload.email_verified !== true) {
+      if (
+        payload.email !== undefined &&
+        (typeof payload.email !== 'string' ||
+          !isEmail(payload.email) ||
+          payload.email_verified !== true)
+      ) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
           'Google email is not verified.',
         );
       }
+      const email =
+        typeof payload.email === 'string'
+          ? normalizeEmail(payload.email)
+          : undefined;
       return {
         subject,
         email,
-        canLinkByEmail: Boolean(
-          email?.endsWith('@gmail.com') ||
-          (typeof payload.hd === 'string' && payload.hd.trim()),
-        ),
       };
     }
 
@@ -923,9 +1284,19 @@ export class AuthService implements OnModuleInit {
     state: OauthStateRecord,
   ): Promise<OAuthIdentity> {
     if (this.isAppleConfigured()) {
-      const idToken = await this.exchangeAppleCodeForIdToken(input.code);
+      const idToken = await this.exchangeAppleCodeForIdToken(input.code ?? '');
       const payload = await this.verifyAppleIdToken(idToken, state.nonce);
-      const subject = normalizeOptional(payload.sub);
+      const subject =
+        typeof payload.sub === 'string' &&
+        payload.sub.length <= 255 &&
+        !Array.from(payload.sub).some(
+          (char) =>
+            /\s/.test(char) ||
+            char.charCodeAt(0) < 32 ||
+            char.charCodeAt(0) === 127,
+        )
+          ? payload.sub
+          : undefined;
       if (!subject) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
@@ -933,20 +1304,22 @@ export class AuthService implements OnModuleInit {
         );
       }
 
-      const tokenEmail =
-        typeof payload.email === 'string'
-          ? normalizeEmail(payload.email)
-          : undefined;
       if (
-        tokenEmail &&
-        payload.email_verified !== true &&
-        payload.email_verified !== 'true'
+        payload.email !== undefined &&
+        (typeof payload.email !== 'string' ||
+          !isEmail(payload.email) ||
+          (payload.email_verified !== true &&
+            payload.email_verified !== 'true'))
       ) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
           'Apple email is not verified.',
         );
       }
+      const tokenEmail =
+        typeof payload.email === 'string'
+          ? normalizeEmail(payload.email)
+          : undefined;
       return { subject, email: tokenEmail };
     }
 
@@ -1025,9 +1398,7 @@ export class AuthService implements OnModuleInit {
       if (!response.ok || !body.id_token) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
-          body.error_description ??
-            body.error ??
-            'Google OAuth code exchange failed.',
+          'Google OAuth code exchange failed.',
         );
       }
 
@@ -1049,16 +1420,12 @@ export class AuthService implements OnModuleInit {
     nonce: string,
   ): Promise<JWTPayload> {
     try {
-      const jose = await import('jose');
-      const verification = await jose.jwtVerify(
-        idToken,
-        await this.getGoogleJwks(),
-        {
-          requiredClaims: ['sub', 'exp', 'nonce'],
-          issuer: GOOGLE_ISSUERS,
-          audience: this.config.auth.googleClientId,
-        },
-      );
+      const verification = await this.verifyProviderJwt(idToken, 'google', {
+        issuer: GOOGLE_ISSUERS,
+        audience: this.config.auth.googleClientId,
+        algorithms: ['RS256'],
+        requiredClaims: ['sub', 'exp', 'iat', 'nonce'],
+      });
 
       if (verification.payload.nonce !== nonce) {
         throw new DomainError(
@@ -1114,9 +1481,7 @@ export class AuthService implements OnModuleInit {
       if (!response.ok || !body.id_token) {
         throw new DomainError(
           ErrorCode.UNAUTHORIZED,
-          body.error_description ??
-            body.error ??
-            'Apple OAuth code exchange failed.',
+          'Apple OAuth code exchange failed.',
         );
       }
 
@@ -1138,16 +1503,12 @@ export class AuthService implements OnModuleInit {
     nonce: string,
   ): Promise<JWTPayload> {
     try {
-      const jose = await import('jose');
-      const verification = await jose.jwtVerify(
-        idToken,
-        await this.getAppleJwks(),
-        {
-          requiredClaims: ['sub', 'exp', 'nonce'],
-          issuer: APPLE_ISSUER,
-          audience: this.config.auth.appleClientId,
-        },
-      );
+      const verification = await this.verifyProviderJwt(idToken, 'apple', {
+        issuer: APPLE_ISSUER,
+        audience: this.config.auth.appleClientId,
+        algorithms: ['RS256'],
+        requiredClaims: ['sub', 'exp', 'iat', 'nonce'],
+      });
 
       if (verification.payload.nonce !== nonce) {
         throw new DomainError(
@@ -1167,6 +1528,21 @@ export class AuthService implements OnModuleInit {
         'Apple ID token verification failed.',
       );
     }
+  }
+
+  private async verifyProviderJwt(
+    idToken: string,
+    provider: OauthProvider,
+    options: JWTVerifyOptions,
+  ): Promise<{ payload: JWTPayload }> {
+    const jose = await import('jose');
+    return jose.jwtVerify(
+      idToken,
+      provider === 'google'
+        ? await this.getGoogleJwks()
+        : await this.getAppleJwks(),
+      options,
+    );
   }
 
   private async createAppleClientSecret(): Promise<string> {
@@ -1226,9 +1602,9 @@ export class AuthService implements OnModuleInit {
       passkeyCredentialIds: new Set<string>(),
     };
 
+    await this.persistence.saveUser(user);
     this.usersByEmail.set(normalizedEmail, user);
     this.usersById.set(user.id, user);
-    await this.persistence.saveUser(user);
 
     return user;
   }
@@ -1282,76 +1658,14 @@ export class AuthService implements OnModuleInit {
     await this.persistence.saveCredential(record);
   }
 
-  private async linkGoogleSubject(
-    user: UserRecord,
-    subject: string,
-    email?: string,
-  ): Promise<void> {
-    const normalizedSubject = normalizeOptional(subject);
-    if (!normalizedSubject) {
-      throw new DomainError(
-        ErrorCode.VALIDATION_ERROR,
-        'Google subject is required.',
-      );
-    }
-
-    const mappedUserId = this.googleSubjectsToUserIds.get(normalizedSubject);
-    if (mappedUserId && mappedUserId !== user.id) {
-      throw new DomainError(
-        ErrorCode.CONFLICT,
-        'Google account is already linked to a different user.',
-      );
-    }
-
-    user.googleSubject = normalizedSubject;
-    this.googleSubjectsToUserIds.set(normalizedSubject, user.id);
-    await this.persistence.saveOAuthIdentity(
-      'google',
-      normalizedSubject,
-      user.id,
-      email ?? user.email,
-    );
-  }
-
-  private async linkAppleSubject(
-    user: UserRecord,
-    subject: string,
-    email?: string,
-  ): Promise<void> {
-    const normalizedSubject = normalizeOptional(subject);
-    if (!normalizedSubject) {
-      throw new DomainError(
-        ErrorCode.VALIDATION_ERROR,
-        'Apple subject is required.',
-      );
-    }
-
-    const mappedUserId = this.appleSubjectsToUserIds.get(normalizedSubject);
-    if (mappedUserId && mappedUserId !== user.id) {
-      throw new DomainError(
-        ErrorCode.CONFLICT,
-        'Apple account is already linked to a different user.',
-      );
-    }
-
-    user.appleSubject = normalizedSubject;
-    this.appleSubjectsToUserIds.set(normalizedSubject, user.id);
-    await this.persistence.saveOAuthIdentity(
-      'apple',
-      normalizedSubject,
-      user.id,
-      email ?? user.email,
-    );
-  }
-
   private async createWebAuthnChallenge(
     purpose: WebAuthnChallengePurpose,
     email: string,
+    challenge: string,
   ): Promise<WebAuthnChallengeRecord> {
     this.pruneExpiredChallenges();
 
     const challengeId = randomUUID();
-    const challenge = createRandomToken();
     const expiresAt = Date.now() + this.config.auth.challengeTtlSeconds * 1000;
 
     const record: WebAuthnChallengeRecord = {
@@ -1443,8 +1757,6 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    this.oauthStatesById.delete(state);
-
     if (stateRecord.provider !== provider) {
       throw new DomainError(
         ErrorCode.UNAUTHORIZED,
@@ -1452,6 +1764,7 @@ export class AuthService implements OnModuleInit {
       );
     }
 
+    this.oauthStatesById.delete(state);
     return stateRecord;
   }
 
@@ -1466,8 +1779,14 @@ export class AuthService implements OnModuleInit {
   private async createSession(userId: string): Promise<string> {
     const sessionToken = randomUUID();
     const expiresAt = Date.now() + this.config.auth.sessionTtlSeconds * 1000;
-    this.sessions.set(sessionToken, { userId, expiresAt });
-    await this.persistence.saveSession(sessionToken, userId, expiresAt);
+    const signedInAt = Date.now();
+    await this.persistence.saveSession(
+      sessionToken,
+      userId,
+      expiresAt,
+      signedInAt,
+    );
+    this.sessions.set(sessionToken, { userId, expiresAt, signedInAt });
     return sessionToken;
   }
 

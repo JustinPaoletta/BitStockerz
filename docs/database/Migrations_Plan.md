@@ -307,6 +307,19 @@ and are exercised by the MySQL persistence smoke gate.
 
 ---
 
+## Sprint 8.1 – Browser OAuth and recovery linking
+
+- Prisma: `apps/api/prisma/migrations/20261002000000_oauth_browser_handoff/`.
+- Adds persisted browser mode, intent, verifier challenge, return path and
+  initiating user/session hash to OAuth state.
+- Adds `oauth_handoffs` with hashed one-use code, verified pending identity,
+  verifier challenge, expiry and actor/session binding. Bearer session sign-in
+  age uses the original `auth_sessions.created_at`, not hydration time.
+- Adds uniqueness on `(user_id, provider)` to prevent replacing an existing
+  recovery identity. Run the duplicate-provider preflight and resolve any rows
+  explicitly before migrating an existing database; see the deployment runbook.
+- Sprint 8.2 profile editing reuses existing columns and requires no migration.
+
 ## Migration Ordering Summary
 
 Suggested global migration order (flattened):
@@ -333,3 +346,8 @@ Suggested global migration order (flattened):
 20. `V0600__create_ai_usage.sql`
 
 Index-only changes can be added as separate migrations (`VXXXX__add_indexes_*.sql`) when profiling justifies them.
+
+- `20261002010000_auth_identifiers_binary`: additive migration for case-sensitive
+  auth identifiers, including OAuth subjects/state and passkey credential IDs.
+  Existing email/profile collations and data remain intact. Apply after the browser
+  handoff migration; validate case variants using `npm run test:mysql:auth`.

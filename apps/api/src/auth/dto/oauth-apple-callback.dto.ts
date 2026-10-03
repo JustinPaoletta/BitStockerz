@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class OAuthAppleCallbackDto {
@@ -6,15 +6,20 @@ export class OAuthAppleCallbackDto {
     description: 'Short-lived state returned by the start route.',
   })
   @IsString()
+  @MaxLength(128)
   state!: string;
 
-  @ApiProperty({ description: 'Authorization code returned by Apple.' })
+  @ApiPropertyOptional({ description: 'Authorization code returned by Apple.' })
+  @IsOptional()
   @IsString()
-  code!: string;
+  @MaxLength(4096)
+  code?: string;
 
-  @ApiProperty({ description: 'Apple subject identifier.' })
+  @ApiPropertyOptional({ description: 'Development Apple subject identifier.' })
+  @IsOptional()
   @IsString()
-  sub!: string;
+  @MaxLength(255)
+  sub?: string;
 
   @ApiPropertyOptional({ format: 'email' })
   @IsOptional()
@@ -26,5 +31,24 @@ export class OAuthAppleCallbackDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(4096)
   user?: string;
+  @ApiPropertyOptional({
+    description: 'Provider cancellation/error identifier.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  error?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  error_description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  error_uri?: string;
 }

@@ -126,6 +126,8 @@ async function main(): Promise<void> {
       total_position_value: '600.00',
       total_equity: '100000.00',
       unrealized_pnl_total: '0.00',
+      realized_pnl_total: '0.00',
+      total_pnl: '0.00',
     });
     assert.equal(
       (await orders.listOrders(currentUserId, { limit: 20, offset: 0 })).orders
@@ -203,6 +205,29 @@ async function main(): Promise<void> {
     );
 
     const originalAccountId = account.id;
+    await prisma.equityDailyBar.update({
+      where: { symbolId_date: { symbolId: symbol.id, date: today } },
+      data: { open: '125', high: '125', low: '125', close: '125' },
+    });
+    const profitSellInput = {
+      symbol: symbol.symbol,
+      side: 'SELL' as const,
+      quantity: '2',
+      clientOrderId: `mysql-profit-sell-${suffix}`,
+    };
+    const profitSell = await orders.placeMarketOrder(
+      currentUserId,
+      profitSellInput,
+    );
+    assert.equal(profitSell.order.status, 'FILLED');
+    assert.deepEqual(await views.getPortfolioSummary(currentUserId), {
+      cash_balance: '89650.00',
+      total_position_value: '10500.00',
+      total_equity: '100150.00',
+      unrealized_pnl_total: '100.00',
+      realized_pnl_total: '50.00',
+      total_pnl: '150.00',
+    });
     await app.close();
     app = undefined;
     app = await NestFactory.createApplicationContext(AppModule, {
@@ -218,10 +243,10 @@ async function main(): Promise<void> {
     assert.equal(currentUserId, registration.user.id);
     const restartedAccount = await accounts.getForUser(currentUserId);
     assert.equal(restartedAccount.id, originalAccountId);
-    assert.equal(restartedAccount.cashBalance.toFixed(2), '89400.00');
+    assert.equal(restartedAccount.cashBalance.toFixed(2), '89650.00');
     assert.equal(
       (await views.listPositions(currentUserId)).positions[0]?.quantity,
-      '6.00000000',
+      '4.00000000',
     );
     assert.equal(
       (
@@ -231,7 +256,7 @@ async function main(): Promise<void> {
           offset: 0,
         })
       ).executions.length,
-      2,
+      3,
     );
     assert.equal(
       (
@@ -243,60 +268,72 @@ async function main(): Promise<void> {
       ).executions[0]?.price,
       '999999999999.99999900',
     );
+    const profitReplay = await orders.placeMarketOrder(
+      currentUserId,
+      profitSellInput,
+    );
+    assert.equal(profitReplay.order.id, profitSell.order.id);
+    assert.equal(
+      (await views.getPortfolioSummary(currentUserId)).realized_pnl_total,
+      '50.00',
+    );
 
     process.stdout.write(
-      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, history, and post-restart auth hydration verified.\n',
+      'Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency race, risk reject, full market-price range persistence, valuation, realized P&L, history, and post-restart replay/auth hydration verified.\n',
     );
   } finally {
     if (app) {
       const prisma = app.get(PrismaService);
-      if (prisma.isEnabled) {
-        await prisma.$transaction(async (transaction) => {
-          if (currentUserId) {
-            const account = await transaction.paperAccount.findUnique({
-              where: { userId: currentUserId },
-            });
-            if (account) {
-              await transaction.execution.deleteMany({
-                where: { paperAccountId: account.id },
+      try {
+        if (prisma.isEnabled) {
+          await prisma.$transaction(async (transaction) => {
+            if (currentUserId) {
+              const account = await transaction.paperAccount.findUnique({
+                where: { userId: currentUserId },
               });
-              await transaction.order.deleteMany({
-                where: { paperAccountId: account.id },
+              if (account) {
+                await transaction.execution.deleteMany({
+                  where: { paperAccountId: account.id },
+                });
+                await transaction.order.deleteMany({
+                  where: { paperAccountId: account.id },
+                });
+                await transaction.position.deleteMany({
+                  where: { paperAccountId: account.id },
+                });
+                await transaction.paperAccount.delete({
+                  where: { id: account.id },
+                });
+              }
+              await transaction.auditEvent.deleteMany({
+                where: { userId: currentUserId },
               });
-              await transaction.position.deleteMany({
-                where: { paperAccountId: account.id },
+              await transaction.webAuthnCredential.deleteMany({
+                where: { userId: currentUserId },
               });
-              await transaction.paperAccount.delete({
-                where: { id: account.id },
+              await transaction.user.deleteMany({
+                where: { id: currentUserId },
               });
             }
-            await transaction.auditEvent.deleteMany({
-              where: { userId: currentUserId },
-            });
-            await transaction.webAuthnCredential.deleteMany({
-              where: { userId: currentUserId },
-            });
-            await transaction.user.deleteMany({
-              where: { id: currentUserId },
-            });
-          }
-          if (symbolId) {
-            await transaction.equityDailyBar.deleteMany({
-              where: { symbolId },
-            });
-            await transaction.symbol.deleteMany({ where: { id: symbolId } });
-          }
-          if (highPriceSymbolId) {
-            await transaction.equityDailyBar.deleteMany({
-              where: { symbolId: highPriceSymbolId },
-            });
-            await transaction.symbol.deleteMany({
-              where: { id: highPriceSymbolId },
-            });
-          }
-        });
+            if (symbolId) {
+              await transaction.equityDailyBar.deleteMany({
+                where: { symbolId },
+              });
+              await transaction.symbol.deleteMany({ where: { id: symbolId } });
+            }
+            if (highPriceSymbolId) {
+              await transaction.equityDailyBar.deleteMany({
+                where: { symbolId: highPriceSymbolId },
+              });
+              await transaction.symbol.deleteMany({
+                where: { id: highPriceSymbolId },
+              });
+            }
+          });
+        }
+      } finally {
+        await app.close();
       }
-      await app.close();
     }
   }
 }

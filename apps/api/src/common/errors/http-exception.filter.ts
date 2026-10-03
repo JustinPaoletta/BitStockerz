@@ -14,6 +14,7 @@ import { ERROR_CATALOG, getErrorTypeUri } from './error-catalog';
 import { DomainError } from './domain-error';
 import { ProblemDetailsDto } from './rfc7807.dto';
 import { REQUEST_ID_PROP } from '../middleware/request-id.middleware';
+import { isOAuthRequest } from '../logging/pino.config';
 import {
   METRICS_HTTP_RECORDED,
   REQUEST_STARTED_AT_MS,
@@ -91,7 +92,11 @@ function getRequestId(request: RequestWithRequestId): string {
 }
 
 function getInstance(request: Request): string {
-  return request.path ?? request.url ?? '/';
+  if (isOAuthRequest(request.originalUrl)) {
+    return request.originalUrl.split(/[?#]/, 1)[0];
+  }
+  const instance = request.path ?? request.url ?? '/';
+  return isOAuthRequest(instance) ? instance.split(/[?#]/, 1)[0] : instance;
 }
 
 function buildProblem(
@@ -201,13 +206,21 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
           code,
           status,
           instance,
-          error:
-            exception instanceof Error
+          error: isOAuthRequest(instance)
+            ? { message: 'OAuth request failed' }
+            : exception instanceof Error
               ? { message: exception.message, stack: exception.stack }
               : { message: String(exception) },
         },
         'Unhandled error',
       );
+    }
+
+    // Validation and framework/provider exceptions can contain attacker-controlled
+    // callback fields. Auth domain errors use bounded application messages.
+    if (isOAuthRequest(instance) && !(exception instanceof DomainError)) {
+      detail = ERROR_CATALOG[code].defaultDetail ?? 'OAuth request failed.';
+      fieldErrors = undefined;
     }
 
     this.recordExceptionMetrics(request, instance, status);

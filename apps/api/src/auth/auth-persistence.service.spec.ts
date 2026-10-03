@@ -32,6 +32,7 @@ function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
       update: jest.fn().mockResolvedValue({}),
     },
     oAuthIdentity: {
+      findUnique: jest.fn().mockResolvedValue(null),
       upsert: jest.fn().mockResolvedValue({}),
     },
     webAuthnChallenge: {
@@ -40,6 +41,7 @@ function createPrismaMock(overrides?: Partial<PrismaService>): PrismaService {
       delete: jest.fn().mockResolvedValue({}),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    oAuthHandoff: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     oAuthState: {
       create: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn().mockResolvedValue(null),
@@ -209,7 +211,7 @@ describe('AuthPersistenceService', () => {
           createdAt: new Date(),
         }),
         delete: jest.fn().mockResolvedValue({}),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     } as Partial<PrismaService>);
     const service = new AuthPersistenceService(prisma);
@@ -475,7 +477,7 @@ describe('AuthPersistenceService', () => {
     await expect(
       service.consumeOAuthState('missing', 'google'),
     ).resolves.toBeNull();
-    expect(deleteState).toHaveBeenCalledWith({ where: { state: 'expired' } });
+    expect(deleteState).not.toHaveBeenCalled();
   });
 
   it('finds active sessions and removes expired ones', async () => {
@@ -505,6 +507,7 @@ describe('AuthPersistenceService', () => {
     await expect(service.findSession('active')).resolves.toEqual({
       userId: 'user-1',
       expiresAt: expect.any(Number),
+      signedInAt: expect.any(Number),
     });
     await expect(service.findSession('expired')).resolves.toBeNull();
     await expect(service.findSession('missing')).resolves.toBeNull();
@@ -526,6 +529,73 @@ describe('AuthPersistenceService', () => {
     await expect(service.ensureUserExists('missing')).resolves.toBe(false);
   });
 
+  it('rejects case-insensitive database matches without consuming the original ceremony or session', async () => {
+    const prisma = createPrismaMock();
+    const service = new AuthPersistenceService(prisma);
+    const expiresAt = new Date(Date.now() + 60_000);
+    jest.mocked(prisma.oAuthState.findUnique).mockResolvedValue({
+      state: 'OpaqueState',
+      provider: 'google',
+      nonce: 'Nonce',
+      expiresAt,
+    } as never);
+    jest.mocked(prisma.webAuthnChallenge.findUnique).mockResolvedValue({
+      id: 'OpaqueChallenge',
+      purpose: 'login',
+      email: 'user@example.com',
+      challenge: 'Challenge',
+      expiresAt,
+    } as never);
+    jest.mocked(prisma.authSession.findUnique).mockResolvedValue({
+      token: 'OpaqueToken',
+      userId: 'user-1',
+      expiresAt,
+      createdAt: new Date(),
+    });
+
+    await expect(service.findOAuthState('opaquestate')).resolves.toBeNull();
+    await expect(
+      service.consumeOAuthState('opaquestate', 'google'),
+    ).resolves.toBeNull();
+    await expect(
+      service.consumeWebAuthnChallenge(
+        'opaquechallenge',
+        'login',
+        'user@example.com',
+      ),
+    ).resolves.toBeNull();
+    await expect(service.findSession('opaquetoken')).resolves.toBeNull();
+    expect(prisma.oAuthState.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.webAuthnChallenge.delete).not.toHaveBeenCalled();
+    expect(prisma.authSession.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses a nonexact subject match even when its owner is unchanged', async () => {
+    const prisma = createPrismaMock();
+    const service = new AuthPersistenceService(prisma);
+    jest.mocked(prisma.oAuthIdentity.findUnique).mockResolvedValue({
+      provider: 'google',
+      subject: 'Subject',
+      userId: 'user-1',
+    } as never);
+    await expect(
+      service.saveOAuthIdentity('google', 'subject', 'user-1'),
+    ).rejects.toThrow('already owned');
+    expect(prisma.oAuthIdentity.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects persisted OAuth states with unsupported providers', async () => {
+    const prisma = createPrismaMock();
+    const service = new AuthPersistenceService(prisma);
+    jest.mocked(prisma.oAuthState.findUnique).mockResolvedValue({
+      state: 'OpaqueState',
+      provider: 'unknown-provider',
+      nonce: 'Nonce',
+      expiresAt: new Date(Date.now() + 60_000),
+    } as never);
+    await expect(service.findOAuthState('OpaqueState')).resolves.toBeNull();
+  });
+
   it('stores credentials without transports', async () => {
     const prisma = createPrismaMock();
     const service = new AuthPersistenceService(prisma);
@@ -545,6 +615,42 @@ describe('AuthPersistenceService', () => {
       expect.objectContaining({
         data: expect.objectContaining({ transports: null }),
       }),
+    );
+  });
+  it('never transfers a provider subject already owned by another account', async () => {
+    const prisma = createPrismaMock({
+      oAuthIdentity: {
+        findUnique: jest.fn().mockResolvedValue({
+          provider: 'google',
+          subject: 'subject-1',
+          userId: 'other-user',
+        }),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    } as unknown as Partial<PrismaService>);
+    const service = new AuthPersistenceService(prisma);
+    await expect(
+      service.saveOAuthIdentity(
+        'google',
+        'subject-1',
+        'user-1',
+        'new@example.com',
+      ),
+    ).rejects.toThrow('already owned');
+    expect(prisma.oAuthIdentity.upsert).not.toHaveBeenCalled();
+    jest.mocked(prisma.oAuthIdentity.findUnique).mockResolvedValue({
+      provider: 'google',
+      subject: 'subject-1',
+      userId: 'user-1',
+    } as never);
+    await service.saveOAuthIdentity(
+      'google',
+      'subject-1',
+      'user-1',
+      'new@example.com',
+    );
+    expect(prisma.oAuthIdentity.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { email: 'new@example.com' } }),
     );
   });
 });

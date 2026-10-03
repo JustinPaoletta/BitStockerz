@@ -25,6 +25,8 @@ Dependencies:
   included in draft PR #9.
 - Milestone 5 / PR #11 extended Strategy → Backtest launch from Strategy Lab
   and dashboard quick actions over the same results UI.
+- Prelaunch follow-up (September 30, 2026): entry/exit arrows added to the
+  equity curve with daily/hourly UTC alignment and pagination updates.
 
 ---
 
@@ -169,6 +171,12 @@ Acceptance criteria:
   loading, failure, empty, and responsive states.
 - Decimal strings are converted to finite chart numbers only at the client
   mapper boundary and the chart instance is disposed on teardown.
+- Entry arrows appear below the curve and exit arrows above it at trade event
+  times. Same-bar entry/exit markers are retained; markers are sorted and
+  deduplicated, with no off-curve events silently shifted to another bar.
+- Markers cover loaded trade pages; the UI identifies partial coverage and
+  adds markers on “Load more” without resetting zoom. The trades table remains
+  the accessible source for exact timestamps, fill prices, and quantities.
 
 ### Story 5.4.2 – Trades table
 Acceptance criteria:

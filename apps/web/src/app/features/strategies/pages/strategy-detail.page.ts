@@ -1,10 +1,12 @@
 import { JsonPipe } from '@angular/common';
+import { BsDateTimePipe } from '../../../shared/format/display.pipes';
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton.component';
+import { PageGuideComponent } from '../../../shared/ui/page-guide.component';
 import { StrategyKernelPanelComponent } from '../../ai/components/strategy-kernel-panel.component';
 import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.service';
 
@@ -15,7 +17,9 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
     SkeletonComponent,
     InlineErrorComponent,
     JsonPipe,
+    BsDateTimePipe,
     StrategyKernelPanelComponent,
+    PageGuideComponent,
   ],
   template: `
     @switch (state()) {
@@ -32,21 +36,26 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
               <p class="eyebrow">Strategy · v{{ item.version_number }}</p>
               <h1>{{ item.name }}</h1>
               <p class="lede">{{ item.description || 'No description' }}</p>
-              @if (!item.is_latest) {
-                <p class="hint">Historical version — read only. Open the latest version to edit.</p>
+              @if (item.is_latest === false) {
+                <p class="hint">
+                  Historical version — read only. Choose the latest version to edit or run a
+                  backtest.
+                </p>
+              } @else {
+                <app-page-guide
+                  description="This is the rule set the backtester uses. Edit to change rules; Run backtest to see how it performs on history."
+                />
               }
             </div>
             <div class="actions">
               @if (item.is_latest !== false) {
                 <a class="button secondary" [routerLink]="['/strategies', item.id, 'edit']">Edit</a>
-              }
-              <a
-                class="button primary"
-                [routerLink]="['/backtests/new']"
-                [queryParams]="{ strategy_id: item.id }"
-                >Run backtest</a
-              >
-              @if (item.is_latest !== false) {
+                <a
+                  class="button primary"
+                  [routerLink]="['/backtests/new']"
+                  [queryParams]="{ strategy_id: item.id }"
+                  >Run backtest</a
+                >
                 <button class="button ghost" type="button" (click)="remove()">Delete</button>
               }
             </div>
@@ -60,14 +69,26 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
               }
             </select>
             <dl>
-              <div><dt>Asset</dt><dd>{{ item.asset_type }}</dd></div>
-              <div><dt>Timeframe</dt><dd>{{ item.timeframe }}</dd></div>
-              <div><dt>Updated</dt><dd>{{ item.updated_at }}</dd></div>
+              <div>
+                <dt>Asset</dt>
+                <dd>{{ item.asset_type }}</dd>
+              </div>
+              <div>
+                <dt>Timeframe</dt>
+                <dd>{{ item.timeframe }}</dd>
+              </div>
+              <div>
+                <dt>Updated</dt>
+                <dd>{{ item.updated_at | bsDateTime }}</dd>
+              </div>
             </dl>
             @if (item.summary) {
               <p class="lede">{{ item.summary }}</p>
             }
-            <pre>{{ item.definition | json }}</pre>
+            <details>
+              <summary>View rule definition</summary>
+              <pre>{{ item.definition | json }}</pre>
+            </details>
           </div>
 
           <app-strategy-kernel-panel [strategyId]="item.id" />
@@ -94,8 +115,15 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
     dd {
       margin: 0.2rem 0 0;
     }
+    dd {
+      overflow-wrap: anywhere;
+    }
+    summary {
+      cursor: pointer;
+      padding-block: 0.5rem;
+    }
     pre {
-      background: #0b1626;
+      background: var(--surface-inset);
       border-radius: 0.75rem;
       overflow: auto;
       padding: 1rem;

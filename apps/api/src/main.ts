@@ -1,4 +1,5 @@
 import './load-env';
+import type { Express } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -6,10 +7,15 @@ import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter
 import { AppLogger } from './common/logging/app-logger';
 import { AppConfigService } from './config/app-config.service';
 import { configureOpenApi } from './docs/openapi';
+import { configureTrustedProxy } from './common/http/trusted-proxy';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const config = app.get(AppConfigService);
+  configureTrustedProxy(
+    app.getHttpAdapter().getInstance() as Express,
+    config.server.trustedProxyCidrs,
+  );
   app.useLogger(app.get(AppLogger));
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();

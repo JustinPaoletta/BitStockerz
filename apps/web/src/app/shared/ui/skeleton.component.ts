@@ -6,10 +6,13 @@ import { Component, Input } from '@angular/core';
   styles: `
     .skeleton {
       animation: pulse 1.2s ease-in-out infinite;
-      background: linear-gradient(90deg, var(--surface-2), #1c2c44, var(--surface-2));
+      background: linear-gradient(90deg, var(--surface-2), var(--skeleton-highlight), var(--surface-2));
       background-size: 200% 100%;
       border-radius: 0.75rem;
       min-height: 4.5rem;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton { animation: none; }
     }
     @keyframes pulse {
       0% {

@@ -8,6 +8,9 @@ import { Component, Input } from '@angular/core';
         <div>
           <p class="eyebrow">{{ eyebrow }}</p>
           <h2>{{ title }}</h2>
+          @if (description) {
+            <p class="hint card-desc">{{ description }}</p>
+          }
         </div>
         <ng-content select="[cardActions]" />
       </header>
@@ -34,9 +37,15 @@ import { Component, Input } from '@angular/core';
       font-size: 1.15rem;
       margin: 0.2rem 0 0;
     }
+    .card-desc {
+      line-height: 1.45;
+      margin: 0.45rem 0 0;
+      max-width: 42ch;
+    }
   `,
 })
 export class BsCardComponent {
   @Input() eyebrow = 'Widget';
   @Input({ required: true }) title!: string;
+  @Input() description = '';
 }

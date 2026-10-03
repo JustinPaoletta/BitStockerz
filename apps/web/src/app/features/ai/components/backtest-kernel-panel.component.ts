@@ -14,6 +14,10 @@ import {
         <div>
           <p class="eyebrow">Kernel</p>
           <h2>Result insights</h2>
+          <p class="hint">
+            Optional AI summary of this run and ideas to refine the strategy. Review results
+            yourself before changing rules.
+          </p>
         </div>
         <div class="actions">
           <button
@@ -64,7 +68,6 @@ import {
             </li>
           }
         </ul>
-        <p class="hint">Suggestions are advisory only. There is no Apply action.</p>
       }
     </section>
   `,
@@ -101,7 +104,7 @@ import {
       white-space: pre-wrap;
     }
     .kernel-error {
-      color: #b42318;
+      color: var(--error-text);
       margin: 0;
     }
     ul {

@@ -1,12 +1,15 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
-import { BsCurrencyPipe, BsSignedPipe } from '../../shared/format/display.pipes';
+import { DecimalPipe } from '@angular/common';
+import { Router, RouterLink } from '@angular/router';
+import { BsCurrencyPipe, BsDateTimePipe } from '../../shared/format/display.pipes';
 import { BsCardComponent } from '../../shared/ui/bs-card.component';
-import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { InlineErrorComponent } from '../../shared/ui/inline-error.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
-import { SymbolSearchComponent } from '../../shared/symbols/symbol-search.component';
+import {
+  SymbolSearchComponent,
+  SymbolSearchResult,
+} from '../../shared/symbols/symbol-search.component';
 import { BacktestsApiService } from '../backtests/backtests-api.service';
 import { StrategiesApiService } from '../strategies/data/strategies-api.service';
 import {
@@ -25,22 +28,34 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
     BsCardComponent,
     SkeletonComponent,
     InlineErrorComponent,
-    EmptyStateComponent,
     SymbolSearchComponent,
     BsCurrencyPipe,
-    BsSignedPipe,
+    BsDateTimePipe,
+    DecimalPipe,
   ],
   template: `
     <section class="page-heading">
       <div>
         <p class="eyebrow">Dashboard</p>
-        <h1>Your trading workspace</h1>
-        <p class="lede">Independent widgets load in parallel so one failure never blanks the page.</p>
+        <h1>Trading Workspace</h1>
+        <p class="lede">Your portfolio, strategies, and latest paper trading activity.</p>
+      </div>
+      <div class="dashboard-search">
+        <app-symbol-search
+          label="Find a symbol to trade"
+          inputId="dashboard-symbol"
+          (selected)="openSymbol($event)"
+        />
       </div>
     </section>
 
     <div class="dashboard-grid">
-      <app-bs-card eyebrow="Account" title="Portfolio summary">
+      <app-bs-card
+        class="portfolio-card"
+        eyebrow="Paper account"
+        title="Portfolio summary"
+        description="Simulated funds. Your equity includes cash and open positions."
+      >
         @switch (accountState()) {
           @case ('loading') {
             <app-skeleton height="7rem" />
@@ -63,13 +78,41 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                     [class.positive]="signedNumber(summary.unrealized_pnl_total) > 0"
                     [class.negative]="signedNumber(summary.unrealized_pnl_total) < 0"
                   >
-                    {{ summary.unrealized_pnl_total | bsSigned | bsCurrency }}
+                    {{ summary.unrealized_pnl_total | bsCurrency }}
                     <span class="sr-only">
                       {{
-                        signedNumber(summary.unrealized_pnl_total) >= 0 ? 'gain' : 'loss'
+                        signedNumber(summary.unrealized_pnl_total) > 0
+                          ? 'gain'
+                          : signedNumber(summary.unrealized_pnl_total) < 0
+                            ? 'loss'
+                            : 'no change'
                       }}
                     </span>
                   </strong>
+                </article>
+                <article>
+                  <span>Realized P&amp;L</span>
+                  <strong
+                    [class.positive]="signedNumber(summary.realized_pnl_total) > 0"
+                    [class.negative]="signedNumber(summary.realized_pnl_total) < 0"
+                  >
+                    {{ summary.realized_pnl_total | bsCurrency }}
+                    <span class="sr-only">{{
+                      signedNumber(summary.realized_pnl_total) > 0
+                        ? 'gain'
+                        : signedNumber(summary.realized_pnl_total) < 0
+                          ? 'loss'
+                          : 'no change'
+                    }}</span>
+                  </strong>
+                </article>
+                <article>
+                  <span>Total P&amp;L</span>
+                  <strong
+                    [class.positive]="signedNumber(summary.total_pnl) > 0"
+                    [class.negative]="signedNumber(summary.total_pnl) < 0"
+                    >{{ summary.total_pnl | bsCurrency }}</strong
+                  >
                 </article>
               </div>
             }
@@ -77,8 +120,11 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card eyebrow="Book" title="Positions">
-        <a cardActions class="text-link" routerLink="/trade">Open trade desk</a>
+      <app-bs-card
+        eyebrow="Book"
+        title="Positions"
+        description="Symbols you hold now. Open Trade to buy more or sell."
+      >
         @switch (positionsState()) {
           @case ('loading') {
             <app-skeleton />
@@ -87,12 +133,10 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
             <app-inline-error [message]="positionsError()" (retry)="loadPositions()" />
           }
           @case ('empty') {
-            <app-empty-state
-              title="No open positions"
-              message="Place a market order to build your paper book."
-              ctaLabel="Trade"
-              ctaLink="/trade"
-            />
+            <div class="empty-widget">
+              <h3>No open positions</h3>
+              <p>Use Trade to place your first paper order.</p>
+            </div>
           }
           @case ('ready') {
             <div class="table-wrap">
@@ -108,8 +152,8 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                   @for (row of positions(); track row.symbol) {
                     <tr>
                       <td>{{ row.symbol }}</td>
-                      <td>{{ row.quantity }}</td>
-                      <td>{{ row.avg_cost }}</td>
+                      <td>{{ row.quantity | number: '1.0-8' }}</td>
+                      <td>{{ row.avg_cost | bsCurrency }}</td>
                     </tr>
                   }
                 </tbody>
@@ -119,8 +163,11 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card eyebrow="Lab" title="Strategies">
-        <a cardActions class="text-link" routerLink="/strategies">View all</a>
+      <app-bs-card
+        eyebrow="Lab"
+        title="Strategies"
+        description="Trading rules you define. Edit a strategy or start a backtest from here."
+      >
         @switch (strategiesState()) {
           @case ('loading') {
             <app-skeleton />
@@ -129,18 +176,17 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
             <app-inline-error [message]="strategiesError()" (retry)="loadStrategies()" />
           }
           @case ('empty') {
-            <app-empty-state
-              title="Create your first strategy"
-              message="Build a rule-based strategy to run backtests."
-              ctaLabel="Strategies"
-              ctaLink="/strategies"
-            />
+            <div class="empty-widget">
+              <h3>No strategies yet</h3>
+              <p>Define your trading rules, then test them on historical prices.</p>
+              <a class="text-link" routerLink="/strategies/new">Create a strategy</a>
+            </div>
           }
           @case ('ready') {
             <ul class="link-list">
               @for (item of strategies(); track item.id) {
                 <li>
-                  <a [routerLink]="['/strategies', item.id]">{{ item.name }}</a>
+                  <a class="item-link" [routerLink]="['/strategies', item.id]">{{ item.name }}</a>
                   <div class="row-actions">
                     <a class="text-link" [routerLink]="['/strategies', item.id, 'edit']">Edit</a>
                     <a
@@ -157,7 +203,11 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card eyebrow="Research" title="Recent backtests">
+      <app-bs-card
+        eyebrow="Research"
+        title="Recent backtests"
+        description="Past simulation runs. Open one to see equity curve and trades."
+      >
         @switch (backtestsState()) {
           @case ('loading') {
             <app-skeleton />
@@ -166,21 +216,19 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
             <app-inline-error [message]="backtestsError()" (retry)="loadBacktests()" />
           }
           @case ('empty') {
-            <app-empty-state
-              title="Run a backtest"
-              message="Launch a strategy against historical bars."
-              ctaLabel="Backtests"
-              ctaLink="/backtests"
-            />
+            <div class="empty-widget">
+              <h3>No backtests yet</h3>
+              <p>Open a strategy and choose Run backtest to see how it performs.</p>
+            </div>
           }
           @case ('ready') {
             <ul class="link-list">
               @for (item of backtests(); track item.id) {
                 <li>
-                  <a [routerLink]="['/backtests', item.id]"
+                  <a class="item-link" [routerLink]="['/backtests', item.id]"
                     >{{ item.strategy_name }} · {{ item.symbol }}</a
                   >
-                  <span class="meta">{{ item.status }} · {{ item.created_at }}</span>
+                  <span class="meta">{{ item.status }} · {{ item.created_at | bsDateTime }}</span>
                 </li>
               }
             </ul>
@@ -188,7 +236,11 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card eyebrow="Activity" title="Recent trades">
+      <app-bs-card
+        eyebrow="Activity"
+        title="Recent trades"
+        description="Latest filled paper orders from the trade desk."
+      >
         @switch (tradesState()) {
           @case ('loading') {
             <app-skeleton />
@@ -197,12 +249,10 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
             <app-inline-error [message]="tradesError()" (retry)="loadTrades()" />
           }
           @case ('empty') {
-            <app-empty-state
-              title="No trades yet"
-              message="Filled paper executions will show up here."
-              ctaLabel="Trade"
-              ctaLink="/trade"
-            />
+            <div class="empty-widget">
+              <h3>No trades yet</h3>
+              <p>Your filled paper orders will appear here.</p>
+            </div>
           }
           @case ('ready') {
             <div class="table-wrap">
@@ -219,11 +269,11 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                 <tbody>
                   @for (row of trades(); track $index) {
                     <tr>
-                      <td>{{ row.executed_at }}</td>
+                      <td>{{ row.executed_at | bsDateTime }}</td>
                       <td>{{ row.symbol }}</td>
                       <td>{{ row.side }}</td>
-                      <td>{{ row.quantity }}</td>
-                      <td>{{ row.price }}</td>
+                      <td>{{ row.quantity | number: '1.0-8' }}</td>
+                      <td>{{ row.price | bsCurrency }}</td>
                     </tr>
                   }
                 </tbody>
@@ -232,20 +282,76 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
           }
         }
       </app-bs-card>
-
-      <app-bs-card eyebrow="Lookup" title="Symbol search">
-        <app-symbol-search />
-      </app-bs-card>
     </div>
   `,
   styles: `
+    .page-heading {
+      align-items: center;
+    }
+    .page-heading > div {
+      min-width: 0;
+    }
+    .page-heading h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+    }
+    .lede {
+      margin-bottom: 0;
+    }
+    .dashboard-search {
+      flex: 0 1 19rem;
+      min-width: 15rem;
+    }
+    .portfolio-card {
+      grid-column: 1 / -1;
+    }
+    app-bs-card {
+      min-width: 0;
+    }
+    .metric-grid strong {
+      font-size: clamp(1.25rem, 2vw, 1.7rem);
+      overflow-wrap: anywhere;
+    }
+    .empty-widget {
+      padding: 0.6rem 0 0.3rem;
+    }
+    .empty-widget h3 {
+      font-size: 1rem;
+      margin: 0 0 0.5rem;
+    }
+    .empty-widget p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      margin: 0;
+    }
+    .empty-widget a {
+      display: inline-block;
+      margin-top: 0.65rem;
+      padding-block: 0.35rem;
+    }
+    .item-link {
+      color: var(--text);
+      font-weight: 600;
+      text-underline-offset: 0.2em;
+      overflow-wrap: anywhere;
+    }
+    .item-link:hover {
+      color: var(--accent);
+    }
+    .table-wrap table {
+      min-width: 0;
+    }
+    .table-wrap th,
+    .table-wrap td {
+      padding: 0.75rem 0.45rem;
+    }
     .dashboard-grid {
       display: grid;
       gap: 1.25rem;
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .metric-grid.compact {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin: 0;
     }
     .link-list {
@@ -261,6 +367,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
     }
     .row-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.85rem;
     }
     .sr-only {
@@ -269,6 +376,28 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
       overflow: hidden;
       position: absolute;
       width: 1px;
+    }
+    @media (max-width: 650px) {
+      .page-heading {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .dashboard-search {
+        flex: auto;
+        min-width: 0;
+      }
+      .metric-grid.compact {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+      .metric-grid article {
+        border-radius: 0.65rem;
+        padding: 1rem;
+      }
+      .metric-grid strong {
+        font-size: 1.4rem;
+      }
     }
     @media (max-width: 900px) {
       .dashboard-grid {
@@ -304,6 +433,7 @@ export class DashboardPage implements OnInit {
   protected readonly tradesState = signal<LoadState>('loading');
   protected readonly tradesError = signal('Failed to load trades.');
 
+  private readonly router = inject(Router);
   private readonly trading = inject(TradingApiService);
   private readonly strategiesApi = inject(StrategiesApiService);
   private readonly backtestsApi = inject(BacktestsApiService);
@@ -320,6 +450,10 @@ export class DashboardPage implements OnInit {
     this.loadStrategies();
     this.loadBacktests();
     this.loadTrades();
+  }
+
+  protected openSymbol(item: SymbolSearchResult): void {
+    void this.router.navigate(['/trade'], { queryParams: { symbol: item.symbol } });
   }
 
   protected signedNumber(value: string): number {

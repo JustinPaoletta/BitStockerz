@@ -11,14 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from '@angular/forms';
-import {
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  of,
-  Subject,
-  switchMap,
-} from 'rxjs';
+import { catchError, EMPTY, of, Subject, switchMap, timer } from 'rxjs';
 
 export interface SymbolSearchResult {
   symbol: string;
@@ -44,6 +37,7 @@ export interface SymbolSearchResult {
         type="text"
         role="combobox"
         autocomplete="off"
+        aria-autocomplete="list"
         [attr.aria-expanded]="open()"
         [attr.aria-controls]="listboxId"
         [attr.aria-activedescendant]="activeDescendant()"
@@ -127,40 +121,36 @@ export class SymbolSearchComponent implements ControlValueAccessor {
   protected readonly error = signal('');
   protected readonly activeIndex = signal(-1);
   protected disabled = false;
-  protected readonly listboxId = `${this.inputId}-listbox`;
+  protected get listboxId(): string {
+    return `${this.inputId}-listbox`;
+  }
 
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly queries = new Subject<string>();
+  private readonly queries = new Subject<string | null>();
   private onChange: (value: string) => void = () => undefined;
   private onTouched: () => void = () => undefined;
 
   constructor() {
     this.queries
       .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
         switchMap((q) => {
-          const trimmed = q.trim();
-          if (!trimmed) {
-            this.results.set([]);
-            this.loading.set(false);
-            this.error.set('');
-            return of([] as SymbolSearchResult[]);
-          }
-          this.loading.set(true);
-          this.error.set('');
-          let params = new HttpParams().set('q', trimmed).set('limit', '8');
+          if (!q) return EMPTY;
+          let params = new HttpParams().set('q', q).set('limit', '8');
           if (this.assetType) {
             params = params.set('asset_type', this.assetType);
           }
-          return this.http.get<{ items?: SymbolSearchResult[]; symbols?: SymbolSearchResult[] }>(
-            '/api/symbols/search',
-            { params },
-          ).pipe(
+          // Cancel both the debounce and any in-flight request as soon as the query changes.
+          return timer(250).pipe(
+            switchMap(() =>
+              this.http.get<
+                | SymbolSearchResult[]
+                | { items?: SymbolSearchResult[]; symbols?: SymbolSearchResult[] }
+              >('/api/symbols/search', { params }),
+            ),
             catchError(() => {
               this.error.set('Symbol search failed.');
-              return of({ items: [] });
+              return of([] as SymbolSearchResult[]);
             }),
           );
         }),
@@ -168,8 +158,8 @@ export class SymbolSearchComponent implements ControlValueAccessor {
       )
       .subscribe((response) => {
         const items = Array.isArray(response)
-          ? (response as SymbolSearchResult[])
-          : (((response as { items?: SymbolSearchResult[] }).items) ?? []);
+          ? response
+          : (response.items ?? response.symbols ?? []);
         this.results.set(items);
         this.activeIndex.set(items.length ? 0 : -1);
         this.loading.set(false);
@@ -178,6 +168,8 @@ export class SymbolSearchComponent implements ControlValueAccessor {
   }
 
   writeValue(value: string | null): void {
+    this.dismiss();
+    this.results.set([]);
     this.query.set(value ?? '');
   }
 
@@ -191,25 +183,35 @@ export class SymbolSearchComponent implements ControlValueAccessor {
 
   setDisabledState(isDisabled: boolean): void {
     this.disabled = isDisabled;
+    if (isDisabled) this.dismiss();
   }
 
   protected onInput(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.query.set(value);
     this.onChange(value);
-    this.queries.next(value);
+    this.search(value);
   }
 
   protected onFocus(): void {
-    if (this.results().length) this.open.set(true);
+    if (this.results().length) {
+      this.activeIndex.set(0);
+      this.open.set(true);
+    } else {
+      this.search(this.query());
+    }
   }
 
   protected onBlur(): void {
     this.onTouched();
-    setTimeout(() => this.open.set(false), 120);
+    this.dismiss();
   }
 
   protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.dismiss();
+      return;
+    }
     const items = this.results();
     if (!items.length) return;
     if (event.key === 'ArrowDown') {
@@ -219,22 +221,40 @@ export class SymbolSearchComponent implements ControlValueAccessor {
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       this.activeIndex.update((i) => Math.max(i - 1, 0));
-    } else if (event.key === 'Enter') {
+      this.open.set(true);
+    } else if (event.key === 'Enter' && this.open()) {
       const item = items[this.activeIndex()];
       if (item) {
         event.preventDefault();
         this.select(item);
       }
-    } else if (event.key === 'Escape') {
-      this.open.set(false);
     }
   }
 
   protected select(item: SymbolSearchResult): void {
+    if (!this.open() || !this.results().includes(item)) return;
+    this.dismiss();
+    this.results.set([]);
     this.query.set(item.symbol);
     this.onChange(item.symbol);
     this.selected.emit(item);
+  }
+
+  private search(value: string): void {
+    const query = value.trim();
+    this.results.set([]);
+    this.activeIndex.set(-1);
+    this.error.set('');
+    this.loading.set(!!query);
+    this.open.set(!!query);
+    this.queries.next(query || null);
+  }
+
+  private dismiss(): void {
+    this.queries.next(null);
+    this.loading.set(false);
     this.open.set(false);
+    this.activeIndex.set(-1);
   }
 
   protected optionId(index: number): string {
@@ -243,6 +263,6 @@ export class SymbolSearchComponent implements ControlValueAccessor {
 
   protected activeDescendant(): string | null {
     const index = this.activeIndex();
-    return index >= 0 ? this.optionId(index) : null;
+    return this.open() && index >= 0 && index < this.results().length ? this.optionId(index) : null;
   }
 }
