@@ -79,6 +79,18 @@ describe('AuthRateLimitGuard', () => {
     expect(guard.canActivate(createExecutionContext(request))).toBe(true);
   });
 
+  it('falls back to request path and unknown ip when route and ip are missing', () => {
+    const guard = new AuthRateLimitGuard(
+      createConfig({ rateLimitMaxRequests: 3 }),
+    );
+    const request = {
+      path: '/api/auth/login',
+      socket: {},
+    } as AuthenticatedRequest;
+
+    expect(guard.canActivate(createExecutionContext(request))).toBe(true);
+  });
+
   it('resets allowance once the window has elapsed', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));

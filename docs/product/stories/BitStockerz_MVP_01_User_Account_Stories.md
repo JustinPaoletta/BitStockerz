@@ -217,8 +217,8 @@
 - On first successful signup (passkey or OAuth), create exactly one paper account.
 - Default balance is **$100,000.00 USD**.
 - Balance supports cents (DECIMAL), not float.
-- Re-registering after an API restart preserves the MySQL account, cash, and
-  ownership while remapping the in-memory user id.
+- Signing in again after an API restart preserves the MySQL account, cash, and
+  ownership because auth users hydrate from MySQL with stable user ids.
 - `GET /api/paper-account` is authenticated and returns fixed-scale decimal
   strings. Missing legacy accounts are idempotently healed.
 

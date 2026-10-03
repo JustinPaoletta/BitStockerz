@@ -308,8 +308,13 @@ export class DashboardPage implements OnInit {
   private readonly strategiesApi = inject(StrategiesApiService);
   private readonly backtestsApi = inject(BacktestsApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private widgetsRequested = false;
 
   ngOnInit(): void {
+    if (this.widgetsRequested) {
+      return;
+    }
+    this.widgetsRequested = true;
     this.loadAccount();
     this.loadPositions();
     this.loadStrategies();

@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Symbol as PrismaSymbol } from '@prisma/client';
+import {
+  buildCandleCacheKey,
+  buildSymbolLookupCacheKey,
+  buildSymbolSearchCacheKey,
+  TtlCacheService,
+} from '../common/cache/ttl-cache.service';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
@@ -19,6 +25,7 @@ import {
   SymbolSearchInput,
 } from './market-data.types';
 import type { EngineBar } from '../backtest/engine/backtest-engine.types';
+import { ProviderRouterService } from './providers/provider-router.service';
 import { CandleSanityService } from './sanity/candle-sanity.service';
 import type {
   SanityBarInput,
@@ -43,12 +50,20 @@ export interface MarketDataHealthSeries {
   symbol_count_with_data: number;
 }
 
+export interface MarketDataProviderHealth {
+  configured: string;
+  last_success_at: string | null;
+  circuit: 'closed' | 'open' | 'half_open';
+  last_error_code: string | null;
+}
+
 export interface MarketDataHealthResponse {
   status: MarketDataHealthStatus;
   timestamp: string;
   series: MarketDataHealthSeries[];
   sanity: SanitySummary;
   source: 'database' | 'seed';
+  provider: MarketDataProviderHealth;
 }
 
 export interface LatestClose {
@@ -102,22 +117,30 @@ export class MarketDataService {
     private readonly prisma: PrismaService,
     private readonly config: AppConfigService,
     private readonly sanity: CandleSanityService,
+    private readonly cache: TtlCacheService,
+    private readonly providers: ProviderRouterService,
   ) {}
 
   async lookupSymbol(symbol: string): Promise<SymbolResponse> {
     const normalizedSymbol = normalizeSymbol(symbol);
-    const record = this.prisma.isEnabled
-      ? await this.lookupSymbolFromDatabase(normalizedSymbol)
-      : this.lookupSymbolFromSeed(normalizedSymbol);
+    return this.cache.getOrLoad(
+      buildSymbolLookupCacheKey(normalizedSymbol),
+      'symbols',
+      async () => {
+        const record = this.prisma.isEnabled
+          ? await this.lookupSymbolFromDatabase(normalizedSymbol)
+          : this.lookupSymbolFromSeed(normalizedSymbol);
 
-    if (!record) {
-      throw new DomainError(
-        ErrorCode.NOT_FOUND,
-        `Symbol ${normalizedSymbol} was not found.`,
-      );
-    }
+        if (!record) {
+          throw new DomainError(
+            ErrorCode.NOT_FOUND,
+            `Symbol ${normalizedSymbol} was not found.`,
+          );
+        }
 
-    return toSymbolResponse(record);
+        return toSymbolResponse(record);
+      },
+    );
   }
 
   async requireActiveSymbolById(symbolId: number): Promise<SymbolResponse> {
@@ -337,12 +360,19 @@ export class MarketDataService {
   async searchSymbols(input: SymbolSearchInput): Promise<SymbolResponse[]> {
     const query = input.q?.trim() ?? '';
     const limit = clampLimit(input.limit);
+    const cacheKey = buildSymbolSearchCacheKey({
+      q: query,
+      assetType: input.assetType,
+      limit,
+    });
 
-    const records = this.prisma.isEnabled
-      ? await this.searchSymbolsFromDatabase(query, input.assetType, limit)
-      : this.searchSymbolsFromSeed(query, input.assetType, limit);
+    return this.cache.getOrLoad(cacheKey, 'symbols', async () => {
+      const records = this.prisma.isEnabled
+        ? await this.searchSymbolsFromDatabase(query, input.assetType, limit)
+        : this.searchSymbolsFromSeed(query, input.assetType, limit);
 
-    return records.map(toSymbolResponse);
+      return records.map(toSymbolResponse);
+    });
   }
 
   async getEquityDailyCandles(
@@ -350,23 +380,37 @@ export class MarketDataService {
   ): Promise<EquityDailyCandleResponse[]> {
     const range = parseCandleRange(input, 'daily');
     const symbol = await this.resolveActiveSymbol(input.symbol, 'EQUITY');
+    const cacheKey = buildCandleCacheKey({
+      assetType: 'EQUITY',
+      symbol: symbol.symbol,
+      interval: '1d',
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+      order: range.order,
+      limit: range.limit,
+    });
 
-    if (this.prisma.isEnabled) {
-      const records = await this.prisma.equityDailyBar.findMany({
-        where: {
-          symbolId: symbol.id,
-          date: { gte: range.start, lte: range.end },
-        },
-        orderBy: { date: range.order },
-        take: range.limit,
-      });
+    return this.cache.getOrLoad(cacheKey, 'candles', async () => {
+      if (this.prisma.isEnabled) {
+        const records = await this.prisma.equityDailyBar.findMany({
+          where: {
+            symbolId: symbol.id,
+            date: { gte: range.start, lte: range.end },
+          },
+          orderBy: { date: range.order },
+          take: range.limit,
+        });
 
-      return records.map(toDailyCandleResponse);
-    }
+        return records.map(toDailyCandleResponse);
+      }
 
-    return selectSeedBars(SEED_EQUITY_DAILY_BARS, symbol.id, 'date', range).map(
-      toDailyCandleResponse,
-    );
+      return selectSeedBars(
+        SEED_EQUITY_DAILY_BARS,
+        symbol.id,
+        'date',
+        range,
+      ).map(toDailyCandleResponse);
+    });
   }
 
   async getMarketDataHealth(
@@ -388,6 +432,7 @@ export class MarketDataService {
       series,
       sanity,
       source,
+      provider: this.providers.getHealthInfo(),
     };
   }
 
@@ -406,48 +451,59 @@ export class MarketDataService {
       input.interval === '1d' ? 'daily' : 'hourly',
     );
     const symbol = await this.resolveActiveSymbol(input.symbol, 'CRYPTO');
+    const cacheKey = buildCandleCacheKey({
+      assetType: 'CRYPTO',
+      symbol: symbol.symbol,
+      interval: input.interval,
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+      order: range.order,
+      limit: range.limit,
+    });
 
-    if (input.interval === '1d') {
+    return this.cache.getOrLoad(cacheKey, 'candles', async () => {
+      if (input.interval === '1d') {
+        if (this.prisma.isEnabled) {
+          const records = await this.prisma.cryptoDailyBar.findMany({
+            where: {
+              symbolId: symbol.id,
+              date: { gte: range.start, lte: range.end },
+            },
+            orderBy: { date: range.order },
+            take: range.limit,
+          });
+
+          return records.map(toDailyCandleResponse);
+        }
+
+        return selectSeedBars(
+          SEED_CRYPTO_DAILY_BARS,
+          symbol.id,
+          'date',
+          range,
+        ).map(toDailyCandleResponse);
+      }
+
       if (this.prisma.isEnabled) {
-        const records = await this.prisma.cryptoDailyBar.findMany({
+        const records = await this.prisma.cryptoHourlyBar.findMany({
           where: {
             symbolId: symbol.id,
-            date: { gte: range.start, lte: range.end },
+            timestamp: { gte: range.start, lte: range.end },
           },
-          orderBy: { date: range.order },
+          orderBy: { timestamp: range.order },
           take: range.limit,
         });
 
-        return records.map(toDailyCandleResponse);
+        return records.map(toHourlyCandleResponse);
       }
 
       return selectSeedBars(
-        SEED_CRYPTO_DAILY_BARS,
+        SEED_CRYPTO_HOURLY_BARS,
         symbol.id,
-        'date',
+        'timestamp',
         range,
-      ).map(toDailyCandleResponse);
-    }
-
-    if (this.prisma.isEnabled) {
-      const records = await this.prisma.cryptoHourlyBar.findMany({
-        where: {
-          symbolId: symbol.id,
-          timestamp: { gte: range.start, lte: range.end },
-        },
-        orderBy: { timestamp: range.order },
-        take: range.limit,
-      });
-
-      return records.map(toHourlyCandleResponse);
-    }
-
-    return selectSeedBars(
-      SEED_CRYPTO_HOURLY_BARS,
-      symbol.id,
-      'timestamp',
-      range,
-    ).map(toHourlyCandleResponse);
+      ).map(toHourlyCandleResponse);
+    });
   }
 
   private async resolveActiveSymbol(

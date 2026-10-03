@@ -95,6 +95,22 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().webAuthnCredential;
   }
 
+  get authSession() {
+    return this.requireClient().authSession;
+  }
+
+  get oAuthIdentity() {
+    return this.requireClient().oAuthIdentity;
+  }
+
+  get webAuthnChallenge() {
+    return this.requireClient().webAuthnChallenge;
+  }
+
+  get oAuthState() {
+    return this.requireClient().oAuthState;
+  }
+
   $transaction<R>(
     fn: (tx: Prisma.TransactionClient) => Promise<R>,
     options?: {
@@ -104,6 +120,10 @@ export class PrismaService implements OnModuleDestroy {
     },
   ): Promise<R> {
     return this.requireClient().$transaction(fn, options);
+  }
+
+  async ping(): Promise<void> {
+    await this.requireClient().$queryRaw`SELECT 1`;
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -6,11 +6,16 @@ const createMockApp = (port = 4000) => ({
   useGlobalPipes: jest.fn(),
   useGlobalFilters: jest.fn(),
   enableCors: jest.fn(),
+  enableShutdownHooks: jest.fn(),
   listen: jest.fn().mockResolvedValue(undefined),
   get: jest.fn((token) => {
     if (typeof token === 'function' && token.name === AppConfigService.name) {
       return {
-        server: { port, corsAllowedOrigins: ['http://localhost:4200'] },
+        server: {
+          port,
+          corsAllowedOrigins: ['http://localhost:4200'],
+          openApiEnabled: true,
+        },
       };
     }
     return token;
@@ -54,6 +59,7 @@ describe('bootstrap', () => {
     expect(loggerArg).toBeDefined();
     expect(loggerArg.name).toBe('AppLogger');
     expect(mockApp.setGlobalPrefix).toHaveBeenCalledWith('api');
+    expect(mockApp.enableShutdownHooks).toHaveBeenCalled();
     const filterArg = mockApp.useGlobalFilters.mock.calls[0][0];
     expect(filterArg).toBeDefined();
     expect(filterArg.name).toBe('GlobalHttpExceptionFilter');

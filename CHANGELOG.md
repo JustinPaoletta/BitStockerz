@@ -7,8 +7,42 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Security and merge readiness
+
+- Refresh compatible dependencies and security overrides across all lockfiles;
+  align CI and API containers on Node 24.21.0. Add dependency audit gates.
+- Require OAuth nonce, subject and expiry claims; reject unverified Google/Apple
+  emails and unsigned Apple callback emails. Require authenticated linking for
+  Google third-party email collisions.
+- Serialize MySQL AI quota updates so concurrent calls cannot exceed the cap or
+  fail with counter-creation conflicts. Keep synthetic ingestion out of production.
+- Apply migrations before checking their final status; configure the migration
+  job's Node runtime, pin action revisions, and restrict deployments to main.
+- Add signed-token and MySQL auth/quota regression checks, and repair database
+  smoke-test cleanup for persisted passkeys and paper accounts.
+
 ### Added
 
+- Auth persistence to MySQL: users, sessions, passkeys, OAuth identities,
+  WebAuthn challenges, and OAuth state hydrate on startup when `DATABASE_URL`
+  is set; user ids remain stable across API restarts.
+- Production auth hardening: `AUTH_DEV_EMAIL_ENABLED`, `AUTH_LEGACY_WEBAUTHN_ENABLED`,
+  `ERROR_TEST_ENABLED`, and `OPENAPI_ENABLED` config flags with production boot
+  validation; rate limits on dev email register/login; error-test route guard;
+  Angular hides email fallback in production builds.
+- Milestone 7 polish: in-process TTL/LRU cache for symbol and candle reads,
+  ingestion prefix invalidation, provider interface + circuit breaker
+  guardrails, and additive `provider` field on `GET /api/market-data/health`.
+- Milestone 7 deploy artifacts: GitHub Actions `ci.yml` / `deploy.yml`, API
+  Dockerfile + Fly.io config, Vercel SPA rewrite, production readiness
+  hardening, and `docs/ops/deployment.md` Option A runbook.
+- Milestone 6 Kernel AI: `AiModule` with stub/OpenAI providers, `ai_usage`
+  daily limits, feature flags, metadata-only audit/logging, and advisory
+  endpoints `POST /api/ai/explain-strategy`, `/validate-strategy`,
+  `/explain-backtest`, `/suggest-improvements` (diff suggestions deferred).
+- Angular Kernel panels on strategy detail and backtest detail (Explain /
+  Check issues / Explain results / Suggest improvements) with disclaimer
+  rendering and distinct disabled/quota/provider error copy.
 - Milestone 5 Angular app: dark branded shell with logo, passkey-first auth
   (email fallback), `/auth/me` session guard, dashboard widgets with
   independent loading, Strategy Lab create/edit/validate/delete, paper trade
@@ -18,6 +52,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   mapper, display pipes, symbol search, client order ids) and Playwright
   seed-mode workflow e2e covering shell auth, Strategy Lab, backtests, and
   paper trade fill/reject/sell guards.
+
+### Changed
+
+- Replaced stale MySQL user-id remapping on same-email re-registration with
+  stable persisted auth identities; after an API restart, sign in again instead
+  of registering the same email twice.
 
 ### Fixed
 

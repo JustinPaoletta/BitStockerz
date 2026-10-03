@@ -12,6 +12,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { ErrorTestController } from './error-test/error-test.controller';
+import { ErrorTestEnabledGuard } from './error-test/error-test-enabled.guard';
 import { buildPinoLoggerOptions } from './common/logging/pino.config';
 import { GlobalHttpExceptionFilter } from './common/errors/http-exception.filter';
 import { AppLogger } from './common/logging/app-logger';
@@ -25,10 +26,13 @@ import { ObservabilityModule } from './observability/observability.module';
 import { StrategiesModule } from './strategies/strategies.module';
 import { BacktestModule } from './backtest/backtest.module';
 import { TradingModule } from './trading/trading.module';
+import { AiModule } from './ai/ai.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    PrismaModule,
     AuthModule,
     MarketDataModule,
     JobsModule,
@@ -36,6 +40,7 @@ import { TradingModule } from './trading/trading.module';
     StrategiesModule,
     BacktestModule,
     TradingModule,
+    AiModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
@@ -47,6 +52,7 @@ import { TradingModule } from './trading/trading.module';
   providers: [
     AppService,
     HealthService,
+    ErrorTestEnabledGuard,
     GlobalHttpExceptionFilter,
     AppLogger,
     {

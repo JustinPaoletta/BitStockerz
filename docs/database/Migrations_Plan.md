@@ -27,6 +27,7 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Orders (4.2) | `20260802020000_sprint_4_2_orders` |
 | Executions (4.2) | `20260802020100_sprint_4_2_executions` |
 | Trading price precision alignment (4.1–4.2) | `20260802030000_sprint_4_trading_price_precision` |
+| Auth persistence (sessions, OAuth, challenges) | `20260911000000_auth_persistence` |
 
 The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
 
@@ -277,6 +278,7 @@ and are exercised by the MySQL persistence smoke gate.
 1. `V0600__create_ai_usage.sql`  
    - Creates: `ai_usage`  
    - Source: `DDL/05_ai_kernel.sql`
+   - Prisma: `apps/api/prisma/migrations/20260808000000_sprint_6_1_ai_usage/`
 
 ---
 

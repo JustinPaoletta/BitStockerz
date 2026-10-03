@@ -21,6 +21,8 @@ describe('MetricsService', () => {
     service.recordError('jobs');
     service.recordError('backtest');
     service.recordError('unknown');
+    service.recordCache('symbols', 'hit');
+    service.recordCache('candles', 'miss');
 
     const snapshot = service.snapshot(new Date('2026-07-24T00:00:00.000Z'));
     expect(snapshot.timestamp).toBe('2026-07-24T00:00:00.000Z');
@@ -33,6 +35,8 @@ describe('MetricsService', () => {
     expect(snapshot.backtests.completed).toBe(1);
     expect(snapshot.backtests.failed).toBe(1);
     expect(snapshot.backtests.duration_ms.max).toBe(125);
+    expect(snapshot.cache.symbols.hit).toBe(1);
+    expect(snapshot.cache.candles.miss).toBe(1);
     expect(snapshot.errors_by_domain.market_data).toBe(1);
     expect(snapshot.errors_by_domain.jobs).toBe(1);
     expect(snapshot.errors_by_domain.backtest).toBe(1);
@@ -45,6 +49,7 @@ describe('MetricsService', () => {
     service.recordJob('crypto_import', 'failed', 12);
     service.recordBacktest('timed_out', 20);
     service.recordError('auth');
+    service.recordCache('symbols', 'hit');
 
     const snapshot = service.snapshot();
     expect(snapshot.http.request_count).toBe(0);
@@ -52,6 +57,7 @@ describe('MetricsService', () => {
     expect(snapshot.backtests.completed).toBe(0);
     expect(snapshot.backtests.duration_ms.count).toBe(0);
     expect(snapshot.errors_by_domain.auth).toBe(0);
+    expect(snapshot.cache.symbols.hit).toBe(0);
   });
 
   it('resets state for tests', () => {

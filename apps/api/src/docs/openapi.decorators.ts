@@ -9,7 +9,7 @@ import {
 export const BEARER_AUTH_SCHEME = 'bearer-session';
 
 export type DocumentedErrorStatus =
-  400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 504;
+  400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
 
 interface ApiEndpointOptions {
   summary: string;
@@ -30,6 +30,8 @@ const ERROR_DESCRIPTIONS: Record<DocumentedErrorStatus, string> = {
   422: 'Request is valid but cannot be processed under domain rules.',
   429: 'Request rate limit exceeded.',
   500: 'Unexpected internal error. Quote the returned requestId when reporting it.',
+  502: 'Upstream provider failed. Quote the returned requestId when reporting it.',
+  503: 'Feature is temporarily unavailable or disabled.',
   504: 'Operation exceeded its configured execution deadline.',
 };
 

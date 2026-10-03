@@ -35,34 +35,36 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @UseGuards(AuthRateLimitGuard)
   @ApiEndpoint({
     summary: 'Register a development user',
     description:
-      'Development/testing shortcut that creates an in-memory user and opaque bearer session. Production clients should use passkeys or OAuth.',
+      'Development/testing shortcut when AUTH_DEV_EMAIL_ENABLED=true. Creates a user and opaque bearer session. Disabled in production.',
     status: 201,
     responseDescription: 'User and bearer session created.',
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 409, 500],
   })
   async register(@Body() dto: RegisterDto) {
-    const result = this.authService.register(dto.email, dto.display_name);
+    const result = await this.authService.register(dto.email, dto.display_name);
     await this.authService.ensurePaperAccountForUser(result.user.id);
     this.auditAuth('auth.register', result);
     return result;
   }
 
   @Post('login')
+  @UseGuards(AuthRateLimitGuard)
   @ApiEndpoint({
     summary: 'Log in by email in development',
     description:
-      'Development/testing shortcut that issues an opaque bearer session for an existing user.',
+      'Development/testing shortcut when AUTH_DEV_EMAIL_ENABLED=true. Issues an opaque bearer session for an existing user. Disabled in production.',
     status: 201,
     responseDescription: 'Bearer session issued.',
     responseSchema: apiSchemaRef('AuthResponse'),
     errors: [400, 401, 404, 429, 500],
   })
-  login(@Body() dto: LoginDto) {
-    const result = this.authService.login(dto.email);
+  async login(@Body() dto: LoginDto) {
+    const result = await this.authService.login(dto.email);
     this.auditAuth('auth.login', result, { method: 'passwordless_dev' });
     return result;
   }
@@ -244,10 +246,10 @@ export class AuthController {
     responseSchema: apiSchemaRef('LogoutResponse'),
     errors: [401, 500],
   })
-  logout(@Req() request: AuthenticatedRequest) {
+  async logout(@Req() request: AuthenticatedRequest) {
     const token = this.getAuthToken(request);
     const user = this.authService.requireUserBySessionToken(token);
-    this.authService.logout(token);
+    await this.authService.logout(token);
     void this.audit.record({
       userId: user.id,
       eventType: 'auth.logout',

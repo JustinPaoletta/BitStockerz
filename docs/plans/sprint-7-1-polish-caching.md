@@ -1,9 +1,9 @@
 # Sprint 7.1 — Polish & Caching
 
-**Status:** Plan ready (not started)  
+**Status:** Done — combined PR #12  
 **Roadmap marker:** Milestone 7 — Polish & Resilience  
-**Branch (when implementing):** `feat/sprint-7-1-polish-caching`  
-**PR base:** `feat/sprint-6-3-backtest-intelligence` (or `main` if Milestone 6 merged)
+**Branch (when implementing):** `feat/milestone-6-ai-kernel` (combined M6+M7)  
+**PR base:** `main` via PR #12
 
 **Overview:** Add in-process TTL caching for hot candle/symbol reads, define provider-fallback guardrails (circuit-breaker style interface) even if live vendor is still seed-backed, and apply UX/perf refinements across API + Angular. Use a simple custom TTL cache service; do not introduce `@nestjs/cache-manager` unless JC-1 is explicitly reversed.
 

@@ -1,16 +1,16 @@
 # BitStockerz — Sprint Plans (remaining)
 
-Active implementation contracts for unshipped sprints. Completed Milestone 2–5
-plans were removed after merge; recover them from git history if needed.
+Active implementation contracts. Completed Milestone 2–7 plan files may be
+removed after merge to `main`; recover them from git history if needed.
 Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
 
 | Sprint | Plan | Depends on | Readiness | Purpose |
 |--------|------|------------|-----------|---------|
-| 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | Milestone 5 (PR #11) | Ready | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
-| 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Ready | Explain-strategy and logical red-flag validation endpoints. |
-| 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Ready | Explain-backtest, failure modes, and improvement suggestions. |
-| 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Ready | In-memory candle/symbol cache TTL and provider fallback guardrails. |
-| 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Ready with external provisioning | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
+| 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | Milestone 5 (PR #11) | Done — combined PR #12 | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
+| 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Done — combined PR #12 | Explain-strategy and logical red-flag validation endpoints. |
+| 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Done — combined PR #12 (`#6.4.2` deferred) | Explain-backtest, failure modes, and improvement suggestions. |
+| 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Done — combined PR #12 | In-memory candle/symbol cache TTL and provider fallback guardrails. |
+| 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Done in-repo — combined PR #12; live deploy needs secrets | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
 
 **Completed (plans removed; see ROADMAP + merged PRs)**
 
@@ -53,7 +53,7 @@ Generic `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`
 | Strategy Lab | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
 | Backtesting | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
 | Paper trading | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
-| 6.1 (planned) | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
+| AI | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
 Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`, or `BACKTEST_VALIDATION_ERROR`.
 
@@ -69,15 +69,12 @@ Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`
 | Paper-trading valuation | Latest eligible close; missing prices fail closed; cash/aggregate currency values use 2dp |
 | AI output | Non-streaming MVP responses use AI SDK structured output with runtime schemas; malformed provider output fails closed |
 | Provider fallback | Production never falls back to synthetic seed data; serve last-known DB data and report degraded health |
-| Hosting default | Option A: always-on API host + Vercel Angular + managed MySQL |
+| Hosting default | Option A: always-on API host (Fly.io) + Vercel Angular + managed MySQL |
 
-**Execution sequence (remaining)**
+**Execution sequence (MVP complete in-repo)**
 
 ```text
 6.1 → 6.2 → 6.3 → 7.1 → 7.2
 ```
 
-**Milestone grouping**
-
-- **Milestone 6** — AI Kernel (6.1–6.3)
-- **Milestone 7** — Polish & Deployment (7.1–7.2)
+Ops runbook / **what you still need to do (plain English):** [docs/ops/deployment.md](../ops/deployment.md).

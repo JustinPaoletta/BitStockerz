@@ -1,8 +1,11 @@
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
+import { TtlCacheService } from '../common/cache/ttl-cache.service';
 import type { AppConfigService } from '../config/app-config.service';
+import { MetricsService } from '../observability/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MarketDataService } from './market-data.service';
+import type { ProviderRouterService } from './providers/provider-router.service';
 import { CandleSanityService } from './sanity/candle-sanity.service';
 
 function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
@@ -18,17 +21,39 @@ function createConfig(overrides?: Partial<AppConfigService>): AppConfigService {
       staleEquityDailyMs: 172_800_000,
       staleCryptoDailyMs: 129_600_000,
       staleCryptoHourlyMs: 7_200_000,
+      liveEnabled: false,
+      circuitFailures: 3,
+      circuitCooldownMs: 60_000,
     },
+    cache: {
+      enabled: true,
+      candlesTtlMs: 60_000,
+      symbolsTtlMs: 60_000,
+      maxEntries: 500,
+    },
+    metrics: { enabled: true },
     ...overrides,
   } as AppConfigService;
 }
 
 function createService(prisma?: PrismaService): MarketDataService {
   const config = createConfig();
+  const metrics = new MetricsService(config);
+  const cache = new TtlCacheService(config, metrics);
+  const providers = {
+    getHealthInfo: () => ({
+      configured: 'seed',
+      last_success_at: null,
+      circuit: 'closed' as const,
+      last_error_code: null,
+    }),
+  } as ProviderRouterService;
   return new MarketDataService(
     prisma ?? new PrismaService(config),
     config,
     new CandleSanityService(),
+    cache,
+    providers,
   );
 }
 

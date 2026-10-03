@@ -6,8 +6,10 @@ import {
   ConflictException,
   HttpException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { ErrorTestEnabledGuard } from './error-test-enabled.guard';
 
 /**
  * Controller used only for error contract e2e tests.
@@ -15,6 +17,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
  */
 @ApiExcludeController()
 @Controller('error-test')
+@UseGuards(ErrorTestEnabledGuard)
 export class ErrorTestController {
   @Get('unauthorized')
   unauthorized() {

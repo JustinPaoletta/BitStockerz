@@ -37,7 +37,20 @@ export interface MetricsSnapshot {
     timed_out: number;
     duration_ms: DurationStats;
   };
+  cache: {
+    symbols: CacheNamespaceStats;
+    candles: CacheNamespaceStats;
+  };
   errors_by_domain: Record<MetricsDomain, number>;
+}
+
+export type CacheMetricEvent = 'hit' | 'miss' | 'load_error' | 'eviction';
+
+export interface CacheNamespaceStats {
+  hit: number;
+  miss: number;
+  load_error: number;
+  eviction: number;
 }
 
 const MAX_SAMPLES = 500;
@@ -57,6 +70,13 @@ export class MetricsService {
     completed: 0,
     failed: 0,
     timed_out: 0,
+  };
+  private readonly cacheStats: Record<
+    'symbols' | 'candles',
+    CacheNamespaceStats
+  > = {
+    symbols: { hit: 0, miss: 0, load_error: 0, eviction: 0 },
+    candles: { hit: 0, miss: 0, load_error: 0, eviction: 0 },
   };
   private readonly errorsByDomain: Record<MetricsDomain, number> = {
     auth: 0,
@@ -123,6 +143,13 @@ export class MetricsService {
     pushBounded(this.backtestDurations, durationMs, MAX_SAMPLES);
   }
 
+  recordCache(namespace: 'symbols' | 'candles', event: CacheMetricEvent): void {
+    if (!this.enabled) {
+      return;
+    }
+    this.cacheStats[namespace][event] += 1;
+  }
+
   snapshot(now = new Date()): MetricsSnapshot {
     const byType: MetricsSnapshot['jobs']['by_type'] = {};
 
@@ -145,6 +172,10 @@ export class MetricsService {
         ...this.backtestCounts,
         duration_ms: summarize(this.backtestDurations),
       },
+      cache: {
+        symbols: { ...this.cacheStats.symbols },
+        candles: { ...this.cacheStats.candles },
+      },
       errors_by_domain: { ...this.errorsByDomain },
     };
   }
@@ -159,6 +190,8 @@ export class MetricsService {
     this.backtestCounts.completed = 0;
     this.backtestCounts.failed = 0;
     this.backtestCounts.timed_out = 0;
+    this.cacheStats.symbols = { hit: 0, miss: 0, load_error: 0, eviction: 0 };
+    this.cacheStats.candles = { hit: 0, miss: 0, load_error: 0, eviction: 0 };
     this.errorsByDomain.auth = 0;
     this.errorsByDomain.market_data = 0;
     this.errorsByDomain.jobs = 0;

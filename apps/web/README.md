@@ -5,7 +5,7 @@ shell, dashboard widgets, Strategy Lab, backtest workflows, and paper Trade
 desk. Stack: Angular CLI/build 21.2.19, Angular 21.2.x, standalone components,
 Vitest, Playwright, `@simplewebauthn/browser`, and Lightweight Charts 5.2.
 
-The repository pins Node 24.11.1. Angular 22.0.8 requires Node 24.15 or newer,
+The repository pins Node 24.21.0. Angular 22.0.8 requires Node 24.15 or newer,
 so Angular 21 is the newest supported line compatible with the repository pin.
 
 ## Development server
@@ -25,9 +25,10 @@ npm run web:start
 ```
 
 Open `http://localhost:4200/`. `proxy.conf.json` forwards relative `/api`
-requests to `http://localhost:4000`. Passkeys are the primary login path;
-email register/login under **Email fallback** is for unsupported browsers and
-local automation.
+requests to `http://localhost:4000`. Passkeys are the primary login path.
+The **Email fallback** panel is shown only in non-production builds; it is
+for unsupported browsers and local automation when `AUTH_DEV_EMAIL_ENABLED=true`
+on the API.
 
 ## Quality gates
 
