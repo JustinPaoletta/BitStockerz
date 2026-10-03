@@ -1,96 +1,85 @@
 # BitStockerz – Testing Strategy
 
-This document defines how correctness is validated for the BitStockerz MVP.
+This document describes the automated checks for the merged MVP and prelaunch
+features. CI passing does not verify external hosting or real provider credentials.
 
-## 1. Testing Levels
+## 1. Unit and component tests
 
-### 1.1 Unit Tests
-Focus: deterministic logic, no I/O.
+API Jest tests cover configuration, auth/provider identity boundaries, ingestion
+permissions, validation, indicators/rules, strategy versioning, backtest computation,
+persistence orchestration, financial accounting/idempotency, portfolio P&L, resource
+limits, caching, AI guardrails and OpenAPI contracts. External providers use mocks
+or locally signed tokens; unit tests do not require a live database or network.
 
-Currently covered areas:
-- Indicator calculations (SMA, EMA, RSI, etc.)
-- Strategy rule evaluation (entry/exit conditions)
-- Backtest P&L math (trade P&L, equity curve updates)
-- Strategy CRUD/versioning, persistence, validation, and summaries
-- Backtest persistence, lifecycle transitions, limits, paging, and HTTP orchestration
-- Generated OpenAPI route/schema/security contracts
-- Position math (average cost, quantity updates)
-- Cash/order/execution accounting
-- Trading risk, price freshness/fallback, idempotency races, portfolio MTM,
-  stable paging, and in-memory transaction rollback
+Angular uses Vitest with file isolation, so vendor module mocks cannot share a real
+module loaded by another spec. Coverage includes auth, API-origin token boundaries,
+profile updates, symbol search, strategy/backtest/trading components, P&L mapping,
+trade markers and chart teardown.
 
-Rules:
-- No database access
-- No external APIs
-- Fixed input → fixed output
+At PR #13, verified counts are 98 API suites / 910 tests and 20 web files / 93 tests.
+The API's four configured global coverage thresholds are 90%. Coverage applies to
+its configured collection scope: exclusions include auth service/module, AI and
+selected wiring/scheduler files (see `apps/api/package.json`). Auth/AI correctness
+also has targeted unit, HTTP, signed-token, browser and MySQL regressions; a coverage
+percentage is not a claim that every application file is instrumented.
 
-### 1.2 Integration Tests
-Focus: API + database working together.
+## 2. HTTP and signed-token integration
 
-**Current state:** Covered HTTP integration runs in seed mode, while isolated
-real-MySQL scripts verify backtest persistence and paper-trading transaction,
-race, valuation, and post-restart auth hydration behavior. The full MySQL path is included in
-`KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`.
+- `npm --prefix apps/api run test:e2e`: 67 HTTP tests at PR #13, with `NODE_ENV=test`
+  and an explicitly empty `DATABASE_URL` through `test/setup-e2e.ts`.
+- Routes cover health, auth/passkeys/OAuth/profile, symbols/candles, development
+  jobs/ingestion, owner-scoped strategies/backtests/paper trading, AI and OpenAPI.
+- Failure cases include validation, owner isolation, idempotency conflict, rate
+  limits, production ingestion denial, unsafe config and bounded public errors.
+- `npm --prefix apps/api run test:oauth`: 16 native signed-provider smoke tests
+  against built code. Run the API build first; the larger verifier matrix also
+  runs in the Jest suite.
 
-**Target coverage (as domains ship):**
-- Strategy CRUD
-- Backtest creation & persistence
-- Order placement → execution → position update
-- Auth-scoped access (user isolation)
+## 3. Real MySQL persistence/security
 
-Rules (when added):
-- Real database (test instance)
-- Migrations applied before tests
-- Deterministic fixtures for OHLCV data
+CI starts a dedicated MySQL 8 service, applies every runnable Prisma migration,
+then runs these required gates:
 
-### 1.3 End-to-End (E2E)
-Focus: user-visible flows and completed API surface.
+| Script in `apps/api` | Checks |
+| --- | --- |
+| `test:mysql:backtest` | Transactional results/trades/equity, version pins and restart ownership |
+| `test:mysql:trading` | Account provisioning, concurrent idempotency, fills/rejections, P&L and restart snapshots |
+| `test:mysql:security` | Explicit auth linking/restart/logout and concurrent persisted AI quota limits |
+| `test:mysql:auth` | Verifier/state/handoff ownership, original-session/age binding, recovery/replay, binary identifiers and expiry cleanup |
 
-**Shipped scope (Sprints 0.1–4.3):**
+Fixtures are isolated and cleaned up; use a test database. Local seed-mode gates
+need no Docker. `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`
+adds local MySQL migrations, backtest/trading/recovery gates and HTTP persistence
+smoke, loading `apps/api/.env`. The separate `test:mysql:security` gate runs in CI;
+invoke it explicitly for local auth/AI quota verification.
 
-Happy paths:
-- Health live/ready probes
-- Register/login, profile, passkey and OAuth ceremony endpoints
-- Symbol lookup and search (public)
-- Equity and crypto candle reads (public)
-- Job creation, ingestion endpoints, and job status fetch (authenticated)
-- Owner-scoped strategy CRUD/version history/validation and public indicator catalog
-- Backtest create/list/detail, resource/rate limits, stable trade paging, and owner isolation
-- Paper-account bootstrap, market fill/reject/replay, cash/position lifecycle,
-  portfolio MTM, order/execution paging, strict validation, and owner isolation
+## 4. Browser workflows
 
-Failure paths:
-- RFC 7807 validation, not-found, unauthorized, and rate-limit responses
-- Unknown symbol lookup returns `NOT_FOUND`
-- Reversed date ranges and invalid query params return `VALIDATION_ERROR`
+`npm --prefix apps/web run e2e` runs five Playwright tests at PR #13 against actual
+API/web servers in seed mode. They cover dashboard → strategy → backtest → Trade,
+profile save/reload, mocked Google/Apple callbacks, recovery/link ownership and
+failed-link session retention. Desktop/mobile manual checks complement automation.
+See [manual_testing.md](../../manual-testing/manual_testing.md).
 
-**Rules:**
-- E2E runs in seed mode: `NODE_ENV=test` and no `DATABASE_URL` (see `apps/api/test/setup-e2e.ts`).
-- Do not require a local MySQL instance for CI or `./scripts/sprint-delivery-verify.sh verify`.
+External Google/Apple token exchange is mocked in automated browser tests. Real
+signup, returning login, provider linking, Apple relay/second-login behavior,
+lost-device recovery and original data retention require the deployed HTTPS
+provider smoke checklist in [deployment.md](../../ops/deployment.md).
 
-**Web component/browser coverage:**
-- `apps/web` uses Vitest for auth, mapping, and backtest-detail component behavior.
-- PR #9's canonical manual checklist covers login → list → run → detail,
-  one-trade/no-trade states, 501-row paging, 390px responsive layout, clean
-  console/network behavior, Swagger UI, and protected-route logout behavior.
+## 5. CI and release checks
 
-**Future scope (not yet implemented):**
-- Dashboard aggregation and complete Strategy Lab/paper-trading UI workflows
-- AI assistant flows
+`.github/workflows/ci.yml` runs on PRs and `main` and is reused by deployment:
 
-## 2. Test Data
-- Small OHLCV fixtures (10–100 candles)
-- Predefined strategy JSON fixtures
-- Deterministic timestamps
+- Checksum-pinned Gitleaks scans reachable history and the working tree with
+  redacted output; only four reviewed historical false-positive fingerprints are
+  exempted. GitGuardian also checks PRs through the installed GitHub integration.
+- Root/API/web dependency audits fail at moderate severity or above.
+- API build, lint, unit coverage, HTTP, native signed-token, fresh MySQL gates and
+  production container build.
+- Web lint, isolated unit tests, production build and Playwright browser tests.
 
-## 3. CI Enforcement
-- Unit and e2e (seed-mode) tests required before merge for API changes
-- MySQL-backed smoke / persistence checks are recommended when touching Prisma or ingestion, via `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`
-- E2E required before merging backend PRs that touch completed API scope
-  (health, auth, symbols, candles, jobs, ingestion, market-data health, metrics,
-  strategies, backtests, or paper trading).
-- Web lint, unit, and production build gates are required for Angular changes.
-- `test:cov` enforces **90%** global coverage in `apps/api`
-- `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, and HTTP smoke tests (smoke phase clears `DATABASE_URL` by default).
-- MySQL persistence gates are required when changing persisted strategy,
-  backtest, or paper-trading behavior.
+[PR #13 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089380502)
+and [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994)
+passed. The deployment workflow subsequently failed at migration because production
+hosting/database credentials are unconfigured. Live provider, proxy/IP, TLS,
+market-data freshness and deployed latency checks remain launch requirements.

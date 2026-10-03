@@ -11,27 +11,32 @@ It’s organized by domain, not by story number.
 
 ### Backend implementation status
 
-The runnable API in `apps/api` currently implements through **Sprint 4.3**,
-and `apps/web` implements the Sprint 3.4 backtest consumer:
+The runnable API and Angular app include the merged Milestones 0–7 and prelaunch
+Sprints 8.1–8.2. [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13)
+adds P&L, chart markers, browser OAuth/profile/recovery and security hardening.
+Hosting and real-provider production smoke remain outstanding.
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Health & readiness | Shipped (0.1) | `/health/live`, `/health/ready` |
-| Auth, sessions, profile | Shipped (0.2) | Passkeys, Google/Apple OAuth, bearer sessions |
+| Auth, sessions, profile | Shipped (0.2, 8.1–8.2) | Passkeys, configured Google/Apple browser OAuth, verifier-bound handoffs, explicit provider linking, bearer sessions and profile settings |
 | Symbol lookup & search | Shipped (1.1) | Public endpoints; in-memory seed data without `DATABASE_URL` |
 | Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
 | Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
-| Jobs & ingestion | Shipped (1.3) | `jobs` table, synchronous executor, ingestion endpoints, hourly scheduler |
+| Jobs & ingestion | Shipped (1.3) | Synchronous jobs, manual ingestion in development/test only, internal hourly scheduler |
 | Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
 | Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
 | Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use |
 | Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads |
 | Backtest execution APIs | Implemented (3.3) | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit |
-| Backtest UI | Implemented (3.4) | Angular list/run/detail flow, metrics, complete equity chart, and stable-id paged trades table |
-| Paper trading | Implemented (4.1–4.3) | Default account, atomic market fills, positions/cash, risk/idempotency, portfolio MTM, and owner-scoped order/execution history |
+| Backtest UI | Implemented (3.4, 5, prelaunch) | Angular list/run/detail, equity curve with UTC trade markers, and paged trades |
+| Paper trading | Implemented (4.1–4.3, prelaunch) | Default account, atomic fills, risk/idempotency, portfolio MTM, realized/total P&L and owned history |
+| Dashboard/workflow UI | Implemented (5) | Independent portfolio, strategy, execution and backtest widgets; full research/Trade workflows |
+| Kernel AI | Implemented (6.1–6.3) | Four advisory endpoints, stub/OpenAI providers, persisted daily quotas and metadata-only production logging; optional diff suggestions deferred |
+| Market-data caching | Implemented (7.1) | Process-local TTL caches and provider guardrails; live vendor adapter remains a stub |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle
-fixtures, jobs, strategies, backtests, paper trading, metrics, and audit events
+fixtures, jobs, strategies, backtests, paper trading, AI quotas, metrics, and audit events
 are in-memory.
 Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
 `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
@@ -44,11 +49,12 @@ do not register the same email twice. Production disables dev email shortcuts
 (`AUTH_DEV_EMAIL_ENABLED=false`), legacy WebAuthn bypass
 (`AUTH_LEGACY_WEBAUTHN_ENABLED=false`), forced-error routes
 (`ERROR_TEST_ENABLED=false`), and OpenAPI by default (`OPENAPI_ENABLED=false`).
-Ingestion upserts those seed OHLCV bars into bar tables when the database is
-enabled (re-run ingestion after an API restart if you need DB health to match
-the latest seed window).
+Development/test ingestion can upsert seed OHLCV bars into MySQL (re-run it when
+the rolling seed window changes). Production never falls back to synthetic seed
+prices; it serves existing database bars and reports unavailable/degraded data
+when the live provider is unconfigured.
 
-Sections still marked **(Planned)** below are design targets from the MVP stories — they are not implemented in `apps/api` yet.
+Explicitly deferred or skipped routes below are design targets, not shipped APIs.
 
 For the generated contract covering shipped routes, run the API and open
 `http://localhost:4000/api/docs`. Machine-readable OpenAPI 3.0 documents are
@@ -120,15 +126,14 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
   details are available and contains `{ field, reason }` entries.
 
 Domain-specific additions are owned by their implementation sprints and are
-canonical for later clients. Strategy, backtest, and trading codes are
-implemented; later rows are planned:
+canonical for clients. Strategy, backtest, trading and AI codes are implemented:
 
 | Owner | Codes |
 | --- | --- |
 | Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
 | Sprints 3.1–3.3 (implemented) | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
 | Sprints 4.1–4.3 (implemented) | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
-| Sprint 6.1 | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
+| Sprint 6.1 (implemented) | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
 
 ### 0.2 Client examples
 
@@ -318,7 +323,8 @@ Public endpoint (no authentication required). When Prisma is disabled, reads use
 
 ### 2.5 Market Data Ingestion (implemented in Sprint 1.3)
 
-Authenticated endpoints (bearer token required). Jobs run synchronously and return the completed job record.
+Authenticated development/test endpoints (bearer token required); production
+returns `403 FORBIDDEN`. Jobs run synchronously and return the final job record.
 
 **POST `/market-data/ingestion/equity`**
 
@@ -326,7 +332,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `symbol?` – limit import to one equity ticker
 - Behavior:
   - Creates and runs `equity_daily_import` job.
-  - Upserts seed OHLCV bars into `equity_daily_bars` when `DATABASE_URL` is configured.
+  - In development/test, upserts provider/seed OHLCV bars into `equity_daily_bars` when MySQL is configured.
 
 **POST `/market-data/ingestion/crypto`**
 
@@ -335,7 +341,7 @@ Authenticated endpoints (bearer token required). Jobs run synchronously and retu
   - `intervals?` – `1d` | `1h` (default both)
 - Behavior:
   - Creates and runs `crypto_import` job.
-  - Upserts seed OHLCV bars into daily/hourly crypto tables when `DATABASE_URL` is configured.
+  - In development/test, upserts provider/seed OHLCV bars into daily/hourly crypto tables when MySQL is configured.
 
 ---
 
@@ -732,7 +738,7 @@ and backtest APIs so one failed widget does not fail the page.
   - `status: "ok" | "degraded"`
   - `timestamp` — ISO-8601 string
   - `checks.database` / `checks.marketData` — objects shaped as `{ status, latencyMs?, details? }` where `status` is `up` | `down` | `not_configured`
-  - `checks.database` — TCP probe when `DATABASE_URL` is set; otherwise `{ status: "not_configured", details: "..." }`
+  - `checks.database` — Prisma `SELECT 1` when MySQL is configured; `not_configured` is allowed only outside production. Production requires an active persistence adapter and returns bounded details rather than raw driver errors.
   - `checks.marketData` — HTTP GET when `MARKET_DATA_HEALTH_URL` is set; otherwise `{ status: "not_configured", details: "..." }`
 - HTTP **503** when `ready` is `false`
 
@@ -747,7 +753,7 @@ and backtest APIs so one failed widget does not fail the page.
   - `symbol?`
   - `intervals?` – for `crypto_import`
 - Behavior:
-  - Creates and synchronously executes the job; returns final status.
+  - Development/test only: creates and synchronously executes the job; returns final status. Production returns `403 FORBIDDEN`.
 
 **GET `/jobs/:id`**
 
@@ -781,16 +787,14 @@ You need **two broad data domains**:
 1. **US equities OHLCV (daily)**
 2. **Crypto OHLCV (daily + hourly)**
 
-### 9.1 Common provider options (high-level)
+### 9.1 Provider integration remains outstanding
 
-You don’t have to pick now, but architect as if any of these could sit behind your Market Data service:
-
-- Polygon.io
-- Alpha Vantage
-- Twelve Data
-- Tiingo
-- Finnhub
-- Dedicated crypto exchanges (e.g. Binance) for crypto-only legs
+No live vendor adapter is implemented in this repository. `LiveMarketDataProvider`
+is a stub; turning its flag on does not supply market data. A vendor must be chosen
+and integrated for automated real-market ingestion. Verify equity/crypto coverage,
+historical depth, redistribution rights, limits and costs before choosing one.
+Production serves previously populated MySQL bars and never creates synthetic
+prices as a fallback. Development/test fixtures are not production market data.
 
 ### 9.2 Abstraction rule
 
@@ -816,15 +820,13 @@ For NestJS, a sensible module breakdown that maps to this API inventory:
 
 **Present in `apps/api` today:** `AppConfigModule`, `AuthModule`,
 `MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`,
-and `BacktestModule`, including its authenticated run/list/detail controller,
-plus controllers for health and error-test.
+`BacktestModule`, `TradingModule`, and `AiModule`, plus health and gated test
+controllers. Profile remains under auth and dashboard widgets reuse domain APIs.
 
 **Planned as domains grow:**
 
 - `UserModule` / `AccountModule` (or keep under Auth)
-- `TradingModule`
-- `AiModule` (Kernel)
-- `DashboardModule` (thin)
+- `DashboardModule` (no aggregation route is required by the current UI)
 - `HealthModule` / `CoreModule` (if extracted from AppModule)
 
 Each module owns the endpoints listed above in its domain.
@@ -836,7 +838,7 @@ Each module owns the endpoints listed above in its domain.
 
 ### Manual ingestion production boundary
 
-`POST /jobs`, `POST /market-data/ingestion/equity/daily` and
+`POST /jobs`, `POST /market-data/ingestion/equity` and
 `POST /market-data/ingestion/crypto` are authenticated development/test tools and
 return `403 FORBIDDEN` in production. Production ingestion runs through the internal
 scheduler. Request DTOs reject unknown fields, malformed symbols (max 32 characters),

@@ -3,11 +3,12 @@
 // Database: MySQL (can be adapted to Postgres)
 //
 // Note: apps/api/prisma/schema.prisma is the runnable subset for the current API
-// through Sprint 8.1 (including persisted users/auth, browser OAuth state and
+// through merged Sprints 8.1-8.2 (including persisted users/auth, browser OAuth state and
 // hashed handoffs, symbols/OHLCV, jobs/audit, strategies/versions, backtests,
 // paper trading and AI usage). Auth tables and their current linking/uniqueness
 // contracts are authoritative in the runnable schema; see the Sprint 8.1
 // migration and API_Inventory.md for browser login/recovery details.
+// Opaque identifier binary collations are defined by the subsequent security migration.
 // This file remains the full MVP target schema and may differ in Prisma field
 // naming, column annotations, and relations. Prisma 7 connection configuration
 // belongs in prisma.config.ts. Apply migrations from apps/api/prisma/migrations/

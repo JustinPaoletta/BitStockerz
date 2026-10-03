@@ -1,9 +1,9 @@
 # Sprint 7.2 — Deployment & Hosting
 
-**Status:** Done in-repo — combined PR #12 (external hosting accounts still required for first live URL)  
-**Roadmap marker:** Milestone 7 — Polish & Resilience (final MVP sprint)  
-**Branch (when implementing):** `feat/milestone-6-ai-kernel` (combined M6+M7)  
-**PR base:** `main` via PR #12
+- **Status:** Deployment artifacts merged in PR #12; production hosting, credentials and first deployment outstanding.
+- **Roadmap marker:** Milestone 7 — Polish & Resilience (final original MVP sprint)
+- **Implementation branch (historical):** `feat/milestone-6-ai-kernel` (combined M6+M7)
+- **PR base:** `main` via PR #12
 
 **Overview:** Make BitStockerz deployable in a **single region** with CI build/test/deploy for the Nest API, managed MySQL, scheduled jobs, and the Angular SPA. Default hosting recommendation is **Option A**: always-on Node host for API+scheduler, Vercel for static Angular, managed MySQL. Option B (Vercel Nest + Cron) is documented as an alternative when always-on is unacceptable.
 
@@ -43,8 +43,8 @@
 | `JobSchedulerService` `@Cron` | `jobs/job-scheduler.service.ts` | Needs long-lived process (Option A) |
 | Backtests / worker patterns | Milestone 3 | May use `worker_threads` — poor fit for short serverless |
 | Angular `apps/web` | Milestone 5 | Static build to Vercel |
-| GitHub repo + Actions | `.github/workflows` (create) | CI/CD |
-| Secrets: `DATABASE_URL`, session secrets, `OPENAI_API_KEY`, OAuth | Hosting dashboards | Env injection |
+| GitHub repo + Actions | Existing `.github/workflows/ci.yml` and `deploy.yml` | CI/CD |
+| Secrets: `DATABASE_URL`, deployment tokens, enabled AI/OAuth credentials | GitHub Environment and hosting dashboards | Env injection; opaque bearer sessions are persisted in MySQL |
 | Smoke / verify scripts | `scripts/sprint-delivery-verify.sh` | Gate before deploy |
 
 ---
@@ -70,9 +70,9 @@
 | Tier | Platform | Notes |
 |------|----------|-------|
 | Frontend | **Vercel** | Static SPA (`ng build` output) served by Vercel’s global edge; no stateful region claim |
-| API + jobs | **Railway, Render, or Fly.io** (selected during provisioning) | One always-on Node replica running Nest + scheduler |
+| API + jobs | **Fly.io** (repository deployment target; app not yet provisioned) | One always-on Node replica running Nest + scheduler |
 | Database | **Managed MySQL-compatible service** | Same region as API; must support foreign keys, serializable transactions, Prisma 7 adapter, and `prisma migrate deploy` |
-| Scheduler | In-process `JobSchedulerService` | `INGESTION_SCHEDULER_ENABLED=true` in prod |
+| Scheduler | In-process `JobSchedulerService` | Override the Fly template with `INGESTION_SCHEDULER_ENABLED=false` until a real vendor adapter is connected; then enable it |
 
 **Alternative — Option B (document only unless chosen)**
 
@@ -85,7 +85,8 @@
 **Shared AC**
 
 - API and database region recorded and colocated. The static SPA may remain globally cached; “single region” applies to stateful compute/data.
-- Env vars set in host dashboards: `DATABASE_URL`, auth secrets, `CORS_ORIGIN` (Vercel web URL), `AI_ENABLED`, etc.
+- Env vars set in host dashboards: `DATABASE_URL`, enabled OAuth credentials, `CORS_ALLOWED_ORIGINS` (exact Vercel web origins), `AI_ENABLED`, etc.
+- Populate legitimate historical data through an operator-controlled import before a historical-data launch. The production import tool and real vendor adapter are not implemented; automated current-market ingestion needs the latter.
 - API service is pinned to one replica while in-process cron is enabled; horizontal scale requires an external scheduler or distributed lock first.
 - `prisma migrate deploy` runs once in a serialized release job before the new API revision receives traffic.
 - `/api/health/live` and `/api/health/ready` used for host health checks.
@@ -174,7 +175,7 @@ docs/ops/
 
 ### 2. Production config hardening
 
-1. Ensure `AppConfigService` validates production-required settings at startup: DB, session/auth secrets, exact CORS allowlist, WebAuthn RP id/origins, enabled OAuth redirect credentials, scheduler system user, and live AI provider fields when AI is enabled.
+1. Ensure `AppConfigService` validates production-required settings at startup: DB, exact CORS allowlist, WebAuthn RP id/origins, enabled OAuth redirect credentials, scheduler system user, and live AI provider fields when AI is enabled. Auth uses opaque bearer sessions persisted in MySQL, without a separate session-signing secret.
 2. CORS allowlist contains the exact production Vercel URL(s); Bearer auth remains header-based. Wildcard origins are rejected in production.
 3. `INGESTION_SCHEDULER_ENABLED=true` on Option A prod and host replica count fixed at one.
 4. `AI_ENABLED=false` until live provider credentials and disclaimer approval exist.
@@ -271,7 +272,11 @@ docs/ops/
 
 ---
 
-## Suggested ticket breakdown
+## Original planning estimate
+
+The artifact/code tasks below are merged. This original estimate is not remaining
+development work; hosting provisioning, credentials/data setup and production smoke
+remain. Option B is a design alternative and is not implemented in the current code.
 
 | Ticket | Estimate |
 |--------|----------|
@@ -288,14 +293,15 @@ docs/ops/
 
 ## Definition of done
 
-- [ ] JC-1 platform choice recorded in `docs/ops/deployment.md`
-- [ ] CI green on PR; deploy on `main` publishes web + API
+- [x] JC-1 platform choice recorded in `docs/ops/deployment.md`
+- [x] CI green on PR and merged `main`
+- [ ] Provision hosting/database and complete the first `main` deployment of web + API
 - [ ] Prod `/api/health/live` + `/api/health/ready` OK with DB
 - [ ] Scheduler runs on Option A (or Cron route on Option B)
 - [ ] Angular production build calls prod API successfully (login + one data path)
-- [ ] Production deployment concurrency is serialized; rollback/runbook and DB migration safety are documented
-- [ ] Secrets not in repo; MVP_08 / ROADMAP Milestone 7 marked complete
-- [ ] PR: `ci: add deploy pipeline and hosting config`
+- [x] Deployment concurrency configuration is serialized; rollback/runbook and migration safety are documented
+- [x] Secret scans pass; MVP_08 / ROADMAP distinguish merged artifacts from outstanding hosting
+- [x] Deployment artifacts merged in PR #12; security/regression updates merged in PR #13
 
 ---
 

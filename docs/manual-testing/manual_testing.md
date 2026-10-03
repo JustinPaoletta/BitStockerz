@@ -26,7 +26,7 @@ Choose the smallest relevant test set:
 | Google/Apple browser login, Profile, or recovery linking | Section 16; real-provider smoke in `docs/ops/deployment.md` |
 | Full release/sprint verification | Run both automated verifier commands in Section 0 |
 
-Prerequisites: Node.js `24.11.1`, npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
+Prerequisites: Node.js `24.21.0` (root `.nvmrc`), npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
 
 ## Section 0 – Local setup
 
@@ -316,6 +316,12 @@ With `DATABASE_URL` configured and empty bar tables, run Section 8 ingestion cur
 ---
 
 ## Section 8 – Jobs and ingestion (Sprint 1.3)
+
+These authenticated POSTs are development/test tools. In production, manual job
+creation and equity/crypto ingestion return `403 FORBIDDEN`; ingestion runs through
+the internal scheduler and a configured data provider. The live vendor adapter is
+currently a stub, so legitimate production bars must be populated before research
+or trading workflows can use them.
 
 Register and capture a bearer token:
 

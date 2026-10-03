@@ -1,9 +1,9 @@
 # Sprint 7.1 — Polish & Caching
 
-**Status:** Done — combined PR #12  
-**Roadmap marker:** Milestone 7 — Polish & Resilience  
-**Branch (when implementing):** `feat/milestone-6-ai-kernel` (combined M6+M7)  
-**PR base:** `main` via PR #12
+- **Status:** Merged in PR #12
+- **Roadmap marker:** Milestone 7 — Polish & Resilience
+- **Implementation branch (historical):** `feat/milestone-6-ai-kernel` (combined M6+M7)
+- **PR base:** `main` via PR #12
 
 **Overview:** Add in-process TTL caching for hot candle/symbol reads, define provider-fallback guardrails (circuit-breaker style interface) even if live vendor is still seed-backed, and apply UX/perf refinements across API + Angular. Use a simple custom TTL cache service; do not introduce `@nestjs/cache-manager` unless JC-1 is explicitly reversed.
 
@@ -274,11 +274,11 @@ apps/api/src/config/app-config.service.ts
 
 ## Definition of done
 
-- [ ] Candle/symbol reads cached with TTL + invalidation
-- [ ] Provider fallback/circuit interface tested on ingestion path (live optional; no production seed fallback)
-- [ ] Config documented; cache/fallback metrics and audit hooks present
-- [ ] Manual testing covers hit + fallback
-- [ ] PR: `feat: add market data ttl cache and provider guardrails`
+- [x] Candle/symbol reads cached with TTL + invalidation
+- [x] Provider fallback/circuit interface tested on ingestion path (live optional; no production seed fallback)
+- [x] Config documented; cache/fallback metrics and audit hooks present
+- [x] Manual testing covers hit + fallback
+- [x] Implementation merged in PR #12; regression/security updates merged in PR #13
 
 ---
 

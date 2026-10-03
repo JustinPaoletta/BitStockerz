@@ -1,9 +1,17 @@
 # What you still need to do (go-live)
 
-MVP features, including the requested prelaunch P&L, chart markers, browser
-OAuth and profile/recovery, are implemented in the prelaunch PR. Review and merge that PR before deploying it. Then
-create cloud accounts, configure secrets/provider callbacks and run the first
-deploy plus real-provider smoke tests.
+MVP features, including P&L, chart markers, browser OAuth, profile/recovery and
+security fixes, are merged in [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13).
+The remaining launch work is to provision hosting, configure secrets/provider
+callbacks, populate real market data and run the first deployment and production
+smoke checks.
+
+**Current state — October 2, 2026:** no production hosting has been provisioned.
+GitHub repository and `production` environment secrets are empty. The merged
+code passed [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994).
+The [automatic Deploy run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089883149)
+passed its CI gates, then failed at the database migration step with no configured
+database; the website deployment was skipped. No production release was published.
 
 Start here. Technical detail is further down.
 
@@ -16,19 +24,25 @@ BitStockerz has three production pieces:
 3. **Database** (MySQL) → a **managed MySQL** service near the API
 
 The repo already has CI, Docker, Fly config, Vercel config, and deploy workflows.
-They cannot create your accounts or paste your passwords for you.
+These files are deployment instructions; they do not provision cloud accounts,
+an API app, a website project or a database. `deploy.yml` starts automatically
+after every push/merge to `main` and can also be started manually. Until hosting
+and credentials exist, its deployment jobs cannot complete. CI success and a
+merged PR do not mean the product is live.
 
 ## Checklist (do these in order)
 
-### 1. Finish and merge the code PR
+### 1. Confirm the merged implementation
 
 [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12) merged on October 2, 2026 and contains Milestones 6–7 and their security fixes.
 
-- [ ] Review and merge the prelaunch PR for P&L, chart markers, browser login,
-  profile/recovery and the additional security review fixes.
-- [ ] Require all CI gates to pass; local verification does not deploy the work.
+- [x] [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) merged on
+  October 2, 2026 with P&L, chart markers, browser login, profile/recovery and
+  additional security fixes.
+- [x] PR and post-merge main CI passed, including dependency audits, secret
+  scanning, browser tests and MySQL persistence/security checks.
 
-The prelaunch features reach production only after their PR merges and deployment succeeds.
+The features reach production only after hosting is provisioned and deployment succeeds.
 
 ### 2. Create the three cloud pieces (accounts)
 
@@ -37,7 +51,7 @@ You need sign-ups / projects on:
 | Piece | Where | What you’re creating |
 |-------|--------|----------------------|
 | API server | [Fly.io](https://fly.io) | One app that runs the API 24/7 (keep **one** machine while the built-in scheduler is on) |
-| Database | Any managed MySQL (PlanetScale-style, AWS RDS, Railway MySQL, etc.) | A MySQL database in the **same region** as the Fly app (default docs use `iad`) |
+| Database | Managed MySQL-compatible service | A database in the **same region** as the Fly app (default docs use `iad`), with foreign keys, serializable transactions and Prisma migration support |
 | Website | [Vercel](https://vercel.com) | A project pointed at this GitHub repo, root/output for `apps/web` |
 
 You will end up with:
@@ -77,7 +91,7 @@ On the Fly app, set at least:
 | `AUTH_LEGACY_WEBAUTHN_ENABLED=false` | Disable legacy WebAuthn bypass in production |
 | `ERROR_TEST_ENABLED=false` | Keep forced-error test routes off in production |
 | `OPENAPI_ENABLED=false` | Keep Swagger/OpenAPI off in production unless you explicitly want it |
-| `INGESTION_SCHEDULER_ENABLED=true` | Turn on background market-data imports |
+| `INGESTION_SCHEDULER_ENABLED=false` initially | Override the `true` template value in `fly.toml` until a real vendor adapter is connected; then enable background imports |
 | `AI_ENABLED=false` | Keep Kernel AI off in production until you intentionally enable it |
 | `JOBS_SYSTEM_USER_ID` | System user id for scheduled jobs (see `apps/api/.env.example`) |
 
@@ -85,6 +99,13 @@ Configure Google/Apple before enabling their login and recovery buttons, using
 the provider checklist below. Add `OPENAI_API_KEY` when enabling live Kernel AI.
 Auth users, sessions, and passkeys persist in MySQL after migrations are applied;
 restart the API once after the first deploy so auth state hydrates from the database.
+
+Before opening the product to users, populate licensed historical symbol/bar data
+and verify a chart, backtest and paper trade against it. The repository does not
+include a production data-import tool: prepare an operator-controlled import or
+implement the real vendor adapter. Development fixture endpoints are blocked in
+production, and the live adapter is currently a stub. Simply enabling the scheduler
+does not supply real prices.
 
 ### 5. First production deploy
 
@@ -98,6 +119,7 @@ After `main` has the merged PR and secrets exist:
 - [ ] Open the Vercel website, sign in, and smoke-test:
   - [ ] Login works
   - [ ] Symbol search works
+  - [ ] Charts, backtests and paper trades use the imported real market data
   - [ ] Paper account / portfolio loads
   - [ ] Refreshing a deep link like `/strategies/...` still works
   - [ ] Browser is talking to the live API (no CORS errors)
@@ -109,7 +131,7 @@ These are **not** blocking go-live:
 | Item | Meaning |
 |------|---------|
 | Turn on live Kernel AI | Set `AI_ENABLED=true`, use OpenAI provider + key, after you’re ok with cost/disclaimer |
-| Wire a market-data vendor | Live adapter is a stub. Production retains existing DB bars and never synthesizes prices; populate real data before offering current-market workflows. |
+| Implement automated vendor ingestion | Optional for a historical-data launch after the required operator import above. Automated current-market workflows require a real vendor adapter. Production never synthesizes prices. |
 | `#6.4.2` AI “diff” suggestions | Explicitly deferred product feature |
 
 ---
@@ -166,9 +188,9 @@ Workflows live in:
 - [ ] SPA deep-link refresh (`/strategies/...`)
 - [ ] CORS preflight from the Vercel origin
 - [ ] AI remains disabled (`AI_ENABLED=false`) until approved
-- [ ] Exactly one scheduled import job/audit event (single API replica)
+- [ ] After a real vendor adapter is connected and scheduling enabled, exactly one scheduled import job/audit event runs per interval (single API replica)
 - [ ] Configure only the actual trusted ingress CIDRs; verify two client IPs have separate auth rate-limit buckets and spoofed earlier forwarded hops cannot select an arbitrary IP. Do not guess a broad Fly private-network range.
-- [ ] Authenticated POST `/api/jobs` and POST `/api/market-data/ingestion/{equity/daily,crypto}` return 403 in production; only internal scheduling updates shared market data.
+- [ ] Authenticated POST `/api/jobs` and POST `/api/market-data/ingestion/{equity,crypto}` return 403 in production; only internal scheduling updates shared market data.
 - [ ] Database/provider outages return bounded public readiness details without hostnames, credentials or driver errors.
 - [ ] Vercel responses include framing, MIME-sniffing and referrer security headers.
 

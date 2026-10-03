@@ -8,7 +8,7 @@
 ## Key decisions captured
 - **Primary auth:** **Passkeys (WebAuthn)** (no passwords stored).
 - **Secondary auth / fallback:** **OAuth (Google + Apple)**.
-- **Sessions:** still required (cookie or bearer token) after successful passkey/OAuth verification.
+- **Sessions:** bearer tokens after successful passkey/OAuth verification; the Angular app keeps its token in `sessionStorage`.
 - **Default paper balance:** **$100,000 USD**.
 
 ---
@@ -22,8 +22,7 @@
 - Completed in Milestone 5 / PR #11: Angular **passkey register/login** is the
   primary browser auth UI (#1.1.1–#1.1.2), with email kept as
   local-development / automation fallback, disabled in production. Google/Apple
-  browser login and profile/recovery are implemented and verified locally in
-  Sprints 8.1–8.2 (October 2, 2026).
+  browser login and profile/recovery are merged in PR #13 (Sprints 8.1–8.2) on October 2, 2026, with passing CI.
   Production provider configuration and real-provider smoke remain external
   prerequisites.
 - Completed in Sprint 4.1 (verified August 2, 2026): #1.3.1 provisions
@@ -42,12 +41,12 @@
 **Acceptance criteria**
 - User can register a passkey using WebAuthn.
 - The server stores **only** WebAuthn credential metadata (public key, credential ID, counters, etc.), not secrets.
-- Email (or username) is collected to identify the user record **before**/during registration (required for account lookup and recovery).
-- On success, user is logged in and receives a session (cookie or bearer token).
+- Email is collected to identify the user during registration and passkey lookup; email alone is never account-ownership or recovery proof.
+- On success, the user receives a bearer session.
 
 **Frontend (Angular) tasks**
 - “Create account” screen that:
-  - collects email (or username)
+  - collects email
   - triggers WebAuthn registration ceremony
 - UX for unsupported browsers/devices (show fallback: OAuth)
 - Error states: cancelled prompt, unsupported device, already-registered email
@@ -249,11 +248,11 @@
 
 **Frontend (Angular) tasks**
 - Post-auth “landing” route that loads account state
-- Show starting balance on dashboard header (placeholder UI)
+- Show the provisioned paper account's cash/equity and P&L in dashboard widgets
 
 **Backend (NestJS) tasks**
 - Awaited, idempotent paper-account provisioning after every successful new-user path
-- `GET /paper-account` endpoint (or included on `/me`)
+- Authenticated `GET /api/paper-account` endpoint
 
 **Data (MySQL)**
 - `paper_accounts` table (id, user_id, base_currency, starting_balance, created_at)

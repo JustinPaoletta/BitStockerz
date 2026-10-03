@@ -16,16 +16,16 @@ Dependencies:
 ## Status
 
 - Completed in Sprint 3.1 (July 28, 2026): #5.2.1–#5.2.5.
-- Completed locally in Sprint 3.2 (July 28, 2026): #5.1.1–#5.1.3
-  and #5.6.1; included in draft PR #9.
-- Completed locally in Sprint 3.3 (July 28, 2026): #5.3.1–#5.3.3 and
-  #5.5.1–#5.5.2; included in draft PR #9.
-- Completed locally in Sprint 3.4 (implemented July 28 and reverified August 1,
+- Completed in Sprint 3.2 (July 28, 2026): #5.1.1–#5.1.3
+  and #5.6.1; merged in PR #9.
+- Completed in Sprint 3.3 (July 28, 2026): #5.3.1–#5.3.3 and
+  #5.5.1–#5.5.2; merged in PR #9.
+- Completed in Sprint 3.4 (implemented July 28 and reverified August 1,
   2026): #5.4.1–#5.4.2 and the thin Angular scaffold needed to demo them;
-  included in draft PR #9.
+  merged in PR #9.
 - Milestone 5 / PR #11 extended Strategy → Backtest launch from Strategy Lab
   and dashboard quick actions over the same results UI.
-- Prelaunch follow-up (September 30, 2026): entry/exit arrows added to the
+- Prelaunch follow-up (merged in PR #13, October 2, 2026): entry/exit arrows added to the
   equity curve with daily/hourly UTC alignment and pagination updates.
 
 ---
@@ -47,8 +47,8 @@ Acceptance criteria:
 - Run creation rejects inactive/unknown or strategy-asset-incompatible symbols,
   unsupported symbol/timeframe combinations, sub-cent initial equity, and
   optional job links not owned by the run owner in both database modes.
-- Owner-scoped reads and lifecycle writes first reattach the current
-  process-local auth id so completed history remains visible after restart.
+- Owner-scoped reads and lifecycle writes use the authenticated user's stable
+  persisted id, so signing in after restart returns the same completed history.
 
 ### Story 5.1.2 – Backtest result storage
 Acceptance criteria:

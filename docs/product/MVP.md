@@ -3,17 +3,19 @@
 This is the complete MVP **target**, not a list of features already shipped.
 For current implementation state and the next development owner, use the
 [roadmap](./ROADMAP.md). Original Milestones 0–7 are complete in-repo.
-As of September 30, 2026, realized/total paper P&L and backtest entry/exit
-markers are also implemented in the working tree. Google/Apple browser login
-and profile/account recovery are implemented and verified locally under
+As of October 2, 2026, realized/total paper P&L, backtest entry/exit markers,
+Google/Apple browser login and profile/account recovery are merged in
+[PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13), with passing CI under
 [Sprint 8.1](../plans/sprint-8-1-oauth-browser-readiness.md) and
 [Sprint 8.2](../plans/sprint-8-2-profile-recovery.md). Live deployment still
-requires hosting accounts/configuration; AI diff-style suggestions remain deferred.
+requires hosting, a database, credentials, real market data and production smoke
+checks. No production hosting is provisioned. AI diff-style suggestions remain deferred.
 
 ## 1. User & Account
 - Passkeys (WebAuthn) / OAuth login
+- Profile/display-name settings and recovery through an already linked provider
 - Single paper trading account
-- Configurable starting balance
+- Operator-configurable starting balance; no per-user reset/balance-edit UI
 
 ---
 

@@ -1,7 +1,8 @@
 # Prelaunch security review — October 2, 2026
 
-Reviewed the repository and pending P&L, chart, browser OAuth and profile/recovery
-changes against main after PR #12 merged. This review covers source, migrations,
+Reviewed the repository and P&L, chart, browser OAuth and profile/recovery changes
+merged in [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13), following
+PR #12. This review covers source, migrations,
 configuration, deployment/build inputs, dependency lockfiles, reachable Git history
 and intended working-tree files. It does not inspect live provider dashboards,
 host secrets, production traffic or external infrastructure.
@@ -66,12 +67,23 @@ cleanup retain their existing regression coverage.
 - Web: Angular 22.2.1 with TypeScript 6.0.3 on Node 24.21.0 passes 20 files / 93 unit tests, lint and production build. The installed dependency tree has no invalid peers and the flagged registry-cache package is absent from the lockfile.
 - Browser integration: 5 tests pass against real local API/web servers, with external providers mocked.
 - Desktop and mobile profile save, shell update and reload also pass without overflow or page errors.
-- GitHub CI run `37086177933` passed all new migrations, backtest/P&L persistence, explicit recovery linking/restart/logout, concurrent AI quotas, case-sensitive auth identifiers and recovery ownership checks on fresh MySQL. The production API container build passed. Local Docker was unavailable, so CI supplied this database verification.
+- [PR CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089380502)
+  and [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994)
+  pass, including all new migrations, backtest/P&L persistence, explicit recovery
+  linking/restart/logout, concurrent AI quotas, case-sensitive auth identifiers,
+  ownership checks on fresh MySQL and browser tests. The production API container
+  build passed. Local Docker was unavailable during the final review, so CI
+  supplied that database verification.
 - Redacted history and working-tree scans pass after exact false-positive review.
   CI now repeats both scans with a pinned version and archive checksum, and runs
   the new auth recovery MySQL harness and browser integration suite.
 
 ## Before production
+
+Production hosting is not provisioned. Repository and `production` environment
+Actions secrets are empty as of October 2, 2026. The main-triggered deployment
+workflow passed CI but failed at database migration; no live release was published.
+See [deployment.md](./deployment.md) for provisioning and the current run evidence.
 
 Apply both new migrations after checking for duplicate `(user_id, provider)`
 identity rows. The binary migration preserves existing data and never modifies

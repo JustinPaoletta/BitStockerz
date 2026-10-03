@@ -1,7 +1,7 @@
 # BitStockerz — Sprint Plans and Prelaunch Follow-ups
 
-Active implementation contracts. Completed Milestone 2–7 plan files may be
-removed after merge to `main`; recover them from git history if needed.
+Retained implementation contracts and outstanding production prerequisites.
+Completed plan files describe adopted behavior, not remaining engineering estimates.
 Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
 
 | Sprint | Plan | Depends on | Readiness | Purpose |
@@ -10,15 +10,15 @@ Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
 | 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Done — combined PR #12 | Explain-strategy and logical red-flag validation endpoints. |
 | 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Done — combined PR #12 (`#6.4.2` deferred) | Explain-backtest, failure modes, and improvement suggestions. |
 | 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Done — combined PR #12 | In-memory candle/symbol cache TTL and provider fallback guardrails. |
-| 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Done in-repo — combined PR #12; live deploy needs secrets | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
-| 8.1 | [sprint-8-1-oauth-browser-readiness.md](./sprint-8-1-oauth-browser-readiness.md) | Auth persistence + provider configuration | Implemented locally; production provider smoke pending | Google/Apple browser login, verified identity linking, one-use session handoff. |
-| 8.2 | [sprint-8-2-profile-recovery.md](./sprint-8-2-profile-recovery.md) | 8.1 | Implemented locally; production provider smoke pending | Profile editing, linked-method settings, lost-device recovery through OAuth. |
+| 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Artifacts merged in PR #12; hosting and first deployment outstanding | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
+| 8.1 | [sprint-8-1-oauth-browser-readiness.md](./sprint-8-1-oauth-browser-readiness.md) | Auth persistence + provider configuration | Merged in PR #13; real-provider production smoke outstanding | Google/Apple browser login, verified identity linking, one-use session handoff. |
+| 8.2 | [sprint-8-2-profile-recovery.md](./sprint-8-2-profile-recovery.md) | 8.1 | Merged in PR #13; real-provider production smoke outstanding | Profile editing, linked-method settings, lost-device recovery through OAuth. |
 
-Realized/total paper P&L and equity-curve entry/exit markers are implemented in
-the working tree as of September 30, 2026. The requested remaining prelaunch
-work **8.1 + 8.2** is implemented and verified locally as of October 2. Real
-provider credentials/callback setup and production smoke remain external release
-checks; additional passkeys remain an optional 1–2-day extension.
+Realized/total paper P&L, equity-curve entry/exit markers and **8.1 + 8.2** merged
+in PR #13 on October 2, 2026. CI verifies their automated regressions. Hosting is
+not provisioned; real provider credentials/callback setup and production smoke
+remain release checks. Additional passkeys are an optional extension whose original
+planning estimate was 1–2 days.
 
 **Completed (plans removed; see ROADMAP + merged PRs)**
 
@@ -30,7 +30,7 @@ checks; additional passkeys remain an optional 1–2-day extension.
 
 **Conventions**
 
-- Branch pattern: `feat/sprint-{milestone}-{sprint}-{slug}` (see `.cursor/skills/sprint-delivery/reference.md`).
+- Historical sprint branches use `feat/sprint-{milestone}-{sprint}-{slug}` (see `.cursor/skills/sprint-delivery/reference.md`); Codex work uses `codex/` branches by default.
 - Stacked PR rule: Sprint N+1 targets Sprint N’s branch until N merges to `main`.
 - Every plan uses the same section template (scope → acceptance criteria → API → architecture → implementation → defaults/JCs → DoD).
 - Acceptance criteria in these plans are binding. Sync them into the story files in the implementation PR; do not wait for a second planning pass.

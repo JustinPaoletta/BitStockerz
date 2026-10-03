@@ -27,9 +27,16 @@ Migrations are defined in terms of the domain DDL skeletons:
 | Orders (4.2) | `20260802020000_sprint_4_2_orders` |
 | Executions (4.2) | `20260802020100_sprint_4_2_executions` |
 | Trading price precision alignment (4.1–4.2) | `20260802030000_sprint_4_trading_price_precision` |
+| AI daily usage quotas (6.1) | `20260808000000_sprint_6_1_ai_usage` |
 | Auth persistence (sessions, OAuth, challenges) | `20260911000000_auth_persistence` |
+| Browser OAuth handoffs and explicit linking (8.1) | `20261002000000_oauth_browser_handoff` |
+| Case-sensitive opaque auth identifiers (security review) | `20261002010000_auth_identifiers_binary` |
 
-The `V0001`-style names below remain the conceptual plan; use the Prisma folders above for local development.
+The `V0001`-style names below remain the conceptual plan; apply only the Prisma
+migrations above. These migrations are merged and CI-verified on fresh MySQL;
+they have not been applied to a production database. Existing databases require
+the duplicate `(user_id, provider)` preflight in [deployment.md](../ops/deployment.md#googleapple-login-and-recovery-setup)
+before the browser handoff migration.
 
 Each sprint lists:
 - Migration file name (suggested)

@@ -16,7 +16,7 @@ Dependencies:
 
 ## Status
 
-- Implemented on `feat/milestone-6-ai-kernel` (August 7, 2026).
+- Implemented August 7, 2026; merged in PR #12 on October 2, 2026, with quota/security regressions in PR #13.
 - Stub provider covers automated tests; live OpenAI requires `OPENAI_API_KEY`.
 - `#6.4.2` diff-style suggestions deferred (flag `AI_DIFF_SUGGESTIONS_ENABLED` default false).
 

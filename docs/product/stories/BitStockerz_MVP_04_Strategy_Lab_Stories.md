@@ -106,7 +106,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.5.1 – Create strategy
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - Authenticated create persists valid metadata plus immutable version 1.
 - The response includes the canonical definition and deterministic `summary`.
@@ -115,7 +115,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.5.2 – Update strategy (new version)
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - Partial `PUT /api/strategies/:id` updates mutable metadata; `description:
   null` clears the description and an empty body is invalid.
@@ -125,7 +125,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.5.3 – List user strategies
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - The active owner list uses `limit`/`offset`, returns `has_more`, and sorts by
   `updated_at DESC, id ASC`.
@@ -133,7 +133,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.5.4 – Get strategy details
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - Latest reads include definition, version, and deterministic summary.
 - `?version=N` returns an immutable historical definition with
@@ -142,7 +142,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.5.5 – Delete strategy (soft delete)
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - Delete sets `is_active=false`, returns an empty `204`, and hides the row from
   list/get/validation. A repeated delete returns `STRATEGY_NOT_FOUND`.
@@ -154,7 +154,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.6.1 – Strategy validation endpoint
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - `POST /api/strategies/validate` accepts exactly one inline definition or
   active owned `strategy_id`.
@@ -163,7 +163,7 @@ This module feeds directly into **#5 Backtesting**.
 
 ### Story 4.6.2 – Human-readable strategy summary
 
-**Status:** Completed locally (verified July 28, 2026; draft PR #9)
+**Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - A pure, deterministic formatter summarizes entry, exit, stop-loss, and
   take-profit rules without AI.
