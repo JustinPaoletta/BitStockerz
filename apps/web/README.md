@@ -42,7 +42,8 @@ npm --prefix apps/web run e2e
 npm --prefix apps/web audit
 ```
 
-Unit tests use Vitest. Playwright e2e (`e2e/milestone-5-workflows.spec.ts`)
+Unit tests use Vitest with file isolation so third-party module mocks cannot
+reuse a real module loaded by another spec. Playwright e2e (`e2e/milestone-5-workflows.spec.ts`)
 starts the API in seed mode and the web app when they are not already running.
 Manual UI walkthrough: `docs/manual-testing/manual_testing.md` Section 13.
 The client contract fixture used by the backtest mapper test is
