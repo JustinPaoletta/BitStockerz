@@ -35,10 +35,15 @@ export function buildExplainBacktestPrompt(payload: unknown): string {
   ].join('\n');
 }
 
-export function buildSuggestImprovementsPrompt(payload: unknown): string {
+export function buildSuggestImprovementsPrompt(
+  payload: unknown,
+  diffs = false,
+): string {
   return [
     'Suggest advisory strategy improvements based on the strategy and optional backtest context.',
-    'Suggestions must be text-only guidance. Do not return executable patches or SQL.',
+    diffs
+      ? 'Include at most five parameter change previews with exact paths, numeric before/after values, and a rationale. Only indicators[index].params.period, risk.stop_loss.value, risk.take_profit.value are allowed. Use the supplied definition for before values. Return an empty changes array if no justified change exists. Previews are advisory, never executable.'
+      : 'Suggestions must be text-only guidance. Do not return executable patches or SQL.',
     'Context JSON:',
     JSON.stringify(payload),
   ].join('\n');

@@ -1,14 +1,11 @@
 # BitStockerz Web
 
-Milestone 5 Angular SPA: passkey-first auth (email fallback), dark branded
-shell, dashboard widgets, Strategy Lab, backtest workflows, and paper Trade
-desk. Stack: Angular framework/CLI/build 22.2.1, TypeScript 6.0.3, standalone components,
-Vitest, Playwright, `@simplewebauthn/browser`, and Lightweight Charts 5.2.
+The Angular SPA includes authentication, dashboard, strategy research, backtests, markets, paper trading, and account settings.
+[Product extensions](../../docs/product/PRODUCT_EXTENSIONS.md) describe the October 4 local additions and their limits.
 
-Use the repository's Node 24.21.0 pin (`.nvmrc`) before installing or running
-the app. The Angular 22 upgrade removes the vulnerable registry-cache dependency
-from the build toolchain. Its official migration explicitly keeps existing
-components on Eager change detection to preserve their previous behavior.
+Use Node `24.21.0` from the root `.nvmrc`.
+The stack uses Angular `22.2.1`, TypeScript `6.0.3`, standalone components, Vitest, Playwright, and Lightweight Charts `5.2`.
+Existing components retain their prior Eager change-detection behavior after the Angular migration.
 
 ## Development server
 
@@ -43,8 +40,14 @@ npm --prefix apps/web audit
 ```
 
 Unit tests use Vitest with file isolation so third-party module mocks cannot
-reuse a real module loaded by another spec. Playwright e2e (`e2e/milestone-5-workflows.spec.ts`)
+reuse a real module loaded by another spec. Playwright tests (`e2e/milestone-5-workflows.spec.ts` and `e2e/product-extensions.spec.ts`)
 starts the API in seed mode and the web app when they are not already running.
 Manual UI walkthrough: `docs/manual-testing/manual_testing.md` Section 13.
 The client contract fixture used by the backtest mapper test is
 `docs/manual-testing/fixtures/backtest-detail.example.json`.
+
+## Local build-cache failure
+
+If the native LMDB cache crashes, use `NG_BUILD_CACHE_STORE=sqlite` and `NG_BUILD_MAX_WORKERS=1`.
+The October 4 local builds and tests used these settings.
+This workaround does not establish a general platform requirement.

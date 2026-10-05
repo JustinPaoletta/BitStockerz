@@ -60,3 +60,22 @@ export const suggestImprovementsOutputSchema = z.object({
     )
     .max(5),
 });
+
+export const suggestChangesOutputSchema =
+  suggestImprovementsOutputSchema.extend({
+    changes: z
+      .array(
+        z.object({
+          path: z
+            .string()
+            .regex(
+              /^(indicators\[\d+\]\.params\.period|risk\.(stop_loss|take_profit)\.value)$/,
+            )
+            .max(100),
+          before: z.number(),
+          after: z.number(),
+          rationale: z.string().min(1).max(1000),
+        }),
+      )
+      .max(5),
+  });

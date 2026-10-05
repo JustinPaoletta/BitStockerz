@@ -1,8 +1,11 @@
+This file retains original story acceptance criteria and dated delivery notes.
+[Product extensions](../PRODUCT_EXTENSIONS.md) describe October 4 additions; [the task list](../../../PRODUCT_TASKLIST.md) contains unfinished acceptance checks.
 
 # BitStockerz MVP – 2) Market Data (Stories)
 
 This document defines the epics and user stories for **Market Data** in the BitStockerz MVP.
 Scope includes:
+
 - Canonical symbol directory (stocks + crypto)
 - Historical OHLCV data (equities daily, crypto daily + hourly)
 - Symbol search and selection
@@ -24,12 +27,15 @@ Scope includes:
 ## Epic 2.1 – Canonical Symbol Directory
 
 ### Story 2.1.1 – Basic equity symbol directory
+
 (see chat for full acceptance criteria)
 
 ### Story 2.1.2 – Crypto symbol directory
+
 (see chat for full acceptance criteria)
 
 ### Story 2.1.3 – Symbol lookup API
+
 (see chat for full acceptance criteria)
 
 ---
@@ -37,8 +43,11 @@ Scope includes:
 ## Epic 2.2 – Historical Equity OHLCV (Daily)
 
 ### Story 2.2.1 – Equity daily OHLCV schema
+
 ### Story 2.2.2 – Equity daily history import (initial backfill)
+
 Acceptance criteria:
+
 - Authenticated development/test `POST /api/market-data/ingestion/equity` runs an `equity_daily_import` job synchronously; production returns 403 and uses internal scheduling.
 - Imports deterministic seed OHLCV bars into `equity_daily_bars` when `DATABASE_URL` is configured; counts imported bars in job payload without `DATABASE_URL`.
 - Optional body `symbol` limits import to one active equity ticker; unknown symbols return `404 NOT_FOUND`.
@@ -60,8 +69,11 @@ Acceptance criteria:
 ## Epic 2.3 – Historical Crypto OHLCV (Daily + Hourly)
 
 ### Story 2.3.1 – Crypto OHLCV schema
+
 ### Story 2.3.2 – Crypto daily/hourly import
+
 Acceptance criteria:
+
 - Authenticated development/test `POST /api/market-data/ingestion/crypto` runs a `crypto_import` job synchronously; production returns 403 and uses internal scheduling.
 - Supports optional `symbol` and `intervals` (`1d`, `1h`); defaults to both intervals for all active crypto symbols.
 - Upserts seed bars into `crypto_daily_bars` and `crypto_hourly_bars` when Prisma is enabled.
@@ -74,7 +86,9 @@ Acceptance criteria:
 - `symbol`, `interval`, `start`, and `end` are required. Symbols are trimmed, normalized to uppercase, and must resolve to an active `CRYPTO` symbol; `interval` accepts `1d` or `1h`.
 - Daily ranges use `YYYY-MM-DD`; hourly ranges use ISO 8601 datetimes. Ranges are inclusive and must satisfy `start <= end`.
 - `order` accepts `asc` or `desc` and defaults to `asc`. `limit` accepts an integer from 1 to 5000 and defaults to 5000.
-- A successful daily request returns `200` with an ordered array of `{ date, open, high, low, close, volume }`; an hourly request returns `{ timestamp, open, high, low, close, volume }`, with UTC ISO 8601 timestamps and numeric values serialized as JSON numbers.
+- A daily request returns `200` with ordered `{ date, open, high, low, close, volume }` rows.
+  Hourly rows use `{ timestamp, open, high, low, close, volume }`.
+  Timestamps are UTC ISO 8601; numeric values are JSON numbers.
 - A valid symbol with no candles in the requested range returns `200` with `[]`. When Prisma is disabled, deterministic in-memory seed candles provide development and test data.
 - Missing or invalid query parameters, `start > end`, and a non-crypto symbol return RFC 7807 `400 VALIDATION_ERROR` responses with `fieldErrors`; an unknown or inactive symbol returns `404 NOT_FOUND`.
 
@@ -85,6 +99,7 @@ Acceptance criteria:
 ### Story 2.4.1 – Symbol search API
 
 **Acceptance criteria**
+
 - Implemented and verified in Milestone 1 (`GET /api/symbols/search`).
 
 ### Story 2.4.2 – Reusable symbol search UI component
@@ -94,6 +109,7 @@ Acceptance criteria:
 **So that** Strategy, Trade, and Backtest screens can pick symbols consistently
 
 **Acceptance criteria**
+
 - Standalone Angular component callable from any route.
 - Calls `GET /api/symbols/search?q=&asset_type?&limit?` with debounce, distinct-until-changed, and request cancellation; empty trimmed input clears results without a request.
 - Result list shows symbol, display name when present, and asset type; keyboard and click selection emit the chosen symbol.
@@ -107,7 +123,9 @@ Acceptance criteria:
 ## Epic 2.5 – Data Access Patterns & Caching
 
 ### Story 2.5.1 – In-memory cache for recent candles
+
 Acceptance criteria:
+
 - Custom in-process `TtlCacheService` (Map + TTL + deterministic LRU) caches symbol lookup/search and equity/crypto candle range reads.
 - Cache keys canonicalize symbol, asset type, interval, inclusive UTC range, order, and limit; config via `CACHE_ENABLED`, `CACHE_CANDLES_TTL_MS`, `CACHE_SYMBOLS_TTL_MS`, `CACHE_MAX_ENTRIES`.
 - Successful empty arrays are cached; thrown errors are not. Concurrent identical misses coalesce. Cached values are immutable to callers.
@@ -117,7 +135,9 @@ Acceptance criteria:
 Status: Completed (Sprint 7.1)
 
 ### Story 2.5.2 – Guardrails for provider fallbacks
+
 Acceptance criteria:
+
 - `MarketDataProvider` interface with Seed + Live (skeleton) adapters; `ProviderRouterService` used by ingestion only.
 - Circuit breaker opens after N consecutive transient failures, cools down, half-open single probe; permanent misconfiguration does not trip the breaker.
 - On live failure: production retains last-known DB bars (no synthetic seed substitution); non-production seed mode may fall back to seed. Audit `market_data.provider_fallback`.
@@ -130,14 +150,18 @@ Status: Completed (Sprint 7.1)
 ## Epic 2.6 – Minimal Data Quality & Monitoring
 
 ### Story 2.6.1 – Basic sanity checks on imported candles
+
 Acceptance criteria:
+
 - Candle bars are validated for `high >= low`, body within high/low, finite positive OHLC, and non-negative volume.
 - Batch scans return `{ checked, invalid, issues[] }` without throwing; issues are capped (50).
 - Ingestion job payloads include a `sanity` summary for imported bars.
 - Health sampling reuses the same validators.
 
 ### Story 2.6.2 – Market data health endpoint
+
 Acceptance criteria:
+
 - `GET /api/market-data/health` returns latest timestamps, staleness flags, sanity sample, and rollup `status` (`ok` | `degraded` | `unhealthy`).
 - Works in seed mode and with Prisma/MySQL.
 - Public endpoint (no auth); no PII in the response.

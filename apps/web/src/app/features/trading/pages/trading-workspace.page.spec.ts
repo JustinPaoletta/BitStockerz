@@ -30,6 +30,7 @@ describe('TradingWorkspacePage symbol navigation', () => {
             positions: () => of({ positions: [] }),
             orders: () => of({ orders: [], has_more: false }),
             executions: () => of({ executions: [], has_more: false }),
+            latestClose: () => of({ price: '100', as_of: '2026-10-03T00:00:00Z', interval: '1d' }),
             placeOrder,
           },
         },

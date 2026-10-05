@@ -2,7 +2,7 @@ import type { WebAuthnCredential } from '@simplewebauthn/server';
 
 export type BaseCurrency = 'USD';
 export type OauthProvider = 'google' | 'apple';
-export type WebAuthnChallengePurpose = 'register' | 'login';
+export type WebAuthnChallengePurpose = 'register' | 'login' | 'enroll';
 
 export interface UserRecord {
   id: string;
@@ -29,6 +29,8 @@ export interface PasskeyCredentialRecord {
 }
 
 export interface WebAuthnChallengeRecord {
+  userId?: string;
+  sessionHash?: string;
   challengeId: string;
   purpose: WebAuthnChallengePurpose;
   email: string;

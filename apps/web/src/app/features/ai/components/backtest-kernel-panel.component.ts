@@ -20,20 +20,10 @@ import {
           </p>
         </div>
         <div class="actions">
-          <button
-            class="button secondary"
-            type="button"
-            [disabled]="busy()"
-            (click)="explain()"
-          >
+          <button class="button secondary" type="button" [disabled]="busy()" (click)="explain()">
             {{ busy() === 'explain' ? 'Explaining…' : 'Explain results' }}
           </button>
-          <button
-            class="button secondary"
-            type="button"
-            [disabled]="busy()"
-            (click)="suggest()"
-          >
+          <button class="button secondary" type="button" [disabled]="busy()" (click)="suggest()">
             {{ busy() === 'suggest' ? 'Suggesting…' : 'Suggest improvements' }}
           </button>
         </div>
@@ -61,6 +51,21 @@ import {
       @if (suggestions(); as result) {
         <p class="disclaimer">{{ result.disclaimer }}</p>
         <p class="confidence">Confidence: {{ result.confidence }}</p>
+        @if (result.diff?.changes?.length) {
+          <h3>Proposed parameter changes</h3>
+          <p class="hint">
+            Review and edit manually in Strategy Lab, then test on a separate period. These previews
+            do not modify your strategy.
+          </p>
+          <ul>
+            @for (change of result.diff!.changes; track change.path) {
+              <li>
+                <code>{{ change.path }}</code
+                >: {{ change.from }} → {{ change.to }} — {{ change.rationale }}
+              </li>
+            }
+          </ul>
+        }
         <ul>
           @for (item of result.suggestions; track item.code) {
             <li>

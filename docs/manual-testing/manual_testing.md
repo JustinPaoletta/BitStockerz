@@ -14,17 +14,17 @@ Use two terminals:
 
 Choose the smallest relevant test set:
 
-| Change area | Required manual sections |
-| --- | --- |
-| Any API change | Sections 1–2 |
-| Symbols or candle reads | Sections 3–7 |
-| Jobs, ingestion, or market-data persistence | Sections 8–10 in MySQL mode |
-| Observability or audit | Section 10 |
-| Strategy CRUD/versioning/validation or backtest APIs | Sections 11 (and 3.4 UI paths in Section 13 when touching Angular) |
-| Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes |
-| Angular shell, passkeys, dashboard widgets, Strategy Lab, or Trade desk | Section 13 (`npm --prefix apps/web run e2e` for the automated seed path) |
-| Google/Apple browser login, Profile, or recovery linking | Section 16; real-provider smoke in `docs/ops/deployment.md` |
-| Full release/sprint verification | Run both automated verifier commands in Section 0 |
+| Change area                                                                     | Required manual sections                                                 |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Any API change                                                                  | Sections 1–2                                                             |
+| Symbols or candle reads                                                         | Sections 3–7                                                             |
+| Jobs, ingestion, or market-data persistence                                     | Sections 8–10 in MySQL mode                                              |
+| Observability or audit                                                          | Section 10                                                               |
+| Strategy CRUD/versioning/validation or backtest APIs                            | Sections 11 (and 3.4 UI paths in Section 13 when touching Angular)       |
+| Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes                                  |
+| Angular shell, passkeys, dashboard widgets, Strategy Lab, or Trade desk         | Section 13 (`npm --prefix apps/web run e2e` for the automated seed path) |
+| Google/Apple browser login, Profile, or recovery linking                        | Section 16; real-provider smoke in `docs/ops/deployment.md`              |
+| Full release/sprint verification                                                | Run both automated verifier commands in Section 0                        |
 
 Prerequisites: Node.js `24.21.0` (root `.nvmrc`), npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
 
@@ -67,14 +67,15 @@ Expected: migrations apply successfully and `/api/health/ready` reports the data
 
 ### Database modes
 
-| Mode | When | Behavior |
-| --- | --- | --- |
-| **In-memory** | No `DATABASE_URL` | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, paper trading, metrics, and audit events live in process. Data resets on API restart. |
-| **MySQL** | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, backtests, paper accounts/orders/executions/positions, and auth users/sessions/passkeys/OAuth links/challenges persist. Symbol/candle reads use DB rows (empty until ingestion). On startup the API hydrates auth state from MySQL into memory; user ids stay stable across restarts. After a restart, sign in with `POST /api/auth/login` (or passkey/OAuth), not another register for the same email. |
+| Mode          | When                                    | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **In-memory** | No `DATABASE_URL`                       | Auth (users, sessions, passkeys), symbols, candles, jobs, strategies, backtests, paper trading, metrics, and audit events live in process. Data resets on API restart.                                                                                                                                                                                                                                                                                          |
+| **MySQL**     | `DATABASE_URL` set + migrations applied | Jobs, ingested bars, audit events, strategies/versions, backtests, paper accounts/orders/executions/positions, and auth users/sessions/passkeys/OAuth links/challenges persist. Symbol/candle reads use DB rows (empty until ingestion). On startup the API hydrates auth state from MySQL into memory; user ids stay stable across restarts. After a restart, sign in with `POST /api/auth/login` (or passkey/OAuth), not another register for the same email. |
 
 ### Automated alternative
 
-Stop any API already running in Terminal A before using this path; the verifier starts its own API and intentionally refuses to take over an occupied port `4000`.
+Before using this procedure, stop any API running in Terminal A.
+The verifier starts its own API and refuses to use an occupied port `4000`.
 
 From the repository root:
 
@@ -90,10 +91,8 @@ Each command must exit with status `0`, with every gate marked `GATE PASS` and
 the smoke summary reporting `0 failed`. The verifier includes web build, lint,
 unit, and audit gates plus a real Sprint 3.3 HTTP run/list/detail smoke flow.
 Default `verify` clears `DATABASE_URL` for its smoke API even when
-`apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from
-`apps/api/.env`, deploys migrations, verifies a transactional
-backtest and paper-trading persistence round trips, ingests the current rolling
-fixture window, and verifies strategy ownership after an API restart.
+`apps/api/.env` defines one. The MySQL command loads `DATABASE_URL` from `apps/api/.env` and applies migrations.
+It tests transactional backtest/trading persistence, ingests the rolling fixture window, and tests strategy ownership after restart.
 
 Standalone smoke tests require an API already running on port `4000`. Match the assertion mode to the API you started:
 
@@ -201,11 +200,11 @@ Public endpoint: `GET /api/market-data/equities/candles`
 
 ### Seed symbols with candle data (no `DATABASE_URL`)
 
-| Symbol | Seed bars | Approximate range |
-| --- | --- | --- |
+| Symbol | Seed bars             | Approximate range                     |
+| ------ | --------------------- | ------------------------------------- |
 | `AAPL` | 40 weekday daily bars | rolling window ending **today (UTC)** |
-| `MSFT` | 40 weekday daily bars | same generator pattern |
-| `SPY` | 40 weekday daily bars | same generator pattern |
+| `MSFT` | 40 weekday daily bars | same generator pattern                |
+| `SPY`  | 40 weekday daily bars | same generator pattern                |
 
 ### Success – default ascending order
 
@@ -255,10 +254,10 @@ Public endpoint: `GET /api/market-data/crypto/candles`
 
 ### Seed symbols with candle data (no `DATABASE_URL`)
 
-| Symbol | Daily (`interval=1d`) | Hourly (`interval=1h`) |
-| --- | --- | --- |
+| Symbol    | Daily (`interval=1d`)            | Hourly (`interval=1h`)                        |
+| --------- | -------------------------------- | --------------------------------------------- |
 | `BTC-USD` | 30 daily bars ending today (UTC) | 48 hourly bars ending at the current UTC hour |
-| `ETH-USD` | same | same |
+| `ETH-USD` | same                             | same                                          |
 
 ### Success – crypto daily
 
@@ -298,20 +297,21 @@ Expected: `400` `VALIDATION_ERROR` on `start`.
 
 Run this checklist after Sprint 1.2 changes or before marking the sprint complete.
 
-| # | Scenario | Command | Expect |
-| --- | --- | --- | --- |
-| 1 | Equity happy path | Section 5 ascending `AAPL` curl | `200`, 40 bars, ascending dates |
-| 2 | Equity `order` + `limit` | Section 5 descending curl | `200`, 2 bars, newest first |
-| 3 | Equity empty range | Section 5 empty-range curl | `200`, `[]` |
-| 4 | Equity wrong asset | Section 5 `BTC-USD` curl | `400`, `VALIDATION_ERROR` |
-| 5 | Crypto daily happy path | Section 6 daily curl | `200`, 30 bars with `date` |
-| 6 | Crypto hourly happy path | Section 6 hourly curl | `200`, 48 bars with `timestamp` |
-| 7 | Crypto wrong asset | Section 6 `AAPL` curl | `400`, `VALIDATION_ERROR` |
-| 8 | Unknown symbol | Section 5 `NOPE` curl | `404`, `NOT_FOUND` |
-| 9 | Reversed equity range | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-02-01&end=2026-01-01'` | `400`, `VALIDATION_ERROR` |
-| 10 | Invalid limit | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&limit=0'` | `400`, `VALIDATION_ERROR` |
+| #   | Scenario                 | Command                                                                                                                | Expect                          |
+| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 1   | Equity happy path        | Section 5 ascending `AAPL` curl                                                                                        | `200`, 40 bars, ascending dates |
+| 2   | Equity `order` + `limit` | Section 5 descending curl                                                                                              | `200`, 2 bars, newest first     |
+| 3   | Equity empty range       | Section 5 empty-range curl                                                                                             | `200`, `[]`                     |
+| 4   | Equity wrong asset       | Section 5 `BTC-USD` curl                                                                                               | `400`, `VALIDATION_ERROR`       |
+| 5   | Crypto daily happy path  | Section 6 daily curl                                                                                                   | `200`, 30 bars with `date`      |
+| 6   | Crypto hourly happy path | Section 6 hourly curl                                                                                                  | `200`, 48 bars with `timestamp` |
+| 7   | Crypto wrong asset       | Section 6 `AAPL` curl                                                                                                  | `400`, `VALIDATION_ERROR`       |
+| 8   | Unknown symbol           | Section 5 `NOPE` curl                                                                                                  | `404`, `NOT_FOUND`              |
+| 9   | Reversed equity range    | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2026-02-01&end=2026-01-01'`         | `400`, `VALIDATION_ERROR`       |
+| 10  | Invalid limit            | `curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31&limit=0'` | `400`, `VALIDATION_ERROR`       |
 
-With `DATABASE_URL` configured and empty bar tables, run Section 8 ingestion curls first, then repeat rows 1, 2, 5, and 6; expect non-empty candle arrays for seeded symbols.
+If `DATABASE_URL` is configured and bar tables are empty, run Section 8 ingestion first.
+Then repeat rows 1, 2, 5, and 6. Expect non-empty candle arrays for seeded symbols.
 
 ---
 
@@ -380,12 +380,12 @@ Expected: `401` `UNAUTHORIZED`.
 
 ### Ingestion regression checklist
 
-| # | Scenario | Expect |
-| --- | --- | --- |
-| 1 | Equity import `AAPL` | `completed`, 40 bars in payload |
-| 2 | Crypto import `BTC-USD` both intervals | `completed`, 30 daily + 48 hourly |
-| 3 | `GET /jobs/:id` as owner | `200`, same job id |
-| 4 | Unauthenticated `POST /jobs` | `401` |
+| #   | Scenario                               | Expect                            |
+| --- | -------------------------------------- | --------------------------------- |
+| 1   | Equity import `AAPL`                   | `completed`, 40 bars in payload   |
+| 2   | Crypto import `BTC-USD` both intervals | `completed`, 30 daily + 48 hourly |
+| 3   | `GET /jobs/:id` as owner               | `200`, same job id                |
+| 4   | Unauthenticated `POST /jobs`           | `401`                             |
 
 ---
 
@@ -427,20 +427,21 @@ Expected: `"AAPL"`, then **at least** `40`, `30`, and `48` respectively. Ingesti
 
 ### 9.5 Regression table (MySQL mode)
 
-| # | Scenario | Expect |
-| --- | --- | --- |
-| 1 | `/health/ready` database check | `up` |
-| 2 | Symbol/candles before ingestion (fresh DB) | `404 NOT_FOUND` |
-| 3 | Section 8 equity + crypto import | `completed` jobs |
-| 4 | Symbol lookup after ingestion | `200`, `AAPL` |
-| 5 | Equity + crypto candles after ingestion | non-empty arrays |
-| 6 | Restart API, re-fetch equity candles | same data (persisted) |
+| #   | Scenario                                   | Expect                |
+| --- | ------------------------------------------ | --------------------- |
+| 1   | `/health/ready` database check             | `up`                  |
+| 2   | Symbol/candles before ingestion (fresh DB) | `404 NOT_FOUND`       |
+| 3   | Section 8 equity + crypto import           | `completed` jobs      |
+| 4   | Symbol lookup after ingestion              | `200`, `AAPL`         |
+| 5   | Equity + crypto candles after ingestion    | non-empty arrays      |
+| 6   | Restart API, re-fetch equity candles       | same data (persisted) |
 
 ---
 
 ## Section 10 – Data health, metrics, and audit (Sprint 1.4)
 
 ### Prerequisites
+
 - API on port `4000` with global prefix `/api`
 - Seed mode (no `DATABASE_URL`) is fine for these curls
 - Seed bars roll to **today (UTC)** on process start, so health should report `status: "ok"` and `stale: false` after a fresh restart (or after re-ingestion into MySQL)
@@ -494,13 +495,13 @@ Expected: recent rows include events generated by your tests, such as `auth.regi
 
 ### Section 10 regression checklist
 
-| # | Scenario | Command | Expect |
-| --- | --- | --- | --- |
-| 1 | Market data health | `GET /api/market-data/health` | `200`, has `series` + `sanity` |
-| 2 | Metrics | `GET /api/metrics` | `200`, has `http` |
-| 3 | Ingestion sanity | equity import `AAPL` | payload includes `sanity` |
-| 4 | Auth still works with audit | register → logout | `201` / `201` |
-| 5 | MySQL audit persistence | query `audit_events` | recent expected event types; no secrets |
+| #   | Scenario                    | Command                       | Expect                                  |
+| --- | --------------------------- | ----------------------------- | --------------------------------------- |
+| 1   | Market data health          | `GET /api/market-data/health` | `200`, has `series` + `sanity`          |
+| 2   | Metrics                     | `GET /api/metrics`            | `200`, has `http`                       |
+| 3   | Ingestion sanity            | equity import `AAPL`          | payload includes `sanity`               |
+| 4   | Auth still works with audit | register → logout             | `201` / `201`                           |
+| 5   | MySQL audit persistence     | query `audit_events`          | recent expected event types; no secrets |
 
 ---
 
@@ -644,7 +645,8 @@ This check requires the strategy above to have been created while the API was in
    INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
    ```
 
-3. In **Terminal B**, keep the existing `$STRATEGY_EMAIL` and `$STRATEGY_ID`, log in with the same email (do not register again), and read the original strategy:
+3. In **Terminal B**, keep the existing `$STRATEGY_EMAIL` and `$STRATEGY_ID`.
+   Log in with the same email; do not register again. Read the original strategy:
 
    ```bash
    TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/login \
@@ -663,17 +665,17 @@ Expected: HTTP `200`, the same strategy id and definition, and `version_number: 
 
 ### Section 11 regression checklist
 
-| # | Scenario | Expect |
-| --- | --- | --- |
-| 1 | Create valid crypto strategy | `201`, defaults `SINGLE`, version 1 |
-| 2 | Read by owner | `200`, definition round-trips |
-| 3 | Case-insensitive duplicate | `409 CONFLICT` |
-| 4 | Equity + `1h` | `400 VALIDATION_ERROR` |
-| 5 | Unauthenticated create | `401 UNAUTHORIZED` |
-| 6 | Read by another user | `404 STRATEGY_NOT_FOUND` |
-| 7 | Numeric name/description | `400 VALIDATION_ERROR`; no implicit string coercion |
-| 8 | Malformed strategy id | `400 VALIDATION_ERROR` |
-| 9 | Restart in MySQL mode and read again | `200`; persisted strategy/version remain available |
+| #   | Scenario                             | Expect                                              |
+| --- | ------------------------------------ | --------------------------------------------------- |
+| 1   | Create valid crypto strategy         | `201`, defaults `SINGLE`, version 1                 |
+| 2   | Read by owner                        | `200`, definition round-trips                       |
+| 3   | Case-insensitive duplicate           | `409 CONFLICT`                                      |
+| 4   | Equity + `1h`                        | `400 VALIDATION_ERROR`                              |
+| 5   | Unauthenticated create               | `401 UNAUTHORIZED`                                  |
+| 6   | Read by another user                 | `404 STRATEGY_NOT_FOUND`                            |
+| 7   | Numeric name/description             | `400 VALIDATION_ERROR`; no implicit string coercion |
+| 8   | Malformed strategy id                | `400 VALIDATION_ERROR`                              |
+| 9   | Restart in MySQL mode and read again | `200`; persisted strategy/version remain available  |
 
 ### Cleanup
 
@@ -919,28 +921,26 @@ Paper trading MySQL smoke PASS: provisioning, serializable fill, idempotency rac
 This gate creates isolated rows, sends two concurrent requests with the same
 client id, and proves one execution. It also fills a fractional order at the
 maximum `DECIMAL(18,6)` market-data price and verifies that `avg_cost`,
-`avg_fill_price`, and execution `price` retain it in MySQL. Finally, it restarts
-the Nest application context, logs in with the same email after auth hydration,
-proves the account/cash/position/history survived the restart, and removes its
-fixtures.
+`avg_fill_price`, and execution `price` retain it in MySQL. Finally, it restarts the Nest application context and logs in after auth hydration.
+It confirms account, cash, position, and history persistence, then removes its fixtures.
 
 ### Section 12 regression checklist
 
-| # | Scenario | Expect |
-| --- | --- | --- |
-| 1 | New signup → paper account | One account, USD, `100000.00` cash/start |
-| 2 | BUY at current close | `200 FILLED`; one cash debit/position/execution |
-| 3 | Same client id + payload | Original order id; no second execution/debit |
-| 4 | Same client id + different payload | `409 CONFLICT`; no mutation |
-| 5 | Oversized BUY | Persisted `200 REJECTED/MAX_ORDER_NOTIONAL` |
-| 6 | Position/account/portfolio views | Fixed scales, stable shapes, owner-only |
-| 7 | Orders/executions filters and paging | Stable newest-first result + metadata |
-| 8 | SELL to zero | Cash credited; position removed |
-| 9 | SELL without quantity held | Persisted `INSUFFICIENT_POSITION` reject |
-| 10 | Numeric quantity / missing auth | `400 VALIDATION_ERROR` / `401 UNAUTHORIZED` |
-| 11 | Seed automated smoke | `--sprint 4`: 15 passed, 0 failed |
-| 12 | MySQL persistence gate | PASS including concurrent replay and post-restart auth hydration |
-| 13 | Maximum market-data price | Fractional fill persists in all trading price columns |
+| #   | Scenario                             | Expect                                                           |
+| --- | ------------------------------------ | ---------------------------------------------------------------- |
+| 1   | New signup → paper account           | One account, USD, `100000.00` cash/start                         |
+| 2   | BUY at current close                 | `200 FILLED`; one cash debit/position/execution                  |
+| 3   | Same client id + payload             | Original order id; no second execution/debit                     |
+| 4   | Same client id + different payload   | `409 CONFLICT`; no mutation                                      |
+| 5   | Oversized BUY                        | Persisted `200 REJECTED/MAX_ORDER_NOTIONAL`                      |
+| 6   | Position/account/portfolio views     | Fixed scales, stable shapes, owner-only                          |
+| 7   | Orders/executions filters and paging | Stable newest-first result + metadata                            |
+| 8   | SELL to zero                         | Cash credited; position removed                                  |
+| 9   | SELL without quantity held           | Persisted `INSUFFICIENT_POSITION` reject                         |
+| 10  | Numeric quantity / missing auth      | `400 VALIDATION_ERROR` / `401 UNAUTHORIZED`                      |
+| 11  | Seed automated smoke                 | `--sprint 4`: 15 passed, 0 failed                                |
+| 12  | MySQL persistence gate               | PASS including concurrent replay and post-restart auth hydration |
+| 13  | Maximum market-data price            | Fractional fill persists in all trading price columns            |
 
 ### Cleanup
 
@@ -950,8 +950,8 @@ rm -f /tmp/bitstockerz-paper-account-{before,after}.json \
 ```
 
 Stop the API in Terminal A with `Ctrl+C`. Paper-trading rows created by the
-manual HTTP flow intentionally remain in a local MySQL dev database as useful
-history; the isolated MySQL gate cleans up its own fixtures.
+manual HTTP flow remain in the local MySQL development database as history.
+The isolated MySQL gate removes its own fixtures.
 
 ### 12.9 Prelaunch realized P&L regression
 
@@ -961,10 +961,11 @@ fill cash rounding. It is independent of current market prices. Total P&L equals
 equity − starting balance; displayed unrealized P&L is total − realized.
 
 Run the seed HTTP regression with `LOG_LEVEL=silent npm --prefix apps/api test --
---runInBand trading.integration.spec.ts`. It buys 2 shares at $100 and 2 at $120
-(average cost $110), sells 1.5 at $125 (realized $22.50, unrealized $37.50),
-replays the sale, rejects an oversell, then closes 2.5 at $90 (cumulative realized
-−$27.50, unrealized $0). A new purchase keeps the previous realized total.
+--runInBand trading.integration.spec.ts`.
+It buys 2 shares at $100 and 2 at $120, producing a $110 average cost.
+It sells 1.5 at $125: realized P&L is $22.50 and unrealized P&L is $37.50.
+It replays the sale and rejects an oversell.
+It closes 2.5 at $90: cumulative realized P&L is −$27.50 and unrealized P&L is $0. A new purchase keeps the previous realized total.
 
 For real persistence, export the local `DATABASE_URL` and run
 `npm --prefix apps/api run test:mysql:trading`. Its isolated records verify a
@@ -1004,27 +1005,27 @@ Open `http://localhost:4200`.
 
 Work through these in order on a fresh browser session (or after Log out).
 
-| # | What to do | Pass when |
-| --- | --- | --- |
-| 1 | **Register (email fallback)** — in a non-production build, open Email fallback, register a new email + display name | Lands on `/dashboard`, primary nav + user label + Log out appear |
-| 2 | **Shell** — click Dashboard / Trade / Strategies / Backtests; click logo | Each route loads; logo returns to dashboard |
-| 3 | **Log out / returnUrl** — Log out, visit `/trade` (should bounce to login), sign in again | After login you land back on `/trade`, not a blank shell |
-| 4 | **Session restore** — while signed in, hard-refresh `/dashboard` | Stay signed in; nav + widgets reload without re-login |
-| 5 | **Dashboard widgets** — confirm Portfolio / Positions / Strategies / Backtests / Trades / Symbol search | Each widget has its own loading → ready/empty; one empty does not blank others |
-| 6 | **Dashboard Edit link** — create a strategy first if needed, then from dashboard Strategies widget click **Edit** | Opens `/strategies/:id/edit`, not the detail page |
-| 7 | **Symbol search** — on dashboard, type `AA`, arrow-key to AAPL, Enter | Combobox shows results; selection fills the field |
-| 8 | **Strategy Lab create** — Strategies → Create → Validate → Save | “Definition is valid.” then detail page with name/version |
-| 9 | **Strategy edit + dirty guard** — Edit, change name, click Back without saving | Browser confirm appears; Cancel keeps you on the editor |
-| 10 | **Versioning** — Edit definition (e.g. period), Save, on detail switch Version dropdown | New version number; older version is read-only (no Edit/Delete) |
-| 11 | **Backtest from strategy** — Detail → Run backtest; confirm strategy name + locked timeframe; pick dates covering seed AAPL (e.g. last ~3 months), Run | Navigates to detail with Equity curve + Final equity; ↑ Entry / ↓ Exit arrows match trade dates |
-| 11a | **Marker pagination / hourly** — inspect a run with >500 trades, zoom the chart, then load more; inspect an hourly crypto run | Partial coverage is labeled, markers update without resetting zoom, same-bar entry/exit both show, hourly events stay distinct |
-| 12 | **Trade BUY** — Trade desk, AAPL BUY qty `1`, Submit | Status “Filled BUY…”, cash drops, position + executions update |
-| 13 | **Trade reject** — same ticket qty `9999`, Submit | Status shows `Rejected: MAX_ORDER_NOTIONAL` (or similar); order history shows REJECTED |
-| 14 | **Trade SELL** — SELL qty equal to open AAPL position, Submit | Fills; position clears/reduces; cash increases |
-| 14a | **Paper P&L** — inspect Portfolio summary and Trade desk after partial/full sales | Realized and Total P&L appear; realized + unrealized = total to the cent, and a rejected/replayed order does not double count |
-| 15 | **SELL oversize client guard** — SELL more than displayed position | Inline error; no order submitted |
-| 16 | **Passkey path (if device supports it)** — Log out, Register/Sign in with passkey | Session created; dashboard loads. If WebAuthn unavailable, email fallback still works |
-| 17 | **401 handling** — DevTools → Application → Session Storage → delete `bs.access_token`, click Trade | Redirect to login; signing in restores access |
+| #   | What to do                                                                                                                                             | Pass when                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Register (email fallback)** — in a non-production build, open Email fallback, register a new email + display name                                    | Lands on `/dashboard`, primary nav + user label + Log out appear                                                               |
+| 2   | **Shell** — click Dashboard / Trade / Strategies / Backtests; click logo                                                                               | Each route loads; logo returns to dashboard                                                                                    |
+| 3   | **Log out / returnUrl** — Log out, visit `/trade` (should bounce to login), sign in again                                                              | After login you land back on `/trade`, not a blank shell                                                                       |
+| 4   | **Session restore** — while signed in, hard-refresh `/dashboard`                                                                                       | Stay signed in; nav + widgets reload without re-login                                                                          |
+| 5   | **Dashboard widgets** — confirm Portfolio / Positions / Strategies / Backtests / Trades / Symbol search                                                | Each widget has its own loading → ready/empty; one empty does not blank others                                                 |
+| 6   | **Dashboard Edit link** — create a strategy first if needed, then from dashboard Strategies widget click **Edit**                                      | Opens `/strategies/:id/edit`, not the detail page                                                                              |
+| 7   | **Symbol search** — on dashboard, type `AA`, arrow-key to AAPL, Enter                                                                                  | Combobox shows results; selection fills the field                                                                              |
+| 8   | **Strategy Lab create** — Strategies → Create → Validate → Save                                                                                        | “Definition is valid.” then detail page with name/version                                                                      |
+| 9   | **Strategy edit + dirty guard** — Edit, change name, click Back without saving                                                                         | Browser confirm appears; Cancel keeps you on the editor                                                                        |
+| 10  | **Versioning** — Edit definition (e.g. period), Save, on detail switch Version dropdown                                                                | New version number; older version is read-only (no Edit/Delete)                                                                |
+| 11  | **Backtest from strategy** — Detail → Run backtest; confirm strategy name + locked timeframe; pick dates covering seed AAPL (e.g. last ~3 months), Run | Navigates to detail with Equity curve + Final equity; ↑ Entry / ↓ Exit arrows match trade dates                                |
+| 11a | **Marker pagination / hourly** — inspect a run with >500 trades, zoom the chart, then load more; inspect an hourly crypto run                          | Partial coverage is labeled, markers update without resetting zoom, same-bar entry/exit both show, hourly events stay distinct |
+| 12  | **Trade BUY** — Trade desk, AAPL BUY qty `1`, Submit                                                                                                   | Status “Filled BUY…”, cash drops, position + executions update                                                                 |
+| 13  | **Trade reject** — same ticket qty `9999`, Submit                                                                                                      | Status shows `Rejected: MAX_ORDER_NOTIONAL` (or similar); order history shows REJECTED                                         |
+| 14  | **Trade SELL** — SELL qty equal to open AAPL position, Submit                                                                                          | Fills; position clears/reduces; cash increases                                                                                 |
+| 14a | **Paper P&L** — inspect Portfolio summary and Trade desk after partial/full sales                                                                      | Realized and Total P&L appear; realized + unrealized = total to the cent, and a rejected/replayed order does not double count  |
+| 15  | **SELL oversize client guard** — SELL more than displayed position                                                                                     | Inline error; no order submitted                                                                                               |
+| 16  | **Passkey path (if device supports it)** — Log out, Register/Sign in with passkey                                                                      | Session created; dashboard loads. If WebAuthn unavailable, email fallback still works                                          |
+| 17  | **401 handling** — DevTools → Application → Session Storage → delete `bs.access_token`, click Trade                                                    | Redirect to login; signing in restores access                                                                                  |
 
 Optional stretch (not merge-blocking): force one dashboard API to fail in DevTools Network and confirm only that widget shows Retry.
 
@@ -1032,7 +1033,7 @@ Optional stretch (not merge-blocking): force one dashboard API to fail in DevToo
 
 ## Section 14 – Kernel AI (Milestone 6 / Sprints 6.1–6.3)
 
-Advisory Kernel endpoints. Stub mode needs no OpenAI key. `#6.4.2` diff suggestions remain deferred (`AI_DIFF_SUGGESTIONS_ENABLED=false`).
+Advisory Kernel endpoints. Stub mode needs no OpenAI key. Parameter previews are locally implemented; `AI_DIFF_SUGGESTIONS_ENABLED` defaults false. Live-provider tests remain pending.
 
 ### Prerequisites
 
@@ -1053,11 +1054,11 @@ npm run web:start   # from repo root, typically :4200
 
 ### Env matrix
 
-| Mode | Env | Expect |
-|------|-----|--------|
-| Disabled | `AI_ENABLED=false` | `503` `AI_DISABLED` |
-| Stub (recommended local) | `AI_ENABLED=true` `AI_PROVIDER=stub` | Deterministic JSON, no network |
-| Live OpenAI | `AI_ENABLED=true` `AI_PROVIDER=openai` `OPENAI_API_KEY=…` `AI_MODEL=gpt-4.1-mini` | Real model responses |
+| Mode                     | Env                                                                               | Expect                         |
+| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------ |
+| Disabled                 | `AI_ENABLED=false`                                                                | `503` `AI_DISABLED`            |
+| Stub (recommended local) | `AI_ENABLED=true` `AI_PROVIDER=stub`                                              | Deterministic JSON, no network |
+| Live OpenAI              | `AI_ENABLED=true` `AI_PROVIDER=openai` `OPENAI_API_KEY=…` `AI_MODEL=gpt-4.1-mini` | Real model responses           |
 
 ### Setup: register + strategy + backtest
 
@@ -1140,23 +1141,23 @@ curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
 
 ### Angular UI checklist
 
-| # | Scenario | Expect |
-|---|----------|--------|
-| 1 | Strategy detail → **Explain** / **Check for issues** with AI enabled (stub) | Disclaimer shown; escaped text; buttons disable while loading |
-| 2 | Same buttons with `AI_ENABLED=false` | Distinct “Kernel AI is disabled…” message |
-| 3 | Backtest detail → **Explain results** / **Suggest improvements** | Disclaimer; issues/suggestions list; no Apply button |
-| 4 | Force quota (`AI_DAILY_CALL_LIMIT=1`, call twice) | Second call shows daily limit message |
+| #   | Scenario                                                                    | Expect                                                        |
+| --- | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 1   | Strategy detail → **Explain** / **Check for issues** with AI enabled (stub) | Disclaimer shown; escaped text; buttons disable while loading |
+| 2   | Same buttons with `AI_ENABLED=false`                                        | Distinct “Kernel AI is disabled…” message                     |
+| 3   | Backtest detail → **Explain results** / **Suggest improvements**            | Disclaimer; issues/suggestions list; no Apply button          |
+| 4   | Force quota (`AI_DAILY_CALL_LIMIT=1`, call twice)                           | Second call shows daily limit message                         |
 
 ### Regression checklist
 
-| Scenario | Command / UI | Expect |
-|----------|--------------|--------|
-| Stub explain strategy | curl above | 200 + disclaimer + explanation |
-| Hybrid validate | curl validate | warnings include deterministic codes |
-| Explain backtest | curl explain-backtest | 200 + issues array |
-| Suggest improvements | curl suggest | suggestions capped, advisory only |
-| Disabled flag | AI_ENABLED=false | 503 AI_DISABLED |
-| Cross-user strategy | other token | 404 STRATEGY_NOT_FOUND |
+| Scenario              | Command / UI          | Expect                               |
+| --------------------- | --------------------- | ------------------------------------ |
+| Stub explain strategy | curl above            | 200 + disclaimer + explanation       |
+| Hybrid validate       | curl validate         | warnings include deterministic codes |
+| Explain backtest      | curl explain-backtest | 200 + issues array                   |
+| Suggest improvements  | curl suggest          | suggestions capped, advisory only    |
+| Disabled flag         | AI_ENABLED=false      | 503 AI_DISABLED                      |
+| Cross-user strategy   | other token           | 404 STRATEGY_NOT_FOUND               |
 
 ---
 
@@ -1184,13 +1185,13 @@ curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provid
 
 ### Deploy artifacts checklist (no live accounts required)
 
-| # | Check | Expect |
-|---|-------|--------|
-| 1 | `.github/workflows/ci.yml` present | API + web jobs |
-| 2 | `.github/workflows/deploy.yml` present | migrate → Fly API → Vercel web |
-| 3 | `apps/api/Dockerfile` + `fly.toml` | Option A always-on API |
-| 4 | `apps/web/vercel.json` | SPA fallback rewrite |
-| 5 | `docs/ops/deployment.md` | secrets + smoke + rollback |
+| #   | Check                                  | Expect                         |
+| --- | -------------------------------------- | ------------------------------ |
+| 1   | `.github/workflows/ci.yml` present     | API + web jobs                 |
+| 2   | `.github/workflows/deploy.yml` present | migrate → Fly API → Vercel web |
+| 3   | `apps/api/Dockerfile` + `fly.toml`     | Option A always-on API         |
+| 4   | `apps/web/vercel.json`                 | SPA fallback rewrite           |
+| 5   | `docs/ops/deployment.md`               | secrets + smoke + rollback     |
 
 Live Fly/Vercel/MySQL provisioning remains an operator step before first production URL.
 
@@ -1218,8 +1219,8 @@ Apple keys, registered domains or live return URLs.
 4. Sign out and recover through the linked provider without using the passkey.
    Verify the original portfolio and strategies/backtests. Repeat after API
    restart. Apple returning login must work without first-login user/email form
-   fields. A new provider subject with a matching email must ask the user to sign
-   into the existing account and explicitly link; it must not claim that account.
+   fields. A new subject with a matching email must require existing-account sign-in and explicit linking.
+   It must not claim the account through email alone.
 5. In browser developer tools, confirm the callback fragment is removed before
    exchange. Its code must expire after 60 seconds and succeed only once with
    the initiating browser's verifier. A linking handoff also requires its
@@ -1245,3 +1246,27 @@ linking, original account/data ownership and original sign-in age. Real-provider
 production smoke is a separate required release check for each enabled provider.
 
 **File:** `docs/manual-testing/manual_testing.md`
+
+## 17. Product-extension acceptance
+
+October 4 additions have local automated coverage.
+Use the [extension contracts](../product/PRODUCT_EXTENSIONS.md) for assumptions and limits.
+Use [database verification](../ops/deployment.md#database-verification-before-release) before persistent acceptance.
+Use [production smoke](../ops/deployment.md#product-extension-smoke) after hosting and licensed-data setup.
+
+These checks require disposable accounts:
+
+1. Save multiple indicators and conditions, then reopen the definition without losing rules.
+2. Run comparable costed backtests and inspect the benchmark and pinned settings.
+3. Export results/trades and compare them with the complete owned run.
+4. Add a watchlist symbol and display strategy overlays on its chart.
+5. Enroll another passkey and sign in with each independent device.
+6. Revoke another session and confirm it loses authenticated access.
+7. Reset the paper account and inspect the archive and restored starting cash.
+8. Replay an old order identifier and confirm it cannot create a new trade.
+9. Export personal data and confirm it excludes bearer tokens and sign-in secrets.
+10. Delete the disposable account and confirm its old sessions cannot access owned data.
+11. Test runner controls, restart recovery, repeated bars, and unavailable prices.
+
+Account reset, deletion, and credential changes require a sign-in within five minutes.
+A local virtual-authenticator test does not establish device or deployed HTTPS compatibility.

@@ -1,3 +1,4 @@
+import { normalizeSimulation } from './engine/simulation-settings';
 import { Prisma } from '@prisma/client';
 import { ErrorCode } from '../common/errors/error-codes.enum';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -55,6 +56,54 @@ describe('BacktestsRepository', () => {
     expect(
       (await repository.findDetailForUser(RUN_ID, USER_ID))?.result,
     ).toMatchObject({ finalEquity: '1100.00' });
+  });
+
+  it('round-trips simulation settings, costs and benchmark JSON through Prisma reads', async () => {
+    const settings = normalizeSimulation({
+      commission_bps: 10,
+      slippage_bps: 20,
+    });
+    const detail = prismaDetail();
+    const benchmark = {
+      final_equity: '1090.00',
+      total_return_pct: '9.0000',
+      max_drawdown_pct: '1.0000',
+      equity_curve: [
+        { timestamp: '2026-01-01T00:00:00.000Z', equity: '1000.00' },
+      ],
+    };
+    const row = {
+      ...detail,
+      simulationJson: settings,
+      result: { ...detail.result, benchmarkJson: benchmark },
+      trades: detail.trades.map((trade) => ({
+        ...trade,
+        feesAbs: new Prisma.Decimal('2.1'),
+      })),
+    };
+    const create = jest.fn().mockResolvedValue(row);
+    const findFirst = jest.fn().mockResolvedValue(row);
+    const repository = new BacktestsRepository({
+      isEnabled: true,
+      backtestRun: { create, findFirst },
+    } as unknown as PrismaService);
+    expect(
+      (await repository.createRun({ ...runRecord(), simulation: settings }))
+        .simulation,
+    ).toEqual(settings);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ simulationJson: settings }),
+      }),
+    );
+    const read = await repository.findDetailForUser(RUN_ID, USER_ID);
+    expect(read?.run.simulation).toEqual(settings);
+    expect(read?.result?.benchmark).toEqual(benchmark);
+    expect(read?.trades[0].feesAbs).toBe('2.10000000');
+    row.trades[0].feesAbs = new Prisma.Decimal(0);
+    expect(
+      (await repository.findDetailForUser(RUN_ID, USER_ID))?.trades[0],
+    ).not.toHaveProperty('feesAbs');
   });
 
   it('enforces owner-scoped immutable state transitions in memory', async () => {

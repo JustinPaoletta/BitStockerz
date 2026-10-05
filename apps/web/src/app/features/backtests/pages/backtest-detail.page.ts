@@ -1,3 +1,4 @@
+import { downloadText } from '../../../shared/format/download';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -45,6 +46,56 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
         <span class="status" [class]="data.run.status">{{ data.run.status }}</span>
       </section>
 
+      <section class="panel section-panel">
+        <h2>Simulation assumptions</h2>
+        <p>
+          {{ data.run.simulation?.allocation_pct ?? 100 }}% equity allocation ·
+          {{ data.run.simulation?.commission_bps ?? 0 }} bps commission per side ·
+          {{ data.run.simulation?.slippage_bps ?? 0 }} bps slippage per side ·
+          {{
+            data.run.simulation?.execution_timing === 'next_open'
+              ? 'Next bar open'
+              : 'Signal bar close'
+          }}
+          ·
+          {{
+            data.run.simulation?.evaluation_period === 'out_of_sample'
+              ? 'Out-of-sample period'
+              : 'Research period'
+          }}
+        </p>
+        <p class="hint">
+          Long only. Risk exits use stop-first when both thresholds are reached; remaining positions
+          close at the final bar. Out-of-sample labels are user-selected.
+        </p>
+        <div class="actions">
+          <a
+            class="button secondary"
+            routerLink="/backtests/new"
+            [queryParams]="{
+              strategy_id: data.run.strategy_id,
+              symbol: data.run.symbol,
+              start_date: data.run.start_date.slice(0, 10),
+              end_date: data.run.end_date.slice(0, 10),
+            }"
+            >Test latest strategy version</a
+          >
+          <a
+            class="button secondary"
+            routerLink="/backtests/compare"
+            [queryParams]="{ left: data.run.id }"
+            >Compare runs</a
+          >
+          <button class="button secondary" type="button" (click)="exportTrades()">
+            Export all trades CSV</button
+          ><button class="button secondary" type="button" (click)="exportResults()">
+            Export results CSV
+          </button>
+        </div>
+        @if (exportError()) {
+          <p class="error" role="alert">{{ exportError() }}</p>
+        }
+      </section>
       @if (data.results; as results) {
         <section class="metric-grid" aria-label="Backtest metrics">
           <article>
@@ -77,6 +128,28 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
             }}</strong>
           </article>
         </section>
+        @if (results.benchmark; as benchmark) {
+          <section class="panel section-panel">
+            <h2>Buy-and-hold comparison</h2>
+            <p>
+              Buy-and-hold return: {{ number(benchmark.total_return_pct) | number: '1.2-2' }}% ·
+              Strategy relative return:
+              {{
+                number(results.total_return_pct) - number(benchmark.total_return_pct)
+                  | number: '1.2-2'
+              }}
+              percentage points.
+            </p>
+            <p class="hint">
+              Same bars, allocation, fees, and slippage. Buy at the first close (second open for
+              next-open runs), hold through the final close.
+            </p>
+            <app-equity-curve-chart
+              [points]="benchmark.equity_curve"
+              [timeframe]="data.run.timeframe"
+            />
+          </section>
+        }
         <section class="panel section-panel">
           <div class="section-title">
             <div>
@@ -184,6 +257,7 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
   `,
 })
 export class BacktestDetailPage implements OnInit {
+  protected readonly exportError = signal('');
   protected readonly detail = signal<BacktestDetailResponse | null>(null);
   protected readonly trades = signal<BacktestTrade[]>([]);
   protected readonly loading = signal(true);
@@ -202,6 +276,24 @@ export class BacktestDetailPage implements OnInit {
       this.error.set(error instanceof Error ? error.message : 'Unable to load results.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  protected async exportResults(): Promise<void> {
+    const id = this.detail()?.run.id;
+    if (!id) return;
+    try {
+      downloadText('backtest-results.csv', await firstValueFrom(this.api.exportResults(id)));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Export failed.');
+    }
+  }
+  protected async exportTrades(): Promise<void> {
+    this.exportError.set('');
+    try {
+      downloadText('backtest-trades.csv', await firstValueFrom(this.api.exportTrades(this.id)));
+    } catch (error) {
+      this.exportError.set(error instanceof Error ? error.message : 'Export failed.');
     }
   }
 

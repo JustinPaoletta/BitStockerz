@@ -28,6 +28,9 @@ model User {
   backtestRuns        BacktestRun[]
   paperAccount        PaperAccount?
   aiUsage             AiUsage[]
+  watchlistEntries    WatchlistEntry[]
+  paperArchives       PaperAccountArchive[]
+  automations         PaperAutomation[]
 
   @@map("users")
 }
@@ -61,46 +64,48 @@ model OAuthIdentity {
 }
 
 model WebAuthnChallenge {
-  id        String   @id @db.Char(36)
-  purpose   String   @db.VarChar(16)
-  email     String   @db.VarChar(191)
-  challenge String   @db.VarChar(512)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @map("created_at")
+  userId      String?  @map("user_id") @db.Char(36)
+  sessionHash String?  @map("session_hash") @db.Char(64)
+  id          String   @id @db.Char(36)
+  purpose     String   @db.VarChar(16)
+  email       String   @db.VarChar(191)
+  challenge   String   @db.VarChar(512)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @map("created_at")
 
   @@index([expiresAt])
   @@map("webauthn_challenges")
 }
 
 model OAuthState {
-  state     String   @id @db.VarChar(128)
-  provider  String   @db.VarChar(16)
-  nonce     String   @db.VarChar(128)
-  mode      String   @default("json") @db.VarChar(16)
-  intent    String   @default("login") @db.VarChar(16)
-  codeChallenge String? @map("code_challenge") @db.Char(43)
-  returnPath String? @map("return_path") @db.VarChar(2048)
-  initiatingUserId String? @map("initiating_user_id") @db.Char(36)
-  initiatingSessionHash String? @map("initiating_session_hash") @db.Char(64)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @map("created_at")
+  state                 String   @id @db.VarChar(128)
+  provider              String   @db.VarChar(16)
+  nonce                 String   @db.VarChar(128)
+  mode                  String   @default("json") @db.VarChar(16)
+  intent                String   @default("login") @db.VarChar(16)
+  codeChallenge         String?  @map("code_challenge") @db.Char(43)
+  returnPath            String?  @map("return_path") @db.VarChar(2048)
+  initiatingUserId      String?  @map("initiating_user_id") @db.Char(36)
+  initiatingSessionHash String?  @map("initiating_session_hash") @db.Char(64)
+  expiresAt             DateTime @map("expires_at")
+  createdAt             DateTime @map("created_at")
 
   @@index([expiresAt])
   @@map("oauth_states")
 }
 
 model OAuthHandoff {
-  codeHash String @id @map("code_hash") @db.Char(64)
-  userId String @map("user_id") @db.Char(36)
-  provider String @db.VarChar(16)
-  intent String @db.VarChar(16)
-  subject String? @db.VarChar(255)
-  email String? @db.VarChar(191)
-  codeChallenge String @map("code_challenge") @db.Char(43)
-  returnPath String @map("return_path") @db.VarChar(2048)
-  initiatingSessionHash String? @map("initiating_session_hash") @db.Char(64)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @map("created_at")
+  codeHash              String   @id @map("code_hash") @db.Char(64)
+  userId                String   @map("user_id") @db.Char(36)
+  provider              String   @db.VarChar(16)
+  intent                String   @db.VarChar(16)
+  subject               String?  @db.VarChar(255)
+  email                 String?  @db.VarChar(191)
+  codeChallenge         String   @map("code_challenge") @db.Char(43)
+  returnPath            String   @map("return_path") @db.VarChar(2048)
+  initiatingSessionHash String?  @map("initiating_session_hash") @db.Char(64)
+  expiresAt             DateTime @map("expires_at")
+  createdAt             DateTime @map("created_at")
 
   @@index([expiresAt])
   @@map("oauth_handoffs")
@@ -294,6 +299,7 @@ model BacktestRun {
   timeframe         String    @db.VarChar(8)
   startDate         DateTime  @map("start_date")
   endDate           DateTime  @map("end_date")
+  simulationJson    Json?     @map("simulation_json")
   initialEquity     Decimal   @map("initial_equity") @db.Decimal(18, 2)
   status            String    @db.VarChar(16)
   jobId             String?   @map("job_id") @db.Char(36)
@@ -320,6 +326,7 @@ model BacktestRun {
 }
 
 model BacktestResult {
+  benchmarkJson  Json?    @map("benchmark_json")
   id             Int      @id @default(autoincrement()) @db.UnsignedInt
   backtestRunId  String   @unique(map: "uq_backtest_results_run") @map("backtest_run_id") @db.Char(36)
   finalEquity    Decimal  @map("final_equity") @db.Decimal(18, 2)
@@ -346,6 +353,7 @@ model BacktestTrade {
   entryPrice    Decimal  @map("entry_price") @db.Decimal(18, 8)
   exitPrice     Decimal  @map("exit_price") @db.Decimal(18, 8)
   quantity      Decimal  @db.Decimal(18, 8)
+  feesAbs       Decimal  @default(0) @map("fees_abs") @db.Decimal(18, 8)
   pnlAbs        Decimal  @map("pnl_abs") @db.Decimal(18, 8)
   pnlPct        Decimal  @map("pnl_pct") @db.Decimal(9, 4)
 
@@ -446,4 +454,52 @@ model Execution {
   @@index([paperAccountId, executedAt], map: "idx_exec_account_time")
   @@index([symbolId, executedAt], map: "idx_exec_symbol_time")
   @@map("executions")
+}
+
+model WatchlistEntry {
+  userId    String   @map("user_id") @db.Char(36)
+  symbolId  Int      @map("symbol_id") @db.UnsignedInt
+  createdAt DateTime @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "watchlist_user_fk")
+
+  @@id([userId, symbolId])
+  @@map("watchlist_entries")
+}
+
+model PaperAccountArchive {
+  id           String   @id @db.Char(36)
+  userId       String   @map("user_id") @db.Char(36)
+  snapshotJson Json     @map("snapshot_json")
+  createdAt    DateTime @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "paper_archives_user_fk")
+
+  @@index([userId, createdAt], map: "paper_archives_user_created")
+  @@map("paper_account_archives")
+}
+
+model PaperResetKey {
+  paperAccountId Int    @map("paper_account_id") @db.UnsignedInt
+  clientOrderId  String @map("client_order_id") @db.VarChar(64)
+
+  @@id([paperAccountId, clientOrderId])
+  @@map("paper_reset_keys")
+}
+
+model PaperAutomation {
+  id                String   @id @db.Char(36)
+  userId            String   @map("user_id") @db.Char(36)
+  strategyId        String   @map("strategy_id") @db.Char(36)
+  strategyVersionId Int      @map("strategy_version_id") @db.UnsignedInt
+  symbolId          Int      @map("symbol_id") @db.UnsignedInt
+  timeframe         String   @db.VarChar(8)
+  status            String   @db.VarChar(16)
+  allocationPct     Decimal  @map("allocation_pct") @db.Decimal(5, 2)
+  stateJson         Json     @map("state_json")
+  createdAt         DateTime @map("created_at")
+  updatedAt         DateTime @map("updated_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "automation_user_fk")
+
+  @@index([status], map: "automation_status")
+  @@index([userId, symbolId], map: "automation_user_symbol")
+  @@map("paper_automations")
 }

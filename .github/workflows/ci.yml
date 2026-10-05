@@ -74,6 +74,8 @@ jobs:
       - run: npm test -- --coverage --watch=false
       - run: npm run test:e2e
       - run: npm run test:oauth
+      - name: Import and operational check regressions
+        run: node --test tools/*.test.mjs ../../scripts/ops/*.test.mjs
       - name: MySQL persistence and security regressions
         env:
           DATABASE_URL: mysql://root:ci-local-only@127.0.0.1:3306/bitstockerz_ci
@@ -85,6 +87,7 @@ jobs:
           npm run test:mysql:trading
           npm run test:mysql:security
           npm run test:mysql:auth
+          npm run test:mysql:workspace
       - name: Build production API image
         run: docker build -t bitstockerz-api:ci .
 

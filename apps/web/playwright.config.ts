@@ -13,6 +13,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:4200',
+    // Keep localhost passkey tests on this IPv4 server when another app binds ::1.
+    launchOptions: { args: ['--host-resolver-rules=MAP localhost 127.0.0.1'] },
     trace: 'on-first-retry',
     ...devices['Desktop Chrome'],
   },
@@ -20,7 +22,7 @@ export default defineConfig({
     {
       name: 'API',
       command:
-        'DATABASE_URL= INGESTION_SCHEDULER_ENABLED=false CORS_ALLOWED_ORIGINS=http://127.0.0.1:4200,http://localhost:4200 WEBAUTHN_ALLOWED_ORIGINS=http://127.0.0.1:4200,http://localhost:4200 npm --prefix ../api run start:dev',
+        'DATABASE_URL= INGESTION_SCHEDULER_ENABLED=false WEBAUTHN_RP_ID=localhost CORS_ALLOWED_ORIGINS=http://127.0.0.1:4200,http://localhost:4200 WEBAUTHN_ALLOWED_ORIGINS=http://127.0.0.1:4200,http://localhost:4200 npm --prefix ../api run start:dev',
       cwd: webRoot,
       url: 'http://127.0.0.1:4000/api/health/ready',
       reuseExistingServer: !process.env.CI,

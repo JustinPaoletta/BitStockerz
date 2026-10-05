@@ -1,200 +1,83 @@
 # BitStockerz
 
-A private BitStockerz monorepo that combines product and database documentation
-with a working NestJS API and Angular application.
+BitStockerz is a private strategy-research product with a NestJS API and an Angular application.
+Users build strategies, run historical backtests, compare results, and simulate trades in a paper account.
 
-## Status
+## Delivery status
 
-- Type: private product monorepo
-- Current repo version: `0.0.0`
-- Maturity: prelaunch MVP implementation; production hosting is not configured
-- Current runnable surfaces: `apps/api` and `apps/web`
-- Delivery state: Milestones 0–7 are merged; Milestones 6–7 are in
-  [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12), and P&L, chart
-  markers, browser OAuth, profile/recovery and security fixes are merged in
-  [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13)
-  (`#6.4.2` deferred).
-- **What you still need to do:** provision Fly + managed MySQL + Vercel,
-  configure GitHub/host secrets and provider callbacks, then deploy and run
-  production smoke checks. No hosting has been provisioned for this project;
-  repository and `production` environment secrets are empty as of October 2,
-  2026. Plain-English checklist:
-  [docs/ops/deployment.md](./docs/ops/deployment.md)
-- Release model: manual changelog + release branch flow documented in [RELEASE.md](./RELEASE.md)
+The repository version is `0.0.0`; the product is prelaunch.
+Milestones 0–7 merged through [PR #12](https://github.com/JustinPaoletta/BitStockerz/pull/12).
+Browser OAuth, profile recovery, paper P&L, and chart markers merged in
+[PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) on October 2, 2026.
 
-## Quick Links
+The October 4 [product extensions](docs/product/PRODUCT_EXTENSIONS.md) are local working-tree changes.
+Their local tests do not establish MySQL persistence, live-provider operation, or production deployment.
+Hosting and credentials were absent at the October 2 inspection; no later deployment is recorded here.
 
-- Changelog: [CHANGELOG.md](./CHANGELOG.md)
-- Release process: [RELEASE.md](./RELEASE.md)
-- Product roadmap: [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
-- Deployment runbook: [docs/ops/deployment.md](./docs/ops/deployment.md)
-- MVP definition: [docs/product/MVP.md](./docs/product/MVP.md)
-- UX flows: [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
-- API inventory: [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
-- Database schema (full MVP target): [docs/database/schema.prisma](./docs/database/schema.prisma)
-- Runnable API schema: [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma)
+Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
+Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.
 
-## What The Project Covers
+## Local setup
 
-- Product definition and implementation planning for the BitStockerz platform.
-- Database design, migration planning, lifecycle policy, and API inventory work.
-- A NestJS API under `apps/api`, including auth, WebAuthn, market-data
-  symbols/candles, jobs/ingestion, observability, and complete owner-scoped
-  Strategy Lab CRUD/version history/validation/summaries, plus the pure
-  Backtest Engine Core, owner-scoped run/result/trade/equity persistence, and
-  authenticated run/list/detail execution APIs with limits and diagnostics,
-  plus paper accounts, atomic market fills, positions, risk/idempotency,
-  execution/order history, and mark-to-market portfolio views.
-- An Angular app under `apps/web` with passkey-first auth (email fallback),
-  dark branded shell, dashboard widgets, Strategy Lab create/edit/validate,
-  backtest list/run/detail with Lightweight Charts, paper Trade desk, symbol
-  search, responsive layout, and the `/api` development proxy.
+Use Node.js `24.21.0`, pinned in `.nvmrc` and CI.
+With nvm, run `nvm install` and then `nvm use`.
+From the repository root, install the locked dependencies:
 
-## Tech Stack
+```sh
+npm ci
+npm --prefix apps/api ci
+npm --prefix apps/web ci
+```
 
-- Root tooling: npm, Husky, and commitlint
-- API app: NestJS 11, TypeScript, Jest, Pino, and WebAuthn foundations
-- Web app: Angular 22.2.1, TypeScript 6.0.3, Vitest, ESLint, and Lightweight Charts 5.2
-- Database: MySQL 8 through Prisma, with a runnable schema/migrations plus
-  separate full-MVP target schema and SQL design documents
+For persistent development data, follow [Local MySQL](docs/database/Local_MySQL.md).
+For a disposable session with synthetic prices, start the API in seed mode:
 
-## Repository Layout
+```sh
+DATABASE_URL= INGESTION_SCHEDULER_ENABLED=false npm --prefix apps/api run start:dev
+```
 
-- `apps/api` NestJS API implementation
-- `apps/web` Angular SPA implementation
-- `docs/product` product roadmap, MVP, UX flows, and stories
-- `docs/database` schema, migration, lifecycle, and API design docs
-- `docs/manual-testing` curl-based API smoke test guide
-- `scripts` Docker MySQL, sprint verification, and HTTP smoke helpers
-- root `package.json` repo tooling and release version anchor
+In another terminal, start Angular:
 
-## Prerequisites
+```sh
+npm run web:start
+```
 
-- Node.js `24.21.0` for `apps/api` and `apps/web`
-- npm
+Open `http://localhost:4200`.
+The development proxy forwards `/api` to `http://localhost:4000`.
+Seed-mode users, results, and paper trades disappear when the API stops.
 
-The root `.nvmrc` matches CI and the API container. If you use nvm, run
-`nvm install && nvm use` before installing dependencies.
+## Guides
 
-## Local Setup
+| Topic                                              | Maintained guide                                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| API commands, configuration, and generated OpenAPI | [API README](apps/api/README.md)                                                            |
+| Angular development and browser tests              | [Web README](apps/web/README.md)                                                            |
+| Contributor rules and implementation contracts     | [Documentation index](docs/plans/README.md)                                                 |
+| Product scope and delivery history                 | [MVP](docs/product/MVP.md), [roadmap](docs/product/ROADMAP.md)                              |
+| Current research and account behavior              | [Product extensions](docs/product/PRODUCT_EXTENSIONS.md)                                    |
+| HTTP contracts and design targets                  | [API inventory](docs/database/API_Inventory.md)                                             |
+| Database setup and migration history               | [Local MySQL](docs/database/Local_MySQL.md), [migrations](docs/database/Migrations_Plan.md) |
+| Active-data deletion and external retention        | [Data lifecycle](docs/database/Data_Lifecycle_and_Deletion_Policy.md)                       |
+| Automated gates and dated evidence                 | [Testing strategy](docs/product/requirements/Testing_Strategy.md)                           |
+| Manual API and browser procedures                  | [Manual testing](docs/manual-testing/manual_testing.md)                                     |
+| Hosting, provider setup, backups, and alerts       | [Deployment](docs/ops/deployment.md)                                                        |
+| Dated prelaunch security findings                  | [Security review](docs/ops/security-review.md)                                              |
+| Release procedure and history                      | [RELEASE.md](RELEASE.md), [CHANGELOG.md](CHANGELOG.md)                                      |
 
-1. Install root dependencies with `npm install`.
-2. Install API and web dependencies with `npm --prefix apps/api install` and
-   `npm --prefix apps/web install`.
-3. **(Recommended)** Start local MySQL and apply migrations — see [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
-4. Start the API with `npm --prefix apps/api run start:dev` (defaults to `http://localhost:4000/api`).
-5. In another terminal, start the Angular app with `npm run web:start`, then
-   open `http://localhost:4200`.
-6. Use the `docs/` tree as the source of truth for roadmap, product, and data-model context while you work.
+The runtime database authority is [apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma)
+and its [migration directory](apps/api/prisma/migrations).
+SQL, Prisma, and ERD files under `docs/database` preserve the original design targets.
+They are not deployment inputs.
 
-## API Documentation
+## Repository layout
 
-With the API running and `OPENAPI_ENABLED=true` (the default outside production),
-the generated contract is available at:
+- `apps/api`: NestJS 11 API, Prisma persistence, jobs, and operator import tools.
+- `apps/web`: Angular 22.2.1 SPA, TypeScript 6.0.3, Vitest, and Playwright.
+- `docs/product`: scope, contracts, requirements, and original story acceptance criteria.
+- `docs/database`: API inventory, migration guide, lifecycle policy, and conceptual schemas.
+- `docs/ops`: deployment procedures and dated security evidence.
+- `scripts`: local MySQL, HTTP smoke, verification, and production health tools.
 
-- Interactive Swagger UI: `http://localhost:4000/api/docs`
-- OpenAPI JSON: `http://localhost:4000/api/openapi.json`
-- OpenAPI YAML: `http://localhost:4000/api/openapi.yaml`
+## License and access
 
-Swagger UI supports live requests and persists the bearer token entered through
-**Authorize** for the current browser session. Obtain a development token from
-`POST /api/auth/register`, or use a passkey/OAuth flow. Test-only hello and
-forced-error routes are intentionally excluded from the public contract.
-
-The generated contract is the machine-readable source of truth for shipped
-HTTP routes. The [master API inventory](./docs/database/API_Inventory.md)
-provides design context and clearly labels future routes; the
-[manual testing guide](./docs/manual-testing/manual_testing.md) contains
-end-to-end curl workflows.
-
-## Common Commands
-
-- `npm run prepare` installs Husky hooks for the repo.
-- `./scripts/docker-mysql.sh start` starts MySQL 8 in Docker for local persistence.
-- `npm --prefix apps/api run build` builds the NestJS API.
-- `npm --prefix apps/api run lint` runs the API lint checks.
-- `npm --prefix apps/api run test` runs the API unit test suite.
-- `npm --prefix apps/api run test:cov` runs unit tests with **90%** global coverage gates.
-- `npm --prefix apps/api run test:e2e` runs the API end-to-end suite (seed mode; see `apps/api/test/setup-e2e.ts`).
-- `npm --prefix apps/api run db:deploy` applies Prisma migrations to MySQL.
-- `npm --prefix apps/api run test:mysql:trading` runs the isolated real-MySQL paper-trading persistence/race/restart gate (requires an exported `DATABASE_URL`).
-- `npm run web:start` starts Angular on port 4200 with `/api` proxied to the API.
-- `npm run web:build`, `npm run web:lint`, and `npm run web:test` run the web gates.
-- `./scripts/smoke-test-api.sh --sprint all` runs HTTP smoke tests against an already-running API; it honors an exported `DATABASE_URL` but does not load `.env` itself.
-- `./scripts/sprint-delivery-verify.sh verify` runs build, lint, test, test:cov, test:e2e, then smoke tests in **seed mode** (clears `DATABASE_URL` for the smoke API even when `apps/api/.env` defines it).
-- `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify` runs the same gates, deploys pending migrations, verifies isolated transactional backtest and paper-trading round trips (including idempotency/restart ownership), ingests the rolling seed window, smoke tests with MySQL, and restarts the API to verify strategy persistence (loads `DATABASE_URL` from `apps/api/.env`).
-
-## Environment & Configuration
-
-Configuration lives in `apps/api/.env` (copy from `apps/api/.env.example`; never commit `.env`).
-
-| Variable | Purpose |
-| --- | --- |
-| `NODE_ENV` | `development`, `test`, or `production` (default `development`). |
-| `DATABASE_URL` | MySQL connection URL. Omit for in-memory seed mode. |
-| `INGESTION_SCHEDULER_ENABLED` | Hourly background imports. When unset: `true` if `NODE_ENV=development`, otherwise `false`. Always off when `NODE_ENV=test`. Set `false` during manual ingestion tests. |
-| `JOB_TIMEOUT_MS` | Job executor timeout (default `30000`). |
-| `JOBS_SYSTEM_USER_ID` | User id for scheduled jobs (default matches migration seed). |
-| `PORT` | API listen port (default `4000`). |
-| `READINESS_TIMEOUT_MS` | Per-dependency readiness timeout (default `1500`). |
-| `MARKET_DATA_HEALTH_URL` | Optional URL probed by `/health/ready` `checks.marketData` (can point at `/api/market-data/health`). |
-| `MARKET_DATA_STALE_EQUITY_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_DAILY_MS` / `MARKET_DATA_STALE_CRYPTO_HOURLY_MS` | Domain health staleness thresholds (defaults 48h / 36h / 2h). |
-| `METRICS_ENABLED` | In-process metrics at `GET /api/metrics` (default `true`). |
-| `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine deadline and allocation guards (defaults `5000` / `10000` / `250000`). |
-| `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS` | Per-user `POST /api/backtests` rate limit (defaults `60000` / `10`). |
-| `PAPER_STARTING_BALANCE` | Default USD balance provisioned for a new paper account (default `100000.00`). |
-| `TRADING_MAX_ORDER_NOTIONAL` | Maximum unrounded market-order notional before a persisted rejection (default `25000`). |
-| `TRADING_MAX_POSITION_PCT` | Maximum resulting single-symbol percentage of pre-trade equity for BUY orders (default `25`). |
-| `TRADING_MIN_CASH_REMAINING` | Minimum cash required after a BUY using the rounded cash notional (default `0`). |
-| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX_REQUESTS` | Auth ceremony and dev email register/login rate limits (defaults `60000` / `30`). |
-| `AUTH_SESSION_TTL_SECONDS` / `AUTH_CHALLENGE_TTL_SECONDS` / `AUTH_OAUTH_STATE_TTL_SECONDS` | Session/challenge/state lifetimes (defaults `43200` / `300` / `300`). |
-| `AUTH_DEV_EMAIL_ENABLED` | Dev email register/login shortcuts (default `true` outside production; must be `false` in production). |
-| `AUTH_LEGACY_WEBAUTHN_ENABLED` | Legacy WebAuthn bypass for local automation (default `true` outside production; must be `false` in production). |
-| `ERROR_TEST_ENABLED` | Forced-error test routes (default `true` only when `NODE_ENV=test`; must be `false` in production). |
-| `OPENAPI_ENABLED` | Swagger UI and OpenAPI JSON/YAML (default `true` outside production; default `false` in production). |
-| `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ALLOWED_ORIGINS` | WebAuthn relying-party settings; production requires explicit allowed origins. |
-| `GOOGLE_OAUTH_*` / `APPLE_OAUTH_*` | Optional provider credentials and callback URLs; each provider's required set must be complete. |
-| `AUTH_OAUTH_BROWSER_CALLBACK_URL` | Fixed SPA OAuth callback destination (`/auth/oauth/callback`); use the exact HTTPS URL in production. |
-| `LOG_LEVEL` / `LOG_TO_FILE` / `LOG_FILE_PATH` | Log level and optional file logging (see Observability.md). |
-
-The API loads `apps/api/.env` automatically on startup via `src/load-env.ts`. Restart after editing `.env`.
-
-**MySQL with Docker:** full setup in [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md).
-
-- Start database: `./scripts/docker-mysql.sh start`
-- Apply migrations: `npm --prefix apps/api run db:deploy`
-- Manual API + Angular smoke guide: [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
-  (Section 12 paper trading; Section 13 Milestone 5 UI)
-
-## Testing & Quality Gates
-
-- Run `./scripts/sprint-delivery-verify.sh verify` for API and web build, lint,
-  unit, coverage/e2e, audit, and seed HTTP smoke gates.
-- Unit tests enforce **90%** global coverage (`branches`, `functions`, `lines`, `statements`).
-- E2E tests always run in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so they do not depend on a local MySQL instance.
-- `./scripts/sprint-delivery-verify.sh verify` starts the API for smoke tests in seed mode (clears `DATABASE_URL` for that process). Use `KEEP_DATABASE_URL=1` to run smoke against MySQL using `DATABASE_URL` from `apps/api/.env`.
-- Documentation-heavy releases should verify consistency across the roadmap, MVP, API inventory, and schema documents.
-
-## Release Process
-
-- Keep the root `CHANGELOG.md` updated under `## [Unreleased]`.
-- Cut release branches as `release/vX.Y.Z` from `main`.
-- Use repo-level tags and release notes even when a release only affects `apps/api`; note the scope clearly in the changelog entry.
-- Follow the full checklist in [RELEASE.md](./RELEASE.md).
-
-## Additional Docs
-
-- [docs/product/MVP.md](./docs/product/MVP.md)
-- [docs/product/ROADMAP.md](./docs/product/ROADMAP.md)
-- [docs/product/UX_Flows.md](./docs/product/UX_Flows.md)
-- [docs/database/API_Inventory.md](./docs/database/API_Inventory.md)
-- [docs/database/schema.prisma](./docs/database/schema.prisma) (full MVP target schema)
-- [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) (runnable persistence schema including AI usage and browser OAuth/recovery)
-- [docs/plans/README.md](./docs/plans/README.md) (retained implementation contracts and remaining release prerequisites)
-- [docs/ops/security-review.md](./docs/ops/security-review.md) (review findings, verification and rollout limits)
-- [docs/database/Local_MySQL.md](./docs/database/Local_MySQL.md)
-- [docs/manual-testing/manual_testing.md](./docs/manual-testing/manual_testing.md)
-
-## License & Access
-
-UNLICENSED and proprietary.
+The repository is proprietary and `UNLICENSED`.

@@ -53,6 +53,10 @@ export interface AiSuggestImprovementsResponse {
   confidence: AiConfidence;
   ai_request_id: string;
   suggestions: AiSuggestion[];
+  diff?: {
+    summary: string;
+    changes: { path: string; from: number; to: number; rationale: string }[];
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -111,7 +115,5 @@ function toUserError(error: HttpErrorResponse) {
   if (code === 'AI_TIMEOUT' || error.status === 504) {
     return throwError(() => new Error('Kernel AI timed out. Retry in a moment.'));
   }
-  return throwError(
-    () => new Error(body?.detail || error.message || 'Kernel AI request failed.'),
-  );
+  return throwError(() => new Error(body?.detail || error.message || 'Kernel AI request failed.'));
 }

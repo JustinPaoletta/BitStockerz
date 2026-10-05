@@ -8,6 +8,7 @@ import { AuthGuard } from './auth.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { AuthPersistenceService } from './auth-persistence.service';
 import { AuthService } from './auth.service';
+import { SecurityController } from './security.controller';
 import { MeController } from './me.controller';
 
 @Module({
@@ -17,7 +18,7 @@ import { MeController } from './me.controller';
     PaperAccountProvisioningModule,
     forwardRef(() => ObservabilityModule),
   ],
-  controllers: [AuthController, MeController],
+  controllers: [AuthController, MeController, SecurityController],
   providers: [
     AuthPersistenceService,
     AuthService,

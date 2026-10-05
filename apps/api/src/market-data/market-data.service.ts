@@ -191,6 +191,7 @@ export class MarketDataService {
   async getLatestClose(
     rawSymbol: string,
     now = new Date(),
+    preferredInterval?: '1d' | '1h',
   ): Promise<LatestClose> {
     const symbol = await this.lookupSymbol(rawSymbol);
     let bar:
@@ -214,20 +215,25 @@ export class MarketDataService {
       }
       staleAfterMs = this.config.marketData.staleEquityDailyMs;
     } else {
-      const daily = this.prisma.isEnabled
-        ? await this.prisma.cryptoDailyBar.findFirst({
-            where: { symbolId: symbol.id },
-            orderBy: { date: 'desc' },
-          })
-        : SEED_CRYPTO_DAILY_BARS.filter(
-            (candidate) => candidate.symbolId === symbol.id,
-          ).sort(
-            (left, right) => right.date.getTime() - left.date.getTime(),
-          )[0];
+      const daily =
+        preferredInterval === '1h'
+          ? undefined
+          : this.prisma.isEnabled
+            ? await this.prisma.cryptoDailyBar.findFirst({
+                where: { symbolId: symbol.id },
+                orderBy: { date: 'desc' },
+              })
+            : SEED_CRYPTO_DAILY_BARS.filter(
+                (candidate) => candidate.symbolId === symbol.id,
+              ).sort(
+                (left, right) => right.date.getTime() - left.date.getTime(),
+              )[0];
       if (daily) {
         bar = { close: daily.close, timestamp: daily.date, interval: '1d' };
         staleAfterMs = this.config.marketData.staleCryptoDailyMs;
       } else {
+        if (preferredInterval === '1d')
+          throw new DomainError(ErrorCode.TRADING_NO_MARKET_PRICE);
         const hourly = this.prisma.isEnabled
           ? await this.prisma.cryptoHourlyBar.findFirst({
               where: { symbolId: symbol.id },

@@ -39,6 +39,6 @@ import { StrategyVersionPinningService } from './strategy-version-pinning';
     BacktestsService,
     StrategyVersionPinningService,
   ],
-  exports: [BacktestEngineService, BacktestsService],
+  exports: [BacktestEngineService, BacktestsService, BacktestsRepository],
 })
 export class BacktestModule {}

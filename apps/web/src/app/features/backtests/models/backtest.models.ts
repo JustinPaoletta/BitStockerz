@@ -9,6 +9,7 @@ export interface BacktestRun {
   start_date: string;
   end_date: string;
   initial_equity: string;
+  simulation?: SimulationSettings;
   status: BacktestStatus;
   job_id?: string;
   error_message?: string;
@@ -27,6 +28,12 @@ export interface BacktestDiagnostics {
 }
 
 export interface BacktestResults {
+  benchmark?: {
+    final_equity: string;
+    total_return_pct: string;
+    max_drawdown_pct: string;
+    equity_curve: EquityPoint[];
+  };
   final_equity: string;
   total_return_pct: string;
   max_drawdown_pct: string;
@@ -46,6 +53,7 @@ export interface BacktestTrade {
   entry_price: string;
   exit_price: string;
   quantity: string;
+  fees_abs?: string;
   pnl_abs: string;
   pnl_pct: string;
 }
@@ -84,6 +92,7 @@ export interface CreateBacktestRequest {
   start_date: string;
   end_date: string;
   initial_equity: number;
+  simulation?: SimulationSettings;
 }
 
 export interface CreateBacktestResponse {
@@ -99,4 +108,12 @@ export interface ProblemDetails {
 export interface ChartPoint {
   time: string | number;
   value: number;
+}
+
+export interface SimulationSettings {
+  allocation_pct: number;
+  commission_bps: number;
+  slippage_bps: number;
+  execution_timing: 'signal_close' | 'next_open';
+  evaluation_period: 'research' | 'out_of_sample';
 }

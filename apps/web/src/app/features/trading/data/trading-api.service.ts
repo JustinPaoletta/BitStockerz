@@ -106,6 +106,18 @@ export class TradingApiService {
       .pipe(catchError(toUserError));
   }
 
+  latestClose(symbol: string) {
+    return this.http
+      .get<{ price: string; as_of: string; interval: string }>(
+        `/api/workspace/prices/${encodeURIComponent(symbol)}`,
+      )
+      .pipe(catchError(toUserError));
+  }
+  exportExecutions() {
+    return this.http
+      .get('/api/trading/executions.csv', { responseType: 'text' })
+      .pipe(catchError(toUserError));
+  }
   placeOrder(body: PlaceOrderRequest): Observable<PlaceOrderResponse> {
     return this.http
       .post<PlaceOrderResponse>('/api/trading/orders', body)

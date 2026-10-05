@@ -20,7 +20,7 @@ describe('SeedMarketDataProvider', () => {
 describe('LiveMarketDataProvider', () => {
   const provider = new LiveMarketDataProvider();
 
-  it('rejects permanently until a vendor adapter is wired', async () => {
+  it('rejects permanently until vendor credentials are configured', async () => {
     await expect(provider.fetchEquityDaily(1, 'AAPL')).rejects.toBeInstanceOf(
       PermanentProviderError,
     );

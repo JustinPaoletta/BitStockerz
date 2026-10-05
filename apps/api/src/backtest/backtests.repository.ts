@@ -1,3 +1,4 @@
+import { normalizeSimulation } from './engine/simulation-settings';
 import { Injectable } from '@nestjs/common';
 import type {
   BacktestEquityPoint,
@@ -42,6 +43,16 @@ export class BacktestsRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  exportMemoryForUser(userId: string) {
+    return [...this.inMemoryRuns.values()]
+      .filter((item) => item.run.userId === userId)
+      .map((item) => clone(item));
+  }
+  forgetUser(userId: string): void {
+    for (const [id, item] of this.inMemoryRuns)
+      if (item.run.userId === userId) this.inMemoryRuns.delete(id);
+  }
+
   async createRun(record: BacktestRunRecord): Promise<BacktestRunRecord> {
     if (this.prisma.isEnabled) {
       const created = await this.prisma.backtestRun.create({
@@ -55,6 +66,9 @@ export class BacktestsRepository {
           startDate: record.startDate,
           endDate: record.endDate,
           initialEquity: record.initialEquity,
+          ...(record.simulation
+            ? { simulationJson: { ...record.simulation } }
+            : {}),
           status: record.status,
           jobId: record.jobId ?? null,
           errorMessage: null,
@@ -378,6 +392,9 @@ export class BacktestsRepository {
       await transaction.backtestResult.create({
         data: {
           backtestRunId: runId,
+          ...(completion.result.benchmark
+            ? { benchmarkJson: { ...completion.result.benchmark } }
+            : {}),
           finalEquity: completion.result.finalEquity,
           totalReturnPct: completion.result.totalReturnPct,
           maxDrawdownPct: completion.result.maxDrawdownPct,
@@ -414,6 +431,7 @@ export class BacktestsRepository {
           entryPrice: trade.entryPrice,
           exitPrice: trade.exitPrice,
           quantity: trade.quantity,
+          feesAbs: trade.feesAbs ?? '0',
           pnlAbs: trade.pnlAbs,
           pnlPct: trade.pnlPct,
         }));
@@ -484,6 +502,15 @@ function fromPrismaRun(record: BacktestRun): BacktestRunRecord {
     startDate: record.startDate,
     endDate: record.endDate,
     initialEquity: record.initialEquity.toFixed(2),
+    ...(record.simulationJson
+      ? {
+          simulation: normalizeSimulation(
+            record.simulationJson as unknown as Parameters<
+              typeof normalizeSimulation
+            >[0],
+          ),
+        }
+      : {}),
     status: record.status as BacktestStatus,
     ...(record.jobId === null ? {} : { jobId: record.jobId }),
     ...(record.errorMessage === null
@@ -500,6 +527,13 @@ function fromPrismaResult(
   record: BacktestResult,
 ): BacktestRunSummary['result'] {
   return {
+    ...(record.benchmarkJson
+      ? {
+          benchmark: record.benchmarkJson as unknown as NonNullable<
+            BacktestRunSummary['result']
+          >['benchmark'],
+        }
+      : {}),
     finalEquity: record.finalEquity.toFixed(2),
     totalReturnPct: record.totalReturnPct.toFixed(4),
     maxDrawdownPct: record.maxDrawdownPct.toFixed(4),
@@ -532,6 +566,9 @@ function fromPrismaDetail(record: PrismaBacktestRunDetail): BacktestRunDetail {
       entryPrice: trade.entryPrice.toFixed(8),
       exitPrice: trade.exitPrice.toFixed(8),
       quantity: trade.quantity.toFixed(8),
+      ...(trade.feesAbs && Number(trade.feesAbs) > 0
+        ? { feesAbs: trade.feesAbs.toFixed(8) }
+        : {}),
       pnlAbs: trade.pnlAbs.toFixed(8),
       pnlPct: trade.pnlPct.toFixed(4),
     })),

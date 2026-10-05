@@ -10,8 +10,12 @@ primary_region = "iad"
 [env]
   NODE_ENV = "production"
   PORT = "4000"
-  INGESTION_SCHEDULER_ENABLED = "true"
+  INGESTION_SCHEDULER_ENABLED = "false"
   AI_ENABLED = "false"
+  AUTH_DEV_EMAIL_ENABLED = "false"
+  AUTH_LEGACY_WEBAUTHN_ENABLED = "false"
+  ERROR_TEST_ENABLED = "false"
+  OPENAPI_ENABLED = "false"
   CACHE_ENABLED = "true"
   MARKET_DATA_LIVE_ENABLED = "false"
 

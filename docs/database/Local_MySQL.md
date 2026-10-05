@@ -1,10 +1,10 @@
 # Local MySQL (Docker)
 
-The BitStockerz API uses **MySQL 8** via Prisma. Database backing is optional for
-local development/tests: without `DATABASE_URL`, the API runs in in-memory seed
-mode. Production requires configured MySQL/MariaDB persistence and fails closed
-without it. Use MySQL to persist auth/recovery state, jobs, ingested OHLCV bars,
-symbols, audit events, strategies/versions, backtests, paper trading and AI quotas.
+The API uses MySQL 8 through Prisma. Database persistence is optional for local development and tests.
+Without `DATABASE_URL`, the API uses in-memory seed data.
+Production requires configured MySQL/MariaDB persistence and fails closed without it.
+
+MySQL persists auth/recovery state, jobs, market data, symbols, audit events, strategies, backtests, paper trading, and AI quotas.
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ Expected when MySQL is up:
 ```json
 {
   "status": "up",
-  "latencyMs": <number>
+  "latencyMs": 12
 }
 ```
 
@@ -51,16 +51,16 @@ Expected when MySQL is up:
 
 These match `scripts/docker-mysql.sh` and `apps/api/.env.example`:
 
-| Setting | Value |
-| --- | --- |
-| Container name | `bitstockerz-db` |
-| Image | `mysql:8` |
-| Host port | `3306` |
-| Database | `bitstockerz` |
-| User | `bitstockerz` |
-| Password | `devpassword` |
-| Root password | `devpassword` |
-| Data volume | `bitstockerz-mysql-data` |
+| Setting        | Value                    |
+| -------------- | ------------------------ |
+| Container name | `bitstockerz-db`         |
+| Image          | `mysql:8`                |
+| Host port      | `3306`                   |
+| Database       | `bitstockerz`            |
+| User           | `bitstockerz`            |
+| Password       | `devpassword`            |
+| Root password  | `devpassword`            |
+| Data volume    | `bitstockerz-mysql-data` |
 
 Connection URL:
 
@@ -74,13 +74,13 @@ mysql://bitstockerz:devpassword@localhost:3306/bitstockerz
 
 `scripts/docker-mysql.sh` wraps common operations:
 
-| Command | Action |
-| --- | --- |
-| `./scripts/docker-mysql.sh start` | Create or start the container; wait until MySQL accepts connections |
-| `./scripts/docker-mysql.sh stop` | Stop the container |
-| `./scripts/docker-mysql.sh status` | Show container status and port mapping |
-| `./scripts/docker-mysql.sh logs` | Tail MySQL logs |
-| `./scripts/docker-mysql.sh reset` | Remove container; optionally delete the data volume |
+| Command                            | Action                                                              |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `./scripts/docker-mysql.sh start`  | Create or start the container; wait until MySQL accepts connections |
+| `./scripts/docker-mysql.sh stop`   | Stop the container                                                  |
+| `./scripts/docker-mysql.sh status` | Show container status and port mapping                              |
+| `./scripts/docker-mysql.sh logs`   | Tail MySQL logs                                                     |
+| `./scripts/docker-mysql.sh reset`  | Remove container; optionally delete the data volume                 |
 
 Override defaults with environment variables when starting:
 
@@ -92,48 +92,39 @@ BITSTOCKERZ_MYSQL_PASSWORD=secret \
 
 Update `DATABASE_URL` in `apps/api/.env` to match any overrides.
 
-## Environment variables (`apps/api/.env`)
+## Environment configuration
 
-Copy from `apps/api/.env.example`. Never commit `.env`.
+Copy `apps/api/.env.example` to `apps/api/.env`.
+Do not commit `.env`.
+Set `DATABASE_URL` to the local database connection URL.
+Keep scheduling disabled during manual ingestion tests.
+See the [API configuration table](../../apps/api/README.md#configuration) for defaults and production requirements.
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `DATABASE_URL` | No | MySQL connection URL. Omit for in-memory mode. |
-| `PORT` | No | API port (default `4000`). |
-| `NODE_ENV` | No | `development`, `test`, or `production`. |
-| `INGESTION_SCHEDULER_ENABLED` | No | Hourly background imports. When unset: `true` if `NODE_ENV=development`, otherwise `false`. Always off when `NODE_ENV=test`. Set `false` while manually testing ingestion. |
-| `JOB_TIMEOUT_MS` | No | Job executor timeout (default `30000`). |
-| `JOBS_SYSTEM_USER_ID` | No | User id for scheduled jobs (default matches migration seed). |
-| `MARKET_DATA_HEALTH_URL` | No | Optional URL for `/health/ready` `checks.marketData`. |
-| `PAPER_STARTING_BALANCE` | No | New-account USD balance (default `100000.00`). |
-| `TRADING_MAX_ORDER_NOTIONAL` | No | Maximum order notional (default `25000`). |
-| `TRADING_MAX_POSITION_PCT` | No | Maximum resulting single-symbol equity percentage (default `25`). |
-| `TRADING_MIN_CASH_REMAINING` | No | Minimum cash after BUY (default `0`). |
-
-Prisma CLI commands (`db:deploy`, `db:migrate`) load `apps/api/.env` automatically via `prisma.config.ts`.
+Prisma CLI commands load `apps/api/.env` through `prisma.config.ts`.
+The server also loads this file on startup; restart after configuration changes.
 
 ## Migrations
 
-| Command | When to use |
-| --- | --- |
-| `npm --prefix apps/api run db:deploy` | Apply existing migrations (CI, fresh DB, after pull) |
+| Command                                | When to use                                            |
+| -------------------------------------- | ------------------------------------------------------ |
+| `npm --prefix apps/api run db:deploy`  | Apply existing migrations (CI, fresh DB, after pull)   |
 | `npm --prefix apps/api run db:migrate` | Create new migrations during development (interactive) |
 
 Migration folders live in `apps/api/prisma/migrations/`. See [Migrations_Plan.md](./Migrations_Plan.md) for sprint mapping.
 
 ## In-memory vs MySQL behavior
 
-| Feature | No `DATABASE_URL` | With MySQL |
-| --- | --- | --- |
-| Auth / sessions / passkeys / OAuth handoffs | Process-local auth and one-use ceremony state | Persisted in MySQL (`users`, `auth_sessions`, `webauthn_credentials`, `oauth_identities`, `webauthn_challenges`, `oauth_states`, `oauth_handoffs`); users and sessions hydrate on startup and one-use ceremonies redeem through persistence. User ids stay stable across restarts; use passkey/OAuth or dev email login instead of registering the same email again. Successful signup provisions the paper account. |
-| Symbol lookup | Seed data in process | DB rows (empty until seeded/imported) |
-| Candle reads | In-memory seed bars | DB bars (empty until ingestion) |
-| Jobs / ingestion | In-memory job store | `jobs` table; ingestion upserts bar tables |
-| Strategies | In-memory owner-scoped store | `strategies` + immutable `strategy_versions`; metadata/version 1 survive API restarts |
-| Backtests | In-memory owner-scoped copy-on-write aggregates | `backtest_runs`, one-to-one results, trades, and equity points; terminal completion is transactional and immutable |
-| Paper trading | Per-account mutex/copy-on-write maps | `paper_accounts`, `orders`, `executions`, and `positions`; serializable fills lock the account and commit terminal state atomically |
-| AI daily quota | Per-user/day process-local map | `ai_usage` with serialized concurrent quota updates |
-| `/health/ready` `database` | `{ status: "not_configured" }` | `{ status: "up", latencyMs }` when reachable |
+| Feature                                     | No `DATABASE_URL`                               | With MySQL                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth / sessions / passkeys / OAuth handoffs | Process-local auth and one-use ceremony state   | Persisted in MySQL (`users`, `auth_sessions`, `webauthn_credentials`, `oauth_identities`, `webauthn_challenges`, `oauth_states`, `oauth_handoffs`); users and sessions hydrate on startup and one-use ceremonies redeem through persistence. User ids stay stable across restarts; use passkey/OAuth or dev email login instead of registering the same email again. Successful signup provisions the paper account. |
+| Symbol lookup                               | Seed data in process                            | DB rows (empty until seeded/imported)                                                                                                                                                                                                                                                                                                                                                                                |
+| Candle reads                                | In-memory seed bars                             | DB bars (empty until ingestion)                                                                                                                                                                                                                                                                                                                                                                                      |
+| Jobs / ingestion                            | In-memory job store                             | `jobs` table; ingestion upserts bar tables                                                                                                                                                                                                                                                                                                                                                                           |
+| Strategies                                  | In-memory owner-scoped store                    | `strategies` + immutable `strategy_versions`; metadata/version 1 survive API restarts                                                                                                                                                                                                                                                                                                                                |
+| Backtests                                   | In-memory owner-scoped copy-on-write aggregates | `backtest_runs`, one-to-one results, trades, and equity points; terminal completion is transactional and immutable                                                                                                                                                                                                                                                                                                   |
+| Paper trading                               | Per-account mutex/copy-on-write maps            | `paper_accounts`, `orders`, `executions`, and `positions`; serializable fills lock the account and commit terminal state atomically                                                                                                                                                                                                                                                                                  |
+| AI daily quota                              | Per-user/day process-local map                  | `ai_usage` with serialized concurrent quota updates                                                                                                                                                                                                                                                                                                                                                                  |
+| `/health/ready` `database`                  | `{ status: "not_configured" }`                  | `{ status: "up", latencyMs }` when reachable                                                                                                                                                                                                                                                                                                                                                                         |
 
 After enabling MySQL on a fresh database, run ingestion (manual testing **Section 8**) before expecting candle endpoints to return data.
 
@@ -151,9 +142,19 @@ load_database_url_from_api_env "$PWD/apps/api"
 ./scripts/smoke-test-api.sh --sprint all
 ```
 
-The verify script runs e2e in seed mode (`NODE_ENV=test`, no `DATABASE_URL`) so unit/e2e gates do not require MySQL. Its smoke phase also uses seed mode by default: it sets `DATABASE_URL=` (empty) rather than unsetting it, so `load-env.ts` (`override: false`) does not refill the URL from `apps/api/.env`. Set `KEEP_DATABASE_URL=1` to deploy migrations, run transactional backtest and paper-trading persistence round trips, smoke with MySQL, verify persisted candles, restart the API, and prove the original strategy remains readable after same-email login. The trading gate checks provisioning, a concurrent idempotency race, risk rejection, cash/position/history/MTM state, and post-restart auth hydration before removing its isolated fixtures.
+The verification script runs HTTP e2e in seed mode without MySQL.
+Its smoke API also defaults to seed mode.
+It exports an empty `DATABASE_URL`, preventing `load-env.ts` from loading a URL from `.env`.
 
-The standalone smoke script deliberately does not load `.env`; it uses only an already-exported `DATABASE_URL` so its seed/MySQL assertions cannot silently disagree with the mode of the API process being tested.
+With `KEEP_DATABASE_URL=1`, the script applies migrations and runs backtest, trading, and recovery MySQL gates.
+It ingests the rolling fixture window, tests persisted reads, and restarts the API to test strategy ownership.
+The trading gate includes provisioning, concurrent idempotency, rejection, cash/position/history/valuation, and auth hydration.
+Its fixtures are isolated and removed afterward.
+
+The script omits MySQL security/workspace gates, native OAuth/CLI tests, and Playwright.
+Run those separately through the [testing strategy](../product/requirements/Testing_Strategy.md).
+The standalone smoke script uses only an exported `DATABASE_URL`; it does not load `.env`.
+Match that environment to the running API's data mode.
 
 ## Troubleshooting
 
@@ -184,8 +185,8 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 - Log in (or register a new email) to get a fresh bearer token, then retry
   Section 8 curls.
 - If the error mentions `users_email_key`, a stale `users` row from an earlier
-  experiment may conflict with a new signup. Reset the dev DB
-  (`./scripts/docker-mysql.sh reset`) or use a new email.
+  experiment may conflict with a new signup. Sign in to the existing account or use a new test email.
+  Reset only a disposable database whose contents you can delete.
 
 **Migrations fail**
 
@@ -193,7 +194,8 @@ BITSTOCKERZ_MYSQL_PORT=3307 ./scripts/docker-mysql.sh start
 npm --prefix apps/api run db:deploy
 ```
 
-If the schema drifted during local experiments, reset the dev database:
+If local experiments caused schema drift, inspect the migration history first.
+Reset only a disposable development database; this removes its data.
 
 ```bash
 ./scripts/docker-mysql.sh reset   # deletes container + optional volume

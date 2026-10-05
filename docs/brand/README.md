@@ -24,18 +24,18 @@ uses a simple mark-and-name lockup without a miniature tagline.
 
 ## Palette
 
-| Role | Color |
-| --- | --- |
+| Role                                 | Color     |
+| ------------------------------------ | --------- |
 | Citron / identity and primary action | `#D7F86B` |
-| Hover | `#E5FF97` |
-| Ink / background | `#10120F` |
-| Surface | `#181B16` |
-| Raised surface | `#22261E` |
-| Border | `#363C30` |
-| Chalk / primary text | `#F3F4ED` |
-| Muted text | `#ACB3A3` |
-| Positive data | `#80E8C0` |
-| Negative data | `#FF7B87` |
+| Hover                                | `#E5FF97` |
+| Ink / background                     | `#10120F` |
+| Surface                              | `#181B16` |
+| Raised surface                       | `#22261E` |
+| Border                               | `#363C30` |
+| Chalk / primary text                 | `#F3F4ED` |
+| Muted text                           | `#ACB3A3` |
+| Positive data                        | `#80E8C0` |
+| Negative data                        | `#FF7B87` |
 
 Citron identifies the product and actions; positive/negative values retain
 separate semantic colors and text labels. Use dark text on citron buttons.
@@ -44,6 +44,7 @@ separate semantic colors and text labels. Use dark text on citron buttons.
 
 **Find your edge. Then test it.** Be concise and process-oriented. Describe
 research, backtesting, and paper trading without promising financial results.
+
 Use Helvetica Neue, Helvetica, Arial, and sans-serif fallbacks. Keep display
 headings medium weight, with tabular numerals for data. Use the symbol's angular
 geometry as the decorative motif instead of fictional performance charts.
@@ -57,9 +58,8 @@ artwork is constructed for BitStockerz; no reference logo assets are included.
 
 ## Application coverage
 
-Dashboard, Trade desk, Strategy Lab (list, editor, detail), Backtests (list,
-runner, result), authentication, AI panels, empty/error/loading states, and
-symbol search inherit the shared CSS tokens. Canvas charts read those same
+Dashboard, Trade, Strategy Lab, Backtests, authentication, AI panels, and symbol search use shared CSS tokens.
+Loading, empty, and error states use the same tokens. Canvas charts read those same
 tokens through computed styles. Keep new component colors in `src/styles.css`;
 do not introduce independent palette hex values in component styles. Citron is
 for actions and brand emphasis; mint and rose retain gain/loss meaning.

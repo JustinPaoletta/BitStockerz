@@ -1,3 +1,11 @@
+# BitStockerz — Original DBML export
+
+This DBML preserves the original MVP design for dbdiagram.io.
+Copy the code block into a DBML diagram tool.
+It omits subsequent auth and product-workspace tables and is not a migration source.
+Use [the domain overview](BitStockerz_ERD.md) for scope and current-schema references.
+
+```dbml
 ////////////////////////////////////////////////////
 // BitStockerz - DBML for dbdiagram.io
 // Full MVP target structural schema. The runnable
@@ -316,3 +324,4 @@ Ref: backtest_trades.symbol_id              > symbols.id
 Ref: ai_usage.user_id     > users.id
 Ref: jobs.user_id         > users.id
 Ref: audit_events.user_id > users.id
+```

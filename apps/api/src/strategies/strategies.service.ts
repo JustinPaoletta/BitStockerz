@@ -50,6 +50,22 @@ export class StrategiesService {
     private readonly audit: AuditService,
   ) {}
 
+  exportMemoryForUser(userId: string) {
+    return structuredClone(
+      [...this.inMemoryStrategies.values()].filter(
+        (item) => item.userId === userId,
+      ),
+    );
+  }
+  forgetUser(userId: string): void {
+    for (const [id, item] of this.inMemoryStrategies)
+      if (item.userId === userId) {
+        this.inMemoryStrategies.delete(id);
+      }
+    for (const key of this.inMemoryNameKeys)
+      if (key.startsWith(userId + '\u0000')) this.inMemoryNameKeys.delete(key);
+  }
+
   async create(
     userId: string,
     input: CreateStrategyInput,

@@ -1,8 +1,24 @@
-import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { downloadText } from '../../../shared/format/download';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { distinctUntilChanged, firstValueFrom, map } from 'rxjs';
+import {
+  distinctUntilChanged,
+  firstValueFrom,
+  map,
+  startWith,
+  switchMap,
+  catchError,
+  of,
+} from 'rxjs';
 import { BsCurrencyPipe, BsDateTimePipe } from '../../../shared/format/display.pipes';
 import { SymbolSearchComponent } from '../../../shared/symbols/symbol-search.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
@@ -79,6 +95,15 @@ import { nextClientOrderId } from '../data/client-order-id';
 
       <section class="panel block">
         <h2>Order ticket</h2>
+        @if (latestPrice(); as price) {
+          <p class="hint">
+            Latest {{ price.interval }} close: {{ price.price }} USD ·
+            {{ price.as_of | bsDateTime }}. Paper orders fill from this latest-close series, not a
+            live quote.
+          </p>
+        } @else {
+          <p class="hint">{{ priceError() || 'Loading latest close…' }}</p>
+        }
         <form [formGroup]="ticket" (ngSubmit)="submit()">
           <app-symbol-search formControlName="symbol" />
           <label for="side">Side</label>
@@ -175,6 +200,7 @@ import { nextClientOrderId } from '../data/client-order-id';
 
       <section class="panel block wide">
         <h2>Executions</h2>
+        <button class="button ghost small" (click)="exportHistory()">Export history CSV</button>
         @if (executionsLoading()) {
           <app-skeleton />
         } @else if (executionsError()) {
@@ -298,7 +324,37 @@ export class TradingWorkspacePage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
+  protected readonly latestPrice = signal<{
+    price: string;
+    as_of: string;
+    interval: string;
+  } | null>(null);
+  protected readonly priceError = signal('');
+  protected async exportHistory() {
+    try {
+      downloadText('paper-executions.csv', await firstValueFrom(this.api.exportExecutions()));
+    } catch (error) {
+      this.executionsError.set(error instanceof Error ? error.message : 'Export failed.');
+    }
+  }
   ngOnInit(): void {
+    this.ticket.controls.symbol.valueChanges
+      .pipe(
+        startWith(this.ticket.controls.symbol.value),
+        distinctUntilChanged(),
+        switchMap((symbol) => {
+          this.latestPrice.set(null);
+          this.priceError.set('');
+          return this.api.latestClose(symbol).pipe(
+            catchError((error) => {
+              this.priceError.set(error instanceof Error ? error.message : 'No current close.');
+              return of(null);
+            }),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((price) => this.latestPrice.set(price));
     this.ticket.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.clientOrderId = nextClientOrderId(this.clientOrderId, true, false);
       this.orderError.set('');

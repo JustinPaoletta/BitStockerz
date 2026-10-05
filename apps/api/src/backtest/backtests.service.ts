@@ -1,3 +1,4 @@
+import { normalizeSimulation } from './engine/simulation-settings';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
@@ -99,6 +100,9 @@ export class BacktestsService {
         'initialEquity',
         { positive: true },
       ),
+      ...(input.simulation
+        ? { simulation: normalizeSimulation(input.simulation) }
+        : {}),
       status: 'pending',
       ...(input.jobId === undefined ? {} : { jobId: input.jobId }),
       createdAt: now,
@@ -498,14 +502,59 @@ function mapCompletion(
       4,
       `trades[${index}].pnlPct`,
     );
+    const settings = normalizeSimulation(run.simulation);
+    const expectedFees = new Prisma.Decimal(entryPrice)
+      .plus(exitPrice)
+      .times(quantity)
+      .times(settings.commission_bps)
+      .div(10000);
+    const feesAbs = toPersistedDecimal(
+      trade.feesAbs ?? 0,
+      18,
+      8,
+      `trades[${index}].feesAbs`,
+      { nonNegative: true },
+    );
+    // Each stored price/quantity is rounded to 8 decimal places. Bound the
+    // resulting multiplication error rather than rejecting valid fractional fills.
+    const priceSum = new Prisma.Decimal(entryPrice)
+      .abs()
+      .plus(new Prisma.Decimal(exitPrice).abs());
+    const quantityAbs = new Prisma.Decimal(quantity).abs();
+    const feeRoundingTolerance = priceSum
+      .times('0.000000005')
+      .plus(quantityAbs.times('0.00000001'))
+      .times(settings.commission_bps)
+      .div(10000)
+      .plus('0.0000001');
+    const pnlRoundingTolerance = new Prisma.Decimal(exitPrice)
+      .minus(entryPrice)
+      .abs()
+      .times('0.000000005')
+      .plus(quantityAbs.times('0.00000001'))
+      .plus(feeRoundingTolerance);
+    if (
+      new Prisma.Decimal(feesAbs)
+        .minus(expectedFees)
+        .abs()
+        .greaterThan(feeRoundingTolerance)
+    ) {
+      throw backtestOutputError(
+        `Trade ${index} fees do not match the run commission.`,
+      );
+    }
     const expectedPnlAbs = new Prisma.Decimal(exitPrice)
       .minus(entryPrice)
       .times(quantity)
+      .minus(feesAbs)
       .toDecimalPlaces(8, Prisma.Decimal.ROUND_HALF_UP)
       .toFixed(8);
-    const expectedPnlPct = new Prisma.Decimal(exitPrice)
-      .div(entryPrice)
-      .minus(1)
+    const expectedPnlPct = new Prisma.Decimal(expectedPnlAbs)
+      .div(
+        new Prisma.Decimal(entryPrice)
+          .times(quantity)
+          .times(1 + settings.commission_bps / 10000),
+      )
       .times(100)
       .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP)
       .toFixed(4);
@@ -516,7 +565,7 @@ function mapCompletion(
       .minus(expectedPnlPct)
       .abs();
     if (
-      pnlAbsDifference.greaterThan('0.0000001') ||
+      pnlAbsDifference.greaterThan(pnlRoundingTolerance) ||
       pnlPctDifference.greaterThan('0.0001')
     ) {
       throw backtestOutputError(
@@ -532,6 +581,7 @@ function mapCompletion(
       entryPrice,
       exitPrice,
       quantity,
+      ...(Number(feesAbs) > 0 ? { feesAbs } : {}),
       pnlAbs: expectedPnlAbs,
       pnlPct: expectedPnlPct,
     };
@@ -569,7 +619,12 @@ function mapCompletion(
       'Final equity does not match the last equity-curve point.',
     );
   }
-  if (run.initialEquity !== equityCurve[0].equity) {
+  const settings = normalizeSimulation(run.simulation);
+  if (
+    !settings.commission_bps &&
+    !settings.slippage_bps &&
+    run.initialEquity !== equityCurve[0].equity
+  ) {
     throw backtestOutputError(
       'Initial equity does not match the first equity-curve point.',
     );
@@ -587,7 +642,12 @@ function mapCompletion(
   }
 
   return {
-    result,
+    result: {
+      ...result,
+      ...(output.benchmark
+        ? { benchmark: structuredClone(output.benchmark) }
+        : {}),
+    },
     trades,
     equityCurve,
     finishedAt: new Date(),

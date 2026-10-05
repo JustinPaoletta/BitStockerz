@@ -1,5 +1,12 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
@@ -14,6 +21,7 @@ import type { BacktestListItem } from '../models/backtest.models';
     <section class="page-heading">
       <div>
         <p class="eyebrow">Research history</p>
+        <a class="text-link" routerLink="/backtests/compare">Compare runs</a>
         <h1>Backtests</h1>
         <app-page-guide
           description="Backtests replay one of your strategies on historical prices and show equity, metrics, and every simulated trade."

@@ -1,10 +1,5 @@
 import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, CanDeactivateFn, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { InlineErrorComponent } from '../../../shared/ui/inline-error.component';
@@ -15,11 +10,12 @@ import {
   StrategyDefinition,
   StrategyDetail,
 } from '../data/strategies-api.service';
+import { StrategyRulesEditorComponent } from '../components/strategy-rules-editor.component';
+import { STRATEGY_TEMPLATES } from '../data/strategy-templates';
 import {
   buildStrategyDefinition,
   definitionsEqual,
   editorValuesFromDetail,
-  type StrategyEditorValues,
 } from '../data/strategy-form.mapper';
 
 type EditorForm = FormGroup<{
@@ -46,6 +42,7 @@ type EditorForm = FormGroup<{
     SkeletonComponent,
     InlineErrorComponent,
     PageGuideComponent,
+    StrategyRulesEditorComponent,
   ],
   template: `
     <section class="page-heading">
@@ -56,7 +53,7 @@ type EditorForm = FormGroup<{
           description="Define what the bot watches (indicator and timeframe) and when it should buy or sell."
           [steps]="[
             'Pick asset type and timeframe (crypto can use hourly bars).',
-            'Set entry and exit conditions and optional stop loss / take profit.',
+            'Set entry and exit conditions and stop loss / take profit.',
             'Validate to check the rules, then Save. Edits create a new version.',
           ]"
         />
@@ -94,58 +91,25 @@ type EditorForm = FormGroup<{
             }
           </select>
         </div>
-        <div class="field">
-          <label for="indicatorType">Indicator</label>
-          <select id="indicatorType" formControlName="indicator_type">
-            @for (item of indicatorTypes(); track item) {
-              <option [value]="item">{{ item }}</option>
-            }
-          </select>
-        </div>
-        <div class="field">
-          <label for="indicatorId">Indicator id</label>
-          <input id="indicatorId" formControlName="indicator_id" />
-        </div>
-        <div class="field">
-          <label for="period">Period</label>
-          <input id="period" type="number" formControlName="period" />
-        </div>
-        <div class="field">
-          <label for="entryOp">Entry operator</label>
-          <select id="entryOp" formControlName="entry_op">
-            <option value="gt">gt</option>
-            <option value="gte">gte</option>
-            <option value="lt">lt</option>
-            <option value="lte">lte</option>
-            <option value="eq">eq</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="entryLiteral">Entry literal</label>
-          <input id="entryLiteral" type="number" formControlName="entry_literal" />
-        </div>
-        <div class="field">
-          <label for="exitOp">Exit operator</label>
-          <select id="exitOp" formControlName="exit_op">
-            <option value="gt">gt</option>
-            <option value="gte">gte</option>
-            <option value="lt">lt</option>
-            <option value="lte">lte</option>
-            <option value="eq">eq</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="exitLiteral">Exit literal</label>
-          <input id="exitLiteral" type="number" formControlName="exit_literal" />
-        </div>
-        <div class="field">
-          <label for="sl">Stop loss %</label>
-          <input id="sl" type="number" formControlName="stop_loss" />
-        </div>
-        <div class="field">
-          <label for="tp">Take profit %</label>
-          <input id="tp" type="number" formControlName="take_profit" />
-        </div>
+        @if (isNew()) {
+          <div class="field full">
+            <label for="starter">Start with a template</label>
+            <select id="starter" (change)="useTemplate($any($event.target).value)">
+              <option value="">Choose a starting point…</option>
+              @for (template of templates; track template.id) {
+                <option [value]="template.id">{{ template.name }}</option>
+              }
+            </select>
+            <p class="hint">
+              Templates are examples to test and customize, not performance promises.
+            </p>
+          </div>
+        }
+        <app-strategy-rules-editor
+          class="full"
+          [definition]="draft()"
+          (definitionChange)="changeDefinition($event)"
+        />
 
         @if (message()) {
           <p class="hint full" [class.error]="!valid()">{{ message() }}</p>
@@ -155,7 +119,12 @@ type EditorForm = FormGroup<{
         }
 
         <div class="actions full">
-          <button class="button secondary" type="button" [disabled]="busy()" (click)="validateOnly()">
+          <button
+            class="button secondary"
+            type="button"
+            [disabled]="busy()"
+            (click)="validateOnly()"
+          >
             Validate
           </button>
           <button class="button primary" type="submit" [disabled]="busy() || form.invalid">
@@ -209,6 +178,10 @@ export class StrategyEditorPage implements OnInit {
     take_profit: new FormControl(5, { nonNullable: true, validators: [Validators.min(0.01)] }),
   });
 
+  protected readonly templates = STRATEGY_TEMPLATES;
+  protected readonly draft = signal<StrategyDefinition>(
+    buildStrategyDefinition(this.form.getRawValue()),
+  );
   protected readonly isNew = signal(true);
   protected readonly booting = signal(true);
   protected readonly bootError = signal('');
@@ -243,7 +216,9 @@ export class StrategyEditorPage implements OnInit {
       const result = await firstValueFrom(this.api.validate(this.toDefinition()));
       this.valid.set(result.is_valid);
       this.summary.set(result.summary ?? JSON.stringify(result, null, 2));
-      this.message.set(result.is_valid ? 'Definition is valid.' : 'Definition has validation errors.');
+      this.message.set(
+        result.is_valid ? 'Definition is valid.' : 'Definition has validation errors.',
+      );
     } catch (error) {
       this.valid.set(false);
       this.message.set(error instanceof Error ? error.message : 'Validation failed.');
@@ -323,11 +298,26 @@ export class StrategyEditorPage implements OnInit {
 
   private patchFromDetail(detail: StrategyDetail): void {
     this.form.patchValue(editorValuesFromDetail(detail));
+    this.draft.set(structuredClone(detail.definition));
     this.form.markAsPristine();
   }
 
   private toDefinition(): StrategyDefinition {
-    return buildStrategyDefinition(this.form.getRawValue() as StrategyEditorValues);
+    return structuredClone(this.draft());
+  }
+
+  protected changeDefinition(definition: StrategyDefinition): void {
+    this.draft.set(definition);
+    this.form.markAsDirty();
+    this.valid.set(false);
+    this.summary.set('');
+  }
+
+  protected useTemplate(id: string): void {
+    const template = this.templates.find((item) => item.id === id);
+    if (!template) return;
+    this.form.patchValue({ name: template.name, description: template.description });
+    this.changeDefinition(structuredClone(template.definition));
   }
 
   private definitionChanged(next: StrategyDefinition): boolean {

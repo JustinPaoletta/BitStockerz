@@ -12,6 +12,8 @@
         [routerLinkActiveOptions]="{ exact: true }"
         >Dashboard</a
       >
+      <a routerLink="/market" routerLinkActive="active" ariaCurrentWhenActive="page">Markets</a>
+      <a routerLink="/automations" routerLinkActive="active">Runners</a>
       <a routerLink="/trade" routerLinkActive="active" ariaCurrentWhenActive="page">Trade</a>
       <a routerLink="/strategies" routerLinkActive="active" ariaCurrentWhenActive="page"
         >Strategies</a
@@ -38,3 +40,5 @@
 <main>
   <router-outlet />
 </main>
+
+<footer><a routerLink="/help">Help, feedback and data policy</a></footer>

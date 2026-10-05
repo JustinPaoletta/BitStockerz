@@ -584,6 +584,41 @@ export const API_SCHEMAS: OpenApiSchemas = {
       finished_at: timestamp,
     },
   },
+  SimulationSettings: {
+    type: 'object',
+    properties: {
+      allocation_pct: {
+        type: 'number',
+        minimum: 0.01,
+        maximum: 100,
+        default: 100,
+      },
+      commission_bps: { type: 'number', minimum: 0, maximum: 1000, default: 0 },
+      slippage_bps: { type: 'number', minimum: 0, maximum: 1000, default: 0 },
+      execution_timing: {
+        type: 'string',
+        enum: ['signal_close', 'next_open'],
+        default: 'signal_close',
+      },
+      evaluation_period: {
+        type: 'string',
+        enum: ['research', 'out_of_sample'],
+        default: 'research',
+      },
+    },
+  },
+  Benchmark: {
+    type: 'object',
+    properties: {
+      final_equity: decimal,
+      total_return_pct: decimal,
+      max_drawdown_pct: decimal,
+      equity_curve: {
+        type: 'array',
+        items: { type: 'object', properties: { timestamp, equity: decimal } },
+      },
+    },
+  },
   BacktestRun: {
     type: 'object',
     required: [
@@ -608,6 +643,7 @@ export const API_SCHEMAS: OpenApiSchemas = {
       start_date: timestamp,
       end_date: timestamp,
       initial_equity: decimal,
+      simulation: { $ref: '#/components/schemas/SimulationSettings' },
       status: {
         type: 'string',
         enum: ['pending', 'running', 'completed', 'failed', 'timed_out'],
@@ -650,6 +686,7 @@ export const API_SCHEMAS: OpenApiSchemas = {
       'sharpe_ratio',
     ],
     properties: {
+      benchmark: { $ref: '#/components/schemas/Benchmark' },
       final_equity: decimal,
       total_return_pct: decimal,
       max_drawdown_pct: decimal,
@@ -714,6 +751,7 @@ export const API_SCHEMAS: OpenApiSchemas = {
             entry_price: decimal,
             exit_price: decimal,
             quantity: decimal,
+            fees_abs: decimal,
             pnl_abs: decimal,
             pnl_pct: decimal,
           },
@@ -974,6 +1012,29 @@ export const API_SCHEMAS: OpenApiSchemas = {
       disclaimer: { type: 'string' },
       confidence: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
       ai_request_id: stringId,
+      diff: {
+        type: 'object',
+        required: ['summary', 'changes'],
+        description:
+          'Parameter previews only, present when AI_DIFF_SUGGESTIONS_ENABLED is enabled.',
+        properties: {
+          summary: { type: 'string' },
+          changes: {
+            type: 'array',
+            maxItems: 5,
+            items: {
+              type: 'object',
+              required: ['path', 'from', 'to', 'rationale'],
+              properties: {
+                path: { type: 'string' },
+                from: { type: 'number' },
+                to: { type: 'number' },
+                rationale: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
       suggestions: {
         type: 'array',
         items: { $ref: '#/components/schemas/AiSuggestion' },

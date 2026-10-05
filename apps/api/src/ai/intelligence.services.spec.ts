@@ -301,3 +301,61 @@ describe('BacktestIntelligenceService', () => {
     });
   });
 });
+
+it.each([false, true])(
+  'gates validated parameter previews without mutating definitions (enabled=%s)',
+  async (enabled) => {
+    const change = {
+      path: 'indicators[0].params.period',
+      before: 20,
+      after: 30,
+      rationale: 'Compare a slower horizon.',
+    };
+    const strategies = {
+      getById: jest.fn().mockResolvedValue({
+        id: 's1',
+        name: 'Preview',
+        definition,
+        summary: 'preview',
+      }),
+    };
+    const ai = {
+      invoke: jest.fn().mockResolvedValue({
+        disclaimer: 'Advisory',
+        confidence: 'LOW',
+        ai_request_id: 'preview',
+        suggestions: [],
+        changes: [change],
+      }),
+    };
+    const service = new BacktestIntelligenceService(
+      {} as BacktestsService,
+      strategies as unknown as StrategiesService,
+      {} as JobsService,
+      {} as MarketDataService,
+      ai as unknown as AiService,
+      {
+        ai: { maxContextChars: 12000, diffSuggestionsEnabled: enabled },
+      } as AppConfigService,
+    );
+    const before = structuredClone(definition);
+    const response = await service.suggestImprovements('u1', 's1');
+    expect(response.diff).toEqual(
+      enabled
+        ? {
+            summary: 'Proposed parameter tweaks',
+            changes: [
+              {
+                path: change.path,
+                from: 20,
+                to: 30,
+                rationale: change.rationale,
+              },
+            ],
+          }
+        : undefined,
+    );
+    expect(definition).toEqual(before);
+    expect(ai.invoke.mock.calls[0][0].stubContext.diff_enabled).toBe(enabled);
+  },
+);

@@ -32,17 +32,17 @@ export interface StrategyDefinition {
   entry: {
     logic: 'AND';
     conditions: {
-      left: { indicator: string } | { literal: number };
+      left: { indicator: string } | { price: string } | { literal: number };
       op: string;
-      right: { indicator: string } | { literal: number };
+      right: { indicator: string } | { price: string } | { literal: number };
     }[];
   };
   exit: {
     logic: 'AND';
     conditions: {
-      left: { indicator: string } | { literal: number };
+      left: { indicator: string } | { price: string } | { literal: number };
       op: string;
-      right: { indicator: string } | { literal: number };
+      right: { indicator: string } | { price: string } | { literal: number };
     }[];
   };
   risk: {
@@ -69,7 +69,10 @@ export interface IndicatorCatalogEntry {
 export class StrategiesApiService {
   private readonly http = inject(HttpClient);
 
-  list(limit = 50, offset = 0): Observable<{
+  list(
+    limit = 50,
+    offset = 0,
+  ): Observable<{
     items: StrategySummary[];
     limit: number;
     offset: number;
@@ -134,7 +137,9 @@ export class StrategiesApiService {
       definition: StrategyDefinition;
     }>,
   ): Observable<StrategyDetail> {
-    return this.http.put<StrategyDetail>(`/api/strategies/${id}`, body).pipe(catchError(toUserError));
+    return this.http
+      .put<StrategyDetail>(`/api/strategies/${id}`, body)
+      .pipe(catchError(toUserError));
   }
 
   delete(id: string): Observable<void> {

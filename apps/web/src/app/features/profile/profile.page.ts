@@ -15,6 +15,8 @@ import { InlineErrorComponent } from '../../shared/ui/inline-error.component';
     <section class="page-heading">
       <div>
         <p class="eyebrow">YOUR ACCOUNT</p>
+        <a routerLink="/account/data">Data and paper experiments</a> ·
+        <a routerLink="/account/security">Manage passkeys and sessions</a>
         <h1>Account settings</h1>
         <p class="lede">Manage your profile and the ways you can sign in.</p>
       </div>

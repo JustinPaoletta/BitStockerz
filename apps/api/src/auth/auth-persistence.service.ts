@@ -271,6 +271,8 @@ export class AuthPersistenceService {
     await this.prisma.webAuthnChallenge.create({
       data: {
         id: record.challengeId,
+        userId: record.userId ?? null,
+        sessionHash: record.sessionHash ?? null,
         purpose: record.purpose,
         email: record.email,
         challenge: record.challenge,
@@ -307,10 +309,15 @@ export class AuthPersistenceService {
       return null;
     }
 
-    await this.prisma.webAuthnChallenge.delete({ where: { id: challengeId } });
+    const consumed = await this.prisma.webAuthnChallenge.deleteMany({
+      where: { id: challengeId, purpose, email, expiresAt: { gt: new Date() } },
+    });
+    if (consumed.count !== 1) return null;
 
     return {
       challengeId: row.id,
+      ...(row.userId ? { userId: row.userId } : {}),
+      ...(row.sessionHash ? { sessionHash: row.sessionHash } : {}),
       purpose: row.purpose,
       email: row.email,
       challenge: row.challenge,
