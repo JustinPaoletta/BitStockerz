@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Header,
   HttpStatus,
   Post,
   Query,
@@ -71,6 +72,19 @@ export class OrdersController {
       limit: query.limit ?? 50,
       offset: query.offset ?? 0,
     });
+  }
+
+  @Get('executions.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="paper-executions.csv"')
+  @ApiEndpoint({
+    summary: 'Export paper execution history',
+    authenticated: true,
+    responseDescription: 'Owned execution ledger as CSV (up to 100,000 rows).',
+    errors: [400, 401, 500],
+  })
+  exportExecutions(@Req() request: AuthenticatedRequest) {
+    return this.orders.exportExecutions(this.requireUserId(request));
   }
 
   @Get('executions')

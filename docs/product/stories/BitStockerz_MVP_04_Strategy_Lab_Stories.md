@@ -1,8 +1,12 @@
 # BitStockerz MVP – 4) Strategy Lab (Stories)
 
+This file retains original story acceptance criteria and dated delivery notes.
+[Product extensions](../PRODUCT_EXTENSIONS.md) describe October 4 additions; [the task list](../../../PRODUCT_TASKLIST.md) contains unfinished acceptance checks.
+
 This document defines the epics and user stories for the **Strategy Lab** feature of the BitStockerz MVP.
 
 Scope:
+
 - Rule-based strategy builder
 - Technical indicators (SMA, EMA, RSI)
 - Entry and exit conditions
@@ -118,7 +122,7 @@ This module feeds directly into **#5 Backtesting**.
 **Status:** Completed and merged in PR #9 (verified July 28, 2026)
 
 - Partial `PUT /api/strategies/:id` updates mutable metadata; `description:
-  null` clears the description and an empty body is invalid.
+null` clears the description and an empty body is invalid.
 - A present valid definition always appends the next immutable version,
   including an identical repeat. Metadata-only changes do not add a version.
 - Version allocation is serialized in MySQL with one bounded conflict retry.

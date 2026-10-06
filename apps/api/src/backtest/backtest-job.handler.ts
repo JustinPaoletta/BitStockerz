@@ -89,6 +89,7 @@ export class BacktestJobHandler {
         definition: strategy.definition,
         bars,
         initialEquity: Number(run.initialEquity),
+        simulation: run.simulation,
         symbolId: run.symbolId,
         signal: context.signal,
         limits: {

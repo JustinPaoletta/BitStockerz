@@ -54,6 +54,7 @@ function buildStubOutput(
       };
     case 'suggest_improvements':
       return {
+        ...(context.diff_enabled ? { changes: [] } : {}),
         suggestions: [
           {
             code: 'REVIEW_RISK_PARAMETERS',

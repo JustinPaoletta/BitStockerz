@@ -1,26 +1,19 @@
-# BitStockerz – Global Domain Model / ERD
+# BitStockerz — Original domain model
 
-This document is the **authoritative ERD (Entity–Relationship Definition)** for the BitStockerz MVP.
-It is derived from stories **#1–#8** and is intended to be implementation-grade.
+This document preserves the original MVP structural design.
+It is not the current runtime ERD or a migration source.
+Use [the runtime schema](../../../apps/api/prisma/schema.prisma) for deployed relationships and column types.
+Auth ceremonies, research settings, watchlists, reset archives, and paper runners were added after this design.
 
-It describes the **full MVP target**, not only the tables migrated today. The
-runnable database includes persisted auth and browser handoffs, reference data,
-jobs/audit, Strategy Lab, backtesting, paper trading and AI daily usage; use
-`apps/api/prisma/schema.prisma` plus `apps/api/prisma/migrations/` for the
-current deployable schema. `ai_usage` is implemented; other AI models below
-remain design targets. The conceptual ERD omits newer auth ceremony tables and
-must not be used directly as a production migration source.
-
-Use this to:
-- Validate table relationships before coding
-- Drive DB migrations
-- Avoid duplicated or conflicting sources of truth
-
----
+The [DBML export](BitStockerz_dbdiagram_ERD.md) represents the same original target for diagram tools.
+The conceptual [SQL](../BitStockerz.sql), [DDL](../DDL), and [Prisma](../schema.prisma) files are design references only.
+Use [the migration guide](../Migrations_Plan.md) to apply runtime schema changes.
+Current deletion behavior is defined in [the lifecycle policy](../Data_Lifecycle_and_Deletion_Policy.md).
 
 ## 1. Domain Overview
 
 Domains covered:
+
 1. Auth / User
 2. Market Data
 3. Paper Trading
@@ -36,6 +29,7 @@ Domains covered:
 ### 2.1 Auth / User
 
 #### users
+
 - id (PK)
 - email (UNIQUE)
 - created_at
@@ -43,6 +37,7 @@ Domains covered:
 - deleted_at
 
 #### webauthn_credentials
+
 - credential_id (PK)
 - user_id (FK → users.id)
 - public_key
@@ -56,6 +51,7 @@ Domains covered:
 ### 2.2 Market Data
 
 #### symbols
+
 - id (PK)
 - symbol (UNIQUE, case-insensitive)
 - name
@@ -69,6 +65,7 @@ Domains covered:
 - updated_at
 
 #### equity_daily_bars
+
 - id (PK)
 - symbol_id (FK → symbols.id)
 - date
@@ -82,6 +79,7 @@ Domains covered:
 - UNIQUE(symbol_id, date)
 
 #### crypto_daily_bars
+
 - id (PK)
 - symbol_id (FK → symbols.id)
 - date
@@ -95,6 +93,7 @@ Domains covered:
 - UNIQUE(symbol_id, date)
 
 #### crypto_hourly_bars
+
 - id (PK)
 - symbol_id (FK → symbols.id)
 - timestamp
@@ -112,6 +111,7 @@ Domains covered:
 ### 2.3 Paper Trading
 
 #### paper_accounts
+
 - id (PK)
 - user_id (FK → users.id, UNIQUE)
 - name
@@ -123,6 +123,7 @@ Domains covered:
 - updated_at
 
 #### orders
+
 - id (PK)
 - paper_account_id (FK → paper_accounts.id)
 - symbol_id (FK → symbols.id)
@@ -138,6 +139,7 @@ Domains covered:
 - UNIQUE(paper_account_id, client_order_id)
 
 #### executions
+
 - id (PK)
 - order_id (FK → orders.id)
 - paper_account_id (FK → paper_accounts.id)
@@ -148,6 +150,7 @@ Domains covered:
 - executed_at
 
 #### positions
+
 - id (PK)
 - paper_account_id (FK → paper_accounts.id)
 - symbol_id (FK → symbols.id)
@@ -161,6 +164,7 @@ Domains covered:
 ### 2.4 Strategy Lab
 
 #### strategies
+
 - id (PK)
 - user_id (FK → users.id)
 - name
@@ -174,6 +178,7 @@ Domains covered:
 - UNIQUE(user_id, name)
 
 #### strategy_versions
+
 - id (PK)
 - strategy_id (FK → strategies.id)
 - version_number
@@ -186,6 +191,7 @@ Domains covered:
 ### 2.5 Backtesting
 
 #### backtest_runs
+
 - id (PK)
 - user_id (FK → users.id)
 - strategy_id (FK → strategies.id)
@@ -204,6 +210,7 @@ Domains covered:
 - finished_at
 
 #### backtest_results
+
 - id (PK)
 - backtest_run_id (FK → backtest_runs.id, UNIQUE)
 - final_equity
@@ -216,6 +223,7 @@ Domains covered:
 - sharpe_ratio (nullable)
 
 #### backtest_trades
+
 - id (PK)
 - backtest_run_id (FK → backtest_runs.id)
 - symbol_id (FK → symbols.id)
@@ -229,6 +237,7 @@ Domains covered:
 - pnl_pct
 
 #### backtest_equity_points
+
 - id (PK)
 - backtest_run_id (FK → backtest_runs.id)
 - timestamp
@@ -239,6 +248,7 @@ Domains covered:
 ### 2.6 AI / Kernel
 
 #### ai_usage
+
 - id (PK)
 - user_id (FK → users.id)
 - date
@@ -250,6 +260,7 @@ Domains covered:
 ### 2.7 Infrastructure
 
 #### jobs
+
 - id (PK)
 - job_type
 - user_id (FK → users.id)
@@ -261,6 +272,7 @@ Domains covered:
 - finished_at
 
 #### audit_events
+
 - id (PK)
 - user_id (FK → users.id, nullable)
 - event_type
@@ -293,7 +305,7 @@ Domains covered:
 ## 4. Key Design Guarantees
 
 - Strategy versions are immutable and pinned to backtests
-- Market data is append-only historical fact
+- Original target: market data as append-only historical facts; runtime imports can upsert corrections.
 - Paper trading and backtesting are fully isolated paths
 - Symbols are the single instrument source of truth
 - Executions are the only source of truth for positions and cash
@@ -301,18 +313,9 @@ Domains covered:
 
 ---
 
-## 5. Lifecycle & Deletion Overview
+## 5. Lifecycle and deletion
 
-This ERD defines **structure only**. For how data is deleted, retained, or
-anonymized, see
-[Data_Lifecycle_and_Deletion_Policy.md](../Data_Lifecycle_and_Deletion_Policy.md).
-
-Key points (summary):
-- `users` are **soft-deleted** (PII scrubbed; no cascades).
-- `strategies` are **soft-deleted** via `is_active`, strategy_versions remain immutable.
-- Market data (`symbols`, `*_bars`) is **never user-deleted**; only admin maintenance.
-- Trading and backtest records (`orders`, `executions`, `positions`, `backtest_*`) are treated as **historical facts**, not user-deletable content.
-- Infra tables (`jobs`, `audit_events`, `ai_usage`) follow retention policies defined in the lifecycle document.
-
-Foreign key `ON DELETE` behavior and retention rules are governed by that
-lifecycle policy.
+The original `deleted_at` user design is superseded by active-data account deletion.
+Strategy soft deletion retains snapshots during normal use; account deletion removes owned research and ledger records.
+Market-data imports can update existing bars.
+See [Data lifecycle](../Data_Lifecycle_and_Deletion_Policy.md) for reset, export, deletion, and external backup limits.

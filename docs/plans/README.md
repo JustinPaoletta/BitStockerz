@@ -1,88 +1,135 @@
-# BitStockerz — Sprint Plans and Prelaunch Follow-ups
+# BitStockerz — Documentation and contributor guide
 
-Retained implementation contracts and outstanding production prerequisites.
-Completed plan files describe adopted behavior, not remaining engineering estimates.
-Delivery status lives in [ROADMAP.md](../product/ROADMAP.md).
+Completed sprint plans have been consolidated into the maintained guides below.
+Their unresolved external requirements remain in [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md).
+Original story acceptance criteria remain in [product stories](../product/stories).
+The [roadmap](../product/ROADMAP.md) preserves delivery history and sprint identifiers.
 
-| Sprint | Plan | Depends on | Readiness | Purpose |
-|--------|------|------------|-----------|---------|
-| 6.1 | [sprint-6-1-ai-infrastructure.md](./sprint-6-1-ai-infrastructure.md) | Milestone 5 (PR #11) | Done — combined PR #12 | AI provider abstraction, usage limits, safe logging, disclaimers, feature flags. |
-| 6.2 | [sprint-6-2-strategy-intelligence.md](./sprint-6-2-strategy-intelligence.md) | 6.1 | Done — combined PR #12 | Explain-strategy and logical red-flag validation endpoints. |
-| 6.3 | [sprint-6-3-backtest-intelligence.md](./sprint-6-3-backtest-intelligence.md) | 6.2 | Done — combined PR #12 (`#6.4.2` deferred) | Explain-backtest, failure modes, and improvement suggestions. |
-| 7.1 | [sprint-7-1-polish-caching.md](./sprint-7-1-polish-caching.md) | 6.3 | Done — combined PR #12 | In-memory candle/symbol cache TTL and provider fallback guardrails. |
-| 7.2 | [sprint-7-2-deployment-hosting.md](./sprint-7-2-deployment-hosting.md) | 7.1 + hosting accounts | Artifacts merged in PR #12; hosting and first deployment outstanding | CI deploy pipeline and single-region hosting for API + DB + jobs + web. |
-| 8.1 | [sprint-8-1-oauth-browser-readiness.md](./sprint-8-1-oauth-browser-readiness.md) | Auth persistence + provider configuration | Merged in PR #13; real-provider production smoke outstanding | Google/Apple browser login, verified identity linking, one-use session handoff. |
-| 8.2 | [sprint-8-2-profile-recovery.md](./sprint-8-2-profile-recovery.md) | 8.1 | Merged in PR #13; real-provider production smoke outstanding | Profile editing, linked-method settings, lost-device recovery through OAuth. |
+## Maintained sources
 
-Realized/total paper P&L, equity-curve entry/exit markers and **8.1 + 8.2** merged
-in PR #13 on October 2, 2026. CI verifies their automated regressions. Hosting is
-not provisioned; real provider credentials/callback setup and production smoke
-remain release checks. Additional passkeys are an optional extension whose original
-planning estimate was 1–2 days.
+| Topic                                         | Source                                                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| HTTP shapes, route access, and errors         | [API inventory](../database/API_Inventory.md) and generated OpenAPI                                                |
+| Configuration and operator commands           | [API README](../../apps/api/README.md)                                                                             |
+| Research, paper runners, and account controls | [Product extensions](../product/PRODUCT_EXTENSIONS.md)                                                             |
+| Database changes and lifecycle                | [Migrations](../database/Migrations_Plan.md), [deletion policy](../database/Data_Lifecycle_and_Deletion_Policy.md) |
+| OAuth identities and production access        | [Security](../product/requirements/Security.md), [deployment](../ops/deployment.md)                                |
+| Gates and evidence                            | [Testing strategy](../product/requirements/Testing_Strategy.md)                                                    |
+| Logging and diagnostic limits                 | [Observability](../product/requirements/Observability.md)                                                          |
 
-**Completed (plans removed; see ROADMAP + merged PRs)**
+## Contributions
 
-| Milestone | Sprints | Evidence |
-|-----------|---------|----------|
-| 2–3 | 2.1–3.4 | [PR #9](https://github.com/JustinPaoletta/BitStockerz/pull/9) |
-| 4 | 4.1–4.3 | [PR #10](https://github.com/JustinPaoletta/BitStockerz/pull/10) |
-| 5 | 5.1–5.3 | [PR #11](https://github.com/JustinPaoletta/BitStockerz/pull/11) |
+Use `codex/` for new Codex branches unless the user specifies another name.
+Historical sprint branches use `feat/sprint-{milestone}-{sprint}-{slug}`.
+A stacked PR targets its predecessor until that predecessor merges into `main`.
 
-**Conventions**
+Before implementation, compare the relevant acceptance criteria with current source.
+Keep adopted defaults unless an owner records an override.
+Update affected contracts and story criteria in the implementation PR.
+Accounts, credentials, and live-provider tests can remain external prerequisites without blocking independent code work.
 
-- Historical sprint branches use `feat/sprint-{milestone}-{sprint}-{slug}` (see `.cursor/skills/sprint-delivery/reference.md`); Codex work uses `codex/` branches by default.
-- Stacked PR rule: Sprint N+1 targets Sprint N’s branch until N merges to `main`.
-- Every plan uses the same section template (scope → acceptance criteria → API → architecture → implementation → defaults/JCs → DoD).
-- Acceptance criteria in these plans are binding. Sync them into the story files in the implementation PR; do not wait for a second planning pass.
-- The value in each plan’s “Default” or “Decision” column is adopted unless an owner explicitly records an override. A judgment call is not a coding blocker when its default is usable.
-- “External prerequisite” means credentials, accounts, a deployed predecessor, or another real dependency must exist before that slice can execute. It does not invalidate the rest of the plan.
-- Before coding, compare the plan with shipped code on `main`. If contracts changed, update this plan and downstream plans in the same PR rather than silently forking the contract.
+## Implementation contracts
 
-**Repository-wide implementation rules**
+| Concern            | Contract                                                                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP               | Global prefix `/api`; domain JSON uses `snake_case`; Problem Details and health retain documented camelCase fields; authenticated ownership misses return 404 to avoid existence leaks.                   |
+| Time               | Persist UTC; API timestamps are ISO-8601 UTC. Date ranges are inclusive at both ends unless the route contract states otherwise.                                                                          |
+| Decimal values     | API emits decimal-backed values as strings. Quantities and unit prices use 8 decimal places; base-currency cash and aggregate monetary values use 2 decimal places.                                       |
+| Cash rounding      | Cash debits/credits round `quantity × price` to 2 decimals with `ROUND_HALF_UP`. Risk checks use the same rounded cash notional for cash constraints and the unrounded value for max-notional comparison. |
+| Pagination         | Offset lists use `limit` + `offset` and return the same values plus `has_more`. Ordering includes a stable id tie-breaker after the documented primary sort.                                              |
+| Persistence parity | Any sprint that adds a Prisma-backed domain path must cover the in-memory/seed path and a MySQL-backed verification path. Pure compute sprints do not require MySQL.                                      |
+| State changes      | Multi-row financial and result writes are atomic. Completed backtest results/trades and strategy versions are append-only/immutable.                                                                      |
+| Observability      | Logs must not contain bearer tokens, secrets, full strategy definitions, full prompts, full responses, trades arrays, or equity curves. Use ids, lengths/hashes, bounded diagnostics, and request ids.    |
+| Testing            | Run build, lint, unit, coverage, and relevant e2e gates named by the plan. Add contract tests for response shape and deterministic ordering, not only happy-path status codes.                            |
 
-| Concern | Contract |
-|---------|----------|
-| HTTP | Global prefix `/api`; request/response JSON is `snake_case`; authenticated ownership misses return 404 to avoid existence leaks. |
-| Time | Persist UTC; API timestamps are ISO-8601 UTC. Date ranges are inclusive at both ends unless a plan explicitly states otherwise. |
-| Decimal values | API emits decimal-backed values as strings. Quantities and unit prices use 8 decimal places; base-currency cash and aggregate monetary values use 2 decimal places. |
-| Cash rounding | Cash debits/credits round `quantity × price` to 2 decimals with `ROUND_HALF_UP`. Risk checks use the same rounded cash notional for cash constraints and the unrounded value for max-notional comparison. |
-| Pagination | Offset lists use `limit` + `offset` and return the same values plus `has_more`. Ordering includes a stable id tie-breaker after the documented primary sort. |
-| Persistence parity | Any sprint that adds a Prisma-backed domain path must cover the in-memory/seed path and a MySQL-backed verification path. Pure compute sprints do not require MySQL. |
-| State changes | Multi-row financial and result writes are atomic. Completed backtest results/trades and strategy versions are append-only/immutable. |
-| Observability | Logs must not contain bearer tokens, secrets, full strategy definitions, full prompts, full responses, trades arrays, or equity curves. Use ids, lengths/hashes, bounded diagnostics, and request ids. |
-| Testing | Run build, lint, unit, coverage, and relevant e2e gates named by the plan. Add contract tests for response shape and deterministic ordering, not only happy-path status codes. |
-
-**Canonical domain-error codes (shipped + upcoming)**
+## Domain errors
 
 Generic `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, and `INTERNAL_ERROR` remain available. Domain codes already shipped:
 
-| Owner | Codes |
-|-------|-------|
-| Strategy Lab | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
-| Backtesting | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
-| Paper trading | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
-| AI | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
+| Owner         | Codes                                                                                                                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Strategy Lab  | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR`                                                                                                                    |
+| Backtesting   | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
+| Paper trading | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT`                                                          |
+| AI            | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT`                                                                                                                                  |
 
 Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`, or `BACKTEST_VALIDATION_ERROR`.
 
-**Cross-sprint contracts still binding for remaining work**
+## Domain decisions
 
-| Topic | Canonical decision |
-|-------|-------------------|
-| Strategy definition operand for numbers | `{ "literal": number }` (not `constant`) |
-| Definition validation | Pure `StrategyDefinitionValidator` + `class-validator` DTOs |
-| SL/TP in MVP definitions | Both required as `risk.stop_loss` / `risk.take_profit` `{ type: "percent", value }` |
-| Indicator math | In-repo pure SMA/EMA/RSI |
-| Backtest execution | Long-only, 100% equity, zero fees/slippage, signal-bar close fills, stop-first on same-bar SL/TP, no same-bar re-entry |
-| Paper-trading valuation | Latest eligible close; missing prices fail closed; cash/aggregate currency values use 2dp |
-| AI output | Non-streaming MVP responses use AI SDK structured output with runtime schemas; malformed provider output fails closed |
-| Provider fallback | Production never falls back to synthetic seed data; serve last-known DB data and report degraded health |
-| Hosting default | Option A: always-on API host (Fly.io) + Vercel Angular + managed MySQL |
+| Topic                                   | Canonical decision                                                                                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Strategy definition operand for numbers | `{ "literal": number }` (not `constant`)                                                                                                                                                               |
+| Definition validation                   | Pure `StrategyDefinitionValidator` + `class-validator` DTOs                                                                                                                                            |
+| SL/TP in MVP definitions                | Both required as `risk.stop_loss` / `risk.take_profit` `{ type: "percent", value }`                                                                                                                    |
+| Indicator math                          | In-repo pure SMA/EMA/RSI                                                                                                                                                                               |
+| Backtest execution                      | Long-only; legacy defaults are 100% equity, zero costs, signal-close fills. Optional allocation/costs/next-open settings are pinned per run; stop-first intrabar exits and no same-bar re-entry remain |
+| Paper-trading valuation                 | Latest eligible close; missing prices fail closed; cash/aggregate currency values use 2dp                                                                                                              |
+| AI output                               | Non-streaming MVP responses use AI SDK structured output with runtime schemas; malformed provider output fails closed                                                                                  |
+| Provider fallback                       | Production never falls back to synthetic seed data; serve last-known DB data and report degraded health                                                                                                |
+| Hosting default                         | Option A: always-on API host (Fly.io) + Vercel Angular + managed MySQL                                                                                                                                 |
 
-**Execution sequence (MVP complete in-repo)**
+## Cache and provider contracts
 
-```text
-6.1 → 6.2 → 6.3 → 7.1 → 7.2
-```
+`TtlCacheService` uses normalized query keys, expiry, and deterministic least-recently-used eviction.
+Keys include symbol, asset type, interval, inclusive UTC range, order, and limit.
+Concurrent identical loads share one pending request.
+Successful empty results can be cached; thrown errors cannot.
+Callers cannot mutate cached values.
 
-Ops runbook / **what you still need to do (plain English):** [docs/ops/deployment.md](../ops/deployment.md).
+Ingestion invalidates all affected symbol ranges after the database transaction commits.
+Cache metrics use namespaces, never individual symbols or keys.
+
+Provider failures preserve existing database bars and expose degraded health.
+Circuit-breaker failures and cooldown are bounded configuration values.
+Production must never substitute seed prices or an AI stub for a missing live provider.
+
+## Kernel contracts
+
+Kernel uses non-streaming structured output with runtime validation.
+It has no order, strategy-write, or job-execution tools.
+Names and definitions are untrusted prompt data.
+Prompts summarize bounded context rather than sending complete trade arrays.
+Malformed provider output returns `AI_PROVIDER_ERROR`.
+
+Quota consumption is atomic for each user and UTC day.
+Disabled, invalid, or over-quota requests consume no call.
+An upstream attempt consumes one call even if it fails; SDK retries do not consume additional application calls.
+Deterministic strategy findings merge with validated model warnings.
+Their severity takes precedence when equivalent findings conflict.
+
+Backtest explanation requires an owned completed run with results.
+Its context must use the run's pinned version; the current latest-summary conflict remains in the task list.
+
+Each success includes `disclaimer`, server-computed `confidence`, and `ai_request_id`.
+Confidence is a label, not a probability of future profit.
+The current disclaimer requires owner/legal inspection before public AI enablement.
+Parameter previews follow the [extension contract](../product/PRODUCT_EXTENSIONS.md#kernel-and-operations).
+They never modify strategies automatically.
+
+## Documentation writing
+
+Use [ASD-STE100 Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf), dated January 15, 2025.
+Use approved meanings and permitted technical terms.
+Keep identifiers, literal interface labels, units, and supported conditions exact.
+
+- Use active voice and one instruction per sentence.
+- Put each condition before its instruction.
+- Limit instruction sentences to 20 words and descriptions to 25 words.
+- Keep each paragraph on one topic with no more than six sentences.
+- Use one term for each concept and do not use contractions.
+- Separate current behavior, proposed work, and dated test evidence.
+- Keep unfinished acceptance conditions when removing completed plans.
+- Do local link, anchor, format, and example checks after edits.
+
+The writing helper finds selected clarity problems.
+Its output does not establish full ASD-STE100 conformity.
+
+| Term          | Meaning                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Seed mode     | Local in-memory storage with synthetic market fixtures.            |
+| Paper account | Simulated cash and positions without real-money execution.         |
+| Runner        | A saved-version paper strategy evaluated against completed bars.   |
+| Handoff       | A short-lived OAuth code bound to the initiating browser verifier. |
+| Basis point   | One hundredth of a percentage point.                               |
+| Migration     | A versioned database-schema change.                                |

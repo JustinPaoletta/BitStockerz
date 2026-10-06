@@ -11,14 +11,19 @@ import {
 export class FillPriceService {
   constructor(private readonly marketData: MarketDataService) {}
 
-  async getLatestClose(symbol: string): Promise<{
+  async getLatestClose(
+    symbol: string,
+    interval?: '1d' | '1h',
+  ): Promise<{
     symbolId: number;
     symbol: string;
     price: Prisma.Decimal;
     asOf: Date;
     interval: '1d' | '1h';
   }> {
-    return toFillPrice(await this.marketData.getLatestClose(symbol));
+    return toFillPrice(
+      await this.marketData.getLatestClose(symbol, new Date(), interval),
+    );
   }
 
   async getLatestClosesByIds(

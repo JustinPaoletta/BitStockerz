@@ -13,6 +13,8 @@ import {
 import { computeIndicators } from './indicators';
 import { calculateMetrics } from './metrics';
 import { simulateStrategy } from './simulate';
+import { calculateBenchmark } from './benchmark';
+import { normalizeSimulation } from './simulation-settings';
 
 interface RunOptions {
   now?: () => number;
@@ -88,6 +90,7 @@ export function runBacktest(
     input.initialEquity,
     input.symbolId,
     budget,
+    normalizeSimulation(input.simulation),
   );
   const metrics = calculateMetrics(
     input.initialEquity,
@@ -98,6 +101,15 @@ export function runBacktest(
   checkBudget(budget, bars.length, true);
 
   return {
+    ...(input.simulation
+      ? {
+          benchmark: calculateBenchmark(
+            bars,
+            input.initialEquity,
+            normalizeSimulation(input.simulation),
+          ),
+        }
+      : {}),
     trades: simulation.trades,
     equityCurve: simulation.equityCurve,
     metrics,

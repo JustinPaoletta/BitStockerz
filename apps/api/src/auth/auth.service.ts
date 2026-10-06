@@ -223,6 +223,8 @@ function toTransports(
 @Injectable()
 export class AuthService implements OnModuleInit {
   private readonly usersByEmail = new Map<string, UserRecord>();
+  private readonly deletingUsers = new Set<string>();
+  private readonly userWrites = new Map<string, Set<Promise<void>>>();
   private readonly usersById = new Map<string, UserRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly credentialsById = new Map<string, PasskeyCredentialRecord>();
@@ -278,7 +280,26 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    await this.persistence.saveUser(user);
+    if (this.deletingUsers.has(userId))
+      throw new DomainError(ErrorCode.UNAUTHORIZED);
+    const writes = this.userWrites.get(userId) ?? new Set<Promise<void>>();
+    const write = this.persistence.saveUser(user);
+    writes.add(write);
+    this.userWrites.set(userId, writes);
+    try {
+      await write;
+    } finally {
+      writes.delete(write);
+      if (!writes.size) this.userWrites.delete(userId);
+    }
+  }
+
+  async beginAccountDeletion(userId: string): Promise<void> {
+    this.deletingUsers.add(userId);
+    await Promise.allSettled([...(this.userWrites.get(userId) ?? [])]);
+  }
+  cancelAccountDeletion(userId: string): void {
+    this.deletingUsers.delete(userId);
   }
 
   async register(email: string, displayName?: string): Promise<AuthResponse> {
@@ -976,6 +997,166 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  async assertRecentSession(token: string): Promise<void> {
+    await this.requireRecentOAuthSession(token);
+  }
+
+  listSessions(token: string) {
+    const user = this.requireUserBySessionToken(token);
+    return {
+      sessions: [...this.sessions.entries()]
+        .filter(
+          ([, item]) => item.userId === user.id && item.expiresAt > Date.now(),
+        )
+        .map(([key, item]) => ({
+          id: hashOAuthSecret(key),
+          current: key === token,
+          created_at: item.signedInAt
+            ? new Date(item.signedInAt).toISOString()
+            : null,
+          expires_at: new Date(item.expiresAt).toISOString(),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    };
+  }
+
+  async revokeSession(token: string, id: string): Promise<void> {
+    await this.assertRecentSession(token);
+    const user = this.requireUserBySessionToken(token);
+    const entry = [...this.sessions.entries()].find(
+      ([key, session]) =>
+        session.userId === user.id && hashOAuthSecret(key) === id,
+    );
+    if (!entry) throw new DomainError(ErrorCode.NOT_FOUND);
+    await this.logout(entry[0]);
+  }
+
+  listPasskeys(token: string) {
+    const user = this.requireUserBySessionToken(token);
+    return {
+      passkeys: [...user.passkeyCredentialIds]
+        .map((id) => this.credentialsById.get(id))
+        .filter((item): item is PasskeyCredentialRecord => Boolean(item))
+        .map((item) => ({
+          id: hashOAuthSecret(item.credentialId),
+          created_at: item.createdAt,
+        })),
+    };
+  }
+
+  async createAdditionalPasskeyOptions(token: string) {
+    await this.assertRecentSession(token);
+    const user = this.requireUserBySessionToken(token);
+    const options = await generateRegistrationOptions({
+      rpName: this.config.auth.webauthnRpName,
+      rpID: this.config.auth.webauthnRpId,
+      userID: new TextEncoder().encode(user.email),
+      userName: user.email,
+      userDisplayName: user.display_name ?? user.email,
+      challenge: createWebAuthnChallengeEntropy(),
+      timeout: this.config.auth.challengeTtlSeconds * 1000,
+      attestationType: 'none',
+      excludeCredentials: [...user.passkeyCredentialIds].map((id) => ({ id })),
+      authenticatorSelection: {
+        residentKey: 'preferred',
+        userVerification: 'required',
+      },
+    });
+    const challenge = await this.createWebAuthnChallenge(
+      'enroll',
+      user.email,
+      options.challenge,
+      { userId: user.id, sessionHash: hashOAuthSecret(token) },
+    );
+    return { challenge_id: challenge.challengeId, options };
+  }
+
+  async verifyAdditionalPasskey(
+    token: string,
+    challengeId: string,
+    response: RegistrationResponseJSON,
+  ) {
+    await this.assertRecentSession(token);
+    const user = this.requireUserBySessionToken(token);
+    const challenge = await this.consumeWebAuthnChallenge(
+      challengeId,
+      'enroll',
+      user.email,
+    );
+    if (
+      challenge.userId !== user.id ||
+      challenge.sessionHash !== hashOAuthSecret(token)
+    )
+      throw new DomainError(ErrorCode.UNAUTHORIZED);
+    let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
+    try {
+      verification = await verifyRegistrationResponse({
+        response,
+        expectedChallenge: challenge.challenge,
+        expectedOrigin: this.getExpectedWebAuthnOrigins(),
+        expectedRPID: this.config.auth.webauthnRpId,
+        requireUserVerification: true,
+      });
+    } catch {
+      throw new DomainError(
+        ErrorCode.UNAUTHORIZED,
+        'Passkey enrollment verification failed.',
+      );
+    }
+    if (!verification.verified || !verification.registrationInfo)
+      throw new DomainError(ErrorCode.UNAUTHORIZED);
+    await this.addPasskeyCredential(user, {
+      credentialId: verification.registrationInfo.credential.id,
+      credential: verification.registrationInfo.credential,
+      aaguid: verification.registrationInfo.aaguid,
+    });
+    return this.listPasskeys(token);
+  }
+
+  async removePasskey(token: string, id: string): Promise<void> {
+    await this.assertRecentSession(token);
+    const user = this.requireUserBySessionToken(token);
+    const credentialId = [...user.passkeyCredentialIds].find(
+      (key) => hashOAuthSecret(key) === id,
+    );
+    if (!credentialId) throw new DomainError(ErrorCode.NOT_FOUND);
+    if (
+      user.passkeyCredentialIds.size <= 1 &&
+      !user.googleSubject &&
+      !user.appleSubject
+    )
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'Add another sign-in method before removing your last passkey.',
+      );
+    if (this.prisma.isEnabled)
+      await this.prisma.webAuthnCredential.deleteMany({
+        where: { credentialId, userId: user.id },
+      });
+    user.passkeyCredentialIds.delete(credentialId);
+    this.credentialsById.delete(credentialId);
+  }
+
+  forgetUser(userId: string): void {
+    const user = this.usersById.get(userId);
+    if (!user) return;
+    for (const [token, session] of this.sessions)
+      if (session.userId === userId) this.sessions.delete(token);
+    for (const id of user.passkeyCredentialIds) this.credentialsById.delete(id);
+    if (user.googleSubject)
+      this.googleSubjectsToUserIds.delete(user.googleSubject);
+    if (user.appleSubject)
+      this.appleSubjectsToUserIds.delete(user.appleSubject);
+    for (const [id, challenge] of this.webAuthnChallengesById)
+      if (challenge.email === user.email)
+        this.webAuthnChallengesById.delete(id);
+    for (const [id, state] of this.oauthStatesById)
+      if (state.initiatingUserId === userId) this.oauthStatesById.delete(id);
+    for (const [id, handoff] of this.oauthHandoffs)
+      if (handoff.userId === userId) this.oauthHandoffs.delete(id);
+    this.removeUser(user);
+  }
+
   async logout(sessionToken: string): Promise<void> {
     const deleted = this.sessions.delete(sessionToken);
     if (this.persistence.enabled) {
@@ -1023,6 +1204,8 @@ export class AuthService implements OnModuleInit {
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Session has expired.');
     }
 
+    if (this.deletingUsers.has(session.userId))
+      throw new DomainError(ErrorCode.UNAUTHORIZED);
     return this.requireUserById(session.userId);
   }
 
@@ -1653,15 +1836,16 @@ export class AuthService implements OnModuleInit {
       aaguid: normalizeOptional(input.aaguid),
       createdAt: new Date().toISOString(),
     };
+    await this.persistence.saveCredential(record);
     this.credentialsById.set(credentialId, record);
     user.passkeyCredentialIds.add(credentialId);
-    await this.persistence.saveCredential(record);
   }
 
   private async createWebAuthnChallenge(
     purpose: WebAuthnChallengePurpose,
     email: string,
     challenge: string,
+    owner?: { userId: string; sessionHash: string },
   ): Promise<WebAuthnChallengeRecord> {
     this.pruneExpiredChallenges();
 
@@ -1674,6 +1858,7 @@ export class AuthService implements OnModuleInit {
       email,
       challenge,
       expiresAt,
+      ...owner,
     };
 
     if (this.persistence.enabled) {

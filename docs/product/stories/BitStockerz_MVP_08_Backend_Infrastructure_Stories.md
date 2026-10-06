@@ -1,8 +1,12 @@
 # BitStockerz MVP – 8) Backend & Infrastructure (Stories)
 
+This file retains original story acceptance criteria and dated delivery notes.
+[Product extensions](../PRODUCT_EXTENSIONS.md) describe October 4 additions; [the task list](../../../PRODUCT_TASKLIST.md) contains unfinished acceptance checks.
+
 This document defines the epics and user stories for the **Backend & Infrastructure** layer of the BitStockerz MVP.
 
 Scope:
+
 - Backtest job execution & orchestration
 - Execution engine hosting & resource limits
 - Error handling and domain error model
@@ -14,6 +18,7 @@ Scope:
 This is a **cross-cutting** technical foundation used by features #2–#7.
 
 Dependencies:
+
 - #2 Market Data
 - #3 Paper Trading
 - #4 Strategy Lab
@@ -40,18 +45,24 @@ Dependencies:
 ## Epic 8.1 – Backtest Job Execution & Orchestration
 
 ### Story 8.1.1 – Backtest job model & status lifecycle
+
 Acceptance criteria:
+
 - `jobs` table stores `job_type`, `user_id`, `payload_json`, `status`, timestamps, and optional `error_message`.
 - Lifecycle statuses: `pending` → `running` → `completed` | `failed` | `timed_out`.
 - In-memory job store mirrors Prisma behavior when `DATABASE_URL` is unset.
 
 ### Story 8.1.2 – Synchronous executor (async-ready design)
+
 Acceptance criteria:
+
 - `JobExecutorService` runs registered handlers inline in the API process.
 - Authenticated development/test `POST /api/jobs` executes a job before returning its final status. Production returns 403; internal scheduled execution remains available.
 
 ### Story 8.1.3 – Job timeout & cancellation rules
+
 Acceptance criteria:
+
 - Jobs exceeding `JOB_TIMEOUT_MS` (default 30000) are marked `timed_out`.
 - Handler failures persist `error_message` and `failed` status.
 
@@ -60,7 +71,9 @@ Acceptance criteria:
 ## Epic 8.2 – Engine Hosting & Resource Limits
 
 ### Story 8.2.1 – Execution sandbox boundaries
+
 Acceptance criteria:
+
 - Strategy definitions remain data-only JSON; the engine never evaluates user
   code or accesses Prisma, HTTP, filesystem, or environment variables.
 - The pure core is wrapped by an injectable Nest service configured through
@@ -69,14 +82,15 @@ Acceptance criteria:
 - BullMQ, worker threads, dynamic `Function`, and `eval` are outside Sprint 3.1.
 
 ### Story 8.2.2 – Runtime & memory limits per backtest
+
 Acceptance criteria:
+
 - Defaults are 10,000 bars, 250,000
   `bars × max(1, indicator_count)` series cells, and a 5,000 ms timeout.
 - Oversized inputs fail before indicator allocation with distinct bar/resource
   codes; caller-provided limits may tighten but never raise configured caps.
-- External cancellation and a monotonic deadline are checked cooperatively at
-  least every 64 loop iterations, so synchronous CPU work does not rely only on
-  an event-loop timer.
+- The engine tests external cancellation and a monotonic deadline at least every 64 loop iterations.
+  Synchronous CPU work does not rely only on an event-loop timer.
 - A frozen one-year daily fixture completes under the two-second compute NFR.
 
 ---
@@ -84,9 +98,11 @@ Acceptance criteria:
 ## Epic 8.3 – Error Handling & Domain Errors
 
 ### Story 8.3.1 – Standardized API error response format
+
 ### Story 8.3.2 – Domain error types for trading, strategies, and backtests
 
 Acceptance criteria (completed in Sprint 4.3):
+
 - Every stable `ErrorCode` has one typed catalog entry and RFC 7807 mapping.
 - Trading uses canonical inactive-account, unavailable-price,
   insufficient-cash/position, and risk-limit codes; no duplicate aliases.
@@ -98,14 +114,19 @@ Acceptance criteria (completed in Sprint 4.3):
 ## Epic 8.4 – Logging, Metrics & Observability
 
 ### Story 8.4.1 – Structured logging baseline and correlation IDs
+
 ### Story 8.4.2 – Basic performance metrics for backtests
+
 Acceptance criteria (Sprint 1.4 foundation; backtest-specific counters activate in Milestone 3):
+
 - In-process `MetricsService` records HTTP latency/errors and job duration by type.
 - `GET /api/metrics` returns a JSON snapshot (not Prometheus exposition).
 - No Prometheus/Grafana/OTel exporters in MVP.
 
 ### Story 8.4.3 – Minimal audit trail for critical actions
+
 Acceptance criteria:
+
 - `audit_events` table persisted when MySQL is enabled; in-memory ring buffer otherwise.
 - Critical events recorded: `auth.register`, `auth.login`, `auth.logout`, `job.created`, `job.completed`, `job.failed`, `market_data.ingestion_requested`.
 - Audit failures never fail the primary request path; payloads redact tokens/secrets.
@@ -115,13 +136,16 @@ Acceptance criteria:
 ## Epic 8.5 – Environment, Configuration & Feature Flags
 
 ### Story 8.5.1 – Central configuration service
+
 Acceptance criteria:
+
 - A single `AppConfigService` is the source of truth for runtime configuration in the API service.
 - Configuration is grouped into typed domains (at minimum: server, logging, readiness, and external dependency endpoints).
 - Startup fails fast with a clear validation error when environment variables are invalid (for example malformed integers, invalid log level, invalid URLs).
 - Runtime code does not read `process.env` directly outside the config module/service.
 - Configuration consumers (for example app bootstrap, logger setup, health/readiness checks) receive config via dependency injection.
 - Unit tests cover default values, custom overrides, and validation failure paths.
+
 ### Story 8.5.2 – Feature flags for AI, limits, and experimental paths
 
 ---
@@ -129,12 +153,16 @@ Acceptance criteria:
 ## Epic 8.6 – Background Jobs & Health
 
 ### Story 8.6.1 – Scheduling for market-data and maintenance jobs
+
 Acceptance criteria:
+
 - Hourly cron (`0 * * * *`) runs `market_data_scheduled` jobs when `INGESTION_SCHEDULER_ENABLED=true` (default in development, disabled in test).
 - Scheduled jobs use `JOBS_SYSTEM_USER_ID` (default system user seeded by migration).
 
 ### Story 8.6.2 – Health and readiness endpoints for core services
+
 Acceptance criteria:
+
 - `GET /api/health/live` returns `200` with `{ "status": "ok" }` when the process is alive.
 - `GET /api/health/ready` returns structured readiness output that includes per-check status for core dependencies (at minimum: database and market data service).
 - Readiness output includes an overall readiness flag and timestamp so operators can diagnose failures quickly.
@@ -147,7 +175,9 @@ Acceptance criteria:
 ## Epic 8.7 – Deployment & Hosting
 
 ### Story 8.7.1 – Deployment pipeline (CI build and deploy to target environment)
+
 Acceptance criteria:
+
 - GitHub Actions `ci.yml` builds/lints/tests API + web on PRs and `main`.
 - `deploy.yml` on `main` runs CI, migrates once, deploys API then web; fails closed on test failure.
 - Secrets live only in GitHub Environments / host dashboards.
@@ -155,7 +185,9 @@ Acceptance criteria:
 Status: Artifacts merged in PR #12 with security updates in PR #13; no hosting is provisioned. The first live deployment requires an API app, web project, database and their credentials.
 
 ### Story 8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
+
 Acceptance criteria:
+
 - Option A artifacts: API Dockerfile + Fly.io config, Vercel Angular static SPA, managed MySQL colocated with API.
 - Production config requires `DATABASE_URL`, exact CORS/WebAuthn origins; readiness uses Prisma `SELECT 1` when enabled and fails closed without DB in production.
 - Single API replica while in-process scheduler is enabled; runbook in `docs/ops/deployment.md`.

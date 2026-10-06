@@ -107,7 +107,7 @@ test.describe('Milestone 5 workflows', () => {
     await page.getByRole('link', { name: 'Back to list' }).click();
     await expect(page).toHaveURL(new RegExp(`/strategies/${strategyId}/edit`));
 
-    await page.locator('#period').fill('25');
+    await page.getByLabel('Period', { exact: true }).first().fill('25');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page).toHaveURL(new RegExp(`/strategies/${strategyId}$`));
     await expect(page.getByText(/Strategy · v2/)).toBeVisible({ timeout: 15_000 });
@@ -119,7 +119,7 @@ test.describe('Milestone 5 workflows', () => {
 
     await page.getByRole('link', { name: 'Run backtest' }).click();
     await expect(page).toHaveURL(new RegExp(`/backtests/new\\?strategy_id=${strategyId}`));
-    await expect(page.getByText(new RegExp(strategyName))).toBeVisible();
+    await expect(page.locator('p.lede').filter({ hasText: strategyName })).toBeVisible();
     await page.locator('#start').fill(dateOffset(-90));
     await page.locator('#end').fill(dateOffset(0));
     await page.getByRole('button', { name: 'Run backtest' }).click();

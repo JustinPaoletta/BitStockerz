@@ -27,6 +27,7 @@ import { StrategiesModule } from './strategies/strategies.module';
 import { BacktestModule } from './backtest/backtest.module';
 import { TradingModule } from './trading/trading.module';
 import { AiModule } from './ai/ai.module';
+import { ProductModule } from './product/product.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -40,6 +41,7 @@ import { PrismaModule } from './prisma/prisma.module';
     StrategiesModule,
     BacktestModule,
     TradingModule,
+    ProductModule,
     AiModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],

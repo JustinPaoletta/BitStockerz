@@ -1016,6 +1016,14 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
 export class AppConfigService {
   private readonly config: AppConfig;
 
+  get vendor(): { key?: string; secret?: string; feed: 'iex' | 'sip' } {
+    return {
+      key: process.env.ALPACA_API_KEY,
+      secret: process.env.ALPACA_SECRET_KEY,
+      feed: process.env.ALPACA_EQUITY_FEED === 'sip' ? 'sip' : 'iex',
+    };
+  }
+
   constructor() {
     this.config = loadAppConfig(process.env);
   }

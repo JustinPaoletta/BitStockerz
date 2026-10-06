@@ -1,3 +1,7 @@
+import type {
+  BenchmarkResult,
+  SimulationSettings,
+} from './engine/backtest-engine.types';
 import type { StrategyDefinition } from '../strategies/definition/strategy-definition.types';
 import type {
   StrategyAssetType,
@@ -24,6 +28,7 @@ export interface CreateBacktestRunInput {
   startDate: Date;
   endDate: Date;
   initialEquity: number;
+  simulation?: Partial<SimulationSettings>;
   jobId?: string;
 }
 
@@ -37,6 +42,7 @@ export interface BacktestRunRecord {
   startDate: Date;
   endDate: Date;
   initialEquity: string;
+  simulation?: SimulationSettings;
   status: BacktestStatus;
   jobId?: string;
   errorMessage?: string;
@@ -47,6 +53,7 @@ export interface BacktestRunRecord {
 }
 
 export interface BacktestResultRecord {
+  benchmark?: BenchmarkResult;
   finalEquity: string;
   totalReturnPct: string;
   maxDrawdownPct: string;
@@ -66,6 +73,7 @@ export interface BacktestTradeRecord {
   entryPrice: string;
   exitPrice: string;
   quantity: string;
+  feesAbs?: string;
   pnlAbs: string;
   pnlPct: string;
 }

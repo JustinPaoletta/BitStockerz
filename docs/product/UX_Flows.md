@@ -1,75 +1,101 @@
-# BitStockerz – UX Flows
+# BitStockerz — User flows
 
-These flows describe the user-facing behavior of the Angular application.
+These flows describe the current Angular application.
+October 4 additions are local changes; hosted and live-provider checks remain outstanding.
+See [product contracts](PRODUCT_EXTENSIONS.md) for execution and recovery limits.
 
-Strategy → Backtest and paper-trading flows are completable in the Milestone 5
-Angular app (PR #11). Backend contracts for strategies, backtests, and trading
-shipped in Sprints 2.1–4.3.
+## 1. Strategy research
 
-## 1. Strategy → Backtest Flow
-1. Sign in at `/login` with a passkey (primary) or configured Google/Apple
-   provider. Email fallback is limited to development/test builds and enabled
-   development API shortcuts.
-2. Open **Strategies**, create or edit a strategy (validate, then save).
-3. From strategy detail, choose **Run backtest** (or open `/backtests/new`
-   with `strategy_id`).
-4. Confirm symbol, inclusive date range, and initial equity. Timeframe is
-   locked to the strategy when launched from Strategy Lab.
-5. Submit the synchronous run and show a disabled/loading submit state.
-6. Navigate to `/backtests/:id` when execution completes.
-7. Display result metrics, a responsive equity curve with daily/hourly UTC
-   entry/exit markers, and the first stable-id
-   page of real trades. Load additional trades only while
-   `trades_page.has_more` is true.
-8. `/backtests` lists owned runs and links each run to its result detail.
+1. Sign in at `/login` with a passkey or configured Google/Apple provider.
+2. Open Strategies and create a definition or start from a template.
+3. Add indicators, entry/exit conditions, and required stop/target percentages.
+4. Validate the definition.
+5. Save the strategy.
+6. Select **Run backtest** from strategy detail.
+7. Select the symbol, inclusive dates, initial equity, and simulation assumptions.
+8. Submit the synchronous run.
+9. Inspect metrics, the equity curve, trade markers, and paged trades.
+10. Compare owned runs and inspect their pinned definitions, settings, and benchmarks.
+11. Export complete results or trades if needed.
 
-The app uses the relative `/api` development proxy and stores the bearer token
-in `sessionStorage`. The auth guard validates the session via `/auth/me`.
+The out-of-sample label records a selected historical period; it does not automatically split data.
+Rerunning uses the latest saved strategy version.
+Historical run exports retain their original version pins.
 
-## 2. Paper Trading Flow
-1. A successful signup provisions one $100,000.00 USD paper account.
-2. Open **Trade**, select an active symbol, and submit a decimal-string market
-   BUY/SELL with a stable `client_order_id` until inputs change or a terminal
-   response arrives.
-3. The API fills immediately at the latest eligible close, or returns a
-   persisted `REJECTED` order explaining the business rule.
-4. Filled cash, average-cost position, execution, and order state commit as
-   one transaction; replaying the same client id does not fill again.
-5. Refresh the account, positions, portfolio summary (realized/unrealized/total
-   P&L), recent orders and execution history independently. Displayed P&L totals
-   reconcile to the cent; rejected/replayed orders do not double count.
-6. Empty positions render an empty-state; selling more than the displayed
-   quantity is blocked in the client before submit.
-7. Unavailable held-symbol prices show a valuation error rather than a
-   misleading zero portfolio value.
+## 2. Manual paper trading
 
-## 3. Profile and lost-device recovery
+Signup provisions one USD paper account.
+The default starting balance is $100,000.00; operators can configure it.
 
-1. Open `/profile` after signing in. View email, USD base currency, passkey
-   count and linked sign-in methods; edit/save the optional display name.
-2. To link a configured Google/Apple recovery method, sign in again if the
-   original session is older than five minutes, then start linking from Profile.
-3. Complete provider authorization and redeem the one-use handoff in that same
-   browser session. Reload Profile to confirm the provider is attached.
-4. If a passkey device is lost, use the previously linked provider at `/login`.
-   Recovery returns the original user and their data; matching an email alone
-   cannot attach a new provider or recover an account.
-5. Users without a working passkey or linked provider have no automatic reset
-   bypass. Additional passkey enrollment remains optional future work.
+1. Open Trade.
+2. Select an active symbol.
+3. Submit a positive decimal-string market BUY or SELL.
+4. Inspect the filled order or persisted rejection.
+5. Inspect account cash, positions, portfolio P&L, and history.
 
-These flows are merged and tested with mocked providers. Real provider setup and
-production smoke remain required; no production hosting is provisioned yet.
+The client retains a `client_order_id` until inputs change or a terminal response arrives.
+A replay with the same payload returns the original order without another fill.
+A changed payload with that identifier returns a conflict.
+Cash, position, execution, and order changes commit atomically.
+Missing held-symbol prices cause valuation errors rather than zero portfolio values.
 
-## 4. Empty States
-- No strategies → CTA to create
-- No backtests → prompt to run first test
-- Completed backtest with no trades → keep metrics/curve visible and explain
-  that no positions met the strategy conditions
-- No positions → explain portfolio
+## 3. Forward paper testing
 
-## 5. Error States
-- Backtest failure → error message + retry
-- Expired/missing local session → redirect protected routes to `/login`
-- Insufficient balance / risk limits → persisted reject with reason
-- Idempotency-key payload mismatch → show conflict and generate a new client id
-- Missing/stale valuation price → show unavailable-price state; do not show zero
+1. Open Automations.
+2. Select a saved strategy version, symbol, and allocation.
+3. Create the paused runner.
+4. Activate it after inspecting the pinned settings.
+5. Inspect evaluation activity, orders, and attributed performance.
+6. Pause it when investigation is needed.
+7. Stop it only after its held position and pending intent are cleared.
+
+Scheduling requires database mode and configured ingestion.
+Runners evaluate the newest completed bar without replaying missed bars.
+Stale prices or changed manual positions pause execution for inspection.
+Pause retains positions; reset stops runners and archives the ledger.
+
+## 4. Markets
+
+1. Open Markets and select a symbol/timeframe/date range.
+2. Inspect candles, timestamps, data mode, and the OHLCV table.
+3. Select a saved strategy for indicator overlays.
+4. Add the symbol to the owned watchlist if needed.
+
+## 5. Profile and recovery
+
+1. Open `/profile` and inspect email, currency, passkeys, and linked providers.
+2. Save an optional display name.
+3. If sign-in is older than five minutes, sign in again before linking a provider.
+4. Start linking from Profile.
+5. Complete provider authorization in the same browser session.
+6. Reload Profile to confirm the linked method.
+
+Recovery uses a working passkey or a previously linked provider.
+Email matching alone cannot recover an account or attach a provider.
+Users without a working method have no ownership bypass.
+Security settings support additional passkey enrollment and owned-session revocation.
+
+## 6. Account data
+
+1. Open account data settings.
+2. Download personal JSON when an export is needed.
+3. For reset, sign in freshly and enter the exact confirmation `RESET`.
+4. Inspect the retained archive and restored paper cash.
+5. For account deletion, sign in freshly and confirm the exact email.
+
+Deletion rejects active jobs and removes owned active data.
+Host logs and backups require separate operator retention controls.
+See [the lifecycle policy](../database/Data_Lifecycle_and_Deletion_Policy.md).
+
+## 7. Loading, empty, and error states
+
+Dashboard widgets load independently.
+Empty strategy/backtest lists provide creation actions.
+A completed run without trades retains its metrics and curve.
+Expired sessions redirect protected routes to `/login`.
+Business order rejections retain their reason and cannot alter the ledger.
+Error screens provide a request ID when the API supplies one.
+
+The client stores bearer sessions in `sessionStorage` and validates them through `/auth/me`.
+Development uses a relative `/api` proxy.
+Email shortcuts appear only in non-production builds with development API access enabled.

@@ -1,3 +1,4 @@
+import { csv } from '../common/csv';
 import { Injectable, Logger } from '@nestjs/common';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
@@ -61,6 +62,7 @@ export class BacktestsHttpService {
       startDate: dates.start,
       endDate: dates.end,
       initialEquity: dto.initial_equity ?? 10_000,
+      simulation: dto.simulation,
     });
     let job: JobRecord;
     try {
@@ -186,6 +188,96 @@ export class BacktestsHttpService {
     return serializeDetail(detail, symbol?.symbol ?? 'UNKNOWN');
   }
 
+  async research(userId: string, runId: string) {
+    const detail = await this.backtests.getRun(runId, userId);
+    if (!detail) throw backtestNotFoundError(runId);
+    const pinned = await this.strategies.resolvePinnedVersionForRun(
+      userId,
+      detail.run.strategyId,
+      detail.run.strategyVersionId,
+    );
+    const symbol = (
+      await this.marketData.getSymbolsByIds([detail.run.symbolId])
+    )[0];
+    return {
+      run: serializeRun(detail.run, symbol?.symbol ?? 'UNKNOWN'),
+      results: serializeResult(detail.result),
+      definition: pinned.definition,
+      version_number: pinned.versionNumber,
+    };
+  }
+
+  async exportTrades(userId: string, runId: string): Promise<string> {
+    const detail = await this.backtests.getRun(runId, userId);
+    if (!detail) throw backtestNotFoundError(runId);
+    const rows = [
+      [
+        'entry_time',
+        'exit_time',
+        'side',
+        'entry_price',
+        'exit_price',
+        'quantity',
+        'fees_abs',
+        'pnl_abs',
+        'pnl_pct',
+      ],
+      ...detail.trades.map((trade) => [
+        trade.entryTime.toISOString(),
+        trade.exitTime.toISOString(),
+        trade.side,
+        trade.entryPrice,
+        trade.exitPrice,
+        trade.quantity,
+        trade.feesAbs ?? '0',
+        trade.pnlAbs,
+        trade.pnlPct,
+      ]),
+    ];
+    return csv(rows);
+  }
+
+  async exportResults(userId: string, runId: string): Promise<string> {
+    const research = await this.research(userId, runId);
+    const metrics = research.results;
+    return csv([
+      [
+        'run_id',
+        'strategy_id',
+        'version_number',
+        'symbol',
+        'timeframe',
+        'start_date',
+        'end_date',
+        'initial_equity',
+        'simulation',
+        'definition',
+        'results',
+      ],
+      [
+        research.run.id,
+        research.run.strategy_id,
+        research.version_number,
+        research.run.symbol,
+        research.run.timeframe,
+        research.run.start_date,
+        research.run.end_date,
+        research.run.initial_equity,
+        JSON.stringify(
+          research.run.simulation ?? {
+            allocation_pct: 100,
+            commission_bps: 0,
+            slippage_bps: 0,
+            execution_timing: 'signal_close',
+            evaluation_period: 'research',
+          },
+        ),
+        JSON.stringify(research.definition),
+        JSON.stringify(metrics),
+      ],
+    ]);
+  }
+
   private assertSpanWithinBarLimit(
     start: Date,
     end: Date,
@@ -285,6 +377,7 @@ function serializeRun(
     start_date: run.startDate.toISOString(),
     end_date: run.endDate.toISOString(),
     initial_equity: run.initialEquity,
+    ...(run.simulation ? { simulation: run.simulation } : {}),
     status: run.status,
     ...(run.jobId ? { job_id: run.jobId } : {}),
     ...(run.errorMessage ? { error_message: run.errorMessage } : {}),
@@ -299,6 +392,7 @@ function serializeRun(
 function serializeResult(result: BacktestResultRecord | null) {
   return result
     ? {
+        ...(result.benchmark ? { benchmark: result.benchmark } : {}),
         final_equity: result.finalEquity,
         total_return_pct: result.totalReturnPct,
         max_drawdown_pct: result.maxDrawdownPct,
@@ -339,6 +433,7 @@ function serializeTrade(trade: BacktestTradeRecord) {
     entry_price: trade.entryPrice,
     exit_price: trade.exitPrice,
     quantity: trade.quantity,
+    fees_abs: trade.feesAbs ?? '0.00000000',
     pnl_abs: trade.pnlAbs,
     pnl_pct: trade.pnlPct,
   };

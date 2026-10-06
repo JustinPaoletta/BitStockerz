@@ -200,7 +200,7 @@ describe('AuthPersistenceService', () => {
           createdAt: new Date(),
         }),
         delete: jest.fn().mockResolvedValue({}),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       oAuthState: {
         findUnique: jest.fn().mockResolvedValue({
@@ -652,5 +652,38 @@ describe('AuthPersistenceService', () => {
     expect(prisma.oAuthIdentity.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: { email: 'new@example.com' } }),
     );
+  });
+  it('does not replay a challenge lost to another concurrent consumer', async () => {
+    const prisma = createPrismaMock();
+    jest.mocked(prisma.webAuthnChallenge.findUnique).mockResolvedValue({
+      id: 'challenge-1',
+      purpose: 'enroll',
+      email: 'user@example.com',
+      challenge: 'challenge',
+      expiresAt: new Date(Date.now() + 10000),
+      userId: 'user-1',
+      sessionHash: 'hash',
+    } as never);
+    jest
+      .mocked(prisma.webAuthnChallenge.deleteMany)
+      .mockResolvedValue({ count: 0 });
+    const service = new AuthPersistenceService(prisma);
+    expect(
+      await service.consumeWebAuthnChallenge(
+        'challenge-1',
+        'enroll',
+        'user@example.com',
+      ),
+    ).toBeNull();
+    jest
+      .mocked(prisma.webAuthnChallenge.deleteMany)
+      .mockResolvedValue({ count: 1 });
+    expect(
+      await service.consumeWebAuthnChallenge(
+        'challenge-1',
+        'enroll',
+        'user@example.com',
+      ),
+    ).toMatchObject({ userId: 'user-1', sessionHash: 'hash' });
   });
 });

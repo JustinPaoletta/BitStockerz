@@ -9,8 +9,11 @@ const EQUITY_BAR_COUNT = 40;
 const CRYPTO_DAILY_BAR_COUNT = 30;
 const CRYPTO_HOURLY_BAR_COUNT = 48;
 
-/** Seed OHLCV ends at "today" (UTC) so local health demos can report fresh. */
-const SEED_ANCHOR = new Date();
+/** Seed OHLCV contains completed bars only while remaining fresh for local demos. */
+const DAILY_SEED_ANCHOR = addUtcDays(startOfUtcDay(new Date()), -1);
+const HOURLY_SEED_ANCHOR = new Date(
+  startOfUtcHour(new Date()).getTime() - 60 * 60 * 1000,
+);
 
 export const SEED_EQUITY_DAILY_BARS: EquityDailyBarRecord[] = [
   ...buildEquityDailyBars(1, 185, 52_000_000),
@@ -43,10 +46,7 @@ function buildEquityDailyBars(
   baseVolume: number,
 ): EquityDailyBarRecord[] {
   const bars: EquityDailyBarRecord[] = [];
-  const cursor = weekdayStartForCount(
-    startOfUtcDay(SEED_ANCHOR),
-    EQUITY_BAR_COUNT,
-  );
+  const cursor = weekdayStartForCount(DAILY_SEED_ANCHOR, EQUITY_BAR_COUNT);
 
   while (bars.length < EQUITY_BAR_COUNT) {
     const day = cursor.getUTCDay();
@@ -78,7 +78,7 @@ function buildCryptoDailyBars(
   basePrice: number,
   baseVolume: number,
 ): CryptoDailyBarRecord[] {
-  const end = startOfUtcDay(SEED_ANCHOR);
+  const end = DAILY_SEED_ANCHOR;
   const start = addUtcDays(end, -(CRYPTO_DAILY_BAR_COUNT - 1));
 
   return Array.from({ length: CRYPTO_DAILY_BAR_COUNT }, (_, index) => {
@@ -106,7 +106,7 @@ function buildCryptoHourlyBars(
   basePrice: number,
   baseVolume: number,
 ): CryptoHourlyBarRecord[] {
-  const end = startOfUtcHour(SEED_ANCHOR);
+  const end = HOURLY_SEED_ANCHOR;
   const start = new Date(end);
   start.setUTCHours(start.getUTCHours() - (CRYPTO_HOURLY_BAR_COUNT - 1));
 

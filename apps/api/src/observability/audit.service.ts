@@ -43,6 +43,17 @@ export class AuditService {
     private readonly authService: AuthService,
   ) {}
 
+  exportMemoryForUser(userId: string) {
+    return structuredClone(
+      this.inMemoryEvents.filter((item) => item.userId === userId),
+    );
+  }
+  forgetUser(userId: string): void {
+    for (let i = this.inMemoryEvents.length - 1; i >= 0; i--)
+      if (this.inMemoryEvents[i].userId === userId)
+        this.inMemoryEvents.splice(i, 1);
+  }
+
   async record(input: AuditRecordInput): Promise<void> {
     try {
       const payload = sanitizePayload(input.payload ?? {});

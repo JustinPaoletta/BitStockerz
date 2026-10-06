@@ -1,12 +1,17 @@
 # BitStockerz MVP – 7) Dashboard / UI (Stories)
 
+This file retains original story acceptance criteria and dated delivery notes.
+[Product extensions](../PRODUCT_EXTENSIONS.md) describe October 4 additions; [the task list](../../../PRODUCT_TASKLIST.md) contains unfinished acceptance checks.
+
 This document defines the epics and user stories for the **Dashboard / UI** layer of the BitStockerz MVP.
 
 Framework note:
+
 - All stories in this epic assume an Angular frontend implementation
 - Shared UI work means Angular components, routes, guards, and services unless stated otherwise
 
 Scope:
+
 - Central landing dashboard after login
 - Portfolio and paper account summary
 - Active strategies overview
@@ -17,6 +22,7 @@ This is a **read-focused surface** that pulls together data from prior modules.
 No heavy analytics logic lives here.
 
 Dependencies:
+
 - #1 User & Account
 - #3 Paper Trading
 - #4 Strategy Lab
@@ -43,6 +49,7 @@ Dependencies:
 **So that** navigation feels predictable
 
 **Acceptance criteria**
+
 - Global layout includes:
   - Top nav (logo, app name)
   - Primary nav items:
@@ -63,6 +70,7 @@ Dependencies:
 **So that** I can quickly see my account state
 
 **Acceptance criteria**
+
 - Route: `/dashboard`
 - Loads without blocking on non-critical widgets.
 - Shows skeleton loaders while data fetches.
@@ -78,6 +86,7 @@ Dependencies:
 **So that** I understand my current exposure
 
 **Acceptance criteria**
+
 - Card displays:
   - Cash balance
   - Total equity
@@ -96,6 +105,7 @@ Dependencies:
 **So that** I know what I’m holding
 
 **Acceptance criteria**
+
 - Table shows:
   - Symbol
   - Quantity
@@ -114,6 +124,7 @@ Dependencies:
 **So that** I can quickly manage or run them
 
 **Acceptance criteria**
+
 - Table shows:
   - Strategy name
   - Asset type
@@ -131,6 +142,7 @@ Dependencies:
 **So that** common actions are faster
 
 **Acceptance criteria**
+
 - Actions per strategy:
   - Edit
   - Run backtest
@@ -147,6 +159,7 @@ Dependencies:
 **So that** I can revisit results quickly
 
 **Acceptance criteria**
+
 - List shows:
   - Strategy name
   - Symbol
@@ -165,6 +178,7 @@ Dependencies:
 **So that** I can confirm activity at a glance
 
 **Acceptance criteria**
+
 - Table shows:
   - Time
   - Symbol
@@ -182,9 +196,10 @@ Dependencies:
 
 **As a** user  
 **I want** the dashboard to partially load  
-**So that** one failing API doesn’t break everything
+**So that** one failing API does not stop the other widgets
 
 **Acceptance criteria**
+
 - Each widget fetches data independently.
 - Failure in one widget shows an inline error state.
 - Other widgets still render normally.
@@ -198,6 +213,7 @@ Dependencies:
 **So that** I know what to do next
 
 **Acceptance criteria**
+
 - If no trades:
   - Show “No trades yet” with link to Trade page.
 - If no strategies:
@@ -216,6 +232,7 @@ Dependencies:
 **So that** the app feels cohesive
 
 **Acceptance criteria**
+
 - Shared components for:
   - Tables
   - Cards
@@ -231,9 +248,10 @@ Dependencies:
 
 **As a** user  
 **I want** the dashboard to feel fast  
-**So that** it doesn’t feel sluggish
+**So that** it responds quickly
 
 **Acceptance criteria**
+
 - Avoid over-fetching (limit results).
 - No polling; refresh only on navigation or user action.
 - Acceptable load time with mock production data.

@@ -1,360 +1,78 @@
-# BitStockerz – Per-Sprint Migration Plan
-
-This document maps **sprints** from `../product/ROADMAP.md` to concrete **database migrations**.
-Migrations are defined in terms of the domain DDL skeletons:
-
-- `DDL/00_core.sql`
-- `DDL/01_market_data.sql`
-- `DDL/02_trading.sql`
-- `DDL/03_strategy_lab.sql`
-- `DDL/04_backtesting.sql`
-- `DDL/05_ai_kernel.sql`
-- `DDL/06_infra.sql`
-
-**Runnable API migrations:** The NestJS app applies Prisma migrations from `apps/api/prisma/migrations/`:
-
-| Sprint scope | Prisma migration folder |
-| --- | --- |
-| Core auth tables (0.1–0.2) | `20260421100000_core_auth_tables` |
-| Symbols + OHLCV schemas (1.1) | `20260421110000_sprint_1_1_symbols_and_market_data` |
-| Jobs table (1.3) | `20260711000000_sprint_1_3_jobs` |
-| Audit events (1.4) | `20260724150000_sprint_1_4_audit_events` |
-| Strategies + immutable versions (2.1) | `20260725120000_sprint_2_1_strategies` |
-| Backtest runs/results/trades/equity points (3.2) | `20260728213000_sprint_3_2_backtest_tables` |
-| Deferred backtest-run → job foreign key (3.2) | `20260728213100_sprint_3_2_backtest_runs_job_fk` |
-| Paper accounts (4.1) | `20260802010000_sprint_4_1_paper_accounts` |
-| Positions (4.1) | `20260802010100_sprint_4_1_positions` |
-| Orders (4.2) | `20260802020000_sprint_4_2_orders` |
-| Executions (4.2) | `20260802020100_sprint_4_2_executions` |
-| Trading price precision alignment (4.1–4.2) | `20260802030000_sprint_4_trading_price_precision` |
-| AI daily usage quotas (6.1) | `20260808000000_sprint_6_1_ai_usage` |
-| Auth persistence (sessions, OAuth, challenges) | `20260911000000_auth_persistence` |
-| Browser OAuth handoffs and explicit linking (8.1) | `20261002000000_oauth_browser_handoff` |
-| Case-sensitive opaque auth identifiers (security review) | `20261002010000_auth_identifiers_binary` |
-
-The `V0001`-style names below remain the conceptual plan; apply only the Prisma
-migrations above. These migrations are merged and CI-verified on fresh MySQL;
-they have not been applied to a production database. Existing databases require
-the duplicate `(user_id, provider)` preflight in [deployment.md](../ops/deployment.md#googleapple-login-and-recovery-setup)
-before the browser handoff migration.
-
-Each sprint lists:
-- Migration file name (suggested)
-- Tables created/modified
-- Source DDL file
-
----
-
-## Sprint 0.1 – Core Infra + Auth Skeleton
-
-**Migrations**
-
-1. `V0001__create_users.sql`  
-   - Creates: `users`  
-   - Source: `DDL/00_core.sql`
-
-2. `V0002__create_webauthn_credentials.sql`  
-   - Creates: `webauthn_credentials`  
-   - Source: `DDL/00_core.sql`
-
----
-
-## Sprint 1.1 – Symbols & Schemas
-
-**Migrations**
-
-1. `V0100__create_symbols.sql`  
-   - Creates: `symbols`  
-   - Source: `DDL/01_market_data.sql`
-
-2. `V0101__create_equity_daily_bars.sql`  
-   - Creates: `equity_daily_bars`  
-   - Source: `DDL/01_market_data.sql`
-
-3. `V0102__create_crypto_daily_bars.sql`  
-   - Creates: `crypto_daily_bars`  
-   - Source: `DDL/01_market_data.sql`
-
-4. `V0103__create_crypto_hourly_bars.sql`  
-   - Creates: `crypto_hourly_bars`  
-   - Source: `DDL/01_market_data.sql`
-
-Apply in this order after Sprint 0.1 migrations (`V0001`–`V0002`).
-
----
-
-## Sprint 1.2 – Market Data Read APIs
-
-**Migrations**
-
-- No new tables required.  
-- This sprint uses data from:
-  - `symbols`
-  - `equity_daily_bars`
-  - `crypto_daily_bars`
-  - `crypto_hourly_bars`
-
-You may add **indexes** later if query patterns demand it.
-
----
-
-## Sprint 1.3 – Data Ingestion & Jobs
-
-**Migrations**
-
-1. `V0130__create_jobs.sql`  
-   - Creates: `jobs`  
-   - Source: `DDL/06_infra.sql`
-
-No new core tables for ingestion are required beyond `jobs`.  
-You might add helper tables later if needed (e.g., import checkpoints), but MVP can track that in `jobs.payload_json`.
-
----
-
-## Sprint 1.4 – Data Health & Observability
-
-**Migrations**
-
-1. Prisma folder `20260724150000_sprint_1_4_audit_events` (conceptual `V0131__create_audit_events.sql`)  
-   - Creates: `audit_events`  
-   - Source: `DDL/06_infra.sql`
-
-No new core tables are required for metrics/health endpoints beyond `audit_events`.
-
----
-
-## Sprint 2.1 – Strategy Persistence & Versioning
-
-**Migrations**
-
-1. Prisma folder `20260725120000_sprint_2_1_strategies` (conceptual `V0200__create_strategies.sql` + `V0201__create_strategy_versions.sql`)
-   - Creates `strategies` first, then `strategy_versions`, with foreign keys and uniqueness/index contracts.
-   - Source: `DDL/03_strategy_lab.sql`.
-   - Applied and verified against local MySQL on July 25, 2026.
-
-Run after Sprint 1 migrations.
-
----
-
-## Sprint 2.2 – Indicators & Rule Schema
-
-**Migrations**
-
-- Implemented July 27, 2026 with no migration.
-- No new tables required.  
-- All indicator/condition structures live in `strategy_versions.definition_json`.
-
----
-
-## Sprint 2.3 – Strategy CRUD & Validation
-
-**Migrations**
-
-- Implemented July 28, 2026 with no migration.
-- No new tables required.  
-- The existing strategy owner index and strategy-version uniqueness constraint
-  support the CRUD and serialized version-allocation paths.
-
----
-
-## Sprint 3.1 – Backtest Engine Core
-
-**Migrations**
-
-- Implemented July 28, 2026 with no migration.
-- No new tables required. The pure engine and thin Nest adapter operate only
-  on caller-supplied definitions and bars.
-
----
-
-## Sprint 3.2 – Backtest Persistence
-
-**Implemented July 28, 2026**
-
-| Prisma migration folder | Conceptual migrations | Effect |
-| --- | --- | --- |
-| `20260728213000_sprint_3_2_backtest_tables` | V0300–V0303 | Creates `backtest_runs` (including nullable `job_id` without its FK), `backtest_results`, `backtest_trades`, and `backtest_equity_points` in FK-safe order with all required indexes and cascade/restrict rules. |
-| `20260728213100_sprint_3_2_backtest_runs_job_fk` | V0330 | Adds `fk_backtest_runs_job` to `jobs.id` with `ON DELETE SET NULL ON UPDATE CASCADE`. |
-
-The two-folder packaging preserves the conceptual DDL traceability while
-keeping table creation atomic and the deferred jobs constraint independently
-auditable. Sprint 1.3's jobs migration is already earlier in the runnable
-Prisma history. Both migrations apply with `npm --prefix apps/api run db:deploy`
-and are exercised by the MySQL persistence smoke gate.
-
----
-
-## Sprint 3.3 – Backtest Execution & Limits
-
-**Migrations**
-
-- Implemented July 28, 2026 with no migration.
-- No new tables.  
-- Sprint 3.2 already provides required list index
-  `idx_backtests_user_created`; add further indexes only if profiling justifies
-  a separate migration.
-
----
-
-## Sprint 3.4 – Backtest UI
-
-**Migrations**
-
-- Implemented July 28, 2026 with no migration.
-- No schema changes; `apps/web` consumes the Sprint 3.3 HTTP contracts.
-
----
-
-## Sprint 4.1 – Accounts & Positions
-
-**Status:** Implemented and applied to MySQL August 2, 2026.
-
-**Migrations**
-
-1. `20260802010000_sprint_4_1_paper_accounts/migration.sql` (conceptual V0400)
-   - Creates: `paper_accounts`  
-   - Source: `DDL/02_trading.sql`
-
-2. `20260802010100_sprint_4_1_positions/migration.sql` (conceptual V0401)
-   - Creates: `positions`  
-   - Source: `DDL/02_trading.sql`
-
----
-
-## Sprint 4.2 – Orders & Executions
-
-**Status:** Implemented and applied to MySQL August 2, 2026.
-
-**Migrations**
-
-1. `20260802020000_sprint_4_2_orders/migration.sql` (conceptual V0402)
-   - Creates: `orders`  
-   - Source: `DDL/02_trading.sql`
-
-2. `20260802020100_sprint_4_2_executions/migration.sql` (conceptual V0403)
-   - Creates: `executions`  
-   - Source: `DDL/02_trading.sql`
-
-3. `20260802030000_sprint_4_trading_price_precision/migration.sql` (conceptual V0404)
-   - Widens `positions.avg_cost`, `orders.avg_fill_price`, and
-     `executions.price` to `DECIMAL(20,8)`, retaining eight fractional digits
-     while matching the 12-integer-digit range of market-data
-     `DECIMAL(18,6)` prices.
-   - Source: `DDL/02_trading.sql`
-
----
-
-## Sprint 4.3 – Trading Views
-
-**Migrations**
-
-- Implemented August 2, 2026 with no migration; APIs read from
-  `paper_accounts`, `positions`, `orders`, and `executions`.
-
----
-
-## Sprint 5.1 – Shell & Navigation
-
-**Migrations**
-
-- No backend schema changes (frontend-only sprint).
-
----
-
-## Sprint 5.2 – Dashboard Widgets
-
-**Migrations**
-
-- No new tables.  
-- Optional future indexes if dashboard queries expose new hot paths.
-
----
-
-## Sprint 5.3 – Core Workflows UI
-
-**Migrations**
-
-- No backend schema changes (frontend-only sprint).
-
----
-
-## Sprint 6.1 – AI Infrastructure
-
-**Migrations**
-
-1. `V0600__create_ai_usage.sql`  
-   - Creates: `ai_usage`  
-   - Source: `DDL/05_ai_kernel.sql`
-   - Prisma: `apps/api/prisma/migrations/20260808000000_sprint_6_1_ai_usage/`
-
----
-
-## Sprint 6.2 – Strategy Intelligence
-
-**Migrations**
-
-- No schema changes; AI operates on existing strategy and backtest tables.
-
----
-
-## Sprint 6.3 – Backtest Intelligence
-
-**Migrations**
-
-- No schema changes; AI operates on existing backtest tables.
-
----
-
-## Sprint 7.1 – Polish & Caching
-
-**Migrations**
-
-- No new core tables.  
-- Optional: index tuning and cache-related metadata tables if needed (MVP can avoid).
-
----
-
-## Sprint 8.1 – Browser OAuth and recovery linking
-
-- Prisma: `apps/api/prisma/migrations/20261002000000_oauth_browser_handoff/`.
-- Adds persisted browser mode, intent, verifier challenge, return path and
-  initiating user/session hash to OAuth state.
-- Adds `oauth_handoffs` with hashed one-use code, verified pending identity,
-  verifier challenge, expiry and actor/session binding. Bearer session sign-in
-  age uses the original `auth_sessions.created_at`, not hydration time.
-- Adds uniqueness on `(user_id, provider)` to prevent replacing an existing
-  recovery identity. Run the duplicate-provider preflight and resolve any rows
-  explicitly before migrating an existing database; see the deployment runbook.
-- Sprint 8.2 profile editing reuses existing columns and requires no migration.
-
-## Migration Ordering Summary
-
-Suggested global migration order (flattened):
-
-1. `V0001__create_users.sql`
-2. `V0002__create_webauthn_credentials.sql`
-3. `V0100__create_symbols.sql`
-4. `V0101__create_equity_daily_bars.sql`
-5. `V0102__create_crypto_daily_bars.sql`
-6. `V0103__create_crypto_hourly_bars.sql`
-7. `V0130__create_jobs.sql`
-8. `V0131__create_audit_events.sql`
-9. `V0200__create_strategies.sql`
-10. `V0201__create_strategy_versions.sql`
-11. `V0300__create_backtest_runs.sql`
-12. `V0301__create_backtest_results.sql`
-13. `V0302__create_backtest_trades.sql`
-14. `V0303__create_backtest_equity_points.sql`
-15. `V0330__add_fk_backtest_runs_job.sql`
-16. `V0400__create_paper_accounts.sql`
-17. `V0401__create_positions.sql`
-18. `V0402__create_orders.sql`
-19. `V0403__create_executions.sql`
-20. `V0600__create_ai_usage.sql`
-
-Index-only changes can be added as separate migrations (`VXXXX__add_indexes_*.sql`) when profiling justifies them.
-
-- `20261002010000_auth_identifiers_binary`: additive migration for case-sensitive
-  auth identifiers, including OAuth subjects/state and passkey credential IDs.
-  Existing email/profile collations and data remain intact. Apply after the browser
-  handoff migration; validate case variants using `npm run test:mysql:auth`.
+# BitStockerz — Migration history
+
+Apply migrations from [apps/api/prisma/migrations](../../apps/api/prisma/migrations).
+The runtime schema is [apps/api/prisma/schema.prisma](../../apps/api/prisma/schema.prisma).
+The SQL and Prisma files under `docs/database` are conceptual design sources.
+Their original `V0001`-style names are not runnable migrations.
+
+## Runnable migrations
+
+| Sprint scope                                             | Prisma migration folder                             |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| Core auth tables (0.1–0.2)                               | `20260421100000_core_auth_tables`                   |
+| Symbols + OHLCV schemas (1.1)                            | `20260421110000_sprint_1_1_symbols_and_market_data` |
+| Jobs table (1.3)                                         | `20260711000000_sprint_1_3_jobs`                    |
+| Audit events (1.4)                                       | `20260724150000_sprint_1_4_audit_events`            |
+| Strategies + immutable versions (2.1)                    | `20260725120000_sprint_2_1_strategies`              |
+| Backtest runs/results/trades/equity points (3.2)         | `20260728213000_sprint_3_2_backtest_tables`         |
+| Deferred backtest-run → job foreign key (3.2)            | `20260728213100_sprint_3_2_backtest_runs_job_fk`    |
+| Paper accounts (4.1)                                     | `20260802010000_sprint_4_1_paper_accounts`          |
+| Positions (4.1)                                          | `20260802010100_sprint_4_1_positions`               |
+| Orders (4.2)                                             | `20260802020000_sprint_4_2_orders`                  |
+| Executions (4.2)                                         | `20260802020100_sprint_4_2_executions`              |
+| Trading price precision alignment (4.1–4.2)              | `20260802030000_sprint_4_trading_price_precision`   |
+| AI daily usage quotas (6.1)                              | `20260808000000_sprint_6_1_ai_usage`                |
+| Auth persistence (sessions, OAuth, challenges)           | `20260911000000_auth_persistence`                   |
+| Browser OAuth handoffs and explicit linking (8.1)        | `20261002000000_oauth_browser_handoff`              |
+| Case-sensitive opaque auth identifiers (security review) | `20261002010000_auth_identifiers_binary`            |
+
+| Research settings, benchmark, and trade fees | `202610040001_product_research` |
+| Bound additional-passkey enrollment challenges | `202610040002_account_management` |
+| Watchlists, reset archives, retired order keys, and paper runners | `202610040003_product_workspace` |
+
+## Apply and inspect
+
+For local setup, follow [Local MySQL](Local_MySQL.md).
+Supply `DATABASE_URL` through local configuration or secret storage.
+From the repository root, apply the migrations:
+
+```sh
+npm --prefix apps/api run db:deploy
+```
+
+From `apps/api`, inspect the applied history:
+
+```sh
+npx prisma migrate status
+```
+
+Before migrating an existing database, run the
+[OAuth identity preflight](../ops/deployment.md#googleapple-login-and-recovery-setup).
+Resolve duplicate `(user_id, provider)` identities with an explicit account-owner decision.
+Do not delete recovery identities automatically.
+
+## Ordering and compatibility
+
+Prisma applies migration folders in timestamp order.
+Published migration files remain unchanged; subsequent changes require a new migration.
+
+The backtest table migration creates runs and dependent results, trades, and equity points.
+Its separate job constraint uses `ON DELETE SET NULL ON UPDATE CASCADE`.
+Run deletion cascades to dependent result rows; other parent references use restrictive foreign keys.
+
+The trading precision migration widens unit prices to `DECIMAL(20,8)`.
+It preserves eight fractional digits and supports the market-data price range.
+Browser handoffs add verifier, actor, session, expiry, and one-use-code binding.
+The next auth migration gives opaque identifiers binary collation without changing email/profile collations.
+
+The October 4 migrations add research settings and account-workspace persistence.
+Older binaries must tolerate these additions before an operator rolls back the API.
+Do not remove customer data to reverse an application deployment.
+
+## Evidence and outstanding checks
+
+The first 16 migrations passed fresh-MySQL CI for PR #13 on October 2, 2026.
+The three October 4 migrations have passed schema validation, but their MySQL execution remains unverified locally.
+Docker Desktop did not respond during that local run.
+All five MySQL harnesses and final-revision CI remain required before release.
+See the [testing strategy](../product/requirements/Testing_Strategy.md).

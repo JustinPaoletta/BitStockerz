@@ -20,7 +20,7 @@ export function configureOpenApi(app: INestApplication): OpenAPIObject {
         '',
         'All errors use RFC 7807 Problem Details. Supply an optional `x-request-id` header to correlate a request with logs.',
         '',
-        'Market-data reads are backed by deterministic seed data when `DATABASE_URL` is not configured and by local MySQL rows when it is configured. No live market-data provider is wired yet.',
+        'Market-data reads are backed by deterministic seed data when `DATABASE_URL` is not configured and by local MySQL rows when it is configured. The live Alpaca adapter requires operator credentials and data permissions; database reads never substitute seed prices.',
       ].join('\n'),
     )
     .setVersion('0.0.1')

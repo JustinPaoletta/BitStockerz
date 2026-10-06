@@ -40,12 +40,38 @@ describe('BacktestNewPage strategy selection', () => {
     if (strategyId) queryParams['strategy_id'] = strategyId;
     fixture = TestBed.createComponent(BacktestNewPage);
     fixture.detectChanges();
+    http
+      .expectOne('/api/strategies?limit=100&offset=0')
+      .flush({
+        items: [
+          'crypto-strategy',
+          'second-strategy',
+          'slow-strategy',
+          'current-strategy',
+          'missing-strategy',
+          'valid-strategy',
+        ].map((id) => ({ id, name: id })),
+        has_more: false,
+      });
   }
 
   function fill(selector: string, value: string): void {
     const input = fixture.nativeElement.querySelector(selector) as HTMLInputElement;
+    if (
+      selector === '#strategy' &&
+      value.trim() &&
+      !input.querySelector(`option[value="${value.trim()}"]`)
+    ) {
+      const option = document.createElement('option');
+      option.value = value.trim();
+      option.textContent = value.trim();
+      input.append(option);
+    }
+    if (selector === '#strategy') value = value.trim();
     input.value = value;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(
+      new Event(selector === '#strategy' ? 'change' : 'input', { bubbles: true }),
+    );
     fixture.detectChanges();
   }
 
@@ -67,7 +93,7 @@ describe('BacktestNewPage strategy selection', () => {
     return fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
   }
 
-  it('resolves a manually entered strategy and submits its locked timeframe', async () => {
+  it('resolves a selected strategy and submits its locked timeframe', async () => {
     open();
     fill('#strategy', ' crypto-strategy ');
     fill('#backtest-symbol', 'BTC-USD');

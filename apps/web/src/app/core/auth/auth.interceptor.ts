@@ -1,3 +1,4 @@
+import { withRequestReference } from '../api/error-reference';
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -39,7 +40,9 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
           queryParams: { returnUrl: router.url },
         });
       }
-      return throwError(() => error);
+      return throwError(() =>
+        trustedRequest && error instanceof HttpErrorResponse ? withRequestReference(error) : error,
+      );
     }),
   );
 };

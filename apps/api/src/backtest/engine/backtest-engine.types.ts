@@ -17,6 +17,7 @@ export interface BacktestLimits {
 
 export interface BacktestEngineInput {
   definition: StrategyDefinition;
+  simulation?: Partial<SimulationSettings>;
   bars: EngineBar[];
   initialEquity: number;
   symbolId?: number;
@@ -31,6 +32,7 @@ export interface EngineTrade {
   entryPrice: number;
   exitPrice: number;
   quantity: number;
+  feesAbs?: number;
   pnlAbs: number;
   pnlPct: number;
   symbolId?: number;
@@ -60,6 +62,7 @@ export interface EngineDiagnostics {
 }
 
 export interface BacktestEngineOutput {
+  benchmark?: BenchmarkResult;
   trades: EngineTrade[];
   equityCurve: EngineEquityPoint[];
   metrics: EngineMetrics;
@@ -77,3 +80,18 @@ export const DEFAULT_BACKTEST_LIMITS: Readonly<ResolvedBacktestLimits> = {
   timeoutMs: 5_000,
   maxSeriesCells: 250_000,
 };
+
+export interface SimulationSettings {
+  allocation_pct: number;
+  commission_bps: number;
+  slippage_bps: number;
+  execution_timing: 'signal_close' | 'next_open';
+  evaluation_period: 'research' | 'out_of_sample';
+}
+
+export interface BenchmarkResult {
+  final_equity: string;
+  total_return_pct: string;
+  max_drawdown_pct: string;
+  equity_curve: { timestamp: string; equity: string }[];
+}

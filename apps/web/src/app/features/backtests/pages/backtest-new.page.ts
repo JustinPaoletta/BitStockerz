@@ -22,7 +22,8 @@ import { BacktestsApiService } from '../backtests-api.service';
           <app-page-guide
             description="Simulate how your strategy would have traded over a date range."
             [steps]="[
-              'Paste or confirm the strategy ID from Strategy Lab.',
+              'Choose a saved strategy from Strategy Lab.',
+              'Choose sizing, costs, and fill timing. Use a new date range for out-of-sample validation.',
               'Pick a symbol and UTC date range that has price data.',
               'Run backtest and wait for the results page.',
             ]"
@@ -33,8 +34,18 @@ import { BacktestsApiService } from '../backtests-api.service';
     </section>
     <form class="panel form-panel" [formGroup]="form" (ngSubmit)="submit()">
       <div class="field full">
-        <label for="strategy">Strategy ID</label>
-        <input id="strategy" formControlName="strategy_id" placeholder="Strategy ID" />
+        <label for="strategy">Saved strategy</label>
+        <select id="strategy" formControlName="strategy_id">
+          <option value="">Choose a strategy</option>
+          @for (item of availableStrategies(); track item.id) {
+            <option [value]="item.id">{{ item.name }}</option>
+          }
+        </select>
+        @if (!availableStrategies().length && !strategyLoading()) {
+          <p class="hint">
+            Start with a <a routerLink="/strategies/new">starter strategy</a>, then return here.
+          </p>
+        }
         @if (strategyLoading()) {
           <p class="hint" role="status">Loading strategy…</p>
         }
@@ -64,6 +75,43 @@ import { BacktestsApiService } from '../backtests-api.service';
       <div class="field full">
         <label for="equity">Initial equity</label>
         <input id="equity" type="number" min="0.01" step="0.01" formControlName="initial_equity" />
+      </div>
+      <div class="field">
+        <label for="allocation">Equity allocation %</label
+        ><input
+          id="allocation"
+          type="number"
+          min="0.01"
+          max="100"
+          formControlName="allocation_pct"
+        />
+      </div>
+      <div class="field">
+        <label for="commission">Commission (basis points per side)</label
+        ><input id="commission" type="number" min="0" max="1000" formControlName="commission_bps" />
+        <p class="hint">10 basis points = 0.1% of each fill.</p>
+      </div>
+      <div class="field">
+        <label for="slippage">Slippage (basis points per side)</label
+        ><input id="slippage" type="number" min="0" max="1000" formControlName="slippage_bps" />
+      </div>
+      <div class="field">
+        <label for="timing">Fill timing</label
+        ><select id="timing" formControlName="execution_timing">
+          <option value="signal_close">Signal bar close</option>
+          <option value="next_open">Next bar open</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label for="evaluation">Evaluation period</label
+        ><select id="evaluation" formControlName="evaluation_period">
+          <option value="research">Research / tuning</option>
+          <option value="out_of_sample">Out of sample</option>
+        </select>
+        <p class="hint">
+          For out-of-sample validation, choose dates you did not use to tune this strategy. This
+          label does not automatically enforce a split.
+        </p>
       </div>
       @if (error()) {
         <p class="error full" role="alert">{{ error() }}</p>
@@ -105,6 +153,7 @@ import { BacktestsApiService } from '../backtests-api.service';
   `,
 })
 export class BacktestNewPage {
+  protected readonly availableStrategies = signal<{ id: string; name: string }[]>([]);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly strategyName = signal('');
@@ -117,6 +166,24 @@ export class BacktestNewPage {
     timeframe: new FormControl<'1d' | '1h'>('1d', { nonNullable: true }),
     start_date: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     end_date: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    allocation_pct: new FormControl(100, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0.01), Validators.max(100)],
+    }),
+    commission_bps: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0), Validators.max(1000)],
+    }),
+    slippage_bps: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0), Validators.max(1000)],
+    }),
+    execution_timing: new FormControl<'signal_close' | 'next_open'>('signal_close', {
+      nonNullable: true,
+    }),
+    evaluation_period: new FormControl<'research' | 'out_of_sample'>('research', {
+      nonNullable: true,
+    }),
     initial_equity: new FormControl(10000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0.01)],
@@ -127,6 +194,13 @@ export class BacktestNewPage {
   private readonly router = inject(Router);
 
   constructor() {
+    void this.loadStrategies();
+    const end = new Date();
+    end.setUTCDate(end.getUTCDate() - 1);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 90);
+    this.form.controls.start_date.setValue(start.toISOString().slice(0, 10));
+    this.form.controls.end_date.setValue(end.toISOString().slice(0, 10));
     this.form.controls.timeframe.disable({ emitEvent: false });
     this.form.controls.strategy_id.valueChanges
       .pipe(
@@ -160,9 +234,31 @@ export class BacktestNewPage {
         this.strategyResolved.set(true);
       });
 
-    const strategyId = inject(ActivatedRoute).snapshot.queryParamMap.get('strategy_id');
+    const query = inject(ActivatedRoute).snapshot.queryParamMap;
+    for (const key of ['symbol', 'start_date', 'end_date'] as const) {
+      const value = query.get(key);
+      if (value) this.form.controls[key].setValue(value);
+    }
+    const strategyId = query.get('strategy_id');
     if (strategyId) {
       this.form.controls.strategy_id.setValue(strategyId);
+    }
+  }
+
+  private async loadStrategies(): Promise<void> {
+    try {
+      let offset = 0;
+      const all: { id: string; name: string }[] = [];
+      for (;;) {
+        const page = await firstValueFrom(this.strategiesApi.list(100, offset));
+        all.push(...page.items);
+        if (!page.has_more) break;
+        offset += page.items.length;
+        if (!page.items.length) break;
+      }
+      this.availableStrategies.set(all);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Unable to list strategies.');
     }
   }
 
@@ -173,7 +269,21 @@ export class BacktestNewPage {
     try {
       const values = this.form.getRawValue();
       const response = await firstValueFrom(
-        this.api.create({ ...values, strategy_id: values.strategy_id.trim() }),
+        this.api.create({
+          strategy_id: values.strategy_id.trim(),
+          symbol: values.symbol,
+          timeframe: values.timeframe,
+          start_date: values.start_date,
+          end_date: values.end_date,
+          initial_equity: values.initial_equity,
+          simulation: {
+            allocation_pct: values.allocation_pct,
+            commission_bps: values.commission_bps,
+            slippage_bps: values.slippage_bps,
+            execution_timing: values.execution_timing,
+            evaluation_period: values.evaluation_period,
+          },
+        }),
       );
       await this.router.navigate(['/backtests', response.run.id]);
     } catch (error) {

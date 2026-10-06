@@ -1,3 +1,7 @@
+import {
+  validateSuggestionChanges,
+  type SuggestionChange,
+} from './suggestion-changes';
 import { Injectable } from '@nestjs/common';
 import { DomainError } from '../common/errors/domain-error';
 import { ErrorCode } from '../common/errors/error-codes.enum';
@@ -18,6 +22,7 @@ import {
 import {
   explainBacktestOutputSchema,
   suggestImprovementsOutputSchema,
+  suggestChangesOutputSchema,
 } from './schemas/ai-output.schemas';
 import type { AiSuggestion } from './ai.types';
 
@@ -109,9 +114,14 @@ export class BacktestIntelligenceService {
     const response = await this.ai.invoke({
       userId,
       operation: 'suggest_improvements',
-      schema: suggestImprovementsOutputSchema,
+      schema: this.config.ai.diffSuggestionsEnabled
+        ? suggestChangesOutputSchema
+        : suggestImprovementsOutputSchema,
       system: ADVISORY_SYSTEM_PROMPT,
-      prompt: buildSuggestImprovementsPrompt(context.payload),
+      prompt: buildSuggestImprovementsPrompt(
+        context.payload,
+        this.config.ai.diffSuggestionsEnabled,
+      ),
       confidence: {
         mode: 'suggest',
         hasBacktestContext,
@@ -120,6 +130,7 @@ export class BacktestIntelligenceService {
       },
       stubContext: {
         strategy_name: strategy.name,
+        diff_enabled: this.config.ai.diffSuggestionsEnabled,
         backtest_run_id: backtestRunId,
       },
     });
@@ -139,6 +150,24 @@ export class BacktestIntelligenceService {
       }),
       ai_request_id: response.ai_request_id,
       suggestions,
+      ...(this.config.ai.diffSuggestionsEnabled
+        ? {
+            diff: {
+              summary: 'Proposed parameter tweaks',
+              changes: validateSuggestionChanges(
+                strategy.definition,
+                'changes' in response
+                  ? (response.changes as SuggestionChange[])
+                  : [],
+              ).map((change) => ({
+                path: change.path,
+                from: change.before,
+                to: change.after,
+                rationale: change.rationale,
+              })),
+            },
+          }
+        : {}),
     };
   }
 

@@ -43,7 +43,8 @@ Run `npm audit`, `npm --prefix apps/api audit`, and
 
 For persisted behavior, verify fresh MySQL migrations and the existing
 `test:mysql:backtest`, `test:mysql:trading`, `test:mysql:security` and
-`test:mysql:auth` gates. CI provisions its own MySQL service for these checks.
+`test:mysql:auth`, and `test:mysql:workspace` gates. CI provisions its own MySQL service for these checks.
+Run the native CLI gates in the [testing strategy](docs/product/requirements/Testing_Strategy.md#native-cli-regressions).
 
 Merging a release PR into `main` starts `.github/workflows/deploy.yml`; it reruns
 CI before migrations and deployment. Hosting, database credentials and provider
@@ -71,7 +72,8 @@ For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema
    npm version --no-git-tag-version X.Y.Z
    ```
 
-6. Move the release notes from `## [Unreleased]` into a dated section like `## [X.Y.Z] - YYYY-MM-DD`, then leave a fresh empty `Unreleased` section at the top.
+6. Move the release notes into a dated section such as `## [X.Y.Z] - YYYY-MM-DD`.
+   Leave a new empty `Unreleased` section at the top.
 7. Run the relevant pre-release checks for the scope of the release.
 8. Commit the release branch changes:
 
@@ -83,12 +85,12 @@ For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema
 9. Open a pull request from `release/vX.Y.Z` into `main` and merge it after review.
 10. Tag the merge commit and push the tag:
 
-   ```bash
-   git switch main
-   git pull --ff-only
-   git tag -a vX.Y.Z -m "Release vX.Y.Z"
-   git push origin vX.Y.Z
-   ```
+```bash
+git switch main
+git pull --ff-only
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
 
 11. Publish the GitHub Release from the matching changelog section.
 12. Continue adding new work under `## [Unreleased]` for the next cycle.

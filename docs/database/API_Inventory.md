@@ -1,13 +1,11 @@
 # BitStockerz – Master API Inventory
 
-This document is a **master API inventory** derived from the MVP stories **#1–#8**.
-It describes:
+Updated October 5, 2026.
 
-- Internal HTTP APIs (what your Angular app and services call)
-- Internal service boundaries (where NestJS modules should exist)
-- External data providers (for market data, at a high level)
-
-It’s organized by domain, not by story number.
+This inventory describes current HTTP contracts, internal domain boundaries, and explicitly labeled design targets.
+All route paths use the `/api` prefix.
+Generated OpenAPI and route source define the runnable HTTP contract.
+October 4 workspace additions are local changes; their final MySQL and hosted checks remain pending.
 
 ### Backend implementation status
 
@@ -16,33 +14,33 @@ Sprints 8.1–8.2. [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/1
 adds P&L, chart markers, browser OAuth/profile/recovery and security hardening.
 Hosting and real-provider production smoke remain outstanding.
 
-| Area | Status | Notes |
-| --- | --- | --- |
-| Health & readiness | Shipped (0.1) | `/health/live`, `/health/ready` |
-| Auth, sessions, profile | Shipped (0.2, 8.1–8.2) | Passkeys, configured Google/Apple browser OAuth, verifier-bound handoffs, explicit provider linking, bearer sessions and profile settings |
-| Symbol lookup & search | Shipped (1.1) | Public endpoints; in-memory seed data without `DATABASE_URL` |
-| Market-data schemas | Shipped (1.1) | Prisma migrations create `symbols` and OHLCV bar tables |
-| Candle read APIs | Shipped (1.2) | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL` |
-| Jobs & ingestion | Shipped (1.3) | Synchronous jobs, manual ingestion in development/test only, internal hourly scheduler |
-| Data health & observability | Shipped (1.4) | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events` |
-| Strategy Lab | Implemented (2.1–2.3) | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries |
-| Backtest engine core | Implemented (3.1) | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use |
-| Backtest persistence | Implemented (3.2) | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads |
-| Backtest execution APIs | Implemented (3.3) | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit |
-| Backtest UI | Implemented (3.4, 5, prelaunch) | Angular list/run/detail, equity curve with UTC trade markers, and paged trades |
-| Paper trading | Implemented (4.1–4.3, prelaunch) | Default account, atomic fills, risk/idempotency, portfolio MTM, realized/total P&L and owned history |
-| Dashboard/workflow UI | Implemented (5) | Independent portfolio, strategy, execution and backtest widgets; full research/Trade workflows |
-| Kernel AI | Implemented (6.1–6.3) | Four advisory endpoints, stub/OpenAI providers, persisted daily quotas and metadata-only production logging; optional diff suggestions deferred |
-| Market-data caching | Implemented (7.1) | Process-local TTL caches and provider guardrails; live vendor adapter remains a stub |
+| Area                        | Status                           | Notes                                                                                                                                                                                     |
+| --------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Health & readiness          | Shipped (0.1)                    | `/health/live`, `/health/ready`                                                                                                                                                           |
+| Auth, sessions, profile     | Shipped (0.2, 8.1–8.2)           | Passkeys, configured Google/Apple browser OAuth, verifier-bound handoffs, explicit provider linking, bearer sessions and profile settings                                                 |
+| Symbol lookup & search      | Shipped (1.1)                    | Public endpoints; in-memory seed data without `DATABASE_URL`                                                                                                                              |
+| Market-data schemas         | Shipped (1.1)                    | Prisma migrations create `symbols` and OHLCV bar tables                                                                                                                                   |
+| Candle read APIs            | Shipped (1.2)                    | Public equity daily and crypto daily/hourly endpoints; deterministic in-memory seed fallback without `DATABASE_URL`                                                                       |
+| Jobs & ingestion            | Shipped (1.3)                    | Synchronous jobs, manual ingestion in development/test only, internal hourly scheduler                                                                                                    |
+| Data health & observability | Shipped (1.4)                    | Candle sanity on ingestion, `GET /market-data/health`, in-process `GET /metrics`, `audit_events`                                                                                          |
+| Strategy Lab                | Implemented (2.1–2.3)            | Owner-scoped CRUD, immutable versions/history, soft delete, public indicator catalog, canonical validation, and deterministic summaries                                                   |
+| Backtest engine core        | Implemented (3.1)                | Pure, deterministic long-only simulator with indicators, rules, risk exits, metrics, and bounded resource use                                                                             |
+| Backtest persistence        | Implemented (3.2)                | Prisma/MySQL + seed-mode runs, results, trades, equity points, immutable version pins, owner-scoped CAS transitions, and deterministic internal reads                                     |
+| Backtest execution APIs     | Implemented (3.3)                | Authenticated synchronous run/list/detail routes, jobs integration, limits, stable failures, paging, diagnostics, metrics, logs, audit, and per-user POST rate limit                      |
+| Backtest UI                 | Implemented (3.4, 5, prelaunch)  | Angular list/run/detail, equity curve with UTC trade markers, and paged trades                                                                                                            |
+| Paper trading               | Implemented (4.1–4.3, prelaunch) | Default account, atomic fills, risk/idempotency, portfolio MTM, realized/total P&L and owned history                                                                                      |
+| Dashboard/workflow UI       | Implemented (5)                  | Independent portfolio, strategy, execution and backtest widgets; full research/Trade workflows                                                                                            |
+| Kernel AI                   | Implemented (6.1–6.3)            | Four advisory endpoints, stub/OpenAI providers, persisted daily quotas and metadata-only production logging; optional parameter change previews locally implemented under a disabled flag |
+| Market-data caching         | Implemented (7.1)                | Process-local TTL caches and provider guardrails; Alpaca adapter implemented locally; credentials and live verification pending                                                           |
 
 Without `DATABASE_URL`, auth (users, sessions, passkeys), symbol data, candle
 fixtures, jobs, strategies, backtests, paper trading, AI quotas, metrics, and audit events
 are in-memory.
 Seed OHLCV bars roll to **today (UTC)** at process load. With MySQL, set
 `DATABASE_URL` in `apps/api/.env`, run `npm run db:deploy` in `apps/api`, and
-see [Local_MySQL.md](./Local_MySQL.md). Auth users, sessions, passkeys,
-OAuth identities, WebAuthn challenges, and OAuth state persist in MySQL and
-hydrate into memory on startup; user ids remain stable across restarts.
+see [Local_MySQL.md](./Local_MySQL.md). Auth users, sessions, passkeys, OAuth identities, and ceremony state persist in MySQL.
+They hydrate on startup, preserving user identifiers across restarts.
+
 Successful signup paths write through to MySQL and provision the paper account.
 After an API restart, sign in again with passkey/OAuth or dev email login —
 do not register the same email twice. Production disables dev email shortcuts
@@ -78,9 +76,7 @@ to the generated contract until they ship.
   "instance": "/api/strategies",
   "code": "VALIDATION_ERROR",
   "requestId": "uuid-or-correlation-id",
-  "fieldErrors": [
-    { "field": "email", "reason": "invalid_format" }
-  ]
+  "fieldErrors": [{ "field": "email", "reason": "invalid_format" }]
 }
 ```
 
@@ -94,30 +90,30 @@ to the generated contract until they ship.
 
 Clients should branch on `code` for stable behavior; `title` and `detail` are human-facing.
 
-| code | HTTP status | type suffix | title |
-| --- | --- | --- | --- |
-| VALIDATION_ERROR | 400 | validation | Validation error |
-| UNAUTHORIZED | 401 | unauthorized | Unauthorized |
-| FORBIDDEN | 403 | forbidden | Forbidden |
-| NOT_FOUND | 404 | not-found | Not found |
-| STRATEGY_NOT_FOUND | 404 | strategy-not-found | Strategy not found |
-| STRATEGY_VERSION_NOT_FOUND | 404 | strategy-version-not-found | Strategy version not found |
-| STRATEGY_VALIDATION_ERROR | 400 | strategy-validation | Strategy validation error |
-| BACKTEST_INVALID_DEFINITION | 400 | backtest-invalid-definition | Invalid backtest definition |
-| BACKTEST_INSUFFICIENT_BARS | 400 | backtest-insufficient-bars | Insufficient backtest bars |
-| BACKTEST_BAR_LIMIT_EXCEEDED | 400 | backtest-bar-limit-exceeded | Backtest bar limit exceeded |
-| BACKTEST_RESOURCE_LIMIT_EXCEEDED | 400 | backtest-resource-limit-exceeded | Backtest resource limit exceeded |
-| BACKTEST_TIMEOUT | 504 | backtest-timeout | Backtest timed out |
-| BACKTEST_NOT_FOUND | 404 | backtest-not-found | Backtest not found |
-| BACKTEST_INVALID_STATE | 409 | backtest-invalid-state | Invalid backtest state |
-| TRADING_ACCOUNT_INACTIVE | 403 | trading-account-inactive | Paper account inactive |
-| TRADING_NO_MARKET_PRICE | 422 | trading-no-market-price | Market price unavailable |
-| TRADING_INSUFFICIENT_CASH | 422 | trading-insufficient-cash | Insufficient cash |
-| TRADING_INSUFFICIENT_POSITION | 422 | trading-insufficient-position | Insufficient position |
-| TRADING_RISK_LIMIT | 422 | trading-risk-limit | Trading risk limit |
-| CONFLICT | 409 | conflict | Conflict |
-| RATE_LIMITED | 429 | rate-limited | Rate limited |
-| INTERNAL_ERROR | 500 | internal | Internal server error |
+| code                             | HTTP status | type suffix                      | title                            |
+| -------------------------------- | ----------- | -------------------------------- | -------------------------------- |
+| VALIDATION_ERROR                 | 400         | validation                       | Validation error                 |
+| UNAUTHORIZED                     | 401         | unauthorized                     | Unauthorized                     |
+| FORBIDDEN                        | 403         | forbidden                        | Forbidden                        |
+| NOT_FOUND                        | 404         | not-found                        | Not found                        |
+| STRATEGY_NOT_FOUND               | 404         | strategy-not-found               | Strategy not found               |
+| STRATEGY_VERSION_NOT_FOUND       | 404         | strategy-version-not-found       | Strategy version not found       |
+| STRATEGY_VALIDATION_ERROR        | 400         | strategy-validation              | Strategy validation error        |
+| BACKTEST_INVALID_DEFINITION      | 400         | backtest-invalid-definition      | Invalid backtest definition      |
+| BACKTEST_INSUFFICIENT_BARS       | 400         | backtest-insufficient-bars       | Insufficient backtest bars       |
+| BACKTEST_BAR_LIMIT_EXCEEDED      | 400         | backtest-bar-limit-exceeded      | Backtest bar limit exceeded      |
+| BACKTEST_RESOURCE_LIMIT_EXCEEDED | 400         | backtest-resource-limit-exceeded | Backtest resource limit exceeded |
+| BACKTEST_TIMEOUT                 | 504         | backtest-timeout                 | Backtest timed out               |
+| BACKTEST_NOT_FOUND               | 404         | backtest-not-found               | Backtest not found               |
+| BACKTEST_INVALID_STATE           | 409         | backtest-invalid-state           | Invalid backtest state           |
+| TRADING_ACCOUNT_INACTIVE         | 403         | trading-account-inactive         | Paper account inactive           |
+| TRADING_NO_MARKET_PRICE          | 422         | trading-no-market-price          | Market price unavailable         |
+| TRADING_INSUFFICIENT_CASH        | 422         | trading-insufficient-cash        | Insufficient cash                |
+| TRADING_INSUFFICIENT_POSITION    | 422         | trading-insufficient-position    | Insufficient position            |
+| TRADING_RISK_LIMIT               | 422         | trading-risk-limit               | Trading risk limit               |
+| CONFLICT                         | 409         | conflict                         | Conflict                         |
+| RATE_LIMITED                     | 429         | rate-limited                     | Rate limited                     |
+| INTERNAL_ERROR                   | 500         | internal                         | Internal server error            |
 
 - `type` is always `https://bitstockerz.dev/errors/{type suffix}`.
 - `instance` is the request path (no host), e.g. `/api/strategies`.
@@ -128,12 +124,12 @@ Clients should branch on `code` for stable behavior; `title` and `detail` are hu
 Domain-specific additions are owned by their implementation sprints and are
 canonical for clients. Strategy, backtest, trading and AI codes are implemented:
 
-| Owner | Codes |
-| --- | --- |
-| Sprint 2.3 (implemented) | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR` |
+| Owner                         | Codes                                                                                                                                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sprint 2.3 (implemented)      | `STRATEGY_NOT_FOUND`, `STRATEGY_VERSION_NOT_FOUND`, `STRATEGY_VALIDATION_ERROR`                                                                                                                    |
 | Sprints 3.1–3.3 (implemented) | `BACKTEST_INVALID_DEFINITION`, `BACKTEST_INSUFFICIENT_BARS`, `BACKTEST_BAR_LIMIT_EXCEEDED`, `BACKTEST_RESOURCE_LIMIT_EXCEEDED`, `BACKTEST_TIMEOUT`, `BACKTEST_NOT_FOUND`, `BACKTEST_INVALID_STATE` |
-| Sprints 4.1–4.3 (implemented) | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT` |
-| Sprint 6.1 (implemented) | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT` |
+| Sprints 4.1–4.3 (implemented) | `TRADING_ACCOUNT_INACTIVE`, `TRADING_NO_MARKET_PRICE`, `TRADING_INSUFFICIENT_CASH`, `TRADING_INSUFFICIENT_POSITION`, `TRADING_RISK_LIMIT`                                                          |
+| Sprint 6.1 (implemented)      | `AI_DISABLED`, `AI_RATE_LIMIT`, `AI_PROVIDER_ERROR`, `AI_TIMEOUT`                                                                                                                                  |
 
 ### 0.2 Client examples
 
@@ -150,7 +146,10 @@ canonical for clients. Strategy, backtest, trading and AI codes are implemented:
   "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "fieldErrors": [
     { "field": "name", "reason": "name must be a string" },
-    { "field": "asset_type", "reason": "asset_type must be one of EQUITY, CRYPTO" }
+    {
+      "field": "asset_type",
+      "reason": "asset_type must be one of EQUITY, CRYPTO"
+    }
   ]
 }
 ```
@@ -182,18 +181,19 @@ Browser OAuth uses these additional contracts. Google/Apple availability require
 complete provider configuration; the fixed SPA callback is separate from each
 provider's API return URL.
 
-| Method | Path | Access | Purpose |
-| --- | --- | --- | --- |
-| GET | `/api/auth/providers` | Public | `{ google: boolean, apple: boolean }`, no configuration secrets |
-| POST | `/api/auth/oauth/:provider/browser/start` | Public, rate limited | `{ code_challenge, return_path }` → existing OAuth start response |
-| POST | `/api/auth/oauth/:provider/link/start` | Same session, sign-in within five minutes | Start explicit recovery-method linking to the authenticated user |
-| POST | `/api/auth/oauth/session/exchange` | Public for login; initiating bearer required for link | `{ code, verifier }` → normal auth response plus `return_path` and `intent` |
+| Method | Path                                      | Access                                                | Purpose                                                                     |
+| ------ | ----------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| GET    | `/api/auth/providers`                     | Public                                                | `{ google: boolean, apple: boolean }`, no configuration secrets             |
+| POST   | `/api/auth/oauth/:provider/browser/start` | Public, rate limited                                  | `{ code_challenge, return_path }` → existing OAuth start response           |
+| POST   | `/api/auth/oauth/:provider/link/start`    | Same session, sign-in within five minutes             | Start explicit recovery-method linking to the authenticated user            |
+| POST   | `/api/auth/oauth/session/exchange`        | Public for login; initiating bearer required for link | `{ code, verifier }` → normal auth response plus `return_path` and `intent` |
 
 Browser callbacks redirect to the fixed SPA `/auth/oauth/callback` with a
 one-use 60-second code and state in the fragment. Session bearer tokens never
 appear there. State/nonce, handoffs and original session sign-in age persist in
 MySQL. Redeeming a handoff requires the initiating browser's verifier; pending
 links also require the same valid bearer session and attach only at redemption.
+
 Return paths must be local application paths. Provider denial produces bounded
 error identifiers. Callback codes/verifiers and provider payloads are redacted
 from HTTP logs.
@@ -357,8 +357,8 @@ returns `403 FORBIDDEN`. Jobs run synchronously and return the final job record.
   - `source` — `seed` | `database`
   - `provider` — `{ configured, last_success_at, circuit, last_error_code }` (Sprint 7.1)
 - Staleness thresholds via `MARKET_DATA_STALE_*_MS` (defaults: equity daily 48h, crypto daily 36h, crypto hourly 2h).
-- A daily bar covers its full UTC calendar day, so its `age_ms` starts at the
-  end of that day; hourly age starts at the recorded timestamp.
+- A daily bar covers its full UTC calendar day. Its `age_ms` starts at that day's end.
+  Hourly age starts at the recorded timestamp.
 - Freshness and `symbol_count_with_data` consider bars for **active** symbols only (`symbol.isActive`).
 - Seed OHLCV fixtures roll to **today (UTC)** at process load, so seed-mode health typically reports `ok` / `stale: false` after a restart. MySQL needs a fresh ingestion to pick up new seed dates.
 - Candle/symbol reads use an in-process TTL cache (`CACHE_*`); transparent to clients. Live vendor adapter remains optional behind `MARKET_DATA_LIVE_ENABLED`.
@@ -367,21 +367,18 @@ returns `403 FORBIDDEN`. Jobs run synchronously and return the final job record.
 
 **GET `/metrics`** (public)
 
-- In-process JSON summary (not Prometheus text): HTTP request/error counts and
-  duration stats, job counts/durations by type, backtest terminal
-  counts/durations, cache hit/miss/load_error/eviction by namespace
-  (`symbols`/`candles`), and errors by domain.
+- In-process JSON metrics include HTTP request/error counts and duration statistics, job counts/durations, backtest terminal counts/durations, and domain errors.
+  Cache metrics count hits, misses, load errors, and evictions by namespace (`symbols`/`candles`). The endpoint does not emit Prometheus text.
 - Cleared on process restart. Disable with `METRICS_ENABLED=false`.
 
 ### 2.8 Audit trail (implemented in Sprint 1.4)
 
 - No public list/query API in MVP.
-- Critical actions append to `audit_events` (MySQL) or an in-memory ring buffer
-  (seed mode): `auth.register`, `auth.login`, `auth.logout`, `job.created`,
-  `job.completed`, `job.failed`, `market_data.ingestion_requested`,
-  `strategy.created`, `strategy.updated`, `strategy.deleted`, and
-  `backtest.requested`, plus `trading.order_filled` and
-  `trading.order_rejected`.
+- Critical actions append to `audit_events` in MySQL or an in-memory ring buffer in seed mode.
+  Auth events include `auth.register`, `auth.login`, and `auth.logout`.
+  Job events include `job.created`, `job.completed`, `job.failed`, and `market_data.ingestion_requested`.
+  Research events include `strategy.created`, `strategy.updated`, `strategy.deleted`, and `backtest.requested`.
+  Trading events include `trading.order_filled` and `trading.order_rejected`.
 - Audit failures never fail the primary request path; payloads redact secrets.
 
 ---
@@ -493,8 +490,9 @@ returns `403 FORBIDDEN`. Jobs run synchronously and return the final job record.
     - exactly `indicators`, `entry`, `exit`, and `risk` at the top level
     - `indicators`: at most 20 unique entries, each exactly
       `{ id, type, params: { period }, source }`; ids are 1–64 characters
-      matching `^[A-Za-z][A-Za-z0-9_-]*$`; `type`, parameter bounds, and
-      sources must match the catalog; `source` is explicit in persisted JSON
+      matching `^[A-Za-z][A-Za-z0-9_-]*$`.
+      `type`, parameter bounds, and sources must match the catalog.
+      `source` is explicit in persisted JSON
     - `entry` and `exit`: exactly `{ logic: "AND", conditions }`, with 1–10
       conditions each
     - each condition is exactly `{ left, op, right }`; each operand contains
@@ -511,10 +509,9 @@ returns `403 FORBIDDEN`. Jobs run synchronously and return the final job record.
   - Atomically creates strategy + immutable initial version (`version_number: 1`).
   - Runs the pure canonical definition validator before either in-memory or
     MySQL persistence. Definition failures return
-    `400 STRATEGY_VALIDATION_ERROR`;
-    `fieldErrors[].field` is `definition` for root-shape errors or begins with
-    `definition.` for nested errors, and `reason` begins with a stable
-    validator code such as `OR_NOT_SUPPORTED:`.
+    `400 STRATEGY_VALIDATION_ERROR`.
+    `fieldErrors[].field` is `definition` for root-shape errors or begins with `definition.` for nested errors.
+    `reason` begins with a stable validator code such as `OR_NOT_SUPPORTED:`.
   - Emits `strategy.created` audit metadata.
   - Duplicate normalized name for the same user returns `409 CONFLICT`.
 - Response: `{ id, name, description, asset_type, symbol_scope, timeframe, is_active, version_number, definition, summary, created_at, updated_at }`.
@@ -583,23 +580,21 @@ one equity point per bar, summary metrics, and bounded diagnostics.
 
 Sprint 3.2 adds the internal owner-scoped `BacktestsService` and
 `BacktestsRepository`. They create pending runs with immutable owned strategy
-version pins, compare-and-set lifecycle states, and transactionally persist one
-result plus ordered trades/equity points in MySQL (copy-on-write in seed mode).
+version pins and compare-and-set lifecycle states.
+Completion transactionally persists one result and ordered trades/equity points in MySQL; seed mode uses copy-on-write.
+
 Active strategy-asset-compatible symbols and optional owner-scoped jobs are
-validated consistently, and owner operations reattach process-local auth ids
-after restart. Initial equity must already be cent-exact. Other decimal-backed
-values are fixed-scale strings at this boundary, and stored summary metrics are
-recomputed from those fixed-scale detail rows after the raw engine summary is
-validated exactly, before rounding. Latest pins enforce current strategy
+validated consistently. Persisted auth hydration preserves ownership after restart. Initial equity must already be cent-exact. Other decimal-backed
+values are fixed-scale strings at this boundary.
+
+Completion validates the raw engine summary before rounding.
+It then recomputes stored summary metrics from the fixed-scale detail rows. Latest pins enforce current strategy
 timeframe; explicit internal
 historical pins persist their supplied valid timeframe because strategy
 versions snapshot definitions, not mutable metadata.
 
-Sprint 3.3 adds the authenticated `BacktestsController`, DTO validation,
-POST-only per-user rate guard, `backtest_run` handler, market-data batch reads,
-job cancellation/deadlines, actual and conservative limits, terminal cleanup,
-stable failures, diagnostics, metrics, structured logs, and bounded audit
-metadata. Sprint 3.4 consumes these routes from `apps/web`.
+Sprint 3.3 adds authenticated execution, DTO validation, per-user POST limits, the `backtest_run` handler, and batched market reads.
+It also adds cancellation/deadlines, resource limits, terminal cleanup, stable failures, diagnostics, metrics, logs, and bounded audit metadata. Sprint 3.4 consumes these routes from `apps/web`.
 
 ### 5.1 Backtest Runs
 
@@ -613,6 +608,7 @@ metadata. Sprint 3.4 consumes these routes from `apps/web`.
   - `end_date`
   - `initial_equity?`
   - `strategy_version_id?`
+  - `simulation?`: pinned allocation, costs, execution timing, and evaluation-period settings
 - Behavior:
   - Validates ownership and strategy/symbol/timeframe compatibility, pins a
     strategy version, then creates a run + job.
@@ -698,14 +694,39 @@ All AI endpoints are **advisory**, read-only, and can be disabled by feature fla
 
 ### 6.4 Improvement Suggestions
 
-**POST `/ai/suggest-improvements`** (implemented; optional `diff` deferred)
+**POST `/ai/suggest-improvements`** (implemented; optional parameter previews behind `AI_DIFF_SUGGESTIONS_ENABLED`)
 
 - Body:
   - `strategy_id`
   - `backtest_run_id?`
 - Response:
   - `{ disclaimer, confidence, ai_request_id, suggestions }`, where suggestions
-    are `{ code, title, description, evidence }`
+    are `{ code, title, description, evidence }`.
+  - With the optional flag enabled: `diff: { summary, changes: [{ path, from, to, rationale }] }`.
+
+---
+
+### 6.5 Output bounds and interpretation
+
+Explanations contain 1–4000 characters.
+Warnings/issues have codes matching `^[A-Z][A-Z0-9_]{0,63}$`, severity, messages of 1–500 characters, and at most 10 evidence strings.
+Each evidence string contains 1–200 characters.
+Provider schemas permit at most 10 warnings/issues and five suggestions.
+Suggestion titles contain 1–120 characters; descriptions contain 1–1000 characters.
+Deterministic issues take precedence for duplicate codes; model-only high severity is reduced to medium.
+
+| Deterministic issue | Condition                                                       |
+| ------------------- | --------------------------------------------------------------- |
+| `SHORT_SAMPLE`      | Available job diagnostics report fewer than 100 processed bars. |
+| `TOO_FEW_TRADES`    | Fewer than five closed trades.                                  |
+| `HIGH_DRAWDOWN`     | Drawdown of at least 25%.                                       |
+| `NEGATIVE_RETURN`   | Total return below zero.                                        |
+| `CONCENTRATED_PNL`  | One winner contributes more than 50% of positive P&L.           |
+
+Kernel currently loads the latest saved strategy summary for backtest context.
+An older run can therefore receive a summary that differs from its pinned version.
+The retained strategy-pin requirement needs a code correction and regression; see [the task list](../../PRODUCT_TASKLIST.md).
+Parameter previews target the currently selected strategy definition.
 
 ---
 
@@ -766,7 +787,10 @@ and backtest APIs so one failed widget does not fail the page.
   - `created_at`, `started_at`, `finished_at`
   - `error_message?`
 
-Scheduled `market_data_scheduled` jobs also run hourly (`0 * * * *`) when `INGESTION_SCHEDULER_ENABLED` is effectively true: default `true` when unset and `NODE_ENV=development`; default `false` when unset in other environments; always disabled when `NODE_ENV=test`.
+Scheduled `market_data_scheduled` jobs run hourly (`0 * * * *`) when scheduling is enabled.
+When unset, `INGESTION_SCHEDULER_ENABLED` defaults true in development and false elsewhere.
+Scheduling is always disabled in test mode.
+Paper runners share that setting and evaluate hourly at minute 20 in database mode.
 
 ---
 
@@ -780,31 +804,32 @@ Scheduled `market_data_scheduled` jobs also run hourly (`0 * * * *`) when `INGES
 
 ## 9. External Data Providers
 
-This section is about **where you actually get live/historical market data from**, beneath your `Market Data` module. These are **not** user-facing APIs; they’re internal adapters behind `/market-data/...`.
+Providers are internal adapters beneath the market-data module.
+They supply equity daily and crypto daily/hourly historical bars.
 
 You need **two broad data domains**:
 
 1. **US equities OHLCV (daily)**
 2. **Crypto OHLCV (daily + hourly)**
 
-### 9.1 Provider integration remains outstanding
+### 9.1 Provider setup and live verification remain outstanding
 
-No live vendor adapter is implemented in this repository. `LiveMarketDataProvider`
-is a stub; turning its flag on does not supply market data. A vendor must be chosen
-and integrated for automated real-market ingestion. Verify equity/crypto coverage,
-historical depth, redistribution rights, limits and costs before choosing one.
-Production serves previously populated MySQL bars and never creates synthetic
-prices as a fallback. Development/test fixtures are not production market data.
+`LiveMarketDataProvider` implements Alpaca equity daily and US crypto daily/hourly
+bars. Host credentials, feed entitlement, legitimate display/redistribution rights
+and live smoke remain owner setup. An operator licensed-data JSON importer is also
+available. Production never substitutes seed data. See
+[product extensions](../product/PRODUCT_EXTENSIONS.md).
 
 ### 9.2 Abstraction rule
 
 Regardless of provider, keep a strict interface on your side:
 
-- `getEquityDailyBars(symbol, start, end)`
-- `getCryptoDailyBars(symbol, start, end)`
-- `getCryptoHourlyBars(symbol, start, end)`
+- `fetchEquityDaily(symbolId, symbol)`
+- `fetchCryptoDaily(symbolId, symbol)`
+- `fetchCryptoHourly(symbolId, symbol)`
 
 and let **only** the provider adapter worry about:
+
 - API keys
 - Rate limits
 - URL details
@@ -818,9 +843,9 @@ Your internal NestJS service never leaks provider-specific types into the rest o
 
 For NestJS, a sensible module breakdown that maps to this API inventory:
 
-**Present in `apps/api` today:** `AppConfigModule`, `AuthModule`,
+**Present in `apps/api`:** `AppConfigModule`, `AuthModule`,
 `MarketDataModule`, `JobsModule`, `ObservabilityModule`, `StrategiesModule`,
-`BacktestModule`, `TradingModule`, and `AiModule`, plus health and gated test
+`BacktestModule`, `TradingModule`, `AiModule`, `ProductModule`, and `AutomationModule`, plus health and gated test
 controllers. Profile remains under auth and dashboard widgets reuse domain APIs.
 
 **Planned as domains grow:**
@@ -833,9 +858,6 @@ Each module owns the endpoints listed above in its domain.
 
 ---
 
-**Recommended Filename:**  
-`docs/database/API_Inventory.md`
-
 ### Manual ingestion production boundary
 
 `POST /jobs`, `POST /market-data/ingestion/equity` and
@@ -844,3 +866,31 @@ return `403 FORBIDDEN` in production. Production ingestion runs through the inte
 scheduler. Request DTOs reject unknown fields, malformed symbols (max 32 characters),
 and interval arrays other than one or two unique values from `1d` / `1h`.
 Owned job reads remain available to authenticated users.
+
+## October 4 workspace API additions
+
+All paths use `/api`, bearer authentication, strict DTOs and owner scoping.
+
+| Method/path                                                            | Behavior                                                                      |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| GET `/backtests/:id/research`                                          | Pinned definition/version/settings/results, even after strategy soft deletion |
+| GET `/backtests/:id/trades.csv`, `/backtests/:id/results.csv`          | Complete owned trades or research row                                         |
+| GET `/trading/executions.csv`                                          | Complete owned history, maximum 100,000 rows                                  |
+| GET/POST `/workspace/watchlist`; DELETE `/workspace/watchlist/:symbol` | Owned saved symbols                                                           |
+| GET `/workspace/chart`                                                 | Symbol/timeframe/UTC range candles and optional owned strategy overlays       |
+| GET `/workspace/prices/:symbol`                                        | Latest close and timestamp with data-mode label                               |
+| POST `/workspace/paper/reset`                                          | Fresh session, `confirmation: RESET`, archived ledger and retired order keys  |
+| GET `/workspace/paper/archives`                                        | Owned reset archives                                                          |
+| GET `/workspace/account-export`                                        | Owned personal JSON with secrets excluded                                     |
+| DELETE `/workspace/account`                                            | Fresh session, exact email confirmation; rejects active jobs                  |
+| GET `/me/security/sessions`; DELETE `/me/security/sessions/:id`        | Hashed IDs, owner revocation                                                  |
+| GET `/me/security/passkeys`                                            | Hashed credential IDs and creation time                                       |
+| POST `/me/security/passkeys/options`, `/me/security/passkeys/verify`   | Fresh-session, user/session/purpose-bound enrollment                          |
+| DELETE `/me/security/passkeys/:id`                                     | Fresh-session removal with remaining sign-in method                           |
+| GET/POST `/automations`                                                | Owned version-pinned paused paper runners                                     |
+| POST `/automations/:id/control`, `/automations/:id/evaluate`           | Active/paused/stopped controls and latest-completed-bar evaluation            |
+
+Backtest POST accepts optional `simulation`: allocation percent, commission and
+slippage basis points, `signal_close`/`next_open`, `research`/`out_of_sample`.
+Results can include benchmark; trades include total per-trade `fees_abs`. See
+[extension contracts](../product/PRODUCT_EXTENSIONS.md) for limits and semantics.

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Header,
   HttpStatus,
   Param,
   ParseUUIDPipe,
@@ -72,6 +73,53 @@ export class BacktestsController {
   })
   list(@Req() request: BacktestRequest, @Query() query: ListBacktestsQueryDto) {
     return this.http.list(this.requireUserId(request), query);
+  }
+
+  @Get(':id/results.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="backtest-results.csv"')
+  @ApiEndpoint({
+    summary: 'Export backtest metrics and inputs',
+    authenticated: true,
+    responseDescription: 'Owned research inputs and result summary as CSV.',
+    errors: [400, 401, 404, 500],
+  })
+  exportResults(
+    @Req() request: BacktestRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ) {
+    return this.http.exportResults(this.requireUserId(request), id);
+  }
+
+  @ApiEndpoint({
+    summary: 'Read pinned research inputs and results',
+    responseDescription:
+      'Owned run with its immutable strategy definition and simulation settings.',
+    authenticated: true,
+    errors: [400, 401, 404, 500],
+  })
+  @Get(':id/research')
+  research(
+    @Req() request: BacktestRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ) {
+    return this.http.research(this.requireUserId(request), id);
+  }
+
+  @ApiEndpoint({
+    summary: 'Export all backtest trades as CSV',
+    responseDescription: 'Complete owned trade ledger with net P&L and costs.',
+    authenticated: true,
+    errors: [400, 401, 404, 500],
+  })
+  @Get(':id/trades.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="backtest-trades.csv"')
+  exportTrades(
+    @Req() request: BacktestRequest,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ) {
+    return this.http.exportTrades(this.requireUserId(request), id);
   }
 
   @Get(':id')

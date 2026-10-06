@@ -1,7 +1,11 @@
 # BitStockerz MVP – 3) Paper Trading (Stories)
 
+This file retains original story acceptance criteria and dated delivery notes.
+[Product extensions](../PRODUCT_EXTENSIONS.md) describe October 4 additions; [the task list](../../../PRODUCT_TASKLIST.md) contains unfinished acceptance checks.
+
 This document defines the epics and user stories for **Paper Trading** in the BitStockerz MVP.
 Scope includes:
+
 - Simulated trading accounts
 - Market orders (buy/sell)
 - Positions, executions, and cash balance tracking
@@ -13,10 +17,8 @@ Scope includes:
 
 - Completed across Sprints 4.1–4.3 (verified August 2, 2026) in both in-memory
   seed and MySQL modes.
-- The shipped backend supports default accounts, long-only fractional market
-  BUY/SELL fills, fixed-scale cash and average-cost positions, persisted
-  terminal rejections, configurable risk limits, semantic idempotency,
-  portfolio unrealized P&L, and owner-scoped order/execution history.
+- The backend supports default accounts, long-only fractional BUY/SELL fills, fixed-scale cash, average-cost positions, and persisted terminal rejections.
+  It adds configurable risk limits, semantic idempotency, portfolio unrealized P&L, and owned order/execution history.
 - Angular Trade desk and dashboard portfolio/position widgets shipped in
   Milestone 5 / PR #11.
 - Prelaunch follow-up (merged in PR #13, October 2, 2026): cumulative realized and total P&L
@@ -28,9 +30,11 @@ Scope includes:
 ## Epic 3.1 – Paper Trading Account Model
 
 ### Story 3.1.1 – Paper trading account table
+
 Persistent paper account per user with starting balance and cash tracking.
 
 **Acceptance criteria (completed)**
+
 - One `paper_accounts` row per user (`UNIQUE user_id`) with $100,000.00 USD
   starting/cash balance and active lifecycle state.
 - Signup provisioning and lazy reads are idempotent; MySQL ownership survives
@@ -45,6 +49,7 @@ Persistent paper account per user with starting balance and cash tracking.
 ### Story 3.2.1 – Order schema (market orders only)
 
 **Acceptance criteria (completed)**
+
 - UUID market orders persist side, 8dp quantity, terminal status, optional
   fill/reject data, request/fill timestamps, and an account-scoped optional
   `client_order_id` unique key.
@@ -52,6 +57,7 @@ Persistent paper account per user with starting balance and cash tracking.
 ### Story 3.2.2 – Place market order API
 
 **Acceptance criteria (completed)**
+
 - Authenticated `POST /api/trading/orders` accepts active symbols, BUY/SELL,
   positive decimal-string quantity, and optional trimmed client id.
 - Eligible orders fill synchronously at the latest fresh close; cash,
@@ -129,6 +135,5 @@ Persistent paper account per user with starting balance and cash tracking.
 
 ### Story 3.6.2 – Idempotent order submission
 
-- Same account/client id plus the same normalized symbol/side/quantity returns
-  the original order without another fill; a different payload returns
-  `409 CONFLICT`; concurrent MySQL races converge on one execution.
+- The same account/client id and normalized symbol/side/quantity return the original order without another fill.
+  A different payload returns `409 CONFLICT`. Concurrent MySQL races converge on one execution.

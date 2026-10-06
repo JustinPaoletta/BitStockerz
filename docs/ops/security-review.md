@@ -29,25 +29,24 @@ host secrets, production traffic or external infrastructure.
 
 ## Findings fixed
 
-| Finding | Change and verification |
-| --- | --- |
-| Browser interceptor attached bearer credentials to every HttpClient destination and acted on unrelated 401s | Restrict both behaviors to the configured API origin and `/api` boundary; reject userinfo, malformed destinations and traversal. Foreign/scheme-relative/path-boundary regression tests cover the latent exposure. No current user-controlled exfiltration route was found. |
-| Ordinary accounts could mutate shared market data through ingestion/job POSTs in production | Reusable guard returns 403 in production before handler/audit execution. Owned job reads and internal scheduled ingestion continue. Real HTTP regressions prove the boundary. |
-| `Pick<CreateJobDto, ...>` bodies bypassed runtime DTO validation | Concrete ingestion DTOs reject object/invalid/oversized symbols, unknown fields and interval arrays beyond two unique supported values. |
-| Production accepted unsupported database protocols while Prisma silently disabled persistence | Require a MySQL/MariaDB host and database at startup; readiness also fails closed if the persistence adapter is unavailable. |
-| Public readiness responses exposed raw driver/upstream connection errors | Use bounded production error details, retaining useful dependency status and latency. Tests prove internal error strings are absent. |
-| Case/accent-insensitive MySQL auth identifiers could conflate signed OAuth subjects | Add a new binary-collation migration for opaque auth identifiers and strict equality after database lookups. This hardens the identity boundary; no collision between actual Google/Apple subject formats was demonstrated. Unit and MySQL cases cover mutated subjects, state, tokens, handoffs and passkey IDs. |
-| Abandoned auth state and client-rate-limit buckets could accumulate | Prune expired persisted OAuth states/challenges/handoffs on starts. Expire inactive IP buckets and cap active bucket storage without evicting/resetting active clients. |
-| Reverse-proxy socket addresses could group unrelated clients into one auth limit | Explicit `TRUSTED_PROXY_CIDRS` accepts only IP/CIDR ingress allowlists; defaults to trusting no proxy and rejects blanket `/0` trust. Tests cover untrusted spoofing and ignoring earlier forged forwarded hops. Live ingress verification is still required. |
-| No frontend framing/MIME/referrer headers | Vercel serves frame denial, nosniff, referrer policy and CSP restrictions on framing, base URLs and objects. Script/style CSP restrictions remain a compatibility follow-up; this policy makes no claim to prevent every XSS class. |
+| Finding                                                                                                     | Change and verification                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser interceptor attached bearer credentials to every HttpClient destination and acted on unrelated 401s | Restrict both behaviors to the configured API origin and `/api` boundary; reject userinfo, malformed destinations and traversal. Foreign/scheme-relative/path-boundary regression tests cover the latent exposure. No current user-controlled exfiltration route was found.                                       |
+| Ordinary accounts could mutate shared market data through ingestion/job POSTs in production                 | Reusable guard returns 403 in production before handler/audit execution. Owned job reads and internal scheduled ingestion continue. Real HTTP regressions prove the boundary.                                                                                                                                     |
+| `Pick<CreateJobDto, ...>` bodies bypassed runtime DTO validation                                            | Concrete ingestion DTOs reject object/invalid/oversized symbols, unknown fields and interval arrays beyond two unique supported values.                                                                                                                                                                           |
+| Production accepted unsupported database protocols while Prisma silently disabled persistence               | Require a MySQL/MariaDB host and database at startup; readiness also fails closed if the persistence adapter is unavailable.                                                                                                                                                                                      |
+| Public readiness responses exposed raw driver/upstream connection errors                                    | Use bounded production error details, retaining useful dependency status and latency. Tests prove internal error strings are absent.                                                                                                                                                                              |
+| Case/accent-insensitive MySQL auth identifiers could conflate signed OAuth subjects                         | Add a new binary-collation migration for opaque auth identifiers and strict equality after database lookups. This hardens the identity boundary; no collision between actual Google/Apple subject formats was demonstrated. Unit and MySQL cases cover mutated subjects, state, tokens, handoffs and passkey IDs. |
+| Abandoned auth state and client-rate-limit buckets could accumulate                                         | Prune expired persisted OAuth states/challenges/handoffs on starts. Expire inactive IP buckets and cap active bucket storage without evicting/resetting active clients.                                                                                                                                           |
+| Reverse-proxy socket addresses could group unrelated clients into one auth limit                            | Explicit `TRUSTED_PROXY_CIDRS` accepts only IP/CIDR ingress allowlists; defaults to trusting no proxy and rejects blanket `/0` trust. Tests cover untrusted spoofing and ignoring earlier forged forwarded hops. Live ingress verification is still required.                                                     |
+| No frontend framing/MIME/referrer headers                                                                   | Vercel serves frame denial, nosniff, referrer policy and CSP restrictions on framing, base URLs and objects. Script/style CSP restrictions remain a compatibility follow-up; this policy makes no claim to prevent every XSS class.                                                                               |
 
 ## Review of the new features
 
-The OAuth review verified signed issuer/audience/algorithm/expiry/issued-at/subject
-and nonce checks; one-use state and 60-second hashed verifier-bound handoffs;
-explicit provider linking bound to the fresh original session; ownership and
-concurrent redemption checks; secret-safe callback logging; fixed callback URLs;
-and no email-only recovery bypass. All provider email collisions require an
+The OAuth inspection covered signed issuer, audience, algorithm, expiry, issued-at, subject, and nonce validation.
+It covered one-use state and 60-second hashed, verifier-bound handoffs.
+Linking binds the fresh original session; tests cover ownership and concurrent redemption.
+Callback logs exclude secrets, callback URLs are fixed, and email alone cannot bypass recovery. All provider email collisions require an
 existing authenticated account to link explicitly. Unsigned Apple callback email
 cannot establish account ownership; unverified signed email is rejected.
 
@@ -69,9 +68,8 @@ cleanup retain their existing regression coverage.
 - Desktop and mobile profile save, shell update and reload also pass without overflow or page errors.
 - [PR CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089380502)
   and [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994)
-  pass, including all new migrations, backtest/P&L persistence, explicit recovery
-  linking/restart/logout, concurrent AI quotas, case-sensitive auth identifiers,
-  ownership checks on fresh MySQL and browser tests. The production API container
+  passed for the reviewed October 2 revision, including its auth migrations and fresh-MySQL ownership tests.
+  Gates covered backtest/P&L persistence, recovery linking/restart/logout, concurrent AI quotas, binary identifiers, and browser workflows. The production API container
   build passed. Local Docker was unavailable during the final review, so CI
   supplied that database verification.
 - Redacted history and working-tree scans pass after exact false-positive review.
@@ -87,9 +85,10 @@ See [deployment.md](./deployment.md) for provisioning and the current run eviden
 
 Apply both new migrations after checking for duplicate `(user_id, provider)`
 identity rows. The binary migration preserves existing data and never modifies
-previously deployed migration files. Configure provider credentials, exact HTTPS
-API callbacks and the fixed SPA callback, then perform the real Google/Apple
-signup/login/link/lost-device recovery smoke checklist in deployment.md.
+previously deployed migration files.
+
+Configure provider credentials, exact HTTPS API callbacks, and the fixed SPA callback.
+Do the real Google/Apple signup/login/link/recovery tests in [deployment](deployment.md#googleapple-login-and-recovery-setup).
 
 Determine the actual ingress proxy CIDRs from the deployed network and verify
 separate client limits and spoofed forwarded headers. Do not guess a broad Fly

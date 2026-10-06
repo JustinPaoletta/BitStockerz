@@ -1,159 +1,77 @@
-# BitStockerz – Data Lifecycle & Deletion Policy
+# BitStockerz — Data lifecycle and deletion
 
-This document defines **how data is deleted, retained, or archived** in BitStockerz.
-It is authoritative for **cascade vs soft delete** decisions and complements the ERD.
+This policy describes the October 4 implementation.
+The [runtime schema](../../apps/api/prisma/schema.prisma) and migrations define its database relationships.
+Conceptual schemas under `docs/database` retain older design targets and do not define current deletion behavior.
 
-This is the full-MVP target policy. The current API persists users, sessions,
-passkeys, OAuth identities/ceremonies/handoffs and AI daily quotas when MySQL is
-enabled. Expired auth ceremonies are pruned when new ceremonies start; logout
-revokes sessions. Account deletion/anonymization, credential removal and general
-retention/purge jobs are not exposed. Strategy, backtest and paper-trading
-foreign-key behavior follows the implemented migrations;
-`apps/api/prisma/schema.prisma` and its migrations remain the authority for the
-runnable database. The deletion/retention rules below are requirements for
-future maintenance work, not claims that those workflows are implemented.
+## Normal use
 
----
+| Data                                  | Current lifecycle                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Users and sign-in methods             | Retained until credential removal, session revocation, or account deletion.                                     |
+| Strategies                            | Ordinary strategy deletion sets `is_active=false`. Version snapshots remain available to owned historical runs. |
+| Strategy versions                     | Immutable after creation; removed with account deletion.                                                        |
+| Backtest runs and results             | Completed results remain immutable. Account deletion removes owned runs and their dependent rows.               |
+| Paper ledger                          | Atomic fills update cash and positions. Reset archives the old ledger; account deletion removes it.             |
+| Watchlists and paper runners          | Owner-scoped. Reset stops runners; account deletion removes them.                                               |
+| Jobs, AI usage, and user audit events | Retained in active storage until account deletion; no automatic retention purge is implemented.                 |
+| Symbols and OHLCV bars                | Shared reference data survives account deletion. Imports can update existing bars, including adjusted history.  |
 
-## Core Principles
+Market data is not strictly append-only.
+Operators can upsert corrected or adjusted prices through validated import paths.
+Inactive symbols are excluded from health coverage counts.
 
-- Prefer **soft delete** for user-visible entities
-- Prefer **immutability** for trading, backtesting, and market data
-- Avoid DB-level cascades unless data is strictly subordinate
-- Retention and purge are **explicit maintenance jobs**, not user actions
+## Personal export
 
----
+An authenticated user can download personal JSON through `GET /api/workspace/account-export`.
+Database mode uses a consistent read transaction.
+The export includes owned research, paper-account history, reset archives, runners, and account metadata.
+Session and credential identifiers are hashed.
+The export excludes bearer tokens, public keys, and OAuth subjects.
+Trading and backtest CSV files are separate exports.
 
-## Users & Identity
+## Paper-account reset
 
-### users
-- **Delete type:** Soft delete
-- **Implementation:** `deleted_at DATETIME NULL`
-- **Behavior:**
-  - On account deletion:
-    - Set `deleted_at`
-    - Anonymize PII (email, name)
-    - Revoke authentication
-- **Cascade:** NONE (no DB-level cascades)
+`POST /api/workspace/paper/reset` requires a sign-in within five minutes and the exact confirmation `RESET`.
+Reset serializes account changes and archives the prior ledger and runner state.
+It retires previous client-order identifiers to prevent old requests from recreating trades.
+It restores cash to the configured starting balance and clears active orders, executions, and positions.
+It stops existing runners.
+Reset archives remain until account deletion.
 
-### webauthn_credentials
-- **Delete type:** User-managed (device removal) or account deletion
-- **Behavior:**
-  - Remove credentials when a device is revoked
-  - On account deletion, revoke and delete credentials via application logic
-- **Cascade:** NONE (no DB-level cascades)
+## Credential and session removal
 
----
+Users can revoke their owned sessions.
+Passkey enrollment and removal require a sign-in within five minutes.
+Removal of the last passkey requires another linked sign-in method.
+Development-only email access does not provide production recovery.
+Recovery requires a usable passkey or a provider linked before device loss.
 
-## Market Data (Reference Data)
+## Account deletion
 
-### symbols
-- **Delete type:** Never deleted in normal operation
-- **Behavior:** Use `is_active = false` for delisted symbols
-- **Cascade:** NONE
+`DELETE /api/workspace/account` requires a sign-in within five minutes and exact email confirmation.
+The request fails while owned jobs are pending or running.
+Deletion prevents new user writes and waits for writes already in progress.
+A serialized transaction removes the user's owned active-database records:
 
-### equity_daily_bars / crypto_daily_bars / crypto_hourly_bars
-- **Delete type:** Never user-deleted
-- **Behavior:** Append-only historical facts
-- **Cascade:** NONE
-- **Retention:** Admin-only maintenance if needed
+- Profile, sessions, credentials, OAuth identities, and auth ceremonies.
+- Strategies, versions, backtest runs, results, trades, and equity points.
+- Paper account, orders, executions, positions, and retired order identifiers.
+- Watchlists, reset archives, and paper runners.
+- Owned jobs, AI usage, and user audit events.
 
----
+After deletion, the API invalidates sessions and removes the user's process-local state.
+Shared symbols and market prices remain available.
+Seed mode uses the same ownership boundaries, but its data disappears on process restart.
 
-## Paper Trading
+## External logs and backups
 
-### paper_accounts
-- **Delete type:** Soft disable
-- **Implementation:** `is_active BOOLEAN`
-- **Cascade:** NONE
+Active-data deletion does not erase existing host logs or database backups.
+Their providers, retention periods, purge schedules, and restoration controls remain launch prerequisites.
+No published retention period or automatic backup purge is implemented by the application.
 
-### orders
-- **Delete type:** Never user-deleted
-- **Behavior:** Historical order record
-- **Cascade:** NONE
-
-### executions
-- **Delete type:** Never deleted
-- **Behavior:** Source of truth for P&L
-- **Cascade:** NONE
-
-### positions
-- **Delete type:** Never deleted
-- **Behavior:** Derived state from executions
-- **Cascade:** NONE
-
----
-
-## Strategy Lab
-
-### strategies
-- **Delete type:** Soft delete
-- **Implementation:** `is_active = false`
-- **Cascade:** NONE
-
-### strategy_versions
-- **Delete type:** Never deleted
-- **Behavior:** Immutable snapshots
-- **Cascade:** NONE
-
----
-
-## Backtesting
-
-### backtest_runs
-- **Delete type:** No user deletion
-- **Behavior:** Immutable historical simulation
-- **Parent FK rules:** User, strategy, strategy version, and symbol use
-  `ON DELETE RESTRICT`; optional job uses `ON DELETE SET NULL`
-- **Admin cleanup:** Deleting a run cascades only to its result, trades, and
-  equity points
-
-### backtest_results
-- **Delete type:** Dependent on backtest_runs
-- **Cascade:** `ON DELETE CASCADE` from backtest_runs
-
-### backtest_trades
-### backtest_equity_points
-- **Delete type:** Dependent on backtest_runs
-- **Cascade:** `ON DELETE CASCADE` from backtest_runs
-
----
-
-## AI / Kernel
-
-### ai_usage
-- **Delete type:** Retention-based purge
-- **Retention:** 90–180 days recommended
-- **Cascade:** NONE
-
----
-
-## Infrastructure
-
-### jobs
-- **Delete type:** Maintenance purge
-- **Behavior:** Delete completed jobs after retention window
-- **FK rule:** `backtest_runs.job_id ON DELETE SET NULL`
-
-### audit_events
-- **Delete type:** Retention-based purge
-- **Behavior:** Keep for security/debugging
-- **Cascade:** NONE
-- **Optional:** Nullify `user_id` after anonymization
-
----
-
-## “Delete My Account” Summary
-
-- users → soft delete + anonymize
-- strategies → soft delete
-- paper_accounts → disable
-- trading, backtests, market data → retained
-- AI usage / jobs / audit → retained then purged by policy
-
----
-
-This policy must be enforced via:
-- Application logic
-- FK rules (`RESTRICT`, `SET NULL`)
-- Background maintenance jobs
+Operators must keep a restricted deletion-request record outside restored application backups.
+That record requires minimal identifiers, access controls, and its own purge policy.
+Before restored data serves traffic, operators must reapply recorded deletion requests.
+The record and restoration drill remain unimplemented operational work.
+See [deployment](../ops/deployment.md#backups-alerts-and-support) and the [remaining task list](../../PRODUCT_TASKLIST.md).

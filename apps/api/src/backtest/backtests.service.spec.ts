@@ -24,6 +24,47 @@ const OTHER_USER_ID = '00000000-0000-4000-8000-000000000002';
 const STRATEGY_ID = '00000000-0000-4000-8000-000000000010';
 
 describe('BacktestsService', () => {
+  it.each([
+    { allocation_pct: 50, commission_bps: 10, slippage_bps: 20 },
+    { allocation_pct: 35, commission_bps: 0, slippage_bps: 0 },
+    { allocation_pct: 100, commission_bps: 20, slippage_bps: 0 },
+  ])(
+    'persists fractional cost-enabled fills without relaxing inconsistency checks %p',
+    async (simulation) => {
+      const { service } = createService();
+      const input = { ...createInput(), initialEquity: 10000, simulation };
+      const run = await service.createRun(input);
+      await service.markRunning(run.id, USER_ID);
+      const fractionalBars = bars().map((bar, index) => ({
+        ...bar,
+        open: index ? 209.21 : 201.37,
+        high: index ? 209.21 : 201.37,
+        low: index ? 209.21 : 201.37,
+        close: index ? 209.21 : 201.37,
+      }));
+      const output = runBacktest(
+        {
+          definition: definition(),
+          bars: fractionalBars,
+          initialEquity: 10000,
+          simulation,
+          symbolId: 1,
+        },
+        { now: () => 0 },
+      );
+      await service.completeRun(run.id, USER_ID, output);
+      expect(
+        (await service.getRun(run.id, USER_ID))?.result?.benchmark,
+      ).toBeDefined();
+      const bad = await service.createRun(input);
+      await service.markRunning(bad.id, USER_ID);
+      output.trades[0].pnlAbs += 10;
+      await expect(
+        service.completeRun(bad.id, USER_ID, output),
+      ).rejects.toThrow();
+    },
+  );
+
   it('round-trips deterministic engine output in memory', async () => {
     const { service } = createService();
     const run = await service.createRun(createInput());

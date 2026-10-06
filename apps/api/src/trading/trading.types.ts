@@ -98,6 +98,7 @@ export interface PlaceOrderInput {
   side: TradingSide;
   quantity: string;
   clientOrderId?: string;
+  expectedClose?: { asOf: string; interval: '1d' | '1h' };
 }
 
 export type TradingTransaction = Prisma.TransactionClient;

@@ -30,7 +30,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:oauth": "node --test test/oauth-token-security.mjs",
-    "test:mysql:security": "ts-node --transpile-only test/auth-ai-security.mysql.ts"
+    "test:mysql:security": "ts-node --transpile-only test/auth-ai-security.mysql.ts",
+    "data:import": "node tools/import-market-data.mjs",
+    "test:mysql:workspace": "ts-node --transpile-only test/product-workspace.mysql.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

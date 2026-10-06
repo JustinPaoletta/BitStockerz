@@ -12,6 +12,24 @@ import type {
 
 @Injectable({ providedIn: 'root' })
 export class BacktestsApiService {
+  research(id: string) {
+    return this.http.get<{
+      run: import('./models/backtest.models').BacktestRun;
+      results: import('./models/backtest.models').BacktestResults | null;
+      definition: import('../strategies/data/strategies-api.service').StrategyDefinition;
+      version_number: number;
+    }>(`/api/backtests/${id}/research`);
+  }
+  exportResults(id: string) {
+    return this.http
+      .get(`/api/backtests/${id}/results.csv`, { responseType: 'text' })
+      .pipe(catchError(toUserError));
+  }
+
+  exportTrades(id: string) {
+    return this.http.get(`/api/backtests/${id}/trades.csv`, { responseType: 'text' });
+  }
+
   private readonly http = inject(HttpClient);
 
   list(limit = 50, offset = 0): Observable<BacktestListResponse> {

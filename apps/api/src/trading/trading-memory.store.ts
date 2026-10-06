@@ -8,6 +8,7 @@ import type {
 
 @Injectable()
 export class TradingMemoryStore {
+  readonly retiredClientKeys = new Set<string>();
   readonly paperAccountsByUserId = new Map<string, PaperAccountRecord>();
   readonly paperAccountsById = new Map<number, PaperAccountRecord>();
   readonly positionsByKey = new Map<string, PositionRecord>();
@@ -81,6 +82,7 @@ export class TradingMemoryStore {
   }
 
   resetForTests(): void {
+    this.retiredClientKeys.clear();
     this.paperAccountsByUserId.clear();
     this.paperAccountsById.clear();
     this.positionsByKey.clear();

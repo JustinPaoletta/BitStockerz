@@ -24,6 +24,16 @@ export class JobsService {
     private readonly audit: AuditService,
   ) {}
 
+  exportMemoryForUser(userId: string) {
+    return structuredClone(
+      [...this.inMemoryJobs.values()].filter((item) => item.userId === userId),
+    );
+  }
+  forgetUser(userId: string): void {
+    for (const [id, item] of this.inMemoryJobs)
+      if (item.userId === userId) this.inMemoryJobs.delete(id);
+  }
+
   async createJob(input: CreateJobInput): Promise<JobRecord> {
     const now = new Date();
     const record: JobRecord = {

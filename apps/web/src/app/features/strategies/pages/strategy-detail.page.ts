@@ -1,6 +1,13 @@
 import { JsonPipe } from '@angular/common';
 import { BsDateTimePipe } from '../../../shared/format/display.pipes';
-import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -56,6 +63,9 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
                   [queryParams]="{ strategy_id: item.id }"
                   >Run backtest</a
                 >
+                <button class="button secondary" type="button" (click)="duplicate()">
+                  Duplicate
+                </button>
                 <button class="button ghost" type="button" (click)="remove()">Delete</button>
               }
             </div>
@@ -145,6 +155,26 @@ export class StrategyDetailPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  protected async duplicate(): Promise<void> {
+    const item = this.strategy();
+    if (!item) return;
+    try {
+      const copy = await firstValueFrom(
+        this.api.create({
+          name: `${item.name.slice(0, 100)} copy ${Date.now().toString(36)}`,
+          description: item.description ?? undefined,
+          asset_type: item.asset_type,
+          timeframe: item.timeframe,
+          definition: structuredClone(item.definition),
+        }),
+      );
+      await this.router.navigate(['/strategies', copy.id, 'edit']);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Unable to duplicate strategy.');
+      this.state.set('error');
+    }
   }
 
   protected load(version?: number): void {

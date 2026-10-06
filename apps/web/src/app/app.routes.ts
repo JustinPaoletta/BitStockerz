@@ -4,6 +4,11 @@ import { strategyEditorCanDeactivate } from './features/strategies/pages/strateg
 
 export const routes: Routes = [
   {
+    path: 'help',
+    loadComponent: () => import('./features/help/help.page').then((module) => module.HelpPage),
+  },
+  { path: 'data-policy', redirectTo: 'help', pathMatch: 'full' },
+  {
     path: 'auth/oauth/callback',
     loadComponent: () =>
       import('./core/auth/oauth-callback.page').then((module) => module.OAuthCallbackPage),
@@ -16,6 +21,26 @@ export const routes: Routes = [
     path: '',
     canActivate: [authGuard],
     children: [
+      {
+        path: 'automations',
+        loadComponent: () =>
+          import('./features/automation/automation.page').then((module) => module.AutomationPage),
+      },
+      {
+        path: 'market',
+        loadComponent: () =>
+          import('./features/market/market.page').then((module) => module.MarketPage),
+      },
+      {
+        path: 'account/data',
+        loadComponent: () =>
+          import('./features/profile/account-data.page').then((module) => module.AccountDataPage),
+      },
+      {
+        path: 'account/security',
+        loadComponent: () =>
+          import('./features/profile/security.page').then((module) => module.SecurityPage),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
         path: 'profile',
@@ -77,6 +102,13 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./features/backtests/pages/backtest-list.page').then(
                 (module) => module.BacktestListPage,
+              ),
+          },
+          {
+            path: 'compare',
+            loadComponent: () =>
+              import('./features/backtests/pages/backtest-compare.page').then(
+                (module) => module.BacktestComparePage,
               ),
           },
           {

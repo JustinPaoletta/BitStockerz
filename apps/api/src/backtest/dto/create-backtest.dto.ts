@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -9,6 +9,8 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  Max,
+  ValidateNested,
   Min,
   MinLength,
 } from 'class-validator';
@@ -17,7 +19,48 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const preserveRawValue = ({ value }: { value: unknown }) => value;
 
+export class SimulationSettingsDto {
+  @ApiPropertyOptional({ minimum: 0.01, maximum: 100, default: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Max(100)
+  allocation_pct?: number;
+  @ApiPropertyOptional({ minimum: 0, maximum: 1000, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  commission_bps?: number;
+  @ApiPropertyOptional({ minimum: 0, maximum: 1000, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  slippage_bps?: number;
+  @ApiPropertyOptional({
+    enum: ['signal_close', 'next_open'],
+    default: 'signal_close',
+  })
+  @IsOptional()
+  @IsIn(['signal_close', 'next_open'])
+  execution_timing?: 'signal_close' | 'next_open';
+  @ApiPropertyOptional({
+    enum: ['research', 'out_of_sample'],
+    default: 'research',
+  })
+  @IsOptional()
+  @IsIn(['research', 'out_of_sample'])
+  evaluation_period?: 'research' | 'out_of_sample';
+}
+
 export class CreateBacktestDto {
+  @ApiPropertyOptional({ type: SimulationSettingsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SimulationSettingsDto)
+  simulation?: SimulationSettingsDto;
+
   @ApiProperty({ format: 'uuid' })
   @IsUUID('4')
   strategy_id!: string;
@@ -28,7 +71,6 @@ export class CreateBacktestDto {
     description: 'Internal immutable strategy-version ID. Omit to pin latest.',
   })
   @IsOptional()
-  @ApiProperty({ example: 'AAPL' })
   @Transform(({ value }: { value: unknown }) =>
     value === undefined ? undefined : Number(value),
   )
@@ -36,6 +78,7 @@ export class CreateBacktestDto {
   @Min(1)
   strategy_version_id?: number;
 
+  @ApiProperty({ example: 'AAPL' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )

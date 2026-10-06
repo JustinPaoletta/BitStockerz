@@ -1,3 +1,4 @@
+import { csv } from '../common/csv';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -66,6 +67,26 @@ export class OrdersService {
     const symbol = await this.marketData.lookupSymbol(input.symbol);
     const quantity = decimal(input.quantity);
     const clientOrderId = input.clientOrderId?.trim() || null;
+    if (
+      clientOrderId &&
+      (this.prisma.isEnabled
+        ? await this.prisma.paperResetKey?.findUnique({
+            where: {
+              paperAccountId_clientOrderId: {
+                paperAccountId: account.id,
+                clientOrderId,
+              },
+            },
+          })
+        : this.memory.retiredClientKeys.has(
+            this.memory.clientOrderKey(account.id, clientOrderId),
+          ))
+    ) {
+      throw new DomainError(
+        ErrorCode.CONFLICT,
+        'This order belongs to an archived paper-account session. Submit a new order.',
+      );
+    }
     const fastReplay = clientOrderId
       ? await this.findByClientOrderId(account.id, clientOrderId)
       : null;
@@ -76,7 +97,20 @@ export class OrdersService {
 
     let fillPrice: Prisma.Decimal | null = null;
     try {
-      fillPrice = (await this.prices.getLatestClose(symbol.symbol)).price;
+      const close = await this.prices.getLatestClose(
+        symbol.symbol,
+        input.expectedClose?.interval,
+      );
+      if (
+        input.expectedClose &&
+        (close.asOf.toISOString() !== input.expectedClose.asOf ||
+          close.interval !== input.expectedClose.interval)
+      )
+        throw new DomainError(
+          ErrorCode.CONFLICT,
+          'Signal price changed before execution.',
+        );
+      fillPrice = close.price;
     } catch (error) {
       if (!isDomainCode(error, ErrorCode.TRADING_NO_MARKET_PRICE)) throw error;
     }
@@ -117,6 +151,56 @@ export class OrdersService {
     }
 
     return { order: toOrderResponse(result.order, symbol.symbol) };
+  }
+
+  async findOwnedClientOrder(
+    userId: string,
+    clientOrderId: string,
+  ): Promise<OrderResponse | null> {
+    const account = await this.accounts.getForUser(userId);
+    const order = await this.findByClientOrderId(account.id, clientOrderId);
+    if (!order) return null;
+    const symbol = await this.marketData.requireActiveSymbolById(
+      order.symbolId,
+    );
+    return toOrderResponse(order, symbol.symbol);
+  }
+
+  async exportExecutions(userId: string): Promise<string> {
+    const account = await this.accounts.getForUser(userId);
+    const rows = this.prisma.isEnabled
+      ? (
+          await this.prisma.execution.findMany({
+            where: { paperAccountId: account.id },
+            orderBy: [{ executedAt: 'asc' }, { id: 'asc' }],
+            take: 100001,
+            include: { symbol: { select: { symbol: true } } },
+          })
+        ).map((record) => ({
+          ...toExecutionResponse(
+            { ...record, side: record.side as ExecutionRecord['side'] },
+            record.symbol.symbol,
+          ),
+        }))
+      : await this.listExecutions(userId, { limit: 100001, offset: 0 }).then(
+          (page) => page.executions,
+        );
+    if (rows.length > 100000)
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        'Use personal-data export for ledgers larger than 100,000 executions.',
+      );
+    return csv([
+      ['executed_at', 'symbol', 'side', 'quantity', 'price', 'notional'],
+      ...rows.map((row) => [
+        row.executed_at,
+        row.symbol,
+        row.side,
+        row.quantity,
+        row.price,
+        row.notional,
+      ]),
+    ]);
   }
 
   async listOrders(
@@ -285,6 +369,20 @@ export class OrdersService {
     }
 
     if (input.clientOrderId) {
+      if (
+        await tx.paperResetKey?.findUnique({
+          where: {
+            paperAccountId_clientOrderId: {
+              paperAccountId: input.accountId,
+              clientOrderId: input.clientOrderId,
+            },
+          },
+        })
+      )
+        throw new DomainError(
+          ErrorCode.CONFLICT,
+          'Order belongs to an archived account session.',
+        );
       const existing = await tx.order.findUnique({
         where: {
           paperAccountId_clientOrderId: {
@@ -384,6 +482,15 @@ export class OrdersService {
       throw new DomainError(ErrorCode.TRADING_ACCOUNT_INACTIVE);
     }
     if (input.clientOrderId) {
+      if (
+        this.memory.retiredClientKeys.has(
+          this.memory.clientOrderKey(input.accountId, input.clientOrderId),
+        )
+      )
+        throw new DomainError(
+          ErrorCode.CONFLICT,
+          'Order belongs to an archived account session.',
+        );
       const existing = await this.findByClientOrderId(
         input.accountId,
         input.clientOrderId,
