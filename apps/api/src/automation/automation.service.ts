@@ -94,7 +94,7 @@ export class AutomationService {
   ) {
     return this.runUserWork(userId, async () => {
       const rows = await this.list(userId);
-      if (rows.length >= 20)
+      if (rows.filter((item) => item.status !== 'stopped').length >= 20)
         throw new DomainError(
           ErrorCode.VALIDATION_ERROR,
           'At most 20 strategy runners per account.',
@@ -229,11 +229,7 @@ export class AutomationService {
     for (const record of this.records.values())
       if (record.userId === userId) {
         record.status = 'stopped';
-        record.stateJson = this.json({
-          ...this.state(record),
-          quantity: '0',
-          pending: undefined,
-        }) as Prisma.JsonValue;
+        record.stateJson = this.json(initialState()) as Prisma.JsonValue;
       }
   }
   forgetUser(userId: string): void {

@@ -411,9 +411,13 @@ describe('forward paper execution', () => {
     expect(f.orders.placeMarketOrder).not.toHaveBeenCalled();
     const full = fixture(true);
     full.repository.findMany.mockResolvedValue(
-      Array.from({ length: 20 }, () => r),
+      Array.from({ length: 20 }, () => ({ ...r, status: 'paused' })),
     );
     await expect(full.service.create('u1', input)).rejects.toThrow('20');
+    full.repository.findMany.mockResolvedValue(
+      Array.from({ length: 20 }, () => ({ ...r, status: 'stopped' })),
+    );
+    await expect(full.service.create('u1', input)).resolves.toBeDefined();
   });
   it('skips overlapping scheduler ticks and continues beyond one database page', async () => {
     const f = fixture(true),
@@ -495,8 +499,33 @@ describe('forward paper execution', () => {
     const memory = fixture(),
       a = await memory.service.create('u1', input),
       b = await memory.service.create('u2', input);
+    await memory.service.control('u1', a.id, 'active');
+    memory.strategies.resolveOwnedVersion.mockResolvedValue({
+      assetType: 'EQUITY',
+      timeframe: '1d',
+      strategyVersionId: 7,
+      definition: {
+        ...definition,
+        entry: {
+          logic: 'AND',
+          conditions: [
+            { left: { price: 'close' }, op: 'gt', right: { literal: 1000 } },
+          ],
+        },
+      },
+    });
+    await memory.service.evaluate('u1', a.id, memory.now);
     memory.service.stopMemoryForUser('u1');
-    expect((await memory.service.list('u1'))[0].status).toBe('stopped');
+    expect((await memory.service.list('u1'))[0]).toMatchObject({
+      status: 'stopped',
+      stateJson: {
+        quantity: '0',
+        entry_price: '0',
+        realized_pnl: '0',
+        closed_trades: 0,
+        activity: [],
+      },
+    });
     expect((await memory.service.list('u2'))[0].id).toBe(b.id);
     expect((await memory.service.list('u2'))[0].status).toBe('paused');
     memory.service.forgetUser('u1');
