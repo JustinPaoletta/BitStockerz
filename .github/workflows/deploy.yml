@@ -13,6 +13,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  setup-status:
+    name: Production setup status
+    if: github.ref == 'refs/heads/main' && vars.PRODUCTION_DEPLOY_ENABLED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record deferred deployment
+        run: |
+          echo "Production deployment deferred: set PRODUCTION_DEPLOY_ENABLED=true after completing docs/ops/deployment.md."
+          echo "### Production deployment deferred" >> "$GITHUB_STEP_SUMMARY"
+          echo "Hosting and credentials require owner setup. This run is not deployment evidence." >> "$GITHUB_STEP_SUMMARY"
+
   ci-gate:
     name: Reuse CI
     if: github.ref == 'refs/heads/main'
@@ -21,6 +32,8 @@ jobs:
   deploy-api:
     name: Deploy API (Fly.io)
     needs: ci-gate
+    if: github.ref == 'refs/heads/main' && vars.PRODUCTION_DEPLOY_ENABLED == 'true'
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -30,10 +43,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.21.0'
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
+      - name: Check release configuration before migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node ../../scripts/ops/check-deploy-config.mjs
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+        with:
+          version: "0.4.112"
       - name: Migrate database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -44,18 +69,25 @@ jobs:
       - name: Deploy API
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --config fly.toml
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+        run: flyctl deploy --remote-only --config fly.toml --app "$FLY_APP_NAME" --ha=false --strategy immediate
       - name: Smoke live/ready
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
           set -euo pipefail
-          curl -fsS "$API_BASE_URL/api/health/live" | grep -q '"status":"ok"'
-          curl -fsS "$API_BASE_URL/api/health/ready" | grep -q '"ready":true'
+          for attempt in {1..12}; do
+            if node ../../scripts/ops/check-health.mjs --deployment; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 12 ]; then sleep 5; fi
+          done
+          exit 1
 
   deploy-web:
     name: Deploy Web (Vercel)
     needs: deploy-api
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -65,7 +97,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.21.0'
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - name: Inject API base URL
@@ -86,5 +118,6 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: apps/web
-          vercel-args: '--prod'
+          vercel-version: "63.1.0"
+          vercel-args: "--prod"
           github-comment: false

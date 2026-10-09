@@ -85,22 +85,44 @@ market-data freshness and deployed latency checks remain launch requirements.
 
 ## Verification evidence
 
+Hosted evidence inspected October 8, 2026:
+
+- [PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133) and
+  [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260) passed.
+- Both runs applied all 19 migrations to fresh MySQL and passed all five persistence/security gates.
+- API/web build, lint, tests, audits, secret scanning, browser tests, and the production-image build passed.
+- [Deploy](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465419) failed because the migration step received an empty `DATABASE_URL`.
+- Production monitoring skipped its checks because `PRODUCTION_API_BASE_URL` was absent.
+  A successful skipped workflow is not production-health evidence.
+
+Local checks on October 8, 2026 for Kernel and deployment readiness:
+
+- API build and lint passed.
+- API coverage passed: 106 suites, 975 tests; 98.01% statements and 90.03% branches.
+- HTTP integration passed 67 tests; signed OAuth security passed 16 tests.
+- Historical Kernel context remains pinned after edits, renames, and soft deletion.
+  Improvement previews still use the current definition; foreign owners cannot invoke analysis.
+- Native importer/operational checks passed 14 tests, including configuration and readiness failures.
+- Angular production build passed with an injected HTTPS API origin; `dist/web/browser/index.html` was produced.
+- Deployment YAML parsing and shell syntax passed. Documentation links, JSON/shell examples, formatting, and selected clarity checks passed.
+- Local Docker remains unavailable. Fresh MySQL and container checks run in hosted CI.
+
 Local checks on October 4, 2026:
 
-| Check                                                         | Result                                                                                                     |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| API build and lint                                            | Passed                                                                                                     |
-| API unit/integration coverage                                 | 106 suites, 974 tests passed; 98.01% statements and 90% branches under the existing coverage configuration |
-| API end-to-end                                                | 67 tests passed                                                                                            |
-| Signed OAuth token security                                   | 16 tests passed                                                                                            |
-| Import and operational CLI                                    | 8 tests passed                                                                                             |
-| Web build and lint                                            | Passed                                                                                                     |
-| Web unit                                                      | 22 files, 99 tests passed                                                                                  |
-| Browser integration                                           | 7 tests passed, including independent virtual-passkey devices and both signing into the original account   |
-| Prisma schema validation                                      | Passed                                                                                                     |
-| Root/API/web dependency audits                                | Zero vulnerabilities reported                                                                              |
-| New MySQL migrations/restart harness                          | Prepared and included in CI; local execution blocked by unresponsive Docker daemon                         |
-| Final-revision CI, image build, live providers and deployment | Pending                                                                                                    |
+| Check                                                 | Result                                                                                                     |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| API build and lint                                    | Passed                                                                                                     |
+| API unit/integration coverage                         | 106 suites, 974 tests passed; 98.01% statements and 90% branches under the existing coverage configuration |
+| API end-to-end                                        | 67 tests passed                                                                                            |
+| Signed OAuth token security                           | 16 tests passed                                                                                            |
+| Import and operational CLI                            | 8 tests passed                                                                                             |
+| Web build and lint                                    | Passed                                                                                                     |
+| Web unit                                              | 22 files, 99 tests passed                                                                                  |
+| Browser integration                                   | 7 tests passed, including independent virtual-passkey devices and both signing into the original account   |
+| Prisma schema validation                              | Passed                                                                                                     |
+| Root/API/web dependency audits                        | Zero vulnerabilities reported                                                                              |
+| New MySQL migrations/restart harness                  | Prepared and included in CI; local execution blocked by unresponsive Docker daemon                         |
+| Hosted CI, image build, live providers and deployment | Pending at this local snapshot; later hosted evidence is recorded above                                    |
 
 Local browser fixtures use seed prices and disposable accounts. The browser test uses `localhost` as the relying-party domain, mapped to the IPv4 test server.
 This avoids unrelated apps on an IPv6 loopback listener. Angular's native LMDB cache
@@ -113,7 +135,7 @@ not reduced. No production data, provider credentials or real trading were used.
 From the repository root, run:
 
 ```sh
-node --test apps/api/tools/import-market-data.test.mjs scripts/ops/check-health.test.mjs
+node --test apps/api/tools/import-market-data.test.mjs scripts/ops/*.test.mjs
 ```
 
 These tests use fixtures and mocks; they do not establish live import or monitoring success.

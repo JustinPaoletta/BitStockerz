@@ -1,7 +1,7 @@
 # BitStockerz Web
 
 The Angular SPA includes authentication, dashboard, strategy research, backtests, markets, paper trading, and account settings.
-[Product extensions](../../docs/product/PRODUCT_EXTENSIONS.md) describe the October 4 local additions and their limits.
+[Product extensions](../../docs/product/PRODUCT_EXTENSIONS.md) describe the additions merged in PR #15 and their limits.
 
 Use Node `24.21.0` from the root `.nvmrc`.
 The stack uses Angular `22.2.1`, TypeScript `6.0.3`, standalone components, Vitest, Playwright, and Lightweight Charts `5.2`.

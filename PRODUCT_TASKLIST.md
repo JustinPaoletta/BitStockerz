@@ -1,8 +1,8 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 5, 2026.
+Created October 3, 2026. Updated October 8, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
-Delivered local features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
+Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
 Use the [deployment runbook](docs/ops/deployment.md) for setup procedures.
 Local test evidence is recorded in the [testing strategy](docs/product/requirements/Testing_Strategy.md#verification-evidence).
@@ -10,7 +10,12 @@ No live-provider success or production deployment is recorded.
 
 ## Release evidence still required
 
-- [ ] Run the new migrations and all five MySQL persistence/restart harnesses against a disposable database.
+All 19 migrations, five MySQL persistence/restart gates, and the production-image build passed
+[PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
+and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
+Historical strategy explanations now use pinned versions, with an edit/deletion regression.
+Deployment configuration checks and recovery procedures are prepared in the runbook.
+
 - [ ] Obtain passing CI on the final revision, including secret scanning and the production-image build.
 
 ## 1. Remaining roadmap work — Required for launch
@@ -22,6 +27,7 @@ No live-provider success or production deployment is recorded.
 - [ ] Create the Vercel Angular project and configure its build/output paths and SPA rewrites.
 - [ ] Establish the production HTTPS URLs used by the website, API, passkeys, and OAuth callbacks.
 - [ ] Configure the GitHub `production` environment with `DATABASE_URL`, `FLY_API_TOKEN`, `API_BASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` using secret storage.
+- [ ] Configure repository variables `FLY_APP_NAME` and `PRODUCTION_API_BASE_URL`; enable `PRODUCTION_DEPLOY_ENABLED` after setup.
 - [ ] Configure API host settings for the database, exact CORS origins, WebAuthn relying-party ID/allowed origins, and scheduled-job system user.
 - [ ] Determine the actual trusted ingress proxy CIDRs and configure `TRUSTED_PROXY_CIDRS` accordingly.
 - [ ] Disable development email auth, legacy WebAuthn bypasses, forced-error routes, and public OpenAPI in production using the runbook defaults.
@@ -87,8 +93,6 @@ The tasks below cover their outstanding provider setup and live verification.
 
 ### Kernel correctness and optional live rollout
 
-- [ ] Make backtest explanations use the pinned strategy version; add a regression for later strategy edits.
-
 - [ ] Configure the OpenAI provider and key in host secret storage when enabling live Kernel AI.
 - [ ] Verify live strategy explanations, logic warnings, backtest explanations, failure modes, and improvement suggestions.
 - [ ] Verify structured-output validation, usage limits, timeouts, safe logging, and user-facing disclaimers with the real provider.
@@ -101,7 +105,7 @@ The tasks below cover their outstanding provider setup and live verification.
 
 ## 3. Forward paper execution
 
-Local paper-runner code is implemented. Persistent and production acceptance remain pending.
+Paper-runner code and MySQL restart/idempotency gates passed CI. Production acceptance remains pending.
 
 ### Run saved strategies in paper trading — High priority if automation is central
 
@@ -109,7 +113,7 @@ Paper runners now pin saved versions and use completed bars, account risk limits
 durable order intent and close-based risk exits. Scheduling requires database
 persistence and functioning ingestion. See the limitations in the extension contract.
 
-- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions.
+- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions in production.
 
 ## 4. Public-release readiness
 

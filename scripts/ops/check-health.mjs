@@ -1,6 +1,10 @@
 import { pathToFileURL } from "node:url";
 /** Public endpoints only; never prints provider responses or credential-bearing URLs. */
-export async function checkHealth(base, request = fetch) {
+export async function checkHealth(
+  base,
+  request = fetch,
+  { marketData = true } = {},
+) {
   const parsed = new URL(base);
   if (
     parsed.username ||
@@ -16,7 +20,7 @@ export async function checkHealth(base, request = fetch) {
   for (const [path, name] of [
     ["health/live", "API_LIVENESS"],
     ["health/ready", "DEPENDENCY_READINESS"],
-    ["market-data/health", "MARKET_DATA"],
+    ...(marketData ? [["market-data/health", "MARKET_DATA"]] : []),
   ]) {
     try {
       const response = await request(
@@ -62,7 +66,10 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   try {
-    const result = await checkHealth(process.env.API_BASE_URL ?? "");
+    const deployment = process.argv.includes("--deployment");
+    const result = await checkHealth(process.env.API_BASE_URL ?? "", fetch, {
+      marketData: !deployment,
+    });
     console.log(JSON.stringify(result));
     if (!result.healthy) process.exitCode = 1;
   } catch {

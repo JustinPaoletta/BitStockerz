@@ -8,6 +8,9 @@ build/
 out/
 *.tsbuildinfo
 
+# Cloud project metadata
+.vercel/
+
 # Environment and secrets
 .env
 .env.*

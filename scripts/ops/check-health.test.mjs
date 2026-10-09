@@ -67,3 +67,59 @@ test("supports the deployment secret origin and rejects missing market series", 
     ["MARKET_DATA"],
   );
 });
+
+test("deployment smoke requires persistent readiness without requiring launch data", async () => {
+  const paths = [];
+  const request = (url) => {
+    paths.push(url.pathname);
+    return healthy(url);
+  };
+  assert.equal(
+    (
+      await checkHealth("https://api.example.com", request, {
+        marketData: false,
+      })
+    ).healthy,
+    true,
+  );
+  assert.deepEqual(paths, ["/api/health/live", "/api/health/ready"]);
+  assert.deepEqual(
+    (
+      await checkHealth(
+        "https://api.example.com",
+        (url) =>
+          url.pathname.endsWith("/ready")
+            ? Promise.resolve(
+                Response.json({
+                  ready: true,
+                  checks: { database: { status: "disabled" } },
+                }),
+              )
+            : healthy(url),
+        { marketData: false },
+      )
+    ).issues,
+    ["DEPENDENCY_READINESS"],
+  );
+});
+
+test("malformed JSON and redirects fail with sanitized issue codes", async () => {
+  for (const request of [
+    () => Promise.resolve(new Response("private upstream diagnostic")),
+    () =>
+      Promise.resolve(
+        new Response("", {
+          status: 302,
+          headers: { location: "https://other.example.com" },
+        }),
+      ),
+  ])
+    assert.deepEqual(
+      (
+        await checkHealth("https://api.example.com", request, {
+          marketData: false,
+        })
+      ).issues,
+      ["API_LIVENESS", "DEPENDENCY_READINESS"],
+    );
+});

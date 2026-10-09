@@ -1,6 +1,7 @@
 # Fly.io Option A host for the Nest API + in-process scheduler.
-# Provision externally, then: fly apps create / fly postgres or managed MySQL
-# secrets set / fly deploy from apps/api.
+# Provision the app and managed MySQL externally; PostgreSQL is not supported.
+# Deploy workflow selects the app through repository variable FLY_APP_NAME.
+# Keep exactly one machine; deployment uses --ha=false --strategy immediate.
 app = "bitstockerz-api"
 primary_region = "iad"
 
