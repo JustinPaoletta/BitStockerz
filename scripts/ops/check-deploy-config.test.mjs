@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { checkDeployConfig } from "./check-deploy-config.mjs";
 const configured = {
-  DATABASE_URL:
-    "mysql://operator@db.example.test:3306/bitstockerz?ssl=true",
+  DATABASE_URL: "mysql://operator@db.example.test:3306/bitstockerz?ssl=true",
   FLY_API_TOKEN: "fixture-fly",
   API_BASE_URL: "https://api.example.test",
   FLY_APP_NAME: "example-api",
