@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { checkDeployConfig } from "./check-deploy-config.mjs";
 const configured = {
   DATABASE_URL:
-    "mysql://operator:fixture-only@db.example.test:3306/bitstockerz?ssl=true",
+    "mysql://operator@db.example.test:3306/bitstockerz?ssl=true",
   FLY_API_TOKEN: "fixture-fly",
   API_BASE_URL: "https://api.example.test",
   FLY_APP_NAME: "example-api",
@@ -26,7 +26,7 @@ test("requires all release settings before any migration", () => {
 });
 test("rejects wrong database engines and incomplete database destinations", () => {
   for (const value of [
-    "postgres://operator:private@db.example.test/app",
+    "postgres://operator@db.example.test/app",
     "mysql://db.example.test",
     "mysql://operator@db.example.test/",
     "not-a-url",
