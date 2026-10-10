@@ -97,7 +97,11 @@ export async function externalOutput(output) {
 function childProcess(command, args, env, signal) {
   const child = spawn(command, args, {
     // Do not pass database URLs, cloud tokens or unrelated secrets to children.
-    env: { PATH: env.PATH, LANG: "C.UTF-8" },
+    env: {
+      PATH: env.PATH,
+      LANG: "C.UTF-8",
+      MYSQL_TEST_LOGIN_FILE: "/dev/null",
+    },
     stdio: ["pipe", "pipe", "ignore"],
     signal,
   });
@@ -144,7 +148,6 @@ export async function backupDatabase({
       "mysqldump",
       [
         `--defaults-file=${configPath}`,
-        "--no-login-paths",
         "--single-transaction",
         "--quick",
         "--no-tablespaces",

@@ -9,7 +9,10 @@ import { gunzipSync } from "node:zlib";
 import { backupDatabase, databaseSettings } from "./backup-database.mjs";
 
 async function command(binary, args, input) {
-  const child = spawn(binary, args, { stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(binary, args, {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, MYSQL_TEST_LOGIN_FILE: "/dev/null" },
+  });
   const chunks = [];
   let diagnostics = "";
   child.stderr.on("data", (chunk) => {
@@ -59,7 +62,6 @@ test("encrypted export restores balances, relations, JSON and binary values into
       "mysql",
       [
         `--defaults-file=${config}`,
-        "--no-login-paths",
         "--batch",
         "--raw",
         "--skip-column-names",

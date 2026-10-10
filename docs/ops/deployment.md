@@ -513,7 +513,7 @@ Credentials use a temporary file with owner-only permissions; they are excluded 
 
 An existing output file is never replaced. Output paths inside this repository are rejected, including symbolic links.
 
-The command requires Node.js, the MySQL 8 client tools and age.
+The command requires Node.js, the MySQL 8 client tools and age on Linux or macOS.
 Use a database account with the privileges needed for the application tables, views and triggers.
 The application currently uses Prisma-managed tables; this command does not export server users, grants, routines or events.
 Do not run schema migrations while the export is running.
@@ -558,7 +558,7 @@ After checking that the target is empty, import the authenticated export:
 ```sh
 set -o pipefail
 gzip --decompress --stdout "$recovery_dir/recovery.sql.gz" | \
-  mysql --defaults-file="$RESTORE_CLIENT_CONFIG" --no-login-paths "$RESTORE_DATABASE"
+  MYSQL_TEST_LOGIN_FILE=/dev/null mysql --defaults-file="$RESTORE_CLIENT_CONFIG" "$RESTORE_DATABASE"
 ```
 
 Complete the deletion replay, session invalidation and application checks below before allowing access.
