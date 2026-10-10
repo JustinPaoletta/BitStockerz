@@ -1,7 +1,9 @@
 # Product extensions — October 4, 2026
 
-These changes are implemented in the working tree. Local verification does not
-establish deployment, live-provider operation, or MySQL persistence. See
+These changes merged in [PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15).
+[Main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260)
+passed all migrations and five MySQL persistence gates.
+Local and hosted CI do not establish deployment or live-provider operation. See
 [the task list](../../PRODUCT_TASKLIST.md) and [deployment runbook](../ops/deployment.md).
 The runnable Prisma schema and migrations are the database authority.
 
@@ -127,6 +129,10 @@ support contact and final policy review remain launch prerequisites.
 
 ## Kernel and operations
 
+Backtest explanations use the run's immutable strategy version and version identifiers.
+Later edits, renames, or strategy soft deletion do not change that context.
+Improvement previews use the current definition; historical metrics remain attached to their original version.
+
 `AI_DIFF_SUGGESTIONS_ENABLED` defaults false. When enabled, improvement responses
 include optional `diff: {summary, changes: [{path, from, to, rationale}]}` with
 at most five parameter-only previews: indicator period or stop/target
@@ -143,4 +149,4 @@ rollback drills remain external operational work.
 
 ## Verification
 
-See the [testing strategy](requirements/Testing_Strategy.md#verification-evidence) for dated local results and outstanding hosted checks.
+See the [testing strategy](requirements/Testing_Strategy.md#verification-evidence) for dated local results, hosted CI evidence, and outstanding live checks.

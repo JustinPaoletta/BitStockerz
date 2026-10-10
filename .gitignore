@@ -8,6 +8,9 @@ build/
 out/
 *.tsbuildinfo
 
+# Cloud project metadata
+.vercel/
+
 # Environment and secrets
 .env
 .env.*
@@ -65,6 +68,8 @@ temp/
 
 # Private keys, browser sessions and generated local review output
 *.key
+*.age
+*.sql.gz
 *.p12
 *.pfx
 *.jks

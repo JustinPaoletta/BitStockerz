@@ -4,8 +4,8 @@ NestJS API for BitStockerz (`apps/api`). Global prefix: `/api`. Default port: **
 
 Use Node.js **24.21.0** from the root `.nvmrc`.
 Browser OAuth/profile recovery merged in PR #13.
-[October 4 extensions](../../docs/product/PRODUCT_EXTENSIONS.md) are local additions.
-Hosting, final MySQL evidence, and real-provider production tests remain outstanding. See [deployment.md](../../docs/ops/deployment.md).
+[Product extensions](../../docs/product/PRODUCT_EXTENSIONS.md) merged in PR #15.
+All five MySQL gates passed hosted CI. Hosting and real-provider production tests remain outstanding. See [deployment.md](../../docs/ops/deployment.md).
 
 ## Quick start
 

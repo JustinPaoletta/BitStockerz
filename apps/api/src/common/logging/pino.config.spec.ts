@@ -178,6 +178,18 @@ describe('OAuth HTTP logging', () => {
     };
   }
 
+  it('removes beta gateway and monitoring keys from actual HTTP logs', async () => {
+    const { app, output } = createLoggedApp();
+    app.get('/api/symbols', (_req, res) => res.json({ symbols: [] }));
+    await request(app)
+      .get('/api/symbols')
+      .set('x-bitstockerz-beta-key', 'private-beta-proxy-value')
+      .set('x-bitstockerz-monitor-key', 'private-beta-monitor-value')
+      .expect(200);
+    expect(output()).not.toContain('private-beta-proxy-value');
+    expect(output()).not.toContain('private-beta-monitor-value');
+  });
+
   it('logs Google callback routes without codes, state, query identity, headers, or redirect secrets', async () => {
     const { app, output, records } = createLoggedApp();
     app.get('/api/auth/oauth/google/callback', (_req, res) => {

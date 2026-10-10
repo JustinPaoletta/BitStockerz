@@ -72,7 +72,10 @@ Do not remove customer data to reverse an application deployment.
 ## Evidence and outstanding checks
 
 The first 16 migrations passed fresh-MySQL CI for PR #13 on October 2, 2026.
-The three October 4 migrations have passed schema validation, but their MySQL execution remains unverified locally.
-Docker Desktop did not respond during that local run.
-All five MySQL harnesses and final-revision CI remain required before release.
+All 19 migrations, including the three October 4 additions, passed
+[PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
+and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
+All five MySQL persistence/security harnesses and the production-image build passed those runs.
+Docker Desktop was unavailable during local checks; hosted CI supplies the disposable-database evidence.
+Production migration and database-provider acceptance remain open.
 See the [testing strategy](../product/requirements/Testing_Strategy.md).

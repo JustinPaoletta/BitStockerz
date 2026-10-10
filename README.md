@@ -10,9 +10,12 @@ Milestones 0–7 merged through [PR #12](https://github.com/JustinPaoletta/BitSt
 Browser OAuth, profile recovery, paper P&L, and chart markers merged in
 [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) on October 2, 2026.
 
-The October 4 [product extensions](docs/product/PRODUCT_EXTENSIONS.md) are local working-tree changes.
-Their local tests do not establish MySQL persistence, live-provider operation, or production deployment.
-Hosting and credentials were absent at the October 2 inspection; no later deployment is recorded here.
+The [product extensions](docs/product/PRODUCT_EXTENSIONS.md) merged in
+[PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15) on October 5, 2026 (EDT).
+[Main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260)
+passed all migrations, five MySQL persistence gates, and the production-image build.
+The subsequent deployment failed because `DATABASE_URL` was empty.
+Hosting, real providers, and production acceptance remain outstanding.
 
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
 Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.

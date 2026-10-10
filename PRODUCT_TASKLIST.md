@@ -1,27 +1,39 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 5, 2026.
+Created October 3, 2026. Updated October 10, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
-Delivered local features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
+Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
 Use the [deployment runbook](docs/ops/deployment.md) for setup procedures.
 Local test evidence is recorded in the [testing strategy](docs/product/requirements/Testing_Strategy.md#verification-evidence).
 No live-provider success or production deployment is recorded.
 
+The first launch is a private personal research beta. The hosting budget is $10/month maximum, with free services preferred.
+Fly's empty app, Aiven's free MySQL service, and the Vercel Hobby project now exist.
+Production credentials are stored, and deployment stays disabled.
+See [current setup and approvals](docs/ops/deployment.md#current-setup-and-next-approvals) for evidence and the remaining decisions.
+
 ## Release evidence still required
 
-- [ ] Run the new migrations and all five MySQL persistence/restart harnesses against a disposable database.
+All 19 migrations, five MySQL persistence/restart gates, and the production-image build passed
+[PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
+and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
+Historical strategy explanations now use pinned versions, with an edit/deletion regression.
+Deployment configuration checks and recovery procedures are prepared in the runbook.
+
 - [ ] Obtain passing CI on the final revision, including secret scanning and the production-image build.
 
 ## 1. Remaining roadmap work — Required for launch
 
 ### Production hosting and configuration — Sprint 7.2
 
-- [ ] Provision the always-on Fly.io API application.
-- [ ] Provision managed MySQL near the API, with foreign keys, serializable transactions, and Prisma migration support.
-- [ ] Create the Vercel Angular project and configure its build/output paths and SPA rewrites.
+- [ ] Approve the actual Fly operating cost and activate one API machine after the remaining release checks.
+- [ ] Pass the protected Linux migration-engine check against Aiven, then apply the 19 migrations during deployment.
+      The API client connects with verified TLS. The macOS migration engine rejects the CA; Linux verification remains pending.
+- [ ] Confirm an anonymous visitor cannot access the Vercel website or API through any deployment alias.
+      All-deployment Vercel protection, the server proxy, and the Fly access guard are configured; live checks remain pending.
 - [ ] Establish the production HTTPS URLs used by the website, API, passkeys, and OAuth callbacks.
-- [ ] Configure the GitHub `production` environment with `DATABASE_URL`, `FLY_API_TOKEN`, `API_BASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` using secret storage.
+- [ ] Set `PRODUCTION_API_BASE_URL` after licensed data is ready; enable `PRODUCTION_DEPLOY_ENABLED` only after setup and approval.
 - [ ] Configure API host settings for the database, exact CORS origins, WebAuthn relying-party ID/allowed origins, and scheduled-job system user.
 - [ ] Determine the actual trusted ingress proxy CIDRs and configure `TRUSTED_PROXY_CIDRS` accordingly.
 - [ ] Disable development email auth, legacy WebAuthn bypasses, forced-error routes, and public OpenAPI in production using the runbook defaults.
@@ -87,8 +99,6 @@ The tasks below cover their outstanding provider setup and live verification.
 
 ### Kernel correctness and optional live rollout
 
-- [ ] Make backtest explanations use the pinned strategy version; add a regression for later strategy edits.
-
 - [ ] Configure the OpenAI provider and key in host secret storage when enabling live Kernel AI.
 - [ ] Verify live strategy explanations, logic warnings, backtest explanations, failure modes, and improvement suggestions.
 - [ ] Verify structured-output validation, usage limits, timeouts, safe logging, and user-facing disclaimers with the real provider.
@@ -101,7 +111,7 @@ The tasks below cover their outstanding provider setup and live verification.
 
 ## 3. Forward paper execution
 
-Local paper-runner code is implemented. Persistent and production acceptance remain pending.
+Paper-runner code and MySQL restart/idempotency gates passed CI. Production acceptance remains pending.
 
 ### Run saved strategies in paper trading — High priority if automation is central
 
@@ -109,16 +119,19 @@ Paper runners now pin saved versions and use completed bars, account risk limits
 durable order intent and close-based risk exits. Scheduling requires database
 persistence and functioning ingestion. See the limitations in the extension contract.
 
-- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions.
+- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions in production.
 
 ## 4. Public-release readiness
 
 Existing logs, health checks, and rollback documentation provide a foundation;
 these tasks establish usable production operations and user support.
 
-- [ ] Configure automated database backups and document their retention and restore procedure.
+- [ ] Select independent backup storage, private-key custody, an export schedule and retention before storing valuable beta data.
+      Aiven Free has a single disaster-recovery backup and no database forks.
+      Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
 - [ ] Perform a backup restoration drill and verify recovered users, auth methods, strategies, backtests, and paper-account balances.
 - [ ] Exercise the API/web rollback procedure against a real deployment and verify database compatibility.
-- [ ] Configure actionable operational alerts for service failures, database outages, stale/failed ingestion, and enabled AI-provider failures or usage limits.
+- [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
+      Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
 - [ ] Configure a public support channel accessible to customers and publish contact details.
 - [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.

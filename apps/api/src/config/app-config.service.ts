@@ -65,6 +65,9 @@ export interface ServerConfig {
   trustedProxyCidrs: string[];
   errorTestEnabled: boolean;
   openApiEnabled: boolean;
+  privateBetaEnabled: boolean;
+  privateBetaProxyKey?: string;
+  privateBetaMonitorKey?: string;
 }
 
 export interface LoggingConfig {
@@ -518,6 +521,24 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     nodeEnv !== 'production',
     errors,
   );
+  const privateBetaEnabled = parseBoolean(
+    'PRIVATE_BETA_ENABLED',
+    env.PRIVATE_BETA_ENABLED,
+    false,
+    errors,
+  );
+  const privateBetaProxyKey = normalizeOptional(env.PRIVATE_BETA_PROXY_KEY);
+  const privateBetaMonitorKey = normalizeOptional(env.PRIVATE_BETA_MONITOR_KEY);
+  if (privateBetaMonitorKey && !/^[a-f0-9]{64}$/.test(privateBetaMonitorKey)) {
+    errors.push(
+      'PRIVATE_BETA_MONITOR_KEY must be a 32-byte hexadecimal secret',
+    );
+  }
+  if (privateBetaEnabled && !/^[a-f0-9]{64}$/.test(privateBetaProxyKey ?? '')) {
+    errors.push(
+      'PRIVATE_BETA_PROXY_KEY must be a 32-byte hexadecimal secret when private beta is enabled',
+    );
+  }
   const webauthnRpId =
     normalizeOptional(env.WEBAUTHN_RP_ID) ?? DEFAULT_WEBAUTHN_RP_ID;
   const webauthnRpName =
@@ -926,6 +947,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       trustedProxyCidrs,
       errorTestEnabled,
       openApiEnabled,
+      privateBetaEnabled,
+      privateBetaProxyKey,
+      privateBetaMonitorKey,
     },
     logging: {
       level: logLevel,

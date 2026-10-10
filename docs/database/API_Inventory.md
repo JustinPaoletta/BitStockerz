@@ -723,9 +723,9 @@ Deterministic issues take precedence for duplicate codes; model-only high severi
 | `NEGATIVE_RETURN`   | Total return below zero.                                        |
 | `CONCENTRATED_PNL`  | One winner contributes more than 50% of positive P&L.           |
 
-Kernel currently loads the latest saved strategy summary for backtest context.
-An older run can therefore receive a summary that differs from its pinned version.
-The retained strategy-pin requirement needs a code correction and regression; see [the task list](../../PRODUCT_TASKLIST.md).
+Kernel resolves the owned immutable version through the run's `strategyVersionId`.
+Backtest context includes its version ID, version number, and definition summary.
+Edits, renames, and soft deletion do not replace that historical context.
 Parameter previews target the currently selected strategy definition.
 
 ---

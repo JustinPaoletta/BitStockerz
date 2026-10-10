@@ -92,6 +92,39 @@ jobs:
       - name: Build production API image
         run: docker build -t bitstockerz-api:ci .
 
+  recovery:
+    name: Encrypted database recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci-local-only
+          MYSQL_DATABASE: bitstockerz_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci-local-only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Install database recovery tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y age mysql-client
+          mysqldump --version
+          age --version
+      - name: Encrypted database export and isolated recovery drill
+        env:
+          BACKUP_DRILL_DATABASE_URL: mysql://root:ci-local-only@127.0.0.1:3306/bitstockerz_ci
+        run: node --test scripts/ops/backup-database.integration.mjs
+
   web:
     name: Web build/test
     runs-on: ubuntu-latest
@@ -109,6 +142,8 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run lint
       - run: npm test -- --watch=false
+      - name: Private beta proxy regressions
+        run: node --test server/*.test.mjs
       - run: npm run build
       - name: Install browser integration dependencies
         run: |

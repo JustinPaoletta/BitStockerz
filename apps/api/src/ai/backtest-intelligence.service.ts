@@ -10,6 +10,7 @@ import { BacktestsService } from '../backtest/backtests.service';
 import { JobsService } from '../jobs/jobs.service';
 import { MarketDataService } from '../market-data/market-data.service';
 import { StrategiesService } from '../strategies/strategies.service';
+import { summarizeStrategyDefinition } from '../strategies/definition/strategy-summary';
 import { computeConfidence } from './ai-confidence';
 import { AiService } from './ai.service';
 import { fitContextBudget } from './context-budget';
@@ -103,6 +104,7 @@ export class BacktestIntelligenceService {
         strategy: {
           id: strategy.id,
           name: strategy.name,
+          version_number: strategy.version_number,
           definition: strategy.definition,
         },
         backtest: backtestContext,
@@ -183,9 +185,10 @@ export class BacktestIntelligenceService {
       );
     }
 
-    const strategy = await this.strategies.getById(
+    const strategy = await this.strategies.resolvePinnedVersionForRun(
       userId,
       detail.run.strategyId,
+      detail.run.strategyVersionId,
     );
     const symbol = (
       await this.marketData.getSymbolsByIds([detail.run.symbolId])
@@ -226,7 +229,8 @@ export class BacktestIntelligenceService {
       {
         backtest_run_id: detail.run.id,
         strategy_id: detail.run.strategyId,
-        strategy_name: strategy.name,
+        strategy_version_id: strategy.strategyVersionId,
+        strategy_version_number: strategy.versionNumber,
         symbol: symbol?.symbol ?? 'UNKNOWN',
         timeframe: detail.run.timeframe,
         start_date: detail.run.startDate.toISOString(),
@@ -243,7 +247,7 @@ export class BacktestIntelligenceService {
         bars_processed: barsProcessed,
         best_trades: best,
         worst_trades: worst,
-        strategy_summary: strategy.summary,
+        strategy_summary: summarizeStrategyDefinition(strategy.definition),
       },
       this.config.ai.maxContextChars,
       ['worst_trades', 'best_trades', 'strategy_summary'],

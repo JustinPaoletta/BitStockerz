@@ -1,33 +1,101 @@
 # What you still need to do (go-live)
 
-MVP features, including P&L, chart markers, browser OAuth, profile/recovery and
-security fixes, are merged in [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13).
-The remaining launch work is to provision hosting, configure secrets/provider
-callbacks, populate real market data and run the first deployment and production
-smoke checks.
+MVP features merged through PR #13. Research, runners, watchlists, and account controls
+merged in [PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15).
+The first launch is a private personal research beta. Licensed data and deployed acceptance tests remain required.
 
-**Dated launch inspection — October 2, 2026:** no production hosting has been provisioned.
-GitHub repository and `production` environment secrets are empty. The merged
-code passed [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994).
-The [automatic Deploy run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089883149)
-passed its CI gates, then failed at the database migration step with no configured
-database; the website deployment was skipped. No production release was published.
+## Current setup and next approvals
 
-Start here. Technical detail is further down.
+**Inspection — October 9, 2026 (US Eastern):** The following resources exist. No website or API deployment is running.
+
+| Resource | Completed setup | Remaining acceptance |
+| --- | --- | --- |
+| Fly | Empty `bitstockerz-api-jp` app; four runtime secrets staged; `sjc`, one shared CPU and 512 MB configured | Cost approval, billing, deployment and live checks |
+| Aiven | Free MySQL 8.4.11 service `bitstockerz-mysql`, project `bitstockerz`, DigitalOcean San Francisco; empty application database | Linux migration check, schema migration and recovery drill |
+| Vercel | Hobby `bitstockerz` project; Angular build/output paths; Vercel Authentication set to **All Deployments** | First protected deployment, stable origin and anonymous-access checks |
+| GitHub | Seven production secrets; `FLY_APP_NAME`; main-only production environment with JustinPaoletta as required reviewer | Final PR inspection and approval of protected workflows |
+| Deployment gate | `PRODUCTION_DEPLOY_ENABLED=false`; monitoring URL absent | Enable only after setup and release approval |
+| Database backup | First full provider backup observed at October 10, 00:58 UTC; encrypted export command and disposable CI recovery drill prepared | Select independent storage/key custody; export and recover the actual Aiven database |
+| Alerts | Aiven project notifications go to all admins/operators; GitHub health key stored separately | Live delivery test and GitHub notification recipient confirmation |
+
+GitHub's `DATABASE_URL` uses a migration account limited to the application database.
+Fly's `DATABASE_URL` uses a separate account with SELECT, INSERT, UPDATE and DELETE privileges.
+Both users require TLS. Neither deployment uses the provider administrator account.
+The API's Prisma client passed a connection check with certificate verification enabled.
+
+The macOS Prisma migration engine returned `P1011`: the certificate was not trusted.
+The local Docker engine did not respond, so Linux migration verification is still pending.
+Certificate verification was not disabled, and no schema migration was applied.
+
+### What the owner must approve or supply
+
+1. Inspect draft [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) and its final checks before merging.
+2. After merge, approve **Verify production database** in the protected production environment.
+   The agent can start this workflow and diagnose its result. It runs `SELECT 1` through Prisma on Linux without deploying.
+3. Approve a concrete Fly cost proposal and complete billing entry before paid compute starts.
+   Keep Vercel Hobby and Aiven Free at $0. The $10/month preference is not an automatic provider spending cap.
+   Aiven generated an incomplete billing address with country Finland. Enter the actual billing address before any future paid upgrade.
+4. Supply access to a licensed market-data account or approved data files.
+   Confirm personal research rights for the selected feed. Do not paste API keys into chat.
+5. Select independent backup storage and a secure location for the private decryption key.
+   Confirm support contact, log retention and the external deletion-record location before inviting other users.
+6. Complete the first passkey ceremony and approve the first deployment when the technical checks pass.
+
+The agent can finish origin settings, migrations, data import, monitoring and deployed checks after these prerequisites.
+Google and Apple sign-in remain optional for this passkey-based personal beta.
+The Fly and Vercel deployment tokens have 90-day lifetimes; rotate them before January 7, 2027.
+
+### Private beta access
+
+The browser uses same-origin `/api` requests through `apps/web/api/proxy.mjs`.
+Vercel Authentication must protect **All Deployments**, with no public exceptions or shared bypass links.
+The function forwards to `API_UPSTREAM_ORIGIN` and adds `PRIVATE_BETA_PROXY_KEY` on the server.
+The key is stored only in Vercel production and Fly; it is absent from Angular assets.
+Fly rejects direct API requests without that key when `PRIVATE_BETA_ENABLED=true`.
+Application sessions are still required on account routes.
+
+Public GET/HEAD health probes remain available.
+A different `PRIVATE_BETA_MONITOR_KEY` permits only GET `/api/market-data/health`.
+That restricted key is stored in Fly and a GitHub repository secret for unattended monitoring.
+Neither key appears in HTTP logs.
+
+The proxy accepts bodies up to 1 MiB and forwards responses as streams.
+Cross-origin browser calls are blocked, and upstream redirects are never followed with the gateway key.
+Google/Apple callbacks need a separate access review before enabling them behind Vercel Authentication.
+
+The Aiven database currently uses its default public IP filter.
+TLS and scoped credentials are enforced. Static egress and a migration network path need approval before adding an IP allowlist.
+Do not allow only Fly's egress address while migrations still run from GitHub-hosted runners.
+
+### Historical release evidence
+
+**Inspection — October 8, 2026:** PR #15 and
+[post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260)
+passed, including all 19 migrations, five MySQL gates, and the production-image build.
+The subsequent [Deploy run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465419)
+failed at migration because `DATABASE_URL` was empty.
+Production monitoring skipped because `PRODUCTION_API_BASE_URL` was absent.
+Neither result establishes a running production service.
+The October 2 inspection previously found no hosting or production credentials.
+This inspection did not inspect cloud accounts or reveal secret values.
+
+The October 8 observations above are historical. Use the current setup table for account and credential status.
 
 ## Big picture
 
 BitStockerz has three production pieces:
 
-1. **Website** (Angular) → hosted on **Vercel**
+1. **Website** (Angular and private API proxy) → hosted on **Vercel**
 2. **API** (NestJS + scheduled jobs) → hosted on **Fly.io**
 3. **Database** (MySQL) → a **managed MySQL** service near the API
 
 The repo already has CI, Docker, Fly config, Vercel config, and deploy workflows.
 These files are deployment instructions; they do not provision cloud accounts,
-an API app, a website project or a database. `deploy.yml` starts automatically
-after every push/merge to `main` and can also be started manually. Until hosting
-and credentials exist, its deployment jobs cannot complete. CI success and a
+an API app, a website project or a database. `deploy.yml` runs CI after pushes to `main` and accepts manual runs on `main`.
+Deployment stays deferred until repository variable `PRODUCTION_DEPLOY_ENABLED` equals `true`.
+
+After enabling it, a configuration check rejects missing settings before migration.
+A deferred run records setup status and does not establish deployment success. CI success and a
 merged PR do not mean the product is live.
 
 ## Launch setup
@@ -39,14 +107,38 @@ You need sign-ups / projects on:
 | Piece      | Host                             | Resource                                                                                                                                             |
 | ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | API server | [Fly.io](https://fly.io)         | One app that runs the API 24/7 (keep **one** machine while the built-in scheduler is on)                                                             |
-| Database   | Managed MySQL-compatible service | A database in the **same region** as the Fly app (default docs use `iad`), with foreign keys, serializable transactions and Prisma migration support |
-| Website    | [Vercel](https://vercel.com)     | A project pointed at this GitHub repo, root/output for `apps/web`                                                                                    |
+| Database   | Managed MySQL-compatible service | Aiven Free in San Francisco, near the Fly `sjc` region; migrations and recovery still need acceptance |
+| Website    | [Vercel](https://vercel.com)     | A CLI-linked project that receives the `apps/web` upload; project Root Directory `.`                                                                 |
 
 You will end up with:
 
 - An API URL (example shape: `https://something.fly.dev`)
 - A website URL (example shape: `https://something.vercel.app`)
 - A database connection string (`DATABASE_URL`)
+
+Select a unique Fly app name. The workflow uses repository variable `FLY_APP_NAME`
+instead of the template app name. Keep the API and managed MySQL in the same region.
+If changing regions, update `primary_region` in `apps/api/fly.toml` before deployment.
+The database must be reachable from both GitHub's migration runner and Fly.
+
+Use the provider's secure connection requirements and least-privilege database credentials.
+A private database requires a prepared migration network path; the workflow does not create one.
+
+From `apps/web`, link the Vercel project after installing the pinned CLI:
+
+```sh
+npx vercel@63.1.0 link
+```
+
+Use interactive account authentication; do not paste tokens into shell commands.
+The CLI upload starts at `apps/web`, so the Vercel project's Root Directory must be `.`.
+Build Command is `npm run build -- --configuration production`.
+Output Directory is `dist/web/browser`. Install Command is `npm ci`.
+
+These settings and SPA rewrites are committed in `apps/web/vercel.json`.
+The ignored `.vercel/project.json` contains the org/project IDs for GitHub configuration.
+Separate Vercel Git deployments are disabled so they cannot bypass API readiness and release approval.
+Project linking does not authorize the first production deployment.
 
 ### 2. Put secrets in GitHub (for automatic deploy)
 
@@ -55,14 +147,35 @@ If the environment does not exist, create it. Add these secrets:
 
 | Secret name         | Plain English meaning                                                 |
 | ------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`      | Full MySQL connection string the API uses                             |
+| `DATABASE_URL`      | MySQL connection string for the migration account, limited to the application database |
+| `DATABASE_CA_CERT_BASE64` | Base64-encoded provider CA certificate; used for strict migration TLS |
 | `FLY_API_TOKEN`     | Token so GitHub Actions can deploy to Fly                             |
 | `API_BASE_URL`      | Your live API URL (no trailing slash), e.g. `https://api.example.com` |
 | `VERCEL_TOKEN`      | Token so GitHub Actions can deploy to Vercel                          |
 | `VERCEL_ORG_ID`     | Your Vercel org/team id                                               |
 | `VERCEL_PROJECT_ID` | Your Vercel project id                                                |
 
-**Never commit these into git.**
+**Never commit these into git or send them in chat.**
+Use [GitHub environment settings](https://github.com/JustinPaoletta/BitStockerz/settings/environments)
+for the seven secrets. The preflight prints only missing names or fixed validation codes.
+`DATABASE_URL` must select MySQL and a named database; `API_BASE_URL` must be an HTTPS origin.
+The release also checks Vercel token access and requires All Deployments protection before migration.
+It does not establish database connectivity or successful deployment.
+
+Set these repository variables under **Settings → Secrets and variables → Actions → Variables**:
+
+| Variable                    | Value                            | When                                                                 |
+| --------------------------- | -------------------------------- | -------------------------------------------------------------------- |
+| `FLY_APP_NAME`              | Your provisioned Fly app name    | Before enabling deployment                                           |
+| `PRODUCTION_API_BASE_URL`   | The same public HTTPS API origin | After the API and licensed data are ready                            |
+| `PRODUCTION_DEPLOY_ENABLED` | `true`                           | After hosting, runtime settings, secrets, and backups are configured |
+
+Keep `PRODUCTION_DEPLOY_ENABLED` absent or `false` during setup.
+Restrict the `production` environment to `main`.
+Use environment reviewers if your release policy requires them.
+Enabling deployment permits later merges to deploy automatically after CI.
+If needed, set the variable to `false` to stop future automatic deployments.
+An existing in-progress deployment must be stopped separately.
 
 ### 3. Configure the API host (Fly secrets / env)
 
@@ -70,7 +183,12 @@ On the Fly app, set at least:
 
 | Setting                                       | Plain English                                                                                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                                | Same MySQL string as above                                                                                                           |
+| `DATABASE_URL`                                | Separate runtime MySQL account; application database CRUD permissions only |
+| `DATABASE_CA_CERT_BASE64`                     | Same provider CA as GitHub; Fly writes `/app/database-ca.pem` before Node starts |
+| `NODE_EXTRA_CA_CERTS`                         | `/app/database-ca.pem`, configured in `fly.toml` for verified runtime TLS |
+| `PRIVATE_BETA_ENABLED`                       | `true` for this launch; direct API requests need the server proxy key |
+| `PRIVATE_BETA_PROXY_KEY`                     | Same 32-byte hexadecimal key as the server-only Vercel production secret |
+| `PRIVATE_BETA_MONITOR_KEY`                   | Separate 32-byte hexadecimal key, shared only with the GitHub health workflow |
 | `TRUSTED_PROXY_CIDRS`                         | Actual ingress proxy IPs/CIDRs, determined from the deployed network; empty ignores forwarded IP headers. Never trust all addresses. |
 | `CORS_ALLOWED_ORIGINS`                        | Exact website URL(s), e.g. `https://your-app.vercel.app` (no `*`)                                                                    |
 | `WEBAUTHN_RP_ID`                              | Domain used for passkeys (often the website hostname)                                                                                |
@@ -88,6 +206,12 @@ the provider checklist below. Add `OPENAI_API_KEY` when enabling live Kernel AI.
 Auth users, sessions, and passkeys persist in MySQL after migrations are applied.
 After the first deployment, restart the API to test auth hydration.
 
+For the private beta, set `API_UPSTREAM_ORIGIN` and `PRIVATE_BETA_PROXY_KEY` in Vercel production environment variables.
+Never prefix these variables with a browser-public name or insert them into `environment.prod.ts`.
+Keep `apiBaseUrl` empty so the browser uses the protected Vercel proxy.
+The deploy workflow decodes the CA into a temporary file and passes its path through `DATABASE_CA_CERT_PATH`.
+Prisma adds `sslcert` and `sslaccept=strict` for migrations, then the workflow removes the temporary CA file.
+
 Before opening the product to users, populate licensed historical symbol/bar data
 and verify a chart, backtest and paper trade against it. The repository now includes a licensed-data importer and Alpaca historical adapter.
 Configure credentials/entitlement and verify actual data before enabling live
@@ -96,7 +220,19 @@ the procedures below for database gates, licensed data, backups, and alerts.
 
 ### 4. First production deploy
 
-After `main` has the merged PR and secrets exist:
+After the release-readiness changes are merged, complete sections 1–3 and configure automated backups.
+Set `PRODUCTION_DEPLOY_ENABLED=true` only when you are ready to release.
+Open [Deploy](https://github.com/JustinPaoletta/BitStockerz/actions/workflows/deploy.yml).
+Select **Run workflow**, select `main`, and start the run.
+The workflow repeats CI, checks configuration, applies migrations, deploys API, and tests readiness before deploying the website.
+A missing setting must produce a sanitized configuration issue; do not skip that check.
+
+The API deployment uses `--ha=false --strategy immediate` to avoid spare machines and overlapping schedulers.
+Immediate replacement causes brief downtime. Confirm exactly one machine remains after deployment.
+Existing extra machines must be removed through the Fly dashboard before enabling scheduled jobs.
+See [Fly deploy options](https://fly.io/docs/flyctl/deploy/) for these flags.
+
+Then complete these acceptance steps:
 
 - [ ] Let GitHub Actions **CI** pass on `main`
 - [ ] Run / allow the **Deploy** workflow (or deploy manually with Fly + Vercel using the configs in the repo)
@@ -119,13 +255,13 @@ These are **not** blocking go-live:
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Turn on live Kernel AI            | Set `AI_ENABLED=true`, use OpenAI provider + key, after owner acceptance of costs and final disclaimer                                                                                                                       |
 | Enable automated vendor ingestion | Optional for a historical-data launch after the required operator import above. The implemented Alpaca adapter requires credentials and live verification for current-market workflows. Production never synthesizes prices. |
-| `#6.4.2` AI change previews       | Implemented locally under a disabled flag; live verification pending                                                                                                                                                         |
+| `#6.4.2` AI change previews       | Merged in PR #15 under a disabled flag; live verification pending                                                                                                                                                            |
 
 ---
 
 # Technical deployment runbook (MVP Option A)
 
-The adopted topology uses an always-on NestJS API on Fly.io, a static Angular SPA on Vercel, and nearby managed MySQL.
+The adopted topology uses an always-on NestJS API on Fly.io, an Angular SPA with a Vercel proxy, and nearby managed MySQL.
 Stateful services use one region; Vercel distributes static files globally.
 
 An all-Vercel API was considered during planning.
@@ -136,30 +272,32 @@ That alternative and its proposed `/api/internal/cron/market-data` route are not
 
 | Tier       | Platform      | Notes                                                                                         |
 | ---------- | ------------- | --------------------------------------------------------------------------------------------- |
-| Web        | Vercel        | Build output under `apps/web/dist/web/browser`; SPA rewrite in `apps/web/vercel.json`         |
+| Web        | Vercel        | Angular output under `apps/web/dist/web/browser`; protected API proxy in `apps/web/api/proxy.mjs` |
 | API + jobs | Fly.io        | `apps/api/Dockerfile` + `apps/api/fly.toml`; **one replica** while in-process cron is enabled |
-| DB         | Managed MySQL | Same region as API (`iad` default); must work with Prisma migrate                             |
+| DB         | Aiven MySQL | DigitalOcean San Francisco, near Fly `sjc`; Linux Prisma migration check still pending |
 
 ## Deployment secrets
 
 Use the names in [GitHub secret setup](#2-put-secrets-in-github-for-automatic-deploy).
 The workflow uses `DATABASE_URL` for migration, Fly credentials for API deployment, and Vercel credentials for the web project.
-`API_BASE_URL` supplies post-deploy smoke tests and the web build's API location.
+`API_BASE_URL` supplies direct health smoke tests. Vercel's `API_UPSTREAM_ORIGIN` supplies the server proxy destination.
 Store API runtime secrets on the host as well.
 
 ## Automated release sequence
 
 1. CI green on `main` (build/lint/unit/coverage/e2e + web build).
 2. Serialized production concurrency group.
-3. `prisma migrate deploy` **once**, then `prisma migrate status` to verify.
-4. Deploy API; wait for `/api/health/live` and `/api/health/ready`.
-5. Build web with `environment.prod.ts` `apiBaseUrl` set to the verified API.
-6. Deploy web to Vercel production.
+3. Run `scripts/ops/check-deploy-config.mjs` before installing deployment tools or applying migrations.
+4. Apply `prisma migrate deploy` once; inspect `prisma migrate status`.
+5. Deploy API; wait for `/api/health/live` and `/api/health/ready`.
+6. Build web with an empty `apiBaseUrl` for same-origin protected API requests.
+7. Deploy web to Vercel production.
 
 Workflows live in:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
+- `.github/workflows/verify-production-database.yml` (read-only Linux connection check; owner approval required)
 
 ## Smoke checklist (after deploy)
 
@@ -169,7 +307,11 @@ Workflows live in:
 - [ ] Symbols search
 - [ ] Paper account portfolio read
 - [ ] SPA deep-link refresh (`/strategies/...`)
-- [ ] CORS preflight from the Vercel origin
+- [ ] Anonymous Vercel requests, including nested `/api/auth/providers`, require Vercel authentication on every alias.
+- [ ] Direct Fly requests to data and signup endpoints return 401; health probes remain available.
+- [ ] Vercel API requests preserve query strings, methods, user bearer tokens and export responses.
+- [ ] No shared proxy key appears in browser assets, requests, responses or logs.
+- [ ] Browser API calls remain same-origin; Fly CORS does not grant wildcard access.
 - [ ] AI remains disabled (`AI_ENABLED=false`) until approved
 - [ ] After live ingestion passes, enable scheduling.
       Confirm exactly one scheduled import job/audit event runs per interval on the single API replica.
@@ -241,12 +383,34 @@ and [Apple environment configuration](https://developer.apple.com/documentation/
 
 ## Rollback
 
-1. Fly: `fly releases` / redeploy a previous image or git SHA.
-2. Vercel: promote the previous production deployment.
-3. DB: prefer forward fixes. Verify older binaries tolerate the additive schema;
-   pause scheduling before rollback and test auth/ledger afterward. Restore only
-   through an approved, verified recovery procedure that reapplies deletion requests.
-   Prefer expand/contract migrations so the prior API revision stays safe.
+Before each release, record the source SHA, Fly image digest, Vercel deployment ID, migration status, backup ID, and smoke results.
+A git SHA alone does not identify the deployed container image.
+Keep the previous compatible image available before applying migrations.
+Pinning CLI versions does not prove live deployment acceptance.
+
+1. Set `PRODUCTION_DEPLOY_ENABLED=false` and stop any running deployment.
+   Pause ingestion and runners; keep `AI_ENABLED=false` during incident recovery.
+2. Inspect schema compatibility in an isolated restore with the previous API binary.
+   Test auth, historical strategy pins, account cash, positions, orders, and idempotent retries.
+   Do not apply reverse migrations or remove customer rows to roll back code.
+3. Select the recorded Fly image digest. Use the actual app name:
+
+   ```sh
+   flyctl deploy --app "$FLY_APP_NAME" --config apps/api/fly.toml --image "$PREVIOUS_API_IMAGE" --ha=false --strategy immediate
+   ```
+
+   Supply deployment credentials through the normal host/secret manager.
+   Use `PREVIOUS_API_IMAGE` from the release record; do not substitute an untested tag.
+
+4. From the Vercel project dashboard, roll back to the recorded compatible production deployment.
+   Make sure its embedded API origin and OAuth callback origin match the restored topology.
+5. Repeat database readiness, auth/recovery, deep-link, chart, backtest, and paper-ledger smoke checks.
+   Confirm one Fly machine and paused scheduling before resuming any work.
+6. Record incident time, selected artifacts, schema compatibility, results, and recovery duration.
+   Resume scheduling and automatic deployment only after the checks pass.
+
+A staging rollback drill remains required before public release.
+See [Vercel rollback](https://vercel.com/docs/instant-rollback).
 
 ## Ops knobs
 
@@ -275,9 +439,9 @@ network; defaulting to socket IPs is safe against spoofing but can group proxy c
 
 ## Database verification before release
 
-Docker Desktop's local daemon did not respond, so the new migrations and MySQL
-regressions have not run locally. Start Docker Desktop or supply a disposable
-MySQL 8 database. Never point test harnesses at production or a valued database.
+All 19 migrations and five MySQL harnesses passed PR #15 and post-merge main CI.
+Local Docker was unavailable. Hosted CI provides disposable-database evidence.
+For a local repeat, start Docker Desktop or supply a disposable MySQL 8 database. Never point test harnesses at production or a valued database.
 Use Node 24.21.0, apply `npm --prefix apps/api run db:deploy`, then run:
 
 ```sh
@@ -292,7 +456,7 @@ Supply `DATABASE_URL` through your environment/secret manager, without placing
 it in documentation or shell history. CI now includes the workspace harness,
 which checks cost/benchmark persistence, watchlists, runner restart/idempotency,
 enrollment-challenge ownership, reset archives, exports, deletion and isolation.
-Passing CI on the final revision remains required. Three new migrations add
+Passing CI on each release revision remains required. Three new migrations add
 simulation/benchmark/fee storage, enrollment binding, watchlists, reset archives,
 retired order keys and runners. On an existing database, follow the OAuth identity
 preflight in [Google/Apple setup](#googleapple-login-and-recovery-setup) before applying migrations.
@@ -335,23 +499,159 @@ Provider capability and owner requirements determine the final policy; these are
 
 Set recovery-point and recovery-time objectives (RPO/RTO). Assign an operator.
 
-Document the provider's restore steps and identifiers without credentials.
-Restore a backup into an isolated database.
-Inspect migrations and reconcile fixture users, passkey/provider identities, strategy versions, backtest trades/equity, and paper cash/positions.
-Keep restored data offline until validation and reapplication of deletion requests.
+### Independent encrypted exports for Aiven Free
 
-Store a restricted deletion-request record outside restored application backups.
-Use minimal identifying information and a purge policy.
-The app does not implement this operational record. Purge expired backups
-and logs according to the published policy.
+Aiven Free retains a single disaster-recovery backup and does not offer database forks.
+This is not a 30-day backup history or a demonstrated customer restore path.
+See [Aiven's plan comparison](https://aiven.io/pricing/mysql) and [free-tier limits](https://aiven.io/docs/products/mysql/concepts/mysql-free-tier).
+
+`scripts/ops/backup-database.mjs` exports one application database with `mysqldump`.
+It compresses the SQL stream and encrypts it with [age](https://github.com/FiloSottile/age).
+Plaintext SQL is not written to disk during export.
+The command requires certificate and hostname verification for cloud connections.
+Credentials use a temporary file with owner-only permissions; they are excluded from process arguments and logs.
+
+An existing output file is never replaced. Output paths inside this repository are rejected, including symbolic links.
+
+The command requires Node.js, the MySQL 8 client tools and age on Linux or macOS.
+Use a database account with the privileges needed for the application tables, views and triggers.
+The application currently uses Prisma-managed tables; this command does not export server users, grants, routines or events.
+Do not run schema migrations while the export is running.
+See [MySQL's logical backup requirements](https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html).
+
+Before the first real export:
+
+1. Select durable storage outside this repository, with an independent copy away from this Mac.
+2. Select a secure location for the age identity file, separate from the backup storage.
+3. Generate an identity with `age-keygen -o /secure/path/backup-identity.txt`.
+4. Save the printed public recipient for the export job. Keep the private identity out of GitHub and chat.
+5. Load `DATABASE_URL` through secret storage and set `DATABASE_CA_CERT_PATH` to the provider CA file.
+6. Run the export with the public recipient and an unused absolute output path:
+
+```sh
+node scripts/ops/backup-database.mjs \
+  --recipient "$BACKUP_AGE_RECIPIENT" \
+  --output "$BACKUP_OUTPUT_FILE"
+```
+
+The output is an encrypted `.sql.gz.age` file with owner-only permissions.
+Successful output includes the encrypted byte count and completion time, without connection details.
+Keep the application revision, export start/end times and storage location in the restricted recovery record.
+Scheduling and retention remain unconfigured until the owner selects storage and key custody.
+Do not upload real database exports as GitHub Actions artifacts.
+
+To prepare a restore, decrypt into a restricted temporary directory outside this repository:
+
+```sh
+umask 077
+recovery_dir="$(mktemp -d)"
+age --decrypt --identity "$BACKUP_IDENTITY_FILE" \
+  --output "$recovery_dir/recovery.sql.gz" "$BACKUP_OUTPUT_FILE"
+```
+
+Continue only if age exits successfully. A failure can leave partial plaintext; remove that temporary directory before retrying.
+Run `gzip --test "$recovery_dir/recovery.sql.gz"` before importing.
+Use a new isolated database and a restore account with privileges only on that database.
+The MySQL client option file must contain that account, the target host and verified TLS settings.
+After checking that the target is empty, import the authenticated export:
+
+```sh
+set -o pipefail
+gzip --decompress --stdout "$recovery_dir/recovery.sql.gz" | \
+  MYSQL_TEST_LOGIN_FILE=/dev/null mysql --defaults-file="$RESTORE_CLIENT_CONFIG" "$RESTORE_DATABASE"
+```
+
+Complete the deletion replay, session invalidation and application checks below before allowing access.
+Remove the temporary plaintext after the drill. File removal does not guarantee secure erasure on SSD storage.
+
+CI runs this command against a disposable local fixture, decrypts the export, and restores it with a separate database account.
+It compares foreign-key relationships, exact decimal balances, JSON, Unicode and binary values.
+It also checks that a damaged export fails decryption and an existing backup cannot be overwritten.
+The `--local-fixture` certificate exception requires `CI=true`, host `127.0.0.1` and a `bitstockerz_backup_fixture_` database prefix.
+That fixture connection still requires TLS encryption.
+This fixture check does not establish Aiven recovery, application login recovery, deletion replay or measured production RPO/RTO.
+
+### Restoration drill
+
+1. Configure encrypted automated backups and an operator with restricted restore access.
+   Record provider, region, backup schedule, retention, encryption, and failure-alert recipient.
+   Record the measured RPO/RTO targets; do not publish the example retention periods as promises.
+2. Create staging fixture users with passkeys/providers, strategy versions, backtests, and paper positions.
+   Save a restricted expected snapshot of identifiers, counts, decimal balances, and order IDs.
+   Record the backup ID, UTC capture time, application SHA, and image digest.
+3. Restore that backup into a new isolated database through the provider's restore procedure.
+   Never overwrite production during a drill. Record restore start/end times and migration status.
+   Use a separate Fly app/origin; keep scheduling, live ingestion, and live AI disabled.
+4. Reapply deletion requests made after the backup capture before starting the restored application.
+   Use the restricted deletion record below. Account deletion also removes child records and invalidates caches.
+   Clear restored auth sessions and one-use OAuth/passkey challenges with the recovery operator's approved database procedure.
+   Old session tokens and callback codes must not become valid again after restoration.
+5. Compare users, auth identities, and strategy versions with the expected snapshot.
+   Compare backtest results, trades, equity, order IDs, quantities, and cash.
+   Confirm deleted users and their child records are absent.
+   Do not run fixture-creating MySQL test harnesses against a restored customer database.
+6. Start the isolated API with the recorded compatible binary.
+   Test fresh login, account recovery, historical export, cash/position balances, and repeated order IDs.
+   Restart the API and repeat the ownership and ledger checks.
+7. Record recovered backup time, data loss, recovery duration, discrepancies, and pass/fail.
+   Keep the restored database isolated if any check fails.
+   Delete staging resources through the provider after capturing sanitized evidence.
+
+Record the selected provider or independent-export recovery path:
+
+| Required record      | Owner supplies                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| Restore procedure    | Provider documentation and exact console action                                                |
+| Backup selection     | Backup ID and capture time                                                                     |
+| Recovery destination | Isolated database/app names and region                                                         |
+| Operator access      | Named operator and restricted role; no passwords                                               |
+| Acceptance record    | Snapshot location, comparison results, deletion replay, session invalidation, measured RPO/RTO |
+
+### Deletion record for recovery
+
+Keep this record in restricted durable storage outside application backups and git.
+Use account UUID, confirmed deletion time, and backup-expiry date; omit email, tokens, and personal exports.
+The owner must select durable storage, permissions, retention, and the responsible operator.
+This repository cannot select those account-specific settings.
+The following record format is prepared for that setup:
+
+```json
+{
+  "user_id": "00000000-0000-4000-8000-000000000001",
+  "deleted_at": "2026-10-08T12:00:00.000Z",
+  "purge_after": null
+}
+```
+
+`purge_after` stays unset until all backups containing that user have expired.
+Retain the record while any retained backup could restore that account.
+
+Record confirmed deletions before declaring recovery controls complete.
+If that record is unavailable, keep the restored database offline.
+The application does not yet write to an external deletion journal.
+Storage configuration and operational capture remain owner prerequisites.
+Purge expired backups and logs according to the published policy.
+
+### Alerts and support
 
 Set the repository variable `PRODUCTION_API_BASE_URL` to the public API origin
 without a trailing slash for the prepared 15-minute health workflow. This read-only
 monitor uses a public URL, so it can run without deployment-environment approval. Enable GitHub Actions failure
 notifications for a named recipient and run it manually once. Add host-native
 alerts for API/database failures, ingestion jobs, stale feeds and optional AI
-failures/limits. Record severity, on-call recipient, escalation and recovery
-steps. The GitHub check is a baseline, not a substitute for these alerts.
+failures/limits. Record severity, on-call recipient, escalation, and recovery steps.
+Use this initial alert matrix after setting provider-specific thresholds:
+
+| Trigger                                          | Recipient/action                                   | Recovery evidence                                     |
+| ------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------- |
+| Liveness or database readiness fails             | Operator; inspect Fly/DB status                    | Ready with database up; auth and ledger checks pass   |
+| Stale/empty market data or provider circuit open | Operator; pause runners and scheduling             | Licensed series fresh; one ingestion job per interval |
+| Backup failure or overdue backup                 | Recovery operator; repair provider backup schedule | Successful encrypted backup and a restoration drill   |
+| Enabled AI failures or quota/cost limit          | Operator; disable live AI                          | Bounded provider requests and owner-approved budget   |
+
+Enable GitHub workflow-failure notifications for the operator.
+Send a test alert through each configured host notification channel.
+Record delivery and recovery; a skipped health workflow does not test alert delivery. The GitHub check is a baseline, not a substitute for these alerts.
 
 Provide a public support contact or issue channel accessible to customers and
 update the Help page. Triage with request ID, UTC time and sanitized reproduction;
@@ -374,3 +674,26 @@ Do runner restart, repeated-job, stale-price, and provider-outage tests with fre
 Do an API/web rollback drill in staging before release.
 Record the revision, migration status, provider smoke results, backup drill, and rollback evidence.
 Follow [RELEASE.md](../../RELEASE.md) for version, changelog, tag, and release-note steps.
+
+## Owner handoff and release evidence
+
+Use [current setup and next approvals](#current-setup-and-next-approvals) before repeating account setup.
+Finish the Linux database check, HTTPS origins and matching runtime settings before deployment.
+Complete Google/Apple configuration for each provider you advertise.
+Supply licensed history before opening charts/backtests to customers.
+Select public support contact, backup/log retention, and the external deletion record.
+Optional Kernel setup additionally needs a provider key, budget, and disclaimer acceptance.
+
+Keep this evidence in restricted operator storage; put only sanitized results in repository documentation:
+
+| Evidence      | Record                                                                                |
+| ------------- | ------------------------------------------------------------------------------------- |
+| Release       | Source SHA, draft PR/CI URL, API image digest, Vercel deployment ID                   |
+| Database      | Migration status, provider/region, backup ID/time, restore drill results              |
+| Auth          | HTTPS origins/RP ID, enabled providers, login/recovery/restart results                |
+| Data          | Source and license reference, symbols/ranges, coverage/freshness results              |
+| Operations    | Single instance, alerts and recipients, retention, deletion replay, rollback drill    |
+| Product smoke | Charts, strategy/backtest, comparisons/exports, passkeys, paper ledger, runner checks |
+
+Mark a task complete only after recording its acceptance evidence.
+Do not include credentials or customer identifiers in a PR, issue, or public release note.

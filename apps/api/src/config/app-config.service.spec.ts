@@ -133,6 +133,9 @@ describe('loadAppConfig', () => {
     });
 
     expect(config.server).toEqual({
+      privateBetaEnabled: false,
+      privateBetaProxyKey: undefined,
+      privateBetaMonitorKey: undefined,
       port: 4100,
       nodeEnv: 'production',
       corsAllowedOrigins: ['https://app.bitstockerz.test'],
@@ -501,6 +504,9 @@ describe('AppConfigService', () => {
     const service = new AppConfigService();
 
     expect(service.server).toEqual({
+      privateBetaEnabled: false,
+      privateBetaProxyKey: undefined,
+      privateBetaMonitorKey: undefined,
       port: 4300,
       nodeEnv: 'test',
       corsAllowedOrigins: ['http://localhost:4200'],

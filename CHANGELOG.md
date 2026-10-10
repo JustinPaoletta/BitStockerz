@@ -7,7 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Product extensions (local implementation; deployment pending)
+### Kernel correctness and release readiness
+
+- Use immutable owned strategy versions for historical Kernel explanations.
+  Preserve that context after edits, renames, or soft deletion; keep previews on the current definition.
+- Defer deployment until owner setup is enabled. Check all release settings before migrations without logging secrets.
+- Pin deployment CLI versions, select the Fly app explicitly, and prevent spare machines and overlapping application instances.
+- Require database-backed readiness before the website deployment; configure Angular output and disable separate Vercel Git deployments.
+- Record PR #15's merged CI/MySQL evidence and prepare restoration, rollback, deletion-record, and owner setup procedures.
+
+### Product extensions (merged in PR #15; deployment pending)
 
 - Add multi-indicator strategy editing, crossover templates and duplication.
 - Add pinned allocation, commissions, slippage and next-open simulation settings,
