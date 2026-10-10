@@ -15,7 +15,7 @@ The first launch is a private personal research beta. Licensed data and deployed
 | Vercel | Hobby `bitstockerz` project; Angular build/output paths; Vercel Authentication set to **All Deployments** | First protected deployment, stable origin and anonymous-access checks |
 | GitHub | Seven production secrets; `FLY_APP_NAME`; main-only production environment with JustinPaoletta as required reviewer | Final PR inspection and approval of protected workflows |
 | Deployment gate | `PRODUCTION_DEPLOY_ENABLED=false`; monitoring URL absent | Enable only after setup and release approval |
-| Database backup | First full provider backup observed at October 10, 00:58 UTC | Retention confirmation and a successful recovery drill; free-plan fork control is unavailable |
+| Database backup | First full provider backup observed at October 10, 00:58 UTC; encrypted export command and disposable CI recovery drill prepared | Select independent storage/key custody; export and recover the actual Aiven database |
 | Alerts | Aiven project notifications go to all admins/operators; GitHub health key stored separately | Live delivery test and GitHub notification recipient confirmation |
 
 GitHub's `DATABASE_URL` uses a migration account limited to the application database.
@@ -37,7 +37,8 @@ Certificate verification was not disabled, and no schema migration was applied.
    Aiven generated an incomplete billing address with country Finland. Enter the actual billing address before any future paid upgrade.
 4. Supply access to a licensed market-data account or approved data files.
    Confirm personal research rights for the selected feed. Do not paste API keys into chat.
-5. Confirm support contact, log/backup retention and the external deletion-record location before inviting other users.
+5. Select independent backup storage and a secure location for the private decryption key.
+   Confirm support contact, log retention and the external deletion-record location before inviting other users.
 6. Complete the first passkey ceremony and approve the first deployment when the technical checks pass.
 
 The agent can finish origin settings, migrations, data import, monitoring and deployed checks after these prerequisites.
@@ -498,6 +499,77 @@ Provider capability and owner requirements determine the final policy; these are
 
 Set recovery-point and recovery-time objectives (RPO/RTO). Assign an operator.
 
+### Independent encrypted exports for Aiven Free
+
+Aiven Free retains a single disaster-recovery backup and does not offer database forks.
+This is not a 30-day backup history or a demonstrated customer restore path.
+See [Aiven's plan comparison](https://aiven.io/pricing/mysql) and [free-tier limits](https://aiven.io/docs/products/mysql/concepts/mysql-free-tier).
+
+`scripts/ops/backup-database.mjs` exports one application database with `mysqldump`.
+It compresses the SQL stream and encrypts it with [age](https://github.com/FiloSottile/age).
+Plaintext SQL is not written to disk during export.
+The command requires certificate and hostname verification for cloud connections.
+Credentials use a temporary file with owner-only permissions; they are excluded from process arguments and logs.
+
+An existing output file is never replaced. Output paths inside this repository are rejected, including symbolic links.
+
+The command requires Node.js, the MySQL 8 client tools and age.
+Use a database account with the privileges needed for the application tables, views and triggers.
+The application currently uses Prisma-managed tables; this command does not export server users, grants, routines or events.
+Do not run schema migrations while the export is running.
+See [MySQL's logical backup requirements](https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html).
+
+Before the first real export:
+
+1. Select durable storage outside this repository, with an independent copy away from this Mac.
+2. Select a secure location for the age identity file, separate from the backup storage.
+3. Generate an identity with `age-keygen -o /secure/path/backup-identity.txt`.
+4. Save the printed public recipient for the export job. Keep the private identity out of GitHub and chat.
+5. Load `DATABASE_URL` through secret storage and set `DATABASE_CA_CERT_PATH` to the provider CA file.
+6. Run the export with the public recipient and an unused absolute output path:
+
+```sh
+node scripts/ops/backup-database.mjs \
+  --recipient "$BACKUP_AGE_RECIPIENT" \
+  --output "$BACKUP_OUTPUT_FILE"
+```
+
+The output is an encrypted `.sql.gz.age` file with owner-only permissions.
+Successful output includes the encrypted byte count and completion time, without connection details.
+Keep the application revision, export start/end times and storage location in the restricted recovery record.
+Scheduling and retention remain unconfigured until the owner selects storage and key custody.
+Do not upload real database exports as GitHub Actions artifacts.
+
+To prepare a restore, decrypt into a restricted temporary directory outside this repository:
+
+```sh
+umask 077
+recovery_dir="$(mktemp -d)"
+age --decrypt --identity "$BACKUP_IDENTITY_FILE" \
+  --output "$recovery_dir/recovery.sql.gz" "$BACKUP_OUTPUT_FILE"
+```
+
+Continue only if age exits successfully. A failure can leave partial plaintext; remove that temporary directory before retrying.
+Run `gzip --test "$recovery_dir/recovery.sql.gz"` before importing.
+Use a new isolated database and a restore account with privileges only on that database.
+The MySQL client option file must contain that account, the target host and verified TLS settings.
+After checking that the target is empty, import the authenticated export:
+
+```sh
+set -o pipefail
+gzip --decompress --stdout "$recovery_dir/recovery.sql.gz" | \
+  mysql --defaults-file="$RESTORE_CLIENT_CONFIG" --no-login-paths "$RESTORE_DATABASE"
+```
+
+Complete the deletion replay, session invalidation and application checks below before allowing access.
+Remove the temporary plaintext after the drill. File removal does not guarantee secure erasure on SSD storage.
+
+CI runs this command against a disposable local fixture, decrypts the export, and restores it with a separate database account.
+It compares foreign-key relationships, exact decimal balances, JSON, Unicode and binary values.
+It also checks that a damaged export fails decryption and an existing backup cannot be overwritten.
+The `--local-fixture` TLS exception requires `CI=true`, host `127.0.0.1` and a `bitstockerz_backup_fixture_` database prefix.
+This fixture check does not establish Aiven recovery, application login recovery, deletion replay or measured production RPO/RTO.
+
 ### Restoration drill
 
 1. Configure encrypted automated backups and an operator with restricted restore access.
@@ -524,7 +596,7 @@ Set recovery-point and recovery-time objectives (RPO/RTO). Assign an operator.
    Keep the restored database isolated if any check fails.
    Delete staging resources through the provider after capturing sanitized evidence.
 
-Provider restore instructions must be filled in after selecting managed MySQL:
+Record the selected provider or independent-export recovery path:
 
 | Required record      | Owner supplies                                                                                 |
 | -------------------- | ---------------------------------------------------------------------------------------------- |

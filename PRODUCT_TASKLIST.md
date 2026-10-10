@@ -1,6 +1,6 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 9, 2026.
+Created October 3, 2026. Updated October 10, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
@@ -126,8 +126,9 @@ persistence and functioning ingestion. See the limitations in the extension cont
 Existing logs, health checks, and rollback documentation provide a foundation;
 these tasks establish usable production operations and user support.
 
-- [ ] Confirm Aiven Free's backup retention and a usable restore/export procedure before storing valuable beta data.
-      The first provider backup exists. The free service's fork/restore control is unavailable, so recovery is not yet demonstrated.
+- [ ] Select independent backup storage, private-key custody, an export schedule and retention before storing valuable beta data.
+      Aiven Free has a single disaster-recovery backup and no database forks.
+      Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
 - [ ] Perform a backup restoration drill and verify recovered users, auth methods, strategies, backtests, and paper-account balances.
 - [ ] Exercise the API/web rollback procedure against a real deployment and verify database compatibility.
 - [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.

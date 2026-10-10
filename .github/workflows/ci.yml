@@ -77,6 +77,14 @@ jobs:
       - run: npm run test:oauth
       - name: Import and operational check regressions
         run: node --test tools/*.test.mjs ../../scripts/ops/*.test.mjs
+      - name: Install database recovery tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y age mysql-client
+      - name: Encrypted database export and isolated recovery drill
+        env:
+          BACKUP_DRILL_DATABASE_URL: mysql://root:ci-local-only@127.0.0.1:3306/bitstockerz_ci
+        run: node --test ../../scripts/ops/backup-database.integration.mjs
       - name: MySQL persistence and security regressions
         env:
           DATABASE_URL: mysql://root:ci-local-only@127.0.0.1:3306/bitstockerz_ci
