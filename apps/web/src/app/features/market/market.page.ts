@@ -171,6 +171,7 @@ export class MarketPage {
   start = new Date(Date.now() - 86400000 * 365).toISOString().slice(0, 10);
   constructor() {
     void this.loadLists();
+    void this.loadChart();
   }
   private async loadLists(): Promise<void> {
     try {

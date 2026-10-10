@@ -135,3 +135,16 @@ these tasks establish usable production operations and user support.
       Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
 - [ ] Configure a public support channel accessible to customers and publish contact details.
 - [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.
+
+## iOS research prototype — October 10, 2026
+
+This is a prototype track, separate from the production launch gates above.
+See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for commands, limitations, and device acceptance.
+
+- [x] Add a bundled Capacitor iOS application with a native AuthenticationServices passkey bridge.
+- [x] Reuse the chart and full strategy/backtest/results/history flow on phone screens.
+- [x] Add native CSV/JSON sharing and an isolated local API with synthetic prices.
+- [x] Build the iOS Simulator app and test browser passkeys plus the phone-sized research flow.
+- [ ] Select a stable HTTPS passkey domain and a dedicated reachable prototype API.
+- [ ] Publish and check the Apple association file, then sign and install on the iPhone.
+- [ ] Complete physical-device Face ID, cancellation, session, chart, backtest, and export checks.

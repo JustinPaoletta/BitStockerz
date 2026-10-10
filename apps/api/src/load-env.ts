@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
  * Checks process cwd first, then paths relative to this file (dist/src at runtime).
  */
 export function loadEnvFile(): void {
+  // The isolated iOS prototype must never import a developer's production credentials.
+  if (process.env.BITSTOCKERZ_SKIP_ENV_FILE === 'true') return;
   const candidates = [
     resolve(process.cwd(), '.env'),
     resolve(process.cwd(), 'apps/api/.env'),

@@ -78,3 +78,13 @@ playwright/.auth/
 /storage-state*.json
 /output/
 /artifacts/
+
+# Generated native prototype configuration and Xcode state
+apps/web/src/environments/environment.ios.local.ts
+apps/web/ios/App/App/Prototype.xcconfig
+apps/web/ios/App/App/public/
+apps/web/ios/App/App/capacitor.config.json
+apps/web/ios/App/App/config.xml
+**/xcuserdata/
+**/.build/
+apps/web/.ios-prototype.local.json

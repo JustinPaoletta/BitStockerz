@@ -283,7 +283,7 @@ export class BacktestDetailPage implements OnInit {
     const id = this.detail()?.run.id;
     if (!id) return;
     try {
-      downloadText('backtest-results.csv', await firstValueFrom(this.api.exportResults(id)));
+      await downloadText('backtest-results.csv', await firstValueFrom(this.api.exportResults(id)));
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'Export failed.');
     }
@@ -291,7 +291,10 @@ export class BacktestDetailPage implements OnInit {
   protected async exportTrades(): Promise<void> {
     this.exportError.set('');
     try {
-      downloadText('backtest-trades.csv', await firstValueFrom(this.api.exportTrades(this.id)));
+      await downloadText(
+        'backtest-trades.csv',
+        await firstValueFrom(this.api.exportTrades(this.id)),
+      );
     } catch (error) {
       this.exportError.set(error instanceof Error ? error.message : 'Export failed.');
     }

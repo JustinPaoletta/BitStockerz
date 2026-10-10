@@ -133,6 +133,7 @@ describe('loadAppConfig', () => {
     });
 
     expect(config.server).toEqual({
+      host: '0.0.0.0',
       privateBetaEnabled: false,
       privateBetaProxyKey: undefined,
       privateBetaMonitorKey: undefined,
@@ -504,6 +505,7 @@ describe('AppConfigService', () => {
     const service = new AppConfigService();
 
     expect(service.server).toEqual({
+      host: '0.0.0.0',
       privateBetaEnabled: false,
       privateBetaProxyKey: undefined,
       privateBetaMonitorKey: undefined,
@@ -658,5 +660,31 @@ describe('production persistence and proxy boundaries', () => {
     expect(() => loadAppConfig({ TRUSTED_PROXY_CIDRS })).toThrow(
       /TRUSTED_PROXY_CIDRS/,
     );
+  });
+});
+
+describe('native prototype network boundary', () => {
+  it('allows only the exact bundled Capacitor origin in CORS, never as a WebAuthn origin', () => {
+    expect(
+      loadAppConfig({
+        HOST: '127.0.0.1',
+        CORS_ALLOWED_ORIGINS: 'capacitor://localhost',
+      }).server,
+    ).toMatchObject({
+      host: '127.0.0.1',
+      corsAllowedOrigins: ['capacitor://localhost'],
+    });
+    for (const value of [
+      'capacitor://evil.test',
+      'capacitor://localhost.evil.test',
+      'capacitor://localhost/path',
+      'null',
+    ]) {
+      expect(() => loadAppConfig({ CORS_ALLOWED_ORIGINS: value })).toThrow();
+    }
+    expect(() =>
+      loadAppConfig({ WEBAUTHN_ALLOWED_ORIGINS: 'capacitor://localhost' }),
+    ).toThrow();
+    expect(() => loadAppConfig({ HOST: 'example.com' })).toThrow('HOST');
   });
 });

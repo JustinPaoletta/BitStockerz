@@ -17,6 +17,8 @@ passed all migrations, five MySQL persistence gates, and the production-image bu
 The subsequent deployment failed because `DATABASE_URL` was empty.
 Hosting, real providers, and production acceptance remain outstanding.
 
+For the Capacitor iOS research prototype and iPhone setup, see [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md).
+
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
 Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.
 

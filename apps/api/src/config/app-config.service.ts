@@ -59,6 +59,7 @@ const DEFAULT_CIRCUIT_COOLDOWN_MS = 60_000;
 const AI_PROVIDERS = new Set<AiProviderName>(['stub', 'openai']);
 
 export interface ServerConfig {
+  host: string;
   port: number;
   nodeEnv: NodeEnvironment;
   corsAllowedOrigins: string[];
@@ -393,6 +394,11 @@ function parseCsvUrls(
     .map((value) => {
       try {
         const parsed = new URL(value);
+        if (
+          envName === 'CORS_ALLOWED_ORIGINS' &&
+          value === 'capacitor://localhost'
+        )
+          return value;
         if (!['http:', 'https:'].includes(parsed.protocol)) {
           errors.push(`${envName} values must use http or https`);
           return undefined;
@@ -410,6 +416,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   const errors: string[] = [];
 
   const nodeEnv = parseNodeEnvironment(env.NODE_ENV, errors);
+  const host = normalizeOptional(env.HOST) ?? '0.0.0.0';
+  if (!isIP(host)) errors.push('HOST must be an IP address');
   const port = parseInteger('PORT', env.PORT, DEFAULT_PORT, 1, 65535, errors);
   const corsAllowedOrigins = parseCsvUrls(
     'CORS_ALLOWED_ORIGINS',
@@ -936,6 +944,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   return {
     server: {
+      host,
       port,
       nodeEnv,
       corsAllowedOrigins:
