@@ -63,7 +63,6 @@ export function databaseSettings(env, localFixture = false) {
   const settings = [
     "[client]",
     "protocol=TCP",
-    "connect-timeout=10",
     "default-character-set=utf8mb4",
     `host=${optionValue(url.hostname)}`,
     `port=${url.port || "3306"}`,
@@ -73,6 +72,9 @@ export function databaseSettings(env, localFixture = false) {
     ...(!localFixture
       ? [`ssl-ca=${optionValue(resolve(env.DATABASE_CA_CERT_PATH))}`]
       : []),
+    // mysqldump does not accept mysql's connect-timeout option.
+    "[mysql]",
+    "connect-timeout=10",
   ];
   return { database, config: `${settings.join("\n")}\n` };
 }
