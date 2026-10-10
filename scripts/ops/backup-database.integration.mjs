@@ -9,15 +9,24 @@ import { gunzipSync } from "node:zlib";
 import { backupDatabase, databaseSettings } from "./backup-database.mjs";
 
 async function command(binary, args, input) {
-  const child = spawn(binary, args, { stdio: ["pipe", "pipe", "ignore"] });
+  const child = spawn(binary, args, { stdio: ["pipe", "pipe", "pipe"] });
   const chunks = [];
+  let diagnostics = "";
+  child.stderr.on("data", (chunk) => {
+    if (diagnostics.length < 4096)
+      diagnostics += chunk.toString().slice(0, 4096 - diagnostics.length);
+  });
   child.stdout.on("data", (chunk) => chunks.push(chunk));
   const done = new Promise((resolve, reject) => {
     child.once("error", () => reject(new Error("Fixture tool failed")));
     child.once("close", (code) =>
       code === 0
         ? resolve(Buffer.concat(chunks))
-        : reject(new Error("Fixture tool failed")),
+        : reject(
+            new Error(
+              `${binary} fixture command failed (exit ${code}; MySQL code ${diagnostics.match(/ERROR (\d+)/)?.[1] || "none"})`,
+            ),
+          ),
     );
   });
   child.stdin.on("error", () => {});

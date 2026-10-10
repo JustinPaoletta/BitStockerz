@@ -69,7 +69,7 @@ export function databaseSettings(env, localFixture = false) {
     `port=${url.port || "3306"}`,
     `user=${optionValue(decodeURIComponent(url.username))}`,
     `password=${optionValue(decodeURIComponent(url.password))}`,
-    `ssl-mode=${localFixture ? "DISABLED" : "VERIFY_IDENTITY"}`,
+    `ssl-mode=${localFixture ? "REQUIRED" : "VERIFY_IDENTITY"}`,
     ...(!localFixture
       ? [`ssl-ca=${optionValue(resolve(env.DATABASE_CA_CERT_PATH))}`]
       : []),

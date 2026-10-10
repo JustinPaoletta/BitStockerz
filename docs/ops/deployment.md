@@ -567,7 +567,8 @@ Remove the temporary plaintext after the drill. File removal does not guarantee 
 CI runs this command against a disposable local fixture, decrypts the export, and restores it with a separate database account.
 It compares foreign-key relationships, exact decimal balances, JSON, Unicode and binary values.
 It also checks that a damaged export fails decryption and an existing backup cannot be overwritten.
-The `--local-fixture` TLS exception requires `CI=true`, host `127.0.0.1` and a `bitstockerz_backup_fixture_` database prefix.
+The `--local-fixture` certificate exception requires `CI=true`, host `127.0.0.1` and a `bitstockerz_backup_fixture_` database prefix.
+That fixture connection still requires TLS encryption.
 This fixture check does not establish Aiven recovery, application login recovery, deletion replay or measured production RPO/RTO.
 
 ### Restoration drill

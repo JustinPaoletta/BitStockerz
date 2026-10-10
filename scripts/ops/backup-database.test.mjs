@@ -45,12 +45,12 @@ test("cloud dumps require certificate and hostname verification, regardless of U
   );
 });
 
-test("plaintext fixture exception requires CI, loopback and a disposable database prefix", () => {
+test("self-signed fixture exception requires CI, loopback and a disposable database prefix", () => {
   const fixture = {
     CI: "true",
     DATABASE_URL: "mysql://operator@127.0.0.1/bitstockerz_backup_fixture_test",
   };
-  assert.match(databaseSettings(fixture, true).config, /ssl-mode=DISABLED/);
+  assert.match(databaseSettings(fixture, true).config, /ssl-mode=REQUIRED/);
   for (const env of [
     cloud,
     { ...fixture, CI: "false" },
