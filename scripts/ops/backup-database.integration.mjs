@@ -114,7 +114,11 @@ test("encrypted export restores balances, relations, JSON and binary values into
     );
     // The restore principal cannot modify the source database.
     await assert.rejects(
-      mysql(`DELETE FROM ${source}.users;`, target, restoreConfig),
+      mysql(
+        `UPDATE ${source}.accounts SET cash = 0 WHERE id = 1;`,
+        target,
+        restoreConfig,
+      ),
     );
     await assert.rejects(
       backupDatabase({ output: encrypted, recipient, localFixture: true, env }),
