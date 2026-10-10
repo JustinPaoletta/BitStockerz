@@ -16,6 +16,30 @@ const healthy = (url) =>
             },
     ),
   );
+test("sends the limited monitoring key only to market-data health and never follows redirects", async () => {
+  const calls = [];
+  const result = await checkHealth(
+    "https://api.example.com",
+    (url, options) => {
+      calls.push({ path: url.pathname, ...options });
+      return healthy(url);
+    },
+    { monitorKey: "fixture-monitor-key" },
+  );
+  assert.equal(result.healthy, true);
+  assert.equal(calls[0].headers, undefined);
+  assert.equal(calls[1].headers, undefined);
+  assert.deepEqual(calls[2].headers, {
+    "x-bitstockerz-monitor-key": "fixture-monitor-key",
+  });
+  assert.ok(calls.every((call) => call.redirect === "error"));
+  assert.equal(JSON.stringify(result).includes("fixture-monitor-key"), false);
+  await assert.rejects(
+    checkHealth("http://api.example.com", healthy, {
+      monitorKey: "fixture-monitor-key",
+    }),
+  );
+});
 test("requires a real database and healthy, fresh market data", async () => {
   assert.equal(
     (await checkHealth("https://api.example.com/api", healthy)).healthy,

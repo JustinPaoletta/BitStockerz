@@ -2,7 +2,71 @@
 
 MVP features merged through PR #13. Research, runners, watchlists, and account controls
 merged in [PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15).
-The remaining launch work requires hosting, credentials, licensed data, and deployed acceptance tests.
+The first launch is a private personal research beta. Licensed data and deployed acceptance tests remain required.
+
+## Current setup and next approvals
+
+**Inspection — October 9, 2026 (US Eastern):** The following resources exist. No website or API deployment is running.
+
+| Resource | Completed setup | Remaining acceptance |
+| --- | --- | --- |
+| Fly | Empty `bitstockerz-api-jp` app; four runtime secrets staged; `sjc`, one shared CPU and 512 MB configured | Cost approval, billing, deployment and live checks |
+| Aiven | Free MySQL 8.4.11 service `bitstockerz-mysql`, project `bitstockerz`, DigitalOcean San Francisco; empty application database | Linux migration check, schema migration and recovery drill |
+| Vercel | Hobby `bitstockerz` project; Angular build/output paths; Vercel Authentication set to **All Deployments** | First protected deployment, stable origin and anonymous-access checks |
+| GitHub | Seven production secrets; `FLY_APP_NAME`; main-only production environment with JustinPaoletta as required reviewer | Final PR inspection and approval of protected workflows |
+| Deployment gate | `PRODUCTION_DEPLOY_ENABLED=false`; monitoring URL absent | Enable only after setup and release approval |
+| Database backup | First full provider backup observed at October 10, 00:58 UTC | Retention confirmation and a successful recovery drill; free-plan fork control is unavailable |
+| Alerts | Aiven project notifications go to all admins/operators; GitHub health key stored separately | Live delivery test and GitHub notification recipient confirmation |
+
+GitHub's `DATABASE_URL` uses a migration account limited to the application database.
+Fly's `DATABASE_URL` uses a separate account with SELECT, INSERT, UPDATE and DELETE privileges.
+Both users require TLS. Neither deployment uses the provider administrator account.
+The API's Prisma client passed a connection check with certificate verification enabled.
+
+The macOS Prisma migration engine returned `P1011`: the certificate was not trusted.
+The local Docker engine did not respond, so Linux migration verification is still pending.
+Certificate verification was not disabled, and no schema migration was applied.
+
+### What the owner must approve or supply
+
+1. Inspect draft [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) and its final checks before merging.
+2. After merge, approve **Verify production database** in the protected production environment.
+   The agent can start this workflow and diagnose its result. It runs `SELECT 1` through Prisma on Linux without deploying.
+3. Approve a concrete Fly cost proposal and complete billing entry before paid compute starts.
+   Keep Vercel Hobby and Aiven Free at $0. The $10/month preference is not an automatic provider spending cap.
+   Aiven generated an incomplete billing address with country Finland. Enter the actual billing address before any future paid upgrade.
+4. Supply access to a licensed market-data account or approved data files.
+   Confirm personal research rights for the selected feed. Do not paste API keys into chat.
+5. Confirm support contact, log/backup retention and the external deletion-record location before inviting other users.
+6. Complete the first passkey ceremony and approve the first deployment when the technical checks pass.
+
+The agent can finish origin settings, migrations, data import, monitoring and deployed checks after these prerequisites.
+Google and Apple sign-in remain optional for this passkey-based personal beta.
+The Fly and Vercel deployment tokens have 90-day lifetimes; rotate them before January 7, 2027.
+
+### Private beta access
+
+The browser uses same-origin `/api` requests through `apps/web/api/proxy.mjs`.
+Vercel Authentication must protect **All Deployments**, with no public exceptions or shared bypass links.
+The function forwards to `API_UPSTREAM_ORIGIN` and adds `PRIVATE_BETA_PROXY_KEY` on the server.
+The key is stored only in Vercel production and Fly; it is absent from Angular assets.
+Fly rejects direct API requests without that key when `PRIVATE_BETA_ENABLED=true`.
+Application sessions are still required on account routes.
+
+Public GET/HEAD health probes remain available.
+A different `PRIVATE_BETA_MONITOR_KEY` permits only GET `/api/market-data/health`.
+That restricted key is stored in Fly and a GitHub repository secret for unattended monitoring.
+Neither key appears in HTTP logs.
+
+The proxy accepts bodies up to 1 MiB and forwards responses as streams.
+Cross-origin browser calls are blocked, and upstream redirects are never followed with the gateway key.
+Google/Apple callbacks need a separate access review before enabling them behind Vercel Authentication.
+
+The Aiven database currently uses its default public IP filter.
+TLS and scoped credentials are enforced. Static egress and a migration network path need approval before adding an IP allowlist.
+Do not allow only Fly's egress address while migrations still run from GitHub-hosted runners.
+
+### Historical release evidence
 
 **Inspection — October 8, 2026:** PR #15 and
 [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260)
@@ -14,13 +78,13 @@ Neither result establishes a running production service.
 The October 2 inspection previously found no hosting or production credentials.
 This inspection did not inspect cloud accounts or reveal secret values.
 
-Start here. Technical detail is further down.
+The October 8 observations above are historical. Use the current setup table for account and credential status.
 
 ## Big picture
 
 BitStockerz has three production pieces:
 
-1. **Website** (Angular) → hosted on **Vercel**
+1. **Website** (Angular and private API proxy) → hosted on **Vercel**
 2. **API** (NestJS + scheduled jobs) → hosted on **Fly.io**
 3. **Database** (MySQL) → a **managed MySQL** service near the API
 
@@ -42,7 +106,7 @@ You need sign-ups / projects on:
 | Piece      | Host                             | Resource                                                                                                                                             |
 | ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | API server | [Fly.io](https://fly.io)         | One app that runs the API 24/7 (keep **one** machine while the built-in scheduler is on)                                                             |
-| Database   | Managed MySQL-compatible service | A database in the **same region** as the Fly app (default docs use `iad`), with foreign keys, serializable transactions and Prisma migration support |
+| Database   | Managed MySQL-compatible service | Aiven Free in San Francisco, near the Fly `sjc` region; migrations and recovery still need acceptance |
 | Website    | [Vercel](https://vercel.com)     | A CLI-linked project that receives the `apps/web` upload; project Root Directory `.`                                                                 |
 
 You will end up with:
@@ -72,7 +136,7 @@ Output Directory is `dist/web/browser`. Install Command is `npm ci`.
 
 These settings and SPA rewrites are committed in `apps/web/vercel.json`.
 The ignored `.vercel/project.json` contains the org/project IDs for GitHub configuration.
-Separate Vercel Git deployments are disabled so they cannot bypass API readiness and URL injection.
+Separate Vercel Git deployments are disabled so they cannot bypass API readiness and release approval.
 Project linking does not authorize the first production deployment.
 
 ### 2. Put secrets in GitHub (for automatic deploy)
@@ -82,7 +146,8 @@ If the environment does not exist, create it. Add these secrets:
 
 | Secret name         | Plain English meaning                                                 |
 | ------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`      | Full MySQL connection string the API uses                             |
+| `DATABASE_URL`      | MySQL connection string for the migration account, limited to the application database |
+| `DATABASE_CA_CERT_BASE64` | Base64-encoded provider CA certificate; used for strict migration TLS |
 | `FLY_API_TOKEN`     | Token so GitHub Actions can deploy to Fly                             |
 | `API_BASE_URL`      | Your live API URL (no trailing slash), e.g. `https://api.example.com` |
 | `VERCEL_TOKEN`      | Token so GitHub Actions can deploy to Vercel                          |
@@ -91,9 +156,10 @@ If the environment does not exist, create it. Add these secrets:
 
 **Never commit these into git or send them in chat.**
 Use [GitHub environment settings](https://github.com/JustinPaoletta/BitStockerz/settings/environments)
-for the six secrets. The preflight prints only missing names or fixed validation codes.
+for the seven secrets. The preflight prints only missing names or fixed validation codes.
 `DATABASE_URL` must select MySQL and a named database; `API_BASE_URL` must be an HTTPS origin.
-The check does not authenticate credentials or confirm provider reachability.
+The release also checks Vercel token access and requires All Deployments protection before migration.
+It does not establish database connectivity or successful deployment.
 
 Set these repository variables under **Settings → Secrets and variables → Actions → Variables**:
 
@@ -116,7 +182,12 @@ On the Fly app, set at least:
 
 | Setting                                       | Plain English                                                                                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                                | Same MySQL string as above                                                                                                           |
+| `DATABASE_URL`                                | Separate runtime MySQL account; application database CRUD permissions only |
+| `DATABASE_CA_CERT_BASE64`                     | Same provider CA as GitHub; Fly writes `/app/database-ca.pem` before Node starts |
+| `NODE_EXTRA_CA_CERTS`                         | `/app/database-ca.pem`, configured in `fly.toml` for verified runtime TLS |
+| `PRIVATE_BETA_ENABLED`                       | `true` for this launch; direct API requests need the server proxy key |
+| `PRIVATE_BETA_PROXY_KEY`                     | Same 32-byte hexadecimal key as the server-only Vercel production secret |
+| `PRIVATE_BETA_MONITOR_KEY`                   | Separate 32-byte hexadecimal key, shared only with the GitHub health workflow |
 | `TRUSTED_PROXY_CIDRS`                         | Actual ingress proxy IPs/CIDRs, determined from the deployed network; empty ignores forwarded IP headers. Never trust all addresses. |
 | `CORS_ALLOWED_ORIGINS`                        | Exact website URL(s), e.g. `https://your-app.vercel.app` (no `*`)                                                                    |
 | `WEBAUTHN_RP_ID`                              | Domain used for passkeys (often the website hostname)                                                                                |
@@ -133,6 +204,12 @@ Configure Google/Apple before enabling their login and recovery buttons, using
 the provider checklist below. Add `OPENAI_API_KEY` when enabling live Kernel AI.
 Auth users, sessions, and passkeys persist in MySQL after migrations are applied.
 After the first deployment, restart the API to test auth hydration.
+
+For the private beta, set `API_UPSTREAM_ORIGIN` and `PRIVATE_BETA_PROXY_KEY` in Vercel production environment variables.
+Never prefix these variables with a browser-public name or insert them into `environment.prod.ts`.
+Keep `apiBaseUrl` empty so the browser uses the protected Vercel proxy.
+The deploy workflow decodes the CA into a temporary file and passes its path through `DATABASE_CA_CERT_PATH`.
+Prisma adds `sslcert` and `sslaccept=strict` for migrations, then the workflow removes the temporary CA file.
 
 Before opening the product to users, populate licensed historical symbol/bar data
 and verify a chart, backtest and paper trade against it. The repository now includes a licensed-data importer and Alpaca historical adapter.
@@ -183,7 +260,7 @@ These are **not** blocking go-live:
 
 # Technical deployment runbook (MVP Option A)
 
-The adopted topology uses an always-on NestJS API on Fly.io, a static Angular SPA on Vercel, and nearby managed MySQL.
+The adopted topology uses an always-on NestJS API on Fly.io, an Angular SPA with a Vercel proxy, and nearby managed MySQL.
 Stateful services use one region; Vercel distributes static files globally.
 
 An all-Vercel API was considered during planning.
@@ -194,15 +271,15 @@ That alternative and its proposed `/api/internal/cron/market-data` route are not
 
 | Tier       | Platform      | Notes                                                                                         |
 | ---------- | ------------- | --------------------------------------------------------------------------------------------- |
-| Web        | Vercel        | Build output under `apps/web/dist/web/browser`; SPA rewrite in `apps/web/vercel.json`         |
+| Web        | Vercel        | Angular output under `apps/web/dist/web/browser`; protected API proxy in `apps/web/api/proxy.mjs` |
 | API + jobs | Fly.io        | `apps/api/Dockerfile` + `apps/api/fly.toml`; **one replica** while in-process cron is enabled |
-| DB         | Managed MySQL | Same region as API (`iad` default); must work with Prisma migrate                             |
+| DB         | Aiven MySQL | DigitalOcean San Francisco, near Fly `sjc`; Linux Prisma migration check still pending |
 
 ## Deployment secrets
 
 Use the names in [GitHub secret setup](#2-put-secrets-in-github-for-automatic-deploy).
 The workflow uses `DATABASE_URL` for migration, Fly credentials for API deployment, and Vercel credentials for the web project.
-`API_BASE_URL` supplies post-deploy smoke tests and the web build's API location.
+`API_BASE_URL` supplies direct health smoke tests. Vercel's `API_UPSTREAM_ORIGIN` supplies the server proxy destination.
 Store API runtime secrets on the host as well.
 
 ## Automated release sequence
@@ -212,13 +289,14 @@ Store API runtime secrets on the host as well.
 3. Run `scripts/ops/check-deploy-config.mjs` before installing deployment tools or applying migrations.
 4. Apply `prisma migrate deploy` once; inspect `prisma migrate status`.
 5. Deploy API; wait for `/api/health/live` and `/api/health/ready`.
-6. Build web with `environment.prod.ts` `apiBaseUrl` set to the verified API.
+6. Build web with an empty `apiBaseUrl` for same-origin protected API requests.
 7. Deploy web to Vercel production.
 
 Workflows live in:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
+- `.github/workflows/verify-production-database.yml` (read-only Linux connection check; owner approval required)
 
 ## Smoke checklist (after deploy)
 
@@ -228,7 +306,11 @@ Workflows live in:
 - [ ] Symbols search
 - [ ] Paper account portfolio read
 - [ ] SPA deep-link refresh (`/strategies/...`)
-- [ ] CORS preflight from the Vercel origin
+- [ ] Anonymous Vercel requests, including nested `/api/auth/providers`, require Vercel authentication on every alias.
+- [ ] Direct Fly requests to data and signup endpoints return 401; health probes remain available.
+- [ ] Vercel API requests preserve query strings, methods, user bearer tokens and export responses.
+- [ ] No shared proxy key appears in browser assets, requests, responses or logs.
+- [ ] Browser API calls remain same-origin; Fly CORS does not grant wildcard access.
 - [ ] AI remains disabled (`AI_ENABLED=false`) until approved
 - [ ] After live ingestion passes, enable scheduling.
       Confirm exactly one scheduled import job/audit event runs per interval on the single API replica.
@@ -522,8 +604,8 @@ Follow [RELEASE.md](../../RELEASE.md) for version, changelog, tag, and release-n
 
 ## Owner handoff and release evidence
 
-Complete sections 1–3 in order: Fly app, managed MySQL, Vercel project, HTTPS origins,
-GitHub secrets/variables, then matching Fly runtime settings.
+Use [current setup and next approvals](#current-setup-and-next-approvals) before repeating account setup.
+Finish the Linux database check, HTTPS origins and matching runtime settings before deployment.
 Complete Google/Apple configuration for each provider you advertise.
 Supply licensed history before opening charts/backtests to customers.
 Select public support contact, backup/log retention, and the external deletion record.

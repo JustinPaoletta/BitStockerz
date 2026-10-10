@@ -20,6 +20,7 @@ jobs:
       - name: Check configured production API
         env:
           API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+          PRIVATE_BETA_MONITOR_KEY: ${{ secrets.PRIVATE_BETA_MONITOR_KEY }}
         run: |
           if [ -z "$API_BASE_URL" ]; then
             echo "Production monitoring deferred: PRODUCTION_API_BASE_URL is not configured."

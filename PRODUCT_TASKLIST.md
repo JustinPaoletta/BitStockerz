@@ -1,12 +1,17 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 8, 2026.
+Created October 3, 2026. Updated October 9, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
 Use the [deployment runbook](docs/ops/deployment.md) for setup procedures.
 Local test evidence is recorded in the [testing strategy](docs/product/requirements/Testing_Strategy.md#verification-evidence).
 No live-provider success or production deployment is recorded.
+
+The first launch is a private personal research beta. The hosting budget is $10/month maximum, with free services preferred.
+Fly's empty app, Aiven's free MySQL service, and the Vercel Hobby project now exist.
+Production credentials are stored, and deployment stays disabled.
+See [current setup and approvals](docs/ops/deployment.md#current-setup-and-next-approvals) for evidence and the remaining decisions.
 
 ## Release evidence still required
 
@@ -22,12 +27,13 @@ Deployment configuration checks and recovery procedures are prepared in the runb
 
 ### Production hosting and configuration — Sprint 7.2
 
-- [ ] Provision the always-on Fly.io API application.
-- [ ] Provision managed MySQL near the API, with foreign keys, serializable transactions, and Prisma migration support.
-- [ ] Create the Vercel Angular project and configure its build/output paths and SPA rewrites.
+- [ ] Approve the actual Fly operating cost and activate one API machine after the remaining release checks.
+- [ ] Pass the protected Linux migration-engine check against Aiven, then apply the 19 migrations during deployment.
+      The API client connects with verified TLS. The macOS migration engine rejects the CA; Linux verification remains pending.
+- [ ] Confirm an anonymous visitor cannot access the Vercel website or API through any deployment alias.
+      All-deployment Vercel protection, the server proxy, and the Fly access guard are configured; live checks remain pending.
 - [ ] Establish the production HTTPS URLs used by the website, API, passkeys, and OAuth callbacks.
-- [ ] Configure the GitHub `production` environment with `DATABASE_URL`, `FLY_API_TOKEN`, `API_BASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` using secret storage.
-- [ ] Configure repository variables `FLY_APP_NAME` and `PRODUCTION_API_BASE_URL`; enable `PRODUCTION_DEPLOY_ENABLED` after setup.
+- [ ] Set `PRODUCTION_API_BASE_URL` after licensed data is ready; enable `PRODUCTION_DEPLOY_ENABLED` only after setup and approval.
 - [ ] Configure API host settings for the database, exact CORS origins, WebAuthn relying-party ID/allowed origins, and scheduled-job system user.
 - [ ] Determine the actual trusted ingress proxy CIDRs and configure `TRUSTED_PROXY_CIDRS` accordingly.
 - [ ] Disable development email auth, legacy WebAuthn bypasses, forced-error routes, and public OpenAPI in production using the runbook defaults.
@@ -120,9 +126,11 @@ persistence and functioning ingestion. See the limitations in the extension cont
 Existing logs, health checks, and rollback documentation provide a foundation;
 these tasks establish usable production operations and user support.
 
-- [ ] Configure automated database backups and document their retention and restore procedure.
+- [ ] Confirm Aiven Free's backup retention and a usable restore/export procedure before storing valuable beta data.
+      The first provider backup exists. The free service's fork/restore control is unavailable, so recovery is not yet demonstrated.
 - [ ] Perform a backup restoration drill and verify recovered users, auth methods, strategies, backtests, and paper-account balances.
 - [ ] Exercise the API/web rollback procedure against a real deployment and verify database compatibility.
-- [ ] Configure actionable operational alerts for service failures, database outages, stale/failed ingestion, and enabled AI-provider failures or usage limits.
+- [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
+      Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
 - [ ] Configure a public support channel accessible to customers and publish contact details.
 - [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.

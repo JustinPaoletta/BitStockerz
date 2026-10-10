@@ -109,6 +109,8 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run lint
       - run: npm test -- --watch=false
+      - name: Private beta proxy regressions
+        run: node --test server/*.test.mjs
       - run: npm run build
       - name: Install browser integration dependencies
         run: |
