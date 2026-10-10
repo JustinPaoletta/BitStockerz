@@ -102,14 +102,30 @@ function childProcess(command, args, env, signal) {
       LANG: "C.UTF-8",
       MYSQL_TEST_LOGIN_FILE: "/dev/null",
     },
-    stdio: ["pipe", "pipe", "ignore"],
+    stdio: ["pipe", "pipe", "pipe"],
     signal,
+  });
+  let diagnostics = "";
+  child.stderr.on("data", (chunk) => {
+    if (diagnostics.length < 4096)
+      diagnostics += chunk.toString().slice(0, 4096 - diagnostics.length);
   });
   const done = new Promise((resolveDone, reject) => {
     child.once("error", () => reject(new Error("BACKUP_TOOL_FAILED")));
-    child.once("close", (code) =>
-      code === 0 ? resolveDone() : reject(new Error("BACKUP_TOOL_FAILED")),
-    );
+    child.once("close", (code) => {
+      if (code === 0) return resolveDone();
+      const mysqlCode =
+        diagnostics.match(/(?:ERROR |Got error: )(\d+)/)?.[1] ||
+        diagnostics.match(/\((\d{3,5})\)/)?.[1];
+      const category =
+        mysqlCode ||
+        (/unknown (option|variable)/i.test(diagnostics)
+          ? "UNSUPPORTED_OPTION"
+          : "TOOL_ERROR");
+      reject(
+        new Error(`BACKUP_${command.toUpperCase()}_FAILED_${code}_${category}`),
+      );
+    });
   });
   // Attach a handler before wiring streams, including a failed spawn.
   done.catch(() => {});
