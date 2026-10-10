@@ -15,6 +15,17 @@ describe('loadEnvFile', () => {
     jest.clearAllMocks();
   });
 
+  it('does not read local secrets for an isolated prototype', () => {
+    process.env.BITSTOCKERZ_SKIP_ENV_FILE = 'true';
+    try {
+      loadEnvFile();
+      expect(config).not.toHaveBeenCalled();
+      expect(existsSync).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.BITSTOCKERZ_SKIP_ENV_FILE;
+    }
+  });
+
   it('loads the first existing env file candidate', () => {
     (existsSync as jest.Mock).mockReturnValue(true);
 

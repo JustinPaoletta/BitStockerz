@@ -140,14 +140,20 @@ export class AccountDataPage {
   exportData(): Promise<void> {
     return this.act(async () => {
       const data = await firstValueFrom(this.http.get('/api/workspace/account-export'));
-      downloadText('bitstockerz-account.json', JSON.stringify(data, null, 2), 'application/json');
+      await downloadText(
+        'bitstockerz-account.json',
+        JSON.stringify(data, null, 2),
+        'application/json',
+      );
     });
   }
-  downloadArchive(archive: { id: string; snapshot: unknown }): void {
-    downloadText(
-      `paper-experiment-${archive.id}.json`,
-      JSON.stringify(archive.snapshot, null, 2),
-      'application/json',
+  downloadArchive(archive: { id: string; snapshot: unknown }): Promise<void> {
+    return this.act(() =>
+      downloadText(
+        `paper-experiment-${archive.id}.json`,
+        JSON.stringify(archive.snapshot, null, 2),
+        'application/json',
+      ),
     );
   }
   reset(): Promise<void> {

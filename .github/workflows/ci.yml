@@ -140,6 +140,8 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm audit --audit-level=moderate
+      - name: iOS prototype configuration checks
+        run: node --test ../../scripts/ios/prepare.test.mjs
       - run: npm run lint
       - run: npm test -- --watch=false
       - name: Private beta proxy regressions

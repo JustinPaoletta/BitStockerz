@@ -54,6 +54,15 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "ios": {
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.ios.local.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"

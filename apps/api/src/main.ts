@@ -38,6 +38,6 @@ async function bootstrap() {
   if (config.server.openApiEnabled) {
     configureOpenApi(app);
   }
-  await app.listen(config.server.port);
+  await app.listen(config.server.port, config.server.host);
 }
 void bootstrap();

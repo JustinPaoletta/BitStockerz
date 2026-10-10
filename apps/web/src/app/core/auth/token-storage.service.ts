@@ -1,5 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
+import { Capacitor } from '@capacitor/core';
+
 const ACCESS_TOKEN_KEY = 'bs.access_token';
 
 @Injectable({ providedIn: 'root' })
@@ -11,7 +13,8 @@ export class TokenStorageService {
   }
 
   set(value: string): void {
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, value);
+    // The prototype keeps native bearer tokens in memory only. Relaunch requires sign-in.
+    if (!Capacitor.isNativePlatform()) sessionStorage.setItem(ACCESS_TOKEN_KEY, value);
     this.token.set(value);
   }
 
@@ -26,7 +29,7 @@ export class TokenStorageService {
 
   private readStorage(): string | null {
     try {
-      return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+      return Capacitor.isNativePlatform() ? null : sessionStorage.getItem(ACCESS_TOKEN_KEY);
     } catch {
       return null;
     }
