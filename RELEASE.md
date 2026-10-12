@@ -46,10 +46,14 @@ For persisted behavior, verify fresh MySQL migrations and the existing
 `test:mysql:auth`, and `test:mysql:workspace` gates. CI provisions its own MySQL service for these checks.
 Run the native CLI gates in the [testing strategy](docs/product/requirements/Testing_Strategy.md#native-cli-regressions).
 
-Merging a release PR into `main` starts `.github/workflows/deploy.yml`; it reruns
-CI before migrations and deployment. Hosting, database credentials and provider
-configuration must exist for a live release. As of October 2, 2026, these are not
-configured, so a merge/tag/GitHub Release alone does not publish the application.
+Merging into `main` starts `.github/workflows/deploy.yml` and reruns CI.
+Migrations and deployment require `PRODUCTION_DEPLOY_ENABLED=true` and approval through the protected production environment.
+The [deployment runbook](docs/ops/deployment.md) records cloud setup and remaining launch requirements.
+A merge, tag, or GitHub Release alone does not publish the application.
+
+For iOS changes, follow the [prototype build and device checks](IOS_PROTOTYPE.md).
+Browser CI does not compile the Xcode project or test native passkeys.
+The prototype is not a TestFlight or App Store release.
 
 For docs-heavy releases, also verify the roadmap, MVP, API inventory, and schema docs stay consistent with the release notes.
 

@@ -1,7 +1,7 @@
 # BitStockerz – Testing Strategy
 
 This document describes the automated checks for the merged MVP and prelaunch
-features. CI passing does not verify external hosting or real provider credentials.
+features and the open readiness/iOS drafts. CI passing does not verify external hosting or real provider credentials.
 
 ## 1. Unit and component tests
 
@@ -54,11 +54,13 @@ The verification script also omits the new workspace and native CLI gates; run t
 
 ## 4. Browser workflows
 
-`npm --prefix apps/web run e2e` runs five Playwright tests at PR #13 against actual
-API/web servers in seed mode. They cover dashboard → strategy → backtest → Trade,
-profile save/reload, mocked Google/Apple callbacks, recovery/link ownership and
-failed-link session retention. Desktop/mobile manual checks complement automation.
+`npm --prefix apps/web run e2e` runs Playwright against actual API/web servers in seed mode.
+The original five tests at PR #13 cover dashboard → strategy → backtest → Trade.
+They also cover profile save/reload, mocked Google/Apple callbacks, recovery/link ownership, and failed-link session retention. Desktop/mobile manual checks complement automation.
 See [manual_testing.md](../../manual-testing/manual_testing.md).
+Product-extension tests add enrollment, research exports, charts, and paper-runner workflows.
+
+The iOS research test adds a complete browser flow at phone width; see [iOS evidence](#ios-prototype-evidence).
 
 External Google/Apple token exchange is mocked in automated browser tests. Real
 signup, returning login, provider linking, Apple relay/second-login behavior,
@@ -129,6 +131,28 @@ This avoids unrelated apps on an IPv6 loopback listener. Angular's native LMDB c
 crashed on this machine; local builds/tests used `NG_BUILD_CACHE_STORE=sqlite`
 and `NG_BUILD_MAX_WORKERS=1`. Coverage thresholds and existing exclusions were
 not reduced. No production data, provider credentials or real trading were used.
+
+### iOS prototype evidence
+
+PR #17 at `33123e3d5e9fdb50e047afdfe973e3ef5620c4b9`:
+
+- [Hosted CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed; status was inspected again on October 11, 2026.
+- The hosted gates include API/web tests, MySQL persistence, the production-image build, encrypted database recovery, audits, and secret scanning.
+- GitGuardian also reported success on this revision. Neither result closes separate credential-rotation incidents.
+
+Local evidence recorded October 10, 2026:
+
+- API tests passed: 107 suites and 984 tests. Web tests passed: 25 files and 106 tests.
+- API/web lint, API build, web production build, iOS web build, and two configuration tests passed.
+- Three selected browser tests passed: `ios-research.spec.ts` and both tests in `product-extensions.spec.ts`.
+- Browser coverage included real WebAuthn verification through virtual authenticators, charts, backtests, saved history, exports, and passkey recovery.
+- iOS Simulator Debug and unsigned hardware Debug builds passed. The app launched on an iOS 26.5 simulator.
+- Simulator email registration and authenticated research screens were inspected against the isolated API.
+
+Chromium tests do not exercise AuthenticationServices, Apple's association lookup, or the native share sheet.
+CI does not compile the Xcode project or run `ios:test:config`; those checks are local.
+Signed installation, native passkeys, exports, and physical-device accessibility remain in the [iPhone checklist](../../../IOS_PROTOTYPE.md#iphone-acceptance-checklist).
+These results do not establish production deployment or real-provider acceptance.
 
 ## Native CLI regressions
 

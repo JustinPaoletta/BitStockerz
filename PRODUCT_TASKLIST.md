@@ -1,6 +1,6 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 10, 2026.
+Created October 3, 2026. Updated October 11, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
@@ -9,8 +9,8 @@ Local test evidence is recorded in the [testing strategy](docs/product/requireme
 No live-provider success or production deployment is recorded.
 
 The first launch is a private personal research beta. The hosting budget is $10/month maximum, with free services preferred.
-Fly's empty app, Aiven's free MySQL service, and the Vercel Hobby project now exist.
-Production credentials are stored, and deployment stays disabled.
+The October 9 inspection recorded Fly's empty app, Aiven Free MySQL, and the Vercel Hobby project.
+Production credentials were stored, and deployment was disabled. Cloud state was not inspected again during the October 11 documentation cleanup.
 See [current setup and approvals](docs/ops/deployment.md#current-setup-and-next-approvals) for evidence and the remaining decisions.
 
 ## Release evidence still required
@@ -21,7 +21,9 @@ and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/3741046
 Historical strategy explanations now use pinned versions, with an edit/deletion regression.
 Deployment configuration checks and recovery procedures are prepared in the runbook.
 
-- [ ] Obtain passing CI on the final revision, including secret scanning and the production-image build.
+Draft PRs #16 and #17 remain open as of October 11. PR #17 targets PR #16's branch.
+[PR #17 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed at `33123e3`.
+Release approval and CI on the eventual release revision remain required below.
 
 ## 1. Remaining roadmap work — Required for launch
 
@@ -53,13 +55,30 @@ and live data remain disabled by default.
 - [ ] Verify charts, backtests, and paper trades use the imported real prices.
 - [ ] Verify production never substitutes synthetic seed data when real data is unavailable.
 
-### Google/Apple configuration and production verification — Sprints 8.1–8.2
+### First deployment, production smoke, and release
+
+- [ ] Obtain passing CI on the release revision, including secret scanning, MySQL gates, and the production-image build.
+- [ ] Apply and verify production migrations, deploy the API, and restart it once to verify database-backed auth hydration.
+- [ ] Build/deploy the Angular site with the verified production API URL and complete the deployment workflow successfully.
+- [ ] Verify `/api/health/live` and `/api/health/ready` report healthy/ready with the database connected.
+- [ ] Verify passkey registration/login on the deployed HTTPS domain and a complete strategy → backtest → results workflow.
+- [ ] Verify symbol search, real-data charts, paper orders, positions, portfolio P&L, and history in production.
+- [ ] Verify SPA deep-link refresh and browser API calls/CORS preflight against the production origin.
+- [ ] Verify auth rate limits distinguish real client IPs and spoofed forwarded hops cannot choose an arbitrary rate-limit identity.
+- [ ] Verify production manual jobs/ingestion endpoints return 403 and public outage responses omit credentials, hostnames, and driver errors.
+- [ ] Verify website framing, MIME-sniffing, and referrer security headers.
+- [ ] Complete the version, changelog, tag, and release-note steps in `RELEASE.md` for the first production release.
+- [ ] Update roadmap/readiness documentation with the actual deployment and provider verification results.
+
+## 2. Remaining roadmap extensions — Optional for the initial launch
+
+### Optional Google/Apple login — Sprints 8.1–8.2
 
 Browser login, profile editing, and linked-provider recovery are implemented.
-The tasks below cover their outstanding provider setup and live verification.
+The first personal beta can use passkeys alone. Complete these tasks for each provider selected for launch.
 
-- [ ] Configure the Google web OAuth client, consent/branding settings, API callback URL, and host credentials.
-- [ ] Configure Apple Sign in with Apple, Services ID/domain, API form-POST callback URL, and host signing credentials.
+- [ ] If offering Google login, configure its web OAuth client, consent/branding settings, API callback URL, and host credentials.
+- [ ] If offering Apple login, configure Sign in with Apple, Services ID/domain, API form-POST callback URL, and signing credentials.
 - [ ] Configure `AUTH_OAUTH_BROWSER_CALLBACK_URL` to the exact production SPA callback and verify direct navigation/refresh works.
 - [ ] If migrating an existing database, run the duplicate-provider identity preflight and resolve conflicts before applying the uniqueness migration.
 - [ ] Verify `/api/auth/providers` exposes only fully configured providers.
@@ -74,23 +93,6 @@ The tasks below cover their outstanding provider setup and live verification.
 - [ ] Confirm profile display-name persistence and desktop/mobile keyboard flows.
       Make sure callback URLs and logs contain no bearer tokens or identity payloads.
 - [ ] Record live smoke results separately for Google and Apple.
-
-### First deployment, production smoke, and release
-
-- [ ] Run the applicable release gates and obtain passing CI on the release revision.
-- [ ] Apply and verify production migrations, deploy the API, and restart it once to verify database-backed auth hydration.
-- [ ] Build/deploy the Angular site with the verified production API URL and complete the deployment workflow successfully.
-- [ ] Verify `/api/health/live` and `/api/health/ready` report healthy/ready with the database connected.
-- [ ] Verify passkey registration/login on the deployed HTTPS domain and a complete strategy → backtest → results workflow.
-- [ ] Verify symbol search, real-data charts, paper orders, positions, portfolio P&L, and history in production.
-- [ ] Verify SPA deep-link refresh and browser API calls/CORS preflight against the production origin.
-- [ ] Verify auth rate limits distinguish real client IPs and spoofed forwarded hops cannot choose an arbitrary rate-limit identity.
-- [ ] Verify production manual jobs/ingestion endpoints return 403 and public outage responses omit credentials, hostnames, and driver errors.
-- [ ] Verify website framing, MIME-sniffing, and referrer security headers.
-- [ ] Complete the version, changelog, tag, and release-note steps in `RELEASE.md` for the first production release.
-- [ ] Update roadmap/readiness documentation with the actual deployment and provider verification results.
-
-## 2. Remaining roadmap extensions — Optional for the initial launch
 
 ### Automated vendor ingestion
 
@@ -141,10 +143,6 @@ these tasks establish usable production operations and user support.
 This is a prototype track, separate from the production launch gates above.
 See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for commands, limitations, and device acceptance.
 
-- [x] Add a bundled Capacitor iOS application with a native AuthenticationServices passkey bridge.
-- [x] Reuse the chart and full strategy/backtest/results/history flow on phone screens.
-- [x] Add native CSV/JSON sharing and an isolated local API with synthetic prices.
-- [x] Build the iOS Simulator app and test browser passkeys plus the phone-sized research flow.
 - [ ] Select a stable HTTPS passkey domain and a dedicated reachable prototype API.
 - [ ] Publish and check the Apple association file, then sign and install on the iPhone.
 - [ ] Complete physical-device Face ID, cancellation, session, chart, backtest, and export checks.

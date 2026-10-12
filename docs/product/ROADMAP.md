@@ -1,6 +1,6 @@
 # BitStockerz — Product roadmap
 
-Updated October 8, 2026.
+Updated October 11, 2026.
 This record maps delivered milestones to the original stories.
 [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md) is the single checklist for unfinished work.
 The [deployment runbook](../ops/deployment.md) contains external setup and live acceptance procedures.
@@ -20,6 +20,16 @@ The [deployment runbook](../ops/deployment.md) contains external setup and live 
 P&L and trade markers required no migration.
 October 4 work adds research, enrollment, and workspace migrations.
 No production deployment is recorded by this document.
+
+## Work awaiting merge
+
+As of October 11, 2026:
+
+- Draft [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) targets `main` with protected beta setup and historical Kernel context fixes.
+- Draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets PR #16's branch with the Capacitor iOS prototype.
+
+The [iOS guide](../../IOS_PROTOTYPE.md) records implemented behavior, dated tests, and remaining physical-device acceptance.
+Passing draft CI does not establish a production release or native device acceptance.
 
 ## Original sprint and story mapping
 
@@ -71,7 +81,7 @@ Local test evidence is separate from hosted and real-provider evidence.
 ## Remaining delivery order
 
 1. Require passing CI on each release revision; PR #15 passed all five MySQL gates.
-2. Provision hosting and exact HTTPS origins.
+2. Finish hosting activation and exact HTTPS origins using the dated setup record in the deployment runbook.
 3. Load licensed data and complete deployed auth and product smoke tests.
 4. Complete backup, restoration, rollback, alert, support, and retention setup.
 5. Enable optional current-market scheduling and Kernel only after their live prerequisites pass.

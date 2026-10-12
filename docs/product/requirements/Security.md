@@ -21,6 +21,14 @@
   requires the original authenticated session and a sign-in within five minutes.
   Email knowledge alone cannot recover an account.
 
+### Native prototype
+
+The [iOS prototype](../../../IOS_PROTOTYPE.md) uses AuthenticationServices for passkeys and keeps bearer tokens in memory.
+Relaunch requires sign-in. Native Google/Apple OAuth is not enabled.
+Device mode requires an associated HTTPS domain; its isolated API disables email login and legacy WebAuthn bypasses.
+CORS accepts `capacitor://localhost`, while WebAuthn validates the HTTPS relying-party origin.
+Never include the production proxy key or hosting credentials in the app.
+
 ## 2. Authorization
 
 - Strict user-level tenancy enforced via user_id

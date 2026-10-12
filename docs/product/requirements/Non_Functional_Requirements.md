@@ -1,8 +1,9 @@
 # BitStockerz – Non-Functional Requirements (NFRs)
 
-These are engineering targets, not measured production guarantees. No production
-hosting is provisioned yet. The backtest fixture has automated timing coverage;
-end-to-end latency and data freshness still require deployment/vendor verification.
+These are engineering targets, not measured production guarantees.
+The [deployment runbook](../../ops/deployment.md#current-setup-and-next-approvals) records provisioned resources and remaining launch work.
+The backtest fixture has automated timing coverage.
+End-to-end latency and data freshness still require deployment and vendor verification.
 
 ## 1. Performance
 

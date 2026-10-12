@@ -1,11 +1,14 @@
 # BitStockerz – Master API Inventory
 
-Updated October 5, 2026.
+Updated October 11, 2026.
 
 This inventory describes current HTTP contracts, internal domain boundaries, and explicitly labeled design targets.
 All route paths use the `/api` prefix.
 Generated OpenAPI and route source define the runnable HTTP contract.
-October 4 workspace additions are local changes; their final MySQL and hosted checks remain pending.
+
+The October 4 workspace additions merged in PR #15. All five MySQL persistence gates passed hosted CI.
+See [verification evidence](../product/requirements/Testing_Strategy.md#verification-evidence) for dates and limits.
+The [deployment access guard](../ops/deployment.md#private-beta-access) in draft PR #16 also protects otherwise public API routes.
 
 ### Backend implementation status
 

@@ -182,7 +182,8 @@ Acceptance criteria:
 - `deploy.yml` on `main` runs CI, migrates once, deploys API then web; fails closed on test failure.
 - Secrets live only in GitHub Environments / host dashboards.
 
-Status: Artifacts merged in PR #12 with security updates in PR #13; no hosting is provisioned. The first live deployment requires an API app, web project, database and their credentials.
+Status at PR #13: Deployment artifacts were merged, but hosting was not provisioned.
+For later resource setup and remaining live checks, use the [deployment runbook](../../ops/deployment.md#current-setup-and-next-approvals).
 
 ### Story 8.7.2 – Hosting environment (API, DB, and scheduled jobs in single region)
 

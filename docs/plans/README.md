@@ -14,6 +14,7 @@ The [roadmap](../product/ROADMAP.md) preserves delivery history and sprint ident
 | Research, paper runners, and account controls | [Product extensions](../product/PRODUCT_EXTENSIONS.md)                                                             |
 | Database changes and lifecycle                | [Migrations](../database/Migrations_Plan.md), [deletion policy](../database/Data_Lifecycle_and_Deletion_Policy.md) |
 | OAuth identities and production access        | [Security](../product/requirements/Security.md), [deployment](../ops/deployment.md)                                |
+| iOS prototype and device acceptance           | [iOS guide](../../IOS_PROTOTYPE.md)                                                                                |
 | Gates and evidence                            | [Testing strategy](../product/requirements/Testing_Strategy.md)                                                    |
 | Logging and diagnostic limits                 | [Observability](../product/requirements/Observability.md)                                                          |
 
@@ -99,7 +100,8 @@ Deterministic strategy findings merge with validated model warnings.
 Their severity takes precedence when equivalent findings conflict.
 
 Backtest explanation requires an owned completed run with results.
-Its context must use the run's pinned version; the current latest-summary conflict remains in the task list.
+Its context uses the run's pinned version, including after strategy edits, renames, or soft deletion.
+This correction is included in draft PR #16; improvement previews continue to use the current definition.
 
 Each success includes `disclaimer`, server-computed `confidence`, and `ai_request_id`.
 Confidence is a label, not a probability of future profit.

@@ -7,7 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Kernel correctness and release readiness
+### Capacitor iOS prototype (draft PR #17)
+
+- Bundle the Angular research interface in Capacitor with a native AuthenticationServices passkey bridge.
+- Add the guided chart, strategy, backtest, results, and history flow with native CSV/JSON sharing.
+- Keep native bearer sessions in memory and isolate the sample-data API from production credentials.
+- Add device configuration and association-file checks; document remaining signing, native passkey, and physical-device acceptance.
+
+### Kernel correctness and release readiness (draft PR #16)
 
 - Use immutable owned strategy versions for historical Kernel explanations.
   Preserve that context after edits, renames, or soft deletion; keep previews on the current definition.

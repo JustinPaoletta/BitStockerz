@@ -17,7 +17,13 @@ passed all migrations, five MySQL persistence gates, and the production-image bu
 The subsequent deployment failed because `DATABASE_URL` was empty.
 Hosting, real providers, and production acceptance remain outstanding.
 
-For the Capacitor iOS research prototype and iPhone setup, see [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md).
+As of October 11, 2026, two draft PRs remain open:
+
+- [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) adds protected beta setup and historical Kernel context fixes.
+- [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) adds the Capacitor iOS research prototype and targets PR #16's branch.
+
+This branch includes both drafts. These changes are not merged into `main`.
+See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for iPhone setup and native acceptance checks.
 
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
 Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.
@@ -57,6 +63,7 @@ Seed-mode users, results, and paper trades disappear when the API stops.
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | API commands, configuration, and generated OpenAPI | [API README](apps/api/README.md)                                                            |
 | Angular development and browser tests              | [Web README](apps/web/README.md)                                                            |
+| iOS simulator, signing, and device acceptance      | [iOS prototype](IOS_PROTOTYPE.md)                                                           |
 | Contributor rules and implementation contracts     | [Documentation index](docs/plans/README.md)                                                 |
 | Product scope and delivery history                 | [MVP](docs/product/MVP.md), [roadmap](docs/product/ROADMAP.md)                              |
 | Current research and account behavior              | [Product extensions](docs/product/PRODUCT_EXTENSIONS.md)                                    |
@@ -77,7 +84,7 @@ They are not deployment inputs.
 ## Repository layout
 
 - `apps/api`: NestJS 11 API, Prisma persistence, jobs, and operator import tools.
-- `apps/web`: Angular 22.2.1 SPA, TypeScript 6.0.3, Vitest, and Playwright.
+- `apps/web`: Angular 22.2.1 SPA, TypeScript 6.0.3, Vitest, Playwright, and the Capacitor iOS project.
 - `docs/product`: scope, contracts, requirements, and original story acceptance criteria.
 - `docs/database`: API inventory, migration guide, lifecycle policy, and conceptual schemas.
 - `docs/ops`: deployment procedures and dated security evidence.

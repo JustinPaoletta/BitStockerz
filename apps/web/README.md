@@ -7,6 +7,9 @@ Use Node `24.21.0` from the root `.nvmrc`.
 The stack uses Angular `22.2.1`, TypeScript `6.0.3`, standalone components, Vitest, Playwright, and Lightweight Charts `5.2`.
 Existing components retain their prior Eager change-detection behavior after the Angular migration.
 
+For Capacitor commands and device setup, use the [iOS guide](../../IOS_PROTOTYPE.md).
+Native sessions stay in memory; browser sessions use `sessionStorage`. Native Google/Apple OAuth is not enabled.
+
 ## Development server
 
 Start the API on port 4000 (seed mode example):
@@ -39,12 +42,15 @@ npm --prefix apps/web run e2e
 npm --prefix apps/web audit
 ```
 
-Unit tests use Vitest with file isolation so third-party module mocks cannot
-reuse a real module loaded by another spec. Playwright tests (`e2e/milestone-5-workflows.spec.ts` and `e2e/product-extensions.spec.ts`)
-starts the API in seed mode and the web app when they are not already running.
-Manual UI walkthrough: `docs/manual-testing/manual_testing.md` Section 13.
-The client contract fixture used by the backtest mapper test is
-`docs/manual-testing/fixtures/backtest-detail.example.json`.
+Unit tests use Vitest with file isolation so third-party module mocks cannot reuse a real module loaded by another spec.
+Playwright starts seed-mode API and web servers when compatible servers are not already running locally.
+CI always starts its own servers.
+
+Tests include the main workflows, product extensions, and `e2e/ios-research.spec.ts`.
+The iOS research test uses Chromium at phone width with a virtual WebAuthn authenticator.
+It does not test the native AuthenticationServices bridge or iOS share sheet.
+Use [Manual testing, Section 13](../../docs/manual-testing/manual_testing.md#section-13--angular-milestone-5-sprints-5153) for browser acceptance.
+The backtest mapper uses [this contract fixture](../../docs/manual-testing/fixtures/backtest-detail.example.json).
 
 ## Local build-cache failure
 
