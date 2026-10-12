@@ -132,6 +132,15 @@ crashed on this machine; local builds/tests used `NG_BUILD_CACHE_STORE=sqlite`
 and `NG_BUILD_MAX_WORKERS=1`. Coverage thresholds and existing exclusions were
 not reduced. No production data, provider credentials or real trading were used.
 
+### Combined PR evidence
+
+On October 12, PR #17 was retargeted to `main` with all PR #16 commits included. PR #16 was closed.
+
+[CI at `cc64343`](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests.
+The API reported seven failed tests, including missing current seed prices; branch coverage was 89.55% against the 90% requirement.
+Secret scanning, the root dependency audit, and encrypted recovery passed.
+The failures must be corrected before merge. The earlier passing run below is historical evidence.
+
 ### iOS prototype evidence
 
 PR #17 at `33123e3d5e9fdb50e047afdfe973e3ef5620c4b9`:

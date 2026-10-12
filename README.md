@@ -17,12 +17,10 @@ passed all migrations, five MySQL persistence gates, and the production-image bu
 The subsequent deployment failed because `DATABASE_URL` was empty.
 Hosting, real providers, and production acceptance remain outstanding.
 
-As of October 11, 2026, two draft PRs remain open:
-
-- [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) adds protected beta setup and historical Kernel context fixes.
-- [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) adds the Capacitor iOS research prototype and targets PR #16's branch.
-
-This branch includes both drafts. These changes are not merged into `main`.
+As of October 12, 2026, combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets `main`.
+It includes protected beta setup, historical Kernel context fixes, and the Capacitor iOS research prototype.
+PR #16 is closed; all its commits remain included in #17.
+These changes are not merged into `main`.
 See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for iPhone setup and native acceptance checks.
 
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.

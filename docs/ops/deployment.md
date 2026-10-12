@@ -33,7 +33,8 @@ Certificate verification was not disabled, and no schema migration was applied.
 
 ### What the owner must approve or supply
 
-1. Inspect draft [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) and its final checks before merging.
+1. Inspect combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) after its checks pass.
+   PR #16 is closed with all commits included in #17. Complete review before merging.
 2. After merge, approve **Verify production database** in the protected production environment.
    The agent can start this workflow and diagnose its result. It runs `SELECT 1` through Prisma on Linux without deploying.
 3. Approve a concrete Fly cost proposal and complete billing entry before paid compute starts.

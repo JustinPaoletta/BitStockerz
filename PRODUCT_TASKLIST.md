@@ -1,6 +1,6 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 11, 2026.
+Created October 3, 2026. Updated October 12, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
@@ -21,9 +21,16 @@ and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/3741046
 Historical strategy explanations now use pinned versions, with an edit/deletion regression.
 Deployment configuration checks and recovery procedures are prepared in the runbook.
 
-Draft PRs #16 and #17 remain open as of October 11. PR #17 targets PR #16's branch.
+As of October 12, combined draft PR #17 targets `main` and includes all commits from the closed PR #16.
 [PR #17 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed at `33123e3`.
 Release approval and CI on the eventual release revision remain required below.
+
+The [October 12 CI run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests at `cc64343`.
+Earlier green results do not establish readiness for the current revision.
+
+- [ ] Diagnose and fix the API and browser failures without lowering coverage requirements.
+      API failures include missing current seed prices; branch coverage fell to 89.55%, below the 90% threshold.
+- [ ] Obtain passing checks on the combined PR, complete review, and merge it into `main`.
 
 ## 1. Remaining roadmap work — Required for launch
 

@@ -14,7 +14,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Keep native bearer sessions in memory and isolate the sample-data API from production credentials.
 - Add device configuration and association-file checks; document remaining signing, native passkey, and physical-device acceptance.
 
-### Kernel correctness and release readiness (draft PR #16)
+### Kernel correctness and release readiness (combined draft PR #17)
 
 - Use immutable owned strategy versions for historical Kernel explanations.
   Preserve that context after edits, renames, or soft deletion; keep previews on the current definition.

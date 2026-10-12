@@ -101,7 +101,7 @@ Their severity takes precedence when equivalent findings conflict.
 
 Backtest explanation requires an owned completed run with results.
 Its context uses the run's pinned version, including after strategy edits, renames, or soft deletion.
-This correction is included in draft PR #16; improvement previews continue to use the current definition.
+This correction is included in combined draft PR #17; improvement previews continue to use the current definition.
 
 Each success includes `disclaimer`, server-computed `confidence`, and `ai_request_id`.
 Confidence is a label, not a probability of future profit.

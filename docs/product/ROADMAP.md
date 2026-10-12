@@ -1,6 +1,6 @@
 # BitStockerz — Product roadmap
 
-Updated October 11, 2026.
+Updated October 12, 2026.
 This record maps delivered milestones to the original stories.
 [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md) is the single checklist for unfinished work.
 The [deployment runbook](../ops/deployment.md) contains external setup and live acceptance procedures.
@@ -23,10 +23,9 @@ No production deployment is recorded by this document.
 
 ## Work awaiting merge
 
-As of October 11, 2026:
-
-- Draft [PR #16](https://github.com/JustinPaoletta/BitStockerz/pull/16) targets `main` with protected beta setup and historical Kernel context fixes.
-- Draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets PR #16's branch with the Capacitor iOS prototype.
+As of October 12, combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets `main`.
+It includes protected beta setup, historical Kernel context fixes, and the Capacitor iOS prototype.
+PR #16 is closed with all commits preserved in #17.
 
 The [iOS guide](../../IOS_PROTOTYPE.md) records implemented behavior, dated tests, and remaining physical-device acceptance.
 Passing draft CI does not establish a production release or native device acceptance.

@@ -8,7 +8,7 @@ Generated OpenAPI and route source define the runnable HTTP contract.
 
 The October 4 workspace additions merged in PR #15. All five MySQL persistence gates passed hosted CI.
 See [verification evidence](../product/requirements/Testing_Strategy.md#verification-evidence) for dates and limits.
-The [deployment access guard](../ops/deployment.md#private-beta-access) in draft PR #16 also protects otherwise public API routes.
+The [deployment access guard](../ops/deployment.md#private-beta-access) in combined draft PR #17 also protects otherwise public API routes.
 
 ### Backend implementation status
 
