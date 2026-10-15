@@ -139,7 +139,20 @@ On October 12, PR #17 was retargeted to `main` with all PR #16 commits included.
 [CI at `cc64343`](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests.
 The API reported seven failed tests, including missing current seed prices; branch coverage was 89.55% against the 90% requirement.
 Secret scanning, the root dependency audit, and encrypted recovery passed.
-The failures must be corrected before merge. The earlier passing run below is historical evidence.
+The October 14 correction excludes UTC weekends from synthetic daily equity age in price reads and health.
+Crypto and database-backed prices retain strict elapsed-time rejection; the coverage threshold remains 90%.
+Fixed-date tests cover Friday/Monday boundaries, eventual expiry, a custom threshold, and database rejection.
+
+Local verification on October 14:
+
+- The full API suite passed with the clock set to October 12 at 04:17 UTC: 108 suites, 993 tests.
+- Branch coverage was 90.15%; statement coverage was 98.05%.
+- Two additional configuration/database guards passed afterward; the final focused run passed all 65 market-data tests.
+- All eight browser tests passed against an API fixed at the same Monday time, including trading, runners, and iOS research.
+- API build and lint passed. An initial coverage attempt exhausted local cache space; the successful run disabled Jest disk caching.
+
+Use the current PR checks for hosted validation of the pushed revision.
+The earlier iOS evidence below remains historical.
 
 ### iOS prototype evidence
 

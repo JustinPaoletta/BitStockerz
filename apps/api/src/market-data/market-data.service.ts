@@ -257,15 +257,12 @@ export class MarketDataService {
     }
 
     const price = bar ? Number(bar.close.toString()) : Number.NaN;
-    const coveredThrough =
-      bar?.interval === '1d'
-        ? bar.timestamp.getTime() + MILLISECONDS_PER_DAY
-        : (bar?.timestamp.getTime() ?? 0);
     if (
       !bar ||
       !Number.isFinite(price) ||
       price <= 0 ||
-      now.getTime() - coveredThrough > staleAfterMs
+      this.barAgeMs(symbol.asset_type, bar.interval, bar.timestamp, now) >
+        staleAfterMs
     ) {
       throw new DomainError(
         ErrorCode.TRADING_NO_MARKET_PRICE,
@@ -743,14 +740,7 @@ export class MarketDataService {
       };
     }
 
-    // A date-only candle covers its full UTC calendar day. Measure staleness
-    // from the end of that coverage window so Friday daily data does not become
-    // falsely stale during the weekend merely because its DB value is midnight.
-    const coverageEndMs =
-      kind === 'daily'
-        ? latest.getTime() + MILLISECONDS_PER_DAY
-        : latest.getTime();
-    const ageMs = Math.max(0, now.getTime() - coverageEndMs);
+    const ageMs = this.barAgeMs(assetType, interval, latest, now);
     return {
       asset_type: assetType,
       interval,
@@ -763,6 +753,42 @@ export class MarketDataService {
       stale_after_ms: staleAfterMs,
       symbol_count_with_data: symbolCount,
     };
+  }
+
+  private barAgeMs(
+    assetType: AssetType,
+    interval: '1d' | '1h',
+    timestamp: Date,
+    now: Date,
+  ): number {
+    // Date-only candles cover the full UTC day. Database data and crypto retain
+    // strict elapsed-time thresholds; only synthetic weekday equity fixtures
+    // pause their freshness clock over UTC weekends.
+    const coverageEnd =
+      timestamp.getTime() + (interval === '1d' ? MILLISECONDS_PER_DAY : 0);
+    const elapsed = Math.max(0, now.getTime() - coverageEnd);
+    if (this.prisma.isEnabled || assetType !== 'EQUITY' || interval !== '1d') {
+      return elapsed;
+    }
+    const week = 7 * MILLISECONDS_PER_DAY;
+    const fullWeeks = Math.floor(elapsed / week);
+    let age = fullWeeks * 5 * MILLISECONDS_PER_DAY;
+    let cursor = coverageEnd + fullWeeks * week;
+    // At most seven partial days remain, even for very old fixtures.
+    while (cursor < now.getTime()) {
+      const date = new Date(cursor);
+      const nextDay = Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate() + 1,
+      );
+      const end = Math.min(nextDay, now.getTime());
+      if (date.getUTCDay() !== 0 && date.getUTCDay() !== 6) {
+        age += end - cursor;
+      }
+      cursor = end;
+    }
+    return age;
   }
 
   private sampleBarsFromSeed(): SanityBarInput[] {

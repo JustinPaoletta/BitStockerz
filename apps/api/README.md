@@ -99,6 +99,10 @@ Manual job/ingestion POSTs require a bearer session and are allowed only in
 development/test; production returns 403. Profile/recovery uses explicit
 authenticated provider linking, never email-only account ownership.
 
+Seed-mode daily equity prices and health ignore UTC weekends when measuring age after the represented day ends.
+Crypto and every database-backed series retain elapsed-time freshness checks.
+The configured thresholds still apply. This synthetic-data rule is not an exchange holiday calendar.
+
 ## Licensed import
 
 The JSON format and limits are described in [product extensions](../../docs/product/PRODUCT_EXTENSIONS.md#market-data-and-account-controls).

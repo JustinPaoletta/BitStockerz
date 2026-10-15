@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### CI calendar regression
+
+- Keep completed synthetic equity prices usable across UTC weekends in seed mode.
+- Share the freshness calculation between price reads and health; retain strict elapsed-time checks for crypto and database-backed data.
+- Add fixed Friday/Monday, expiry, and configured-limit regressions without lowering coverage requirements.
+
 ### Capacitor iOS prototype (draft PR #17)
 
 - Bundle the Angular research interface in Capacitor with a native AuthenticationServices passkey bridge.
