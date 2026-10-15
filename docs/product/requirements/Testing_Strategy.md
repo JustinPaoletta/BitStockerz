@@ -172,7 +172,7 @@ Local evidence recorded October 10, 2026:
 - Simulator email registration and authenticated research screens were inspected against the isolated API.
 
 Chromium tests do not exercise AuthenticationServices, Apple's association lookup, or the native share sheet.
-CI does not compile the Xcode project or run `ios:test:config`; those checks are local.
+CI runs the configuration-generator tests behind `ios:test:config`. Native Xcode compilation remains a local check.
 Signed installation, native passkeys, exports, and physical-device accessibility remain in the [iPhone checklist](../../../IOS_PROTOTYPE.md#iphone-acceptance-checklist).
 These results do not establish production deployment or real-provider acceptance.
 
