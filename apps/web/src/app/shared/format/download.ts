@@ -1,8 +1,15 @@
-export function downloadText(
+import { Capacitor } from '@capacitor/core';
+import { nativeBridge } from '../../core/native/bridge';
+
+export async function downloadText(
   filename: string,
   contents: string,
   type = 'text/csv;charset=utf-8',
-): void {
+): Promise<void> {
+  if (Capacitor.getPlatform() === 'ios') {
+    await nativeBridge.shareText({ filename, contents });
+    return;
+  }
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const link = document.createElement('a');
   link.href = url;

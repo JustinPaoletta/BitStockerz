@@ -1,7 +1,7 @@
 # BitStockerz – MVP Feature List
 
 This list preserves the original MVP scope.
-The [roadmap](ROADMAP.md) records delivery; [product extensions](PRODUCT_EXTENSIONS.md) describe subsequent local additions.
+The [roadmap](ROADMAP.md) records delivery; [product extensions](PRODUCT_EXTENSIONS.md) describe additions merged in PR #15.
 MVP code is merged, but hosting, licensed data, and production/provider tests remain launch requirements.
 See the [remaining checklist](../../PRODUCT_TASKLIST.md).
 
@@ -10,7 +10,7 @@ See the [remaining checklist](../../PRODUCT_TASKLIST.md).
 - Passkeys (WebAuthn) / OAuth login
 - Profile/display-name settings and recovery through an already linked provider
 - Single paper trading account
-- Operator-configurable starting balance. Local extensions add confirmed reset with archives; arbitrary user balance editing remains unsupported.
+- Operator-configurable starting balance. Product extensions add confirmed reset with archives; arbitrary user balance editing remains unsupported.
 
 ---
 

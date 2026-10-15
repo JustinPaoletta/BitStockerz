@@ -132,6 +132,18 @@ function createLatestClosePrismaMock(input: {
 }
 
 describe('MarketDataService', () => {
+  it('still rejects a database-backed Friday close after the elapsed-time limit on Monday', async () => {
+    const service = createService(
+      createLatestClosePrismaMock({
+        assetType: 'EQUITY',
+        equity: { date: new Date('2026-10-09T00:00:00Z'), close: 101 },
+      }),
+    );
+    await expect(
+      service.getLatestClose('NVDA', new Date('2026-10-12T04:17:00Z')),
+    ).rejects.toMatchObject({ code: ErrorCode.TRADING_NO_MARKET_PRICE });
+  });
+
   it('returns current seed closes and de-duplicates batch symbol ids', async () => {
     const service = createService();
     const now = new Date();

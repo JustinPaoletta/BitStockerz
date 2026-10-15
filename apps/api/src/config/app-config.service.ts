@@ -59,12 +59,16 @@ const DEFAULT_CIRCUIT_COOLDOWN_MS = 60_000;
 const AI_PROVIDERS = new Set<AiProviderName>(['stub', 'openai']);
 
 export interface ServerConfig {
+  host: string;
   port: number;
   nodeEnv: NodeEnvironment;
   corsAllowedOrigins: string[];
   trustedProxyCidrs: string[];
   errorTestEnabled: boolean;
   openApiEnabled: boolean;
+  privateBetaEnabled: boolean;
+  privateBetaProxyKey?: string;
+  privateBetaMonitorKey?: string;
 }
 
 export interface LoggingConfig {
@@ -390,6 +394,11 @@ function parseCsvUrls(
     .map((value) => {
       try {
         const parsed = new URL(value);
+        if (
+          envName === 'CORS_ALLOWED_ORIGINS' &&
+          value === 'capacitor://localhost'
+        )
+          return value;
         if (!['http:', 'https:'].includes(parsed.protocol)) {
           errors.push(`${envName} values must use http or https`);
           return undefined;
@@ -407,6 +416,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   const errors: string[] = [];
 
   const nodeEnv = parseNodeEnvironment(env.NODE_ENV, errors);
+  const host = normalizeOptional(env.HOST) ?? '0.0.0.0';
+  if (!isIP(host)) errors.push('HOST must be an IP address');
   const port = parseInteger('PORT', env.PORT, DEFAULT_PORT, 1, 65535, errors);
   const corsAllowedOrigins = parseCsvUrls(
     'CORS_ALLOWED_ORIGINS',
@@ -518,6 +529,24 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     nodeEnv !== 'production',
     errors,
   );
+  const privateBetaEnabled = parseBoolean(
+    'PRIVATE_BETA_ENABLED',
+    env.PRIVATE_BETA_ENABLED,
+    false,
+    errors,
+  );
+  const privateBetaProxyKey = normalizeOptional(env.PRIVATE_BETA_PROXY_KEY);
+  const privateBetaMonitorKey = normalizeOptional(env.PRIVATE_BETA_MONITOR_KEY);
+  if (privateBetaMonitorKey && !/^[a-f0-9]{64}$/.test(privateBetaMonitorKey)) {
+    errors.push(
+      'PRIVATE_BETA_MONITOR_KEY must be a 32-byte hexadecimal secret',
+    );
+  }
+  if (privateBetaEnabled && !/^[a-f0-9]{64}$/.test(privateBetaProxyKey ?? '')) {
+    errors.push(
+      'PRIVATE_BETA_PROXY_KEY must be a 32-byte hexadecimal secret when private beta is enabled',
+    );
+  }
   const webauthnRpId =
     normalizeOptional(env.WEBAUTHN_RP_ID) ?? DEFAULT_WEBAUTHN_RP_ID;
   const webauthnRpName =
@@ -915,6 +944,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   return {
     server: {
+      host,
       port,
       nodeEnv,
       corsAllowedOrigins:
@@ -926,6 +956,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       trustedProxyCidrs,
       errorTestEnabled,
       openApiEnabled,
+      privateBetaEnabled,
+      privateBetaProxyKey,
+      privateBetaMonitorKey,
     },
     logging: {
       level: logLevel,

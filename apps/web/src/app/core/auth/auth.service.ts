@@ -1,7 +1,8 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { computed, inject, Injectable, InjectionToken, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import { registerPasskey, authenticatePasskey } from './passkeys';
+import { environment } from '../../../environments/environment';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
@@ -53,6 +54,7 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this.tokens.hasToken());
 
   getProviders(): Promise<AuthProviders> {
+    if (environment.nativeMode !== 'web') return Promise.resolve({ google: false, apple: false });
     return firstValueFrom(this.http.get<AuthProviders>('/api/auth/providers'));
   }
 
@@ -237,9 +239,9 @@ export class AuthService {
         email,
       }),
     );
-    const attestation = await startRegistration({
-      optionsJSON: options.options as unknown as PublicKeyCredentialCreationOptionsJSON,
-    });
+    const attestation = await registerPasskey(
+      options.options as unknown as PublicKeyCredentialCreationOptionsJSON,
+    );
     const response = await firstValueFrom(
       this.http.post<AuthResponse>('/api/auth/webauthn/register/verify', {
         email,
@@ -255,9 +257,9 @@ export class AuthService {
     const options = await firstValueFrom(
       this.http.post<WebAuthnLoginOptionsResponse>('/api/auth/webauthn/login/options', { email }),
     );
-    const assertion = await startAuthentication({
-      optionsJSON: options.options as unknown as PublicKeyCredentialRequestOptionsJSON,
-    });
+    const assertion = await authenticatePasskey(
+      options.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+    );
     const response = await firstValueFrom(
       this.http.post<AuthResponse>('/api/auth/webauthn/login/verify', {
         email,
@@ -324,7 +326,10 @@ export class AuthService {
   }
 }
 
-export function safeReturnUrl(value: string | null, fallback = '/dashboard'): string {
+export function safeReturnUrl(
+  value: string | null,
+  fallback = environment.nativeMode === 'web' ? '/dashboard' : '/research',
+): string {
   if (!value?.startsWith('/')) return fallback;
   try {
     const decoded = decodeURIComponent(value);

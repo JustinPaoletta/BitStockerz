@@ -13,6 +13,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  setup-status:
+    name: Production setup status
+    if: github.ref == 'refs/heads/main' && vars.PRODUCTION_DEPLOY_ENABLED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record deferred deployment
+        run: |
+          echo "Production deployment deferred: set PRODUCTION_DEPLOY_ENABLED=true after completing docs/ops/deployment.md."
+          echo "### Production deployment deferred" >> "$GITHUB_STEP_SUMMARY"
+          echo "Hosting and credentials require owner setup. This run is not deployment evidence." >> "$GITHUB_STEP_SUMMARY"
+
   ci-gate:
     name: Reuse CI
     if: github.ref == 'refs/heads/main'
@@ -21,6 +32,8 @@ jobs:
   deploy-api:
     name: Deploy API (Fly.io)
     needs: ci-gate
+    if: github.ref == 'refs/heads/main' && vars.PRODUCTION_DEPLOY_ENABLED == 'true'
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -30,32 +43,70 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.21.0'
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
+      - name: Check release configuration before migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_CA_CERT_BASE64: ${{ secrets.DATABASE_CA_CERT_BASE64 }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node ../../scripts/ops/check-deploy-config.mjs --verify-protection
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+        with:
+          version: "0.4.112"
       - name: Migrate database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_CA_CERT_BASE64: ${{ secrets.DATABASE_CA_CERT_BASE64 }}
         run: |
+          set -euo pipefail
+          if [ -n "$DATABASE_CA_CERT_BASE64" ]; then
+            export DATABASE_CA_CERT_PATH="$RUNNER_TEMP/bitstockerz-database-ca.pem"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const tls = require('node:tls');
+          const { X509Certificate } = require('node:crypto');
+          const ca = Buffer.from(process.env.DATABASE_CA_CERT_BASE64, 'base64');
+          if (!ca.toString('utf8').includes('-----BEGIN CERTIFICATE-----')) {
+            throw new Error('DATABASE_CA_CERT_BASE64 must contain a PEM certificate');
+          }
+          tls.createSecureContext({ ca });
+          new X509Certificate(ca);
+          fs.writeFileSync(process.env.DATABASE_CA_CERT_PATH, ca, { mode: 0o600 });
+          NODE
+            trap 'rm -f "$DATABASE_CA_CERT_PATH"' EXIT
+          fi
           npm ci
           npx prisma migrate deploy
           npx prisma migrate status
       - name: Deploy API
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --config fly.toml
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+        run: flyctl deploy --remote-only --config fly.toml --app "$FLY_APP_NAME" --ha=false --strategy immediate
       - name: Smoke live/ready
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
           set -euo pipefail
-          curl -fsS "$API_BASE_URL/api/health/live" | grep -q '"status":"ok"'
-          curl -fsS "$API_BASE_URL/api/health/ready" | grep -q '"ready":true'
+          for attempt in {1..12}; do
+            if node ../../scripts/ops/check-health.mjs --deployment; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 12 ]; then sleep 5; fi
+          done
+          exit 1
 
   deploy-web:
     name: Deploy Web (Vercel)
     needs: deploy-api
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -65,19 +116,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24.21.0'
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - name: Inject API base URL
-        env:
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const url = (process.env.API_BASE_URL || '').replace(/\/$/, '');
-          const body = `export const environment = {\n  production: true,\n  apiBaseUrl: ${JSON.stringify(url)},\n};\n`;
-          fs.writeFileSync('src/environments/environment.prod.ts', body);
-          NODE
+      # Browser calls stay on the protected Vercel origin. API_UPSTREAM_ORIGIN
+      # and PRIVATE_BETA_PROXY_KEY are server-only Vercel production variables.
       - run: npm ci
       - run: npm run build -- --configuration production
       - uses: amondnet/vercel-action@16e87c0a08142b0d0d33b76aeaf20823c381b9b9 # v25
@@ -86,5 +129,6 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: apps/web
-          vercel-args: '--prod'
+          vercel-version: "63.1.0"
+          vercel-args: "--prod"
           github-comment: false

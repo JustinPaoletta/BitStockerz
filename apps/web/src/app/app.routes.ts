@@ -1,6 +1,10 @@
 import { Routes } from '@angular/router';
+import { environment } from '../environments/environment';
+
 import { authGuard } from './core/auth/auth.guard';
 import { strategyEditorCanDeactivate } from './features/strategies/pages/strategy-editor.page';
+
+const landingPage = environment.nativeMode === 'web' ? 'dashboard' : 'research';
 
 export const routes: Routes = [
   {
@@ -22,6 +26,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       {
+        path: 'research',
+        loadComponent: () =>
+          import('./features/research/research.page').then((m) => m.ResearchPage),
+      },
+      {
         path: 'automations',
         loadComponent: () =>
           import('./features/automation/automation.page').then((module) => module.AutomationPage),
@@ -41,7 +50,7 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/profile/security.page').then((module) => module.SecurityPage),
       },
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      { path: '', pathMatch: 'full', redirectTo: landingPage },
       {
         path: 'profile',
         loadComponent: () =>
@@ -129,5 +138,5 @@ export const routes: Routes = [
       },
     ],
   },
-  { path: '**', redirectTo: 'dashboard' },
+  { path: '**', redirectTo: landingPage },
 ];

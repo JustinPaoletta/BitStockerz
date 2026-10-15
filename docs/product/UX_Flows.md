@@ -1,7 +1,10 @@
 # BitStockerz — User flows
 
 These flows describe the current Angular application.
-October 4 additions are local changes; hosted and live-provider checks remain outstanding.
+The October 4 additions merged in PR #15; hosted and live-provider acceptance remains outstanding.
+The iOS prototype in draft PR #17 starts at Research and uses native passkeys.
+See the [iOS guide](../../IOS_PROTOTYPE.md) for its setup and device checks.
+Google/Apple login and provider linking below apply to the browser application.
 See [product contracts](PRODUCT_EXTENSIONS.md) for execution and recovery limits.
 
 ## 1. Strategy research
@@ -96,6 +99,7 @@ Expired sessions redirect protected routes to `/login`.
 Business order rejections retain their reason and cannot alter the ledger.
 Error screens provide a request ID when the API supplies one.
 
-The client stores bearer sessions in `sessionStorage` and validates them through `/auth/me`.
+The browser stores bearer sessions in `sessionStorage` and validates them through `/auth/me`.
+The native prototype keeps bearer tokens in memory; restarting the app requires sign-in.
 Development uses a relative `/api` proxy.
 Email shortcuts appear only in non-production builds with development API access enabled.

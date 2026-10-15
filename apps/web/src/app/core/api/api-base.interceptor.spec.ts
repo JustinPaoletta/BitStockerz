@@ -44,6 +44,17 @@ describe('apiBaseInterceptor', () => {
     await pending;
   });
 
+  it('rewrites API calls from the opaque Capacitor origin', async () => {
+    vi.stubGlobal('window', { location: new URL('capacitor://localhost/login') });
+    try {
+      const pending = firstValueFrom(TestBed.inject(HttpClient).get('/api/me'));
+      TestBed.inject(HttpTestingController).expectOne('https://api.example.test/api/me').flush({});
+      await pending;
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps same-origin API calls when no API base is configured', async () => {
     environment.apiBaseUrl = '';
     const pending = firstValueFrom(TestBed.inject(HttpClient).get('/api/me'));

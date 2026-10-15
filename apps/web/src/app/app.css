@@ -122,3 +122,20 @@ nav a.active {
   color: var(--accent);
   box-shadow: inset 0 -2px var(--accent);
 }
+
+.site-header {
+  padding-top: max(0.8rem, env(safe-area-inset-top));
+}
+main {
+  padding-left: max(5vw, env(safe-area-inset-left));
+  padding-right: max(5vw, env(safe-area-inset-right));
+}
+footer {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.prototype-notice {
+  border-left: 3px solid var(--accent);
+  padding: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+}

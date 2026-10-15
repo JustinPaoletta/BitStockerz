@@ -1,8 +1,9 @@
 # Fly.io Option A host for the Nest API + in-process scheduler.
-# Provision externally, then: fly apps create / fly postgres or managed MySQL
-# secrets set / fly deploy from apps/api.
-app = "bitstockerz-api"
-primary_region = "iad"
+# Provision the app and managed MySQL externally; PostgreSQL is not supported.
+# Deploy workflow selects the app through repository variable FLY_APP_NAME.
+# Keep exactly one machine; deployment uses --ha=false --strategy immediate.
+app = "bitstockerz-api-jp"
+primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile"
@@ -18,6 +19,13 @@ primary_region = "iad"
   OPENAPI_ENABLED = "false"
   CACHE_ENABLED = "true"
   MARKET_DATA_LIVE_ENABLED = "false"
+  NODE_EXTRA_CA_CERTS = "/app/database-ca.pem"
+  PRIVATE_BETA_ENABLED = "true"
+
+# Aiven's project CA is supplied separately from the image and repository.
+[[files]]
+  guest_path = "/app/database-ca.pem"
+  secret_name = "DATABASE_CA_CERT_BASE64"
 
 [http_service]
   internal_port = 4000

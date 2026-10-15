@@ -1,27 +1,48 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 5, 2026.
+Created October 3, 2026. Updated October 14, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
-Delivered local features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
+Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
 Use the [deployment runbook](docs/ops/deployment.md) for setup procedures.
 Local test evidence is recorded in the [testing strategy](docs/product/requirements/Testing_Strategy.md#verification-evidence).
 No live-provider success or production deployment is recorded.
 
+The first launch is a private personal research beta. The hosting budget is $10/month maximum, with free services preferred.
+The October 9 inspection recorded Fly's empty app, Aiven Free MySQL, and the Vercel Hobby project.
+Production credentials were stored, and deployment was disabled. Cloud state was not inspected again during the October 11 documentation cleanup.
+See [current setup and approvals](docs/ops/deployment.md#current-setup-and-next-approvals) for evidence and the remaining decisions.
+
 ## Release evidence still required
 
-- [ ] Run the new migrations and all five MySQL persistence/restart harnesses against a disposable database.
-- [ ] Obtain passing CI on the final revision, including secret scanning and the production-image build.
+All 19 migrations, five MySQL persistence/restart gates, and the production-image build passed
+[PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
+and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
+Historical strategy explanations now use pinned versions, with an edit/deletion regression.
+Deployment configuration checks and recovery procedures are prepared in the runbook.
+
+As of October 12, combined draft PR #17 targets `main` and includes all commits from the closed PR #16.
+[PR #17 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed at `33123e3`.
+Release approval and CI on the eventual release revision remain required below.
+
+The [October 12 CI run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests at `cc64343`.
+The October 14 fix excludes UTC weekends only from synthetic equity freshness.
+Monday-clock API coverage and all eight browser tests passed locally; coverage requirements are unchanged.
+See the [combined PR evidence](docs/product/requirements/Testing_Strategy.md#combined-pr-evidence) and the current PR checks before merging.
+
+- [ ] Obtain passing checks on the combined PR, complete review, and merge it into `main`.
 
 ## 1. Remaining roadmap work — Required for launch
 
 ### Production hosting and configuration — Sprint 7.2
 
-- [ ] Provision the always-on Fly.io API application.
-- [ ] Provision managed MySQL near the API, with foreign keys, serializable transactions, and Prisma migration support.
-- [ ] Create the Vercel Angular project and configure its build/output paths and SPA rewrites.
+- [ ] Approve the actual Fly operating cost and activate one API machine after the remaining release checks.
+- [ ] Pass the protected Linux migration-engine check against Aiven, then apply the 19 migrations during deployment.
+      The API client connects with verified TLS. The macOS migration engine rejects the CA; Linux verification remains pending.
+- [ ] Confirm an anonymous visitor cannot access the Vercel website or API through any deployment alias.
+      All-deployment Vercel protection, the server proxy, and the Fly access guard are configured; live checks remain pending.
 - [ ] Establish the production HTTPS URLs used by the website, API, passkeys, and OAuth callbacks.
-- [ ] Configure the GitHub `production` environment with `DATABASE_URL`, `FLY_API_TOKEN`, `API_BASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` using secret storage.
+- [ ] Set `PRODUCTION_API_BASE_URL` after licensed data is ready; enable `PRODUCTION_DEPLOY_ENABLED` only after setup and approval.
 - [ ] Configure API host settings for the database, exact CORS origins, WebAuthn relying-party ID/allowed origins, and scheduled-job system user.
 - [ ] Determine the actual trusted ingress proxy CIDRs and configure `TRUSTED_PROXY_CIDRS` accordingly.
 - [ ] Disable development email auth, legacy WebAuthn bypasses, forced-error routes, and public OpenAPI in production using the runbook defaults.
@@ -41,13 +62,30 @@ and live data remain disabled by default.
 - [ ] Verify charts, backtests, and paper trades use the imported real prices.
 - [ ] Verify production never substitutes synthetic seed data when real data is unavailable.
 
-### Google/Apple configuration and production verification — Sprints 8.1–8.2
+### First deployment, production smoke, and release
+
+- [ ] Obtain passing CI on the release revision, including secret scanning, MySQL gates, and the production-image build.
+- [ ] Apply and verify production migrations, deploy the API, and restart it once to verify database-backed auth hydration.
+- [ ] Build/deploy the Angular site with the verified production API URL and complete the deployment workflow successfully.
+- [ ] Verify `/api/health/live` and `/api/health/ready` report healthy/ready with the database connected.
+- [ ] Verify passkey registration/login on the deployed HTTPS domain and a complete strategy → backtest → results workflow.
+- [ ] Verify symbol search, real-data charts, paper orders, positions, portfolio P&L, and history in production.
+- [ ] Verify SPA deep-link refresh and browser API calls/CORS preflight against the production origin.
+- [ ] Verify auth rate limits distinguish real client IPs and spoofed forwarded hops cannot choose an arbitrary rate-limit identity.
+- [ ] Verify production manual jobs/ingestion endpoints return 403 and public outage responses omit credentials, hostnames, and driver errors.
+- [ ] Verify website framing, MIME-sniffing, and referrer security headers.
+- [ ] Complete the version, changelog, tag, and release-note steps in `RELEASE.md` for the first production release.
+- [ ] Update roadmap/readiness documentation with the actual deployment and provider verification results.
+
+## 2. Remaining roadmap extensions — Optional for the initial launch
+
+### Optional Google/Apple login — Sprints 8.1–8.2
 
 Browser login, profile editing, and linked-provider recovery are implemented.
-The tasks below cover their outstanding provider setup and live verification.
+The first personal beta can use passkeys alone. Complete these tasks for each provider selected for launch.
 
-- [ ] Configure the Google web OAuth client, consent/branding settings, API callback URL, and host credentials.
-- [ ] Configure Apple Sign in with Apple, Services ID/domain, API form-POST callback URL, and host signing credentials.
+- [ ] If offering Google login, configure its web OAuth client, consent/branding settings, API callback URL, and host credentials.
+- [ ] If offering Apple login, configure Sign in with Apple, Services ID/domain, API form-POST callback URL, and signing credentials.
 - [ ] Configure `AUTH_OAUTH_BROWSER_CALLBACK_URL` to the exact production SPA callback and verify direct navigation/refresh works.
 - [ ] If migrating an existing database, run the duplicate-provider identity preflight and resolve conflicts before applying the uniqueness migration.
 - [ ] Verify `/api/auth/providers` exposes only fully configured providers.
@@ -63,31 +101,12 @@ The tasks below cover their outstanding provider setup and live verification.
       Make sure callback URLs and logs contain no bearer tokens or identity payloads.
 - [ ] Record live smoke results separately for Google and Apple.
 
-### First deployment, production smoke, and release
-
-- [ ] Run the applicable release gates and obtain passing CI on the release revision.
-- [ ] Apply and verify production migrations, deploy the API, and restart it once to verify database-backed auth hydration.
-- [ ] Build/deploy the Angular site with the verified production API URL and complete the deployment workflow successfully.
-- [ ] Verify `/api/health/live` and `/api/health/ready` report healthy/ready with the database connected.
-- [ ] Verify passkey registration/login on the deployed HTTPS domain and a complete strategy → backtest → results workflow.
-- [ ] Verify symbol search, real-data charts, paper orders, positions, portfolio P&L, and history in production.
-- [ ] Verify SPA deep-link refresh and browser API calls/CORS preflight against the production origin.
-- [ ] Verify auth rate limits distinguish real client IPs and spoofed forwarded hops cannot choose an arbitrary rate-limit identity.
-- [ ] Verify production manual jobs/ingestion endpoints return 403 and public outage responses omit credentials, hostnames, and driver errors.
-- [ ] Verify website framing, MIME-sniffing, and referrer security headers.
-- [ ] Complete the version, changelog, tag, and release-note steps in `RELEASE.md` for the first production release.
-- [ ] Update roadmap/readiness documentation with the actual deployment and provider verification results.
-
-## 2. Remaining roadmap extensions — Optional for the initial launch
-
 ### Automated vendor ingestion
 
 - [ ] Configure vendor credentials and verify incremental ingestion, provider guardrails, and degraded health using real data.
 - [ ] Enable scheduled ingestion only after the adapter works, and verify exactly one scheduled job/audit event runs per interval.
 
 ### Kernel correctness and optional live rollout
-
-- [ ] Make backtest explanations use the pinned strategy version; add a regression for later strategy edits.
 
 - [ ] Configure the OpenAI provider and key in host secret storage when enabling live Kernel AI.
 - [ ] Verify live strategy explanations, logic warnings, backtest explanations, failure modes, and improvement suggestions.
@@ -101,7 +120,7 @@ The tasks below cover their outstanding provider setup and live verification.
 
 ## 3. Forward paper execution
 
-Local paper-runner code is implemented. Persistent and production acceptance remain pending.
+Paper-runner code and MySQL restart/idempotency gates passed CI. Production acceptance remains pending.
 
 ### Run saved strategies in paper trading — High priority if automation is central
 
@@ -109,16 +128,28 @@ Paper runners now pin saved versions and use completed bars, account risk limits
 durable order intent and close-based risk exits. Scheduling requires database
 persistence and functioning ingestion. See the limitations in the extension contract.
 
-- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions.
+- [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions in production.
 
 ## 4. Public-release readiness
 
 Existing logs, health checks, and rollback documentation provide a foundation;
 these tasks establish usable production operations and user support.
 
-- [ ] Configure automated database backups and document their retention and restore procedure.
+- [ ] Select independent backup storage, private-key custody, an export schedule and retention before storing valuable beta data.
+      Aiven Free has a single disaster-recovery backup and no database forks.
+      Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
 - [ ] Perform a backup restoration drill and verify recovered users, auth methods, strategies, backtests, and paper-account balances.
 - [ ] Exercise the API/web rollback procedure against a real deployment and verify database compatibility.
-- [ ] Configure actionable operational alerts for service failures, database outages, stale/failed ingestion, and enabled AI-provider failures or usage limits.
+- [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
+      Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
 - [ ] Configure a public support channel accessible to customers and publish contact details.
 - [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.
+
+## iOS research prototype — October 10, 2026
+
+This is a prototype track, separate from the production launch gates above.
+See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for commands, limitations, and device acceptance.
+
+- [ ] Select a stable HTTPS passkey domain and a dedicated reachable prototype API.
+- [ ] Publish and check the Apple association file, then sign and install on the iPhone.
+- [ ] Complete physical-device Face ID, cancellation, session, chart, backtest, and export checks.

@@ -58,7 +58,11 @@ Track later (domain sprints):
 
 - Liveness: `GET /api/health/live` returns `{ status: "ok" }`
 - Readiness: `GET /api/health/ready` returns `ready`, `status`, `timestamp`, and `checks.database` / `checks.marketData` as objects `{ status, latencyMs?, details? }` where `status` is `up` | `down` | `not_configured`. Returns HTTP 503 when `ready` is `false`.
-- Domain market-data health: `GET /api/market-data/health` (freshness + sanity; separate from process readiness). Seed OHLCV fixtures roll to today (UTC) at process load so seed-mode demos typically report `ok`; MySQL needs re-ingestion after seed dates change.
+- Domain market-data health: `GET /api/market-data/health` (freshness + sanity; separate from process readiness). Seed OHLCV fixtures end at the last completed UTC day or hour when the process loads.
+  Synthetic daily equity freshness excludes UTC weekends; crypto and all database-backed series use elapsed time.
+  Seed `age_ms` follows that weekday clock for equities. This demo rule does not model exchange holidays.
+  Long-running seed sessions can still become stale; restart the local API to regenerate fixtures.
+  Database data needs fresh ingestion and operator thresholds suitable for market closures.
 
 ## 4. Audit trail
 

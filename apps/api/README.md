@@ -4,10 +4,12 @@ NestJS API for BitStockerz (`apps/api`). Global prefix: `/api`. Default port: **
 
 Use Node.js **24.21.0** from the root `.nvmrc`.
 Browser OAuth/profile recovery merged in PR #13.
-[October 4 extensions](../../docs/product/PRODUCT_EXTENSIONS.md) are local additions.
-Hosting, final MySQL evidence, and real-provider production tests remain outstanding. See [deployment.md](../../docs/ops/deployment.md).
+[Product extensions](../../docs/product/PRODUCT_EXTENSIONS.md) merged in PR #15.
+All five MySQL gates passed hosted CI. Hosting and real-provider production tests remain outstanding. See [deployment.md](../../docs/ops/deployment.md).
 
 ## Quick start
+
+Run these commands from `apps/api`:
 
 ```bash
 npm ci
@@ -36,14 +38,18 @@ MySQL setup: [docs/database/Local_MySQL.md](../../docs/database/Local_MySQL.md)
 
 ## Configuration
 
-Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on startup via `src/load-env.ts`.
+Copy `.env.example` to `.env`. Do not commit `.env`.
+The server loads it through `src/load-env.ts` unless `BITSTOCKERZ_SKIP_ENV_FILE=true`.
+For the isolated native API, use the root commands in the [iOS guide](../../IOS_PROTOTYPE.md).
 
 | Variable                                                                  | Notes                                                                                                                                                                                         |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NODE_ENV`                                                                | `development`, `test`, or `production` (default `development`).                                                                                                                               |
 | `DATABASE_URL`                                                            | MySQL/MariaDB URL. Omit only for local/test seed mode; production requires active persistence.                                                                                                |
 | `PORT`                                                                    | Listen port (default `4000`).                                                                                                                                                                 |
-| `CORS_ALLOWED_ORIGINS`                                                    | Exact browser origins; defaults to `http://localhost:4200` outside production. Required in production.                                                                                        |
+| `HOST`                                                                    | Listen IP address; default `0.0.0.0`. The isolated iOS API uses `127.0.0.1`.                                                                                                                  |
+| `BITSTOCKERZ_SKIP_ENV_FILE`                                               | Exact value `true` skips `.env` loading; used by the isolated iOS API.                                                                                                                        |
+| `CORS_ALLOWED_ORIGINS`                                                    | Exact origins; defaults to `http://localhost:4200` outside production. Required in production. Native CORS also accepts exactly `capacitor://localhost`.                                      |
 | `TRUSTED_PROXY_CIDRS`                                                     | Actual ingress IP/CIDR allowlist; empty trusts no proxy. Never trust all addresses.                                                                                                           |
 | `READINESS_TIMEOUT_MS`                                                    | Per-dependency readiness timeout (default `1500`, range `100`–`30000`).                                                                                                                       |
 | `LOG_LEVEL`                                                               | Pino level (default `info`).                                                                                                                                                                  |
@@ -66,30 +72,36 @@ Copy `.env.example` to `.env` (never commit `.env`). The server loads `.env` on 
 | `AUTH_OAUTH_BROWSER_CALLBACK_URL`                                         | Fixed SPA callback; set to its exact HTTPS URL for production browser login/linking.                                                                                                          |
 | `BACKTEST_TIMEOUT_MS` / `BACKTEST_MAX_BARS` / `BACKTEST_MAX_SERIES_CELLS` | Engine execution and allocation limits (defaults `5000` / `10000` / `250000`).                                                                                                                |
 | `BACKTEST_RATE_LIMIT_WINDOW_MS` / `BACKTEST_RATE_LIMIT_MAX_REQUESTS`      | Per-user backtest-create rate limit (defaults `60000` / `10`).                                                                                                                                |
-
-| `PAPER_STARTING_BALANCE` | Initial/reset USD balance; default `100000.00`. |
-| `TRADING_MAX_ORDER_NOTIONAL` | Maximum unrounded order notional; default `25000`. |
-| `TRADING_MAX_POSITION_PCT` | Maximum resulting single-symbol percentage of pre-trade equity for buys; default `25`. |
-| `TRADING_MIN_CASH_REMAINING` | Minimum cash after a buy using rounded notional; default `0`. |
-| `CACHE_ENABLED` | Process-local cache; default `true`. |
-| `CACHE_CANDLES_TTL_MS` / `CACHE_SYMBOLS_TTL_MS` | Default `60000` each; range `1000`–`3600000` milliseconds. |
-| `CACHE_MAX_ENTRIES` | Default `500`; range `10`–`100000`. |
-| `MARKET_DATA_LIVE_ENABLED` | Enable vendor ingestion; default `false`. |
-| `MARKET_DATA_CIRCUIT_FAILURES` / `MARKET_DATA_CIRCUIT_COOLDOWN_MS` | Default `3` failures / `60000` milliseconds. |
-| `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | Host credentials for the implemented historical adapter. |
-| `ALPACA_EQUITY_FEED` | `sip` selects SIP; other values select `iex`. Confirm entitlement and data rights. |
-| `AI_ENABLED` | Default `false`. |
-| `AI_PROVIDER` | `stub` or `openai`. Tests default to `stub`; other environments default to `openai`. The example file explicitly selects `stub`. |
-| `AI_MODEL` / `OPENAI_API_KEY` | Both required when live AI is enabled. The disabled/stub model default is `gpt-4.1-mini`. |
-| `AI_DAILY_CALL_LIMIT` | Default `20`; range `1`–`1000` per user per UTC day. |
-| `AI_TIMEOUT_MS` / `AI_MAX_RETRIES` | Default `15000` milliseconds / `1`; ranges `1000`–`60000` / `0`–`3`. |
-| `AI_MAX_OUTPUT_TOKENS` / `AI_MAX_CONTEXT_CHARS` | Default `1200` / `12000`; ranges `1`–`4000` / `1000`–`50000`. |
-| `AI_LOG_CONTENT` | Default `false`; must remain false in production. |
-| `AI_DIFF_SUGGESTIONS_ENABLED` | Parameter previews; default `false`. |
+| `PRIVATE_BETA_ENABLED`                                                    | Default `false`; requires the server proxy key on protected API requests when enabled.                                                                                                        |
+| `PRIVATE_BETA_PROXY_KEY`                                                  | Server-only 32-byte hexadecimal secret, required when private beta is enabled. Never include it in client assets.                                                                             |
+| `PRIVATE_BETA_MONITOR_KEY`                                                | Optional separate 32-byte hexadecimal secret limited to GET `/api/market-data/health`.                                                                                                        |
+| `PAPER_STARTING_BALANCE`                                                  | Initial/reset USD balance; default `100000.00`.                                                                                                                                               |
+| `TRADING_MAX_ORDER_NOTIONAL`                                              | Maximum unrounded order notional; default `25000`.                                                                                                                                            |
+| `TRADING_MAX_POSITION_PCT`                                                | Maximum resulting single-symbol percentage of pre-trade equity for buys; default `25`.                                                                                                        |
+| `TRADING_MIN_CASH_REMAINING`                                              | Minimum cash after a buy using rounded notional; default `0`.                                                                                                                                 |
+| `CACHE_ENABLED`                                                           | Process-local cache; default `true`.                                                                                                                                                          |
+| `CACHE_CANDLES_TTL_MS` / `CACHE_SYMBOLS_TTL_MS`                           | Default `60000` each; range `1000`–`3600000` milliseconds.                                                                                                                                    |
+| `CACHE_MAX_ENTRIES`                                                       | Default `500`; range `10`–`100000`.                                                                                                                                                           |
+| `MARKET_DATA_LIVE_ENABLED`                                                | Enable vendor ingestion; default `false`.                                                                                                                                                     |
+| `MARKET_DATA_CIRCUIT_FAILURES` / `MARKET_DATA_CIRCUIT_COOLDOWN_MS`        | Default `3` failures / `60000` milliseconds.                                                                                                                                                  |
+| `ALPACA_API_KEY` / `ALPACA_SECRET_KEY`                                    | Host credentials for the implemented historical adapter.                                                                                                                                      |
+| `ALPACA_EQUITY_FEED`                                                      | `sip` selects SIP; other values select `iex`. Confirm entitlement and data rights.                                                                                                            |
+| `AI_ENABLED`                                                              | Default `false`.                                                                                                                                                                              |
+| `AI_PROVIDER`                                                             | `stub` or `openai`. Tests default to `stub`; other environments default to `openai`. The example file explicitly selects `stub`.                                                              |
+| `AI_MODEL` / `OPENAI_API_KEY`                                             | Both required when live AI is enabled. The disabled/stub model default is `gpt-4.1-mini`.                                                                                                     |
+| `AI_DAILY_CALL_LIMIT`                                                     | Default `20`; range `1`–`1000` per user per UTC day.                                                                                                                                          |
+| `AI_TIMEOUT_MS` / `AI_MAX_RETRIES`                                        | Default `15000` milliseconds / `1`; ranges `1000`–`60000` / `0`–`3`.                                                                                                                          |
+| `AI_MAX_OUTPUT_TOKENS` / `AI_MAX_CONTEXT_CHARS`                           | Default `1200` / `12000`; ranges `1`–`4000` / `1000`–`50000`.                                                                                                                                 |
+| `AI_LOG_CONTENT`                                                          | Default `false`; must remain false in production.                                                                                                                                             |
+| `AI_DIFF_SUGGESTIONS_ENABLED`                                             | Parameter previews; default `false`.                                                                                                                                                          |
 
 Manual job/ingestion POSTs require a bearer session and are allowed only in
 development/test; production returns 403. Profile/recovery uses explicit
 authenticated provider linking, never email-only account ownership.
+
+Seed-mode daily equity prices and health ignore UTC weekends when measuring age after the represented day ends.
+Crypto and every database-backed series retain elapsed-time freshness checks.
+The configured thresholds still apply. This synthetic-data rule is not an exchange holiday calendar.
 
 ## Licensed import
 

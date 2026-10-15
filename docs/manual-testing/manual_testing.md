@@ -5,6 +5,9 @@ in `apps/web` after local changes. All API paths below are prefixed with `/api`
 and assume port **4000** (override with `PORT`). The Angular app runs on port
 **4200**.
 
+For native iOS setup and physical-device acceptance, use the [iOS guide](../../IOS_PROTOTYPE.md).
+The browser procedures below do not establish native passkey or share-sheet behavior.
+
 ## How to use this guide
 
 Use two terminals:
@@ -1167,8 +1170,8 @@ curl -s -X POST http://localhost:4000/api/ai/explain-strategy \
 
 ```bash
 # First candle read populates cache; second identical read should match body.
-curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c1.json
-curl -s 'http://localhost:4000/api/market-data/equity/candles?symbol=AAPL&start=2024-01-01&end=2024-12-31' -o /tmp/c2.json
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31' -o /tmp/c1.json
+curl -s 'http://localhost:4000/api/market-data/equities/candles?symbol=AAPL&start=2000-01-01&end=2099-12-31' -o /tmp/c2.json
 diff /tmp/c1.json /tmp/c2.json
 
 # Metrics should show candles hit/miss counters when METRICS_ENABLED=true

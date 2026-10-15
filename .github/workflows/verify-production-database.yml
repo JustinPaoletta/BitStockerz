@@ -1,0 +1,43 @@
+name: Verify production database
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - name: Check migration engine connection with verified TLS
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_CA_CERT_BASE64: ${{ secrets.DATABASE_CA_CERT_BASE64 }}
+          DATABASE_CA_CERT_PATH: ${{ runner.temp }}/bitstockerz-database-ca.pem
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$DATABASE_CA_CERT_PATH"' EXIT
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { X509Certificate } = require('node:crypto');
+          const ca = Buffer.from(process.env.DATABASE_CA_CERT_BASE64 || '', 'base64');
+          try { new X509Certificate(ca); }
+          catch { throw new Error('DATABASE_CA_CERT_BASE64 is missing or invalid'); }
+          fs.writeFileSync(process.env.DATABASE_CA_CERT_PATH, ca, { mode: 0o600 });
+          NODE
+          printf 'SELECT 1;\n' | npx prisma db execute --stdin
+          echo "Migration engine connected with strict TLS. No schema migration or deployment was performed." >> "$GITHUB_STEP_SUMMARY"

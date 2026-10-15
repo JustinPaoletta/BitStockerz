@@ -10,7 +10,13 @@
     "web:start": "npm --prefix apps/web start",
     "web:build": "npm --prefix apps/web run build",
     "web:test": "npm --prefix apps/web test -- --watch=false",
-    "web:lint": "npm --prefix apps/web run lint"
+    "web:lint": "npm --prefix apps/web run lint",
+    "ios:prepare": "node scripts/ios/prepare.mjs",
+    "ios:sync": "npm --prefix apps/web run ios:sync",
+    "ios:open": "npm --prefix apps/web run ios:open",
+    "ios:api": "node scripts/ios/api.mjs",
+    "ios:test:config": "node --test scripts/ios/prepare.test.mjs",
+    "ios:check-domain": "node scripts/ios/check-domain.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",

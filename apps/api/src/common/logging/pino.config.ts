@@ -123,6 +123,8 @@ export function buildPinoLoggerOptions(config: LoggingConfig): Params {
       redact: {
         paths: [
           'req.headers.authorization',
+          'req.headers["x-bitstockerz-beta-key"]',
+          'req.headers["x-bitstockerz-monitor-key"]',
           'req.headers.cookie',
           'req.headers.referer',
           'req.query.code',

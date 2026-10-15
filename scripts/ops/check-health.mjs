@@ -1,12 +1,17 @@
 import { pathToFileURL } from "node:url";
-/** Public endpoints only; never prints provider responses or credential-bearing URLs. */
-export async function checkHealth(base, request = fetch) {
+/** Never prints provider responses, access keys or credential-bearing URLs. */
+export async function checkHealth(
+  base,
+  request = fetch,
+  { marketData = true, monitorKey } = {},
+) {
   const parsed = new URL(base);
   if (
     parsed.username ||
     parsed.password ||
     parsed.search ||
     parsed.hash ||
+    (monitorKey && parsed.protocol !== "https:") ||
     !["http:", "https:"].includes(parsed.protocol)
   )
     throw new Error(
@@ -16,7 +21,7 @@ export async function checkHealth(base, request = fetch) {
   for (const [path, name] of [
     ["health/live", "API_LIVENESS"],
     ["health/ready", "DEPENDENCY_READINESS"],
-    ["market-data/health", "MARKET_DATA"],
+    ...(marketData ? [["market-data/health", "MARKET_DATA"]] : []),
   ]) {
     try {
       const response = await request(
@@ -24,7 +29,13 @@ export async function checkHealth(base, request = fetch) {
           `${parsed.pathname.replace(/\/$/, "").replace(/\/api$/, "")}/api/${path}`,
           parsed.origin,
         ),
-        { signal: AbortSignal.timeout(10000), redirect: "error" },
+        {
+          signal: AbortSignal.timeout(10000),
+          redirect: "error",
+          ...(name === "MARKET_DATA" && monitorKey
+            ? { headers: { "x-bitstockerz-monitor-key": monitorKey } }
+            : {}),
+        },
       );
       if (!response.ok) {
         issues.push(name);
@@ -62,7 +73,11 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   try {
-    const result = await checkHealth(process.env.API_BASE_URL ?? "");
+    const deployment = process.argv.includes("--deployment");
+    const result = await checkHealth(process.env.API_BASE_URL ?? "", fetch, {
+      marketData: !deployment,
+      monitorKey: process.env.PRIVATE_BETA_MONITOR_KEY,
+    });
     console.log(JSON.stringify(result));
     if (!result.healthy) process.exitCode = 1;
   } catch {

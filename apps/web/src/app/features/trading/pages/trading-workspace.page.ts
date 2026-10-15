@@ -332,7 +332,7 @@ export class TradingWorkspacePage implements OnInit {
   protected readonly priceError = signal('');
   protected async exportHistory() {
     try {
-      downloadText('paper-executions.csv', await firstValueFrom(this.api.exportExecutions()));
+      await downloadText('paper-executions.csv', await firstValueFrom(this.api.exportExecutions()));
     } catch (error) {
       this.executionsError.set(error instanceof Error ? error.message : 'Export failed.');
     }

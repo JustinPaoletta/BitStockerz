@@ -1,26 +1,36 @@
 <header class="site-header">
-  <a class="brand" routerLink="/dashboard" aria-label="BitStockerz home">
+  <a class="brand" [routerLink]="native ? '/research' : '/dashboard'" aria-label="BitStockerz home">
     <img class="brand-logo" src="/brand/mark.svg" alt="" width="36" height="36" />
     <span class="brand-wordmark">bitstockerz</span>
   </a>
   @if (auth.isAuthenticated()) {
     <nav aria-label="Primary navigation">
-      <a
-        routerLink="/dashboard"
-        routerLinkActive="active"
-        ariaCurrentWhenActive="page"
-        [routerLinkActiveOptions]="{ exact: true }"
-        >Dashboard</a
-      >
-      <a routerLink="/market" routerLinkActive="active" ariaCurrentWhenActive="page">Markets</a>
-      <a routerLink="/automations" routerLinkActive="active">Runners</a>
-      <a routerLink="/trade" routerLinkActive="active" ariaCurrentWhenActive="page">Trade</a>
-      <a routerLink="/strategies" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Strategies</a
-      >
-      <a routerLink="/backtests" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Backtests</a
-      >
+      @if (native) {
+        <a routerLink="/research" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Research</a
+        >
+        <a routerLink="/market" routerLinkActive="active" ariaCurrentWhenActive="page">Chart</a>
+        <a routerLink="/backtests" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Backtests</a
+        >
+      } @else {
+        <a
+          routerLink="/dashboard"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: true }"
+          >Dashboard</a
+        >
+        <a routerLink="/market" routerLinkActive="active" ariaCurrentWhenActive="page">Markets</a>
+        <a routerLink="/automations" routerLinkActive="active">Runners</a>
+        <a routerLink="/trade" routerLinkActive="active" ariaCurrentWhenActive="page">Trade</a>
+        <a routerLink="/strategies" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Strategies</a
+        >
+        <a routerLink="/backtests" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Backtests</a
+        >
+      }
     </nav>
     <div class="user-menu">
       <span class="user-label">{{
@@ -38,6 +48,14 @@
   }
 </header>
 <main>
+  @if (native) {
+    <p class="prototype-notice">
+      Research prototype · Local API uses simulated prices.
+      @if (simulator) {
+        Simulator email login is for local testing only.
+      }
+    </p>
+  }
   <router-outlet />
 </main>
 

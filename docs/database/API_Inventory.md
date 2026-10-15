@@ -1,11 +1,14 @@
 # BitStockerz – Master API Inventory
 
-Updated October 5, 2026.
+Updated October 11, 2026.
 
 This inventory describes current HTTP contracts, internal domain boundaries, and explicitly labeled design targets.
 All route paths use the `/api` prefix.
 Generated OpenAPI and route source define the runnable HTTP contract.
-October 4 workspace additions are local changes; their final MySQL and hosted checks remain pending.
+
+The October 4 workspace additions merged in PR #15. All five MySQL persistence gates passed hosted CI.
+See [verification evidence](../product/requirements/Testing_Strategy.md#verification-evidence) for dates and limits.
+The [deployment access guard](../ops/deployment.md#private-beta-access) in combined draft PR #17 also protects otherwise public API routes.
 
 ### Backend implementation status
 
@@ -723,9 +726,9 @@ Deterministic issues take precedence for duplicate codes; model-only high severi
 | `NEGATIVE_RETURN`   | Total return below zero.                                        |
 | `CONCENTRATED_PNL`  | One winner contributes more than 50% of positive P&L.           |
 
-Kernel currently loads the latest saved strategy summary for backtest context.
-An older run can therefore receive a summary that differs from its pinned version.
-The retained strategy-pin requirement needs a code correction and regression; see [the task list](../../PRODUCT_TASKLIST.md).
+Kernel resolves the owned immutable version through the run's `strategyVersionId`.
+Backtest context includes its version ID, version number, and definition summary.
+Edits, renames, and soft deletion do not replace that historical context.
 Parameter previews target the currently selected strategy definition.
 
 ---

@@ -5,10 +5,15 @@ import { StrategyIntelligenceService } from './strategy-intelligence.service';
 import { BacktestIntelligenceService } from './backtest-intelligence.service';
 import type { AiService } from './ai.service';
 import type { AppConfigService } from '../config/app-config.service';
-import type { StrategiesService } from '../strategies/strategies.service';
+import { StrategiesService } from '../strategies/strategies.service';
 import type { BacktestsService } from '../backtest/backtests.service';
 import type { JobsService } from '../jobs/jobs.service';
 import type { MarketDataService } from '../market-data/market-data.service';
+
+import type { PrismaService } from '../prisma/prisma.service';
+import type { AuthService } from '../auth/auth.service';
+import type { AuditService } from '../observability/audit.service';
+import type { StrategyDefinition } from '../strategies/strategy.types';
 
 const definition = {
   indicators: [
@@ -161,6 +166,11 @@ describe('BacktestIntelligenceService', () => {
       }),
     };
     const strategies = {
+      resolvePinnedVersionForRun: jest.fn().mockResolvedValue({
+        strategyVersionId: 1,
+        versionNumber: 1,
+        definition,
+      }),
       getById: jest.fn().mockResolvedValue({
         id: 's1',
         name: 'Alpha',
@@ -252,6 +262,106 @@ describe('BacktestIntelligenceService', () => {
     });
   });
 
+  it('retains the run definition after edits and deletion, with owner isolation', async () => {
+    const strategies = new StrategiesService(
+      { isEnabled: false } as PrismaService,
+      { ensureUserPersisted: jest.fn() } as unknown as AuthService,
+      { record: jest.fn() } as unknown as AuditService,
+    );
+    const input = {
+      name: 'Original',
+      asset_type: 'EQUITY' as const,
+      timeframe: '1d' as const,
+      definition: definition as StrategyDefinition,
+    };
+    // The database ID and the version number must not be interchangeable.
+    await strategies.create('u1', { ...input, name: 'Other strategy' });
+    const original = await strategies.create('u1', input);
+    const pin = await strategies.resolveOwnedVersion('u1', original.id);
+    const backtests = {
+      getRun: jest.fn().mockImplementation((_id: string, owner: string) =>
+        owner === 'u1'
+          ? {
+              run: {
+                ...run,
+                strategyId: original.id,
+                strategyVersionId: pin.strategyVersionId,
+              },
+              result,
+              trades: [],
+            }
+          : null,
+      ),
+    };
+    const ai = {
+      invoke: jest.fn().mockResolvedValue({
+        disclaimer: 'd',
+        explanation: 'Historical run',
+        issues: [],
+        suggestions: [],
+        changes: [],
+        ai_request_id: 'r',
+      }),
+    };
+    const service = new BacktestIntelligenceService(
+      backtests as unknown as BacktestsService,
+      strategies,
+      {
+        getJobForUser: jest.fn().mockRejectedValue(new Error('missing')),
+      } as unknown as JobsService,
+      {
+        getSymbolsByIds: jest.fn().mockResolvedValue([{ symbol: 'AAPL' }]),
+      } as unknown as MarketDataService,
+      ai as unknown as AiService,
+      {
+        ai: { maxContextChars: 12000, diffSuggestionsEnabled: true },
+      } as AppConfigService,
+    );
+    const explanationContext = () =>
+      JSON.parse(
+        String(ai.invoke.mock.calls.at(-1)?.[0].prompt).split(
+          'Backtest context JSON:\n',
+        )[1],
+      ) as Record<string, unknown>;
+    await service.explainBacktest('u1', 'b1');
+    const before = explanationContext();
+    expect(before).toMatchObject({
+      strategy_version_id: pin.strategyVersionId,
+      strategy_version_number: 1,
+      strategy_summary: expect.stringContaining('SMA(20)'),
+    });
+    expect(pin.strategyVersionId).not.toBe(pin.versionNumber);
+    const updated = structuredClone(definition) as StrategyDefinition;
+    updated.indicators[0].params.period = 80;
+    updated.risk.stop_loss.value = 8;
+    await strategies.update('u1', original.id, {
+      name: 'Renamed',
+      definition: updated,
+    });
+    await service.explainBacktest('u1', 'b1');
+    expect(explanationContext()).toEqual(before);
+    await service.suggestImprovements('u1', original.id, 'b1');
+    const suggestionContext = JSON.parse(
+      String(ai.invoke.mock.calls.at(-1)?.[0].prompt).split(
+        'Context JSON:\n',
+      )[1],
+    ) as {
+      strategy: { definition: StrategyDefinition; version_number: number };
+      backtest: unknown;
+    };
+    expect(suggestionContext.strategy.version_number).toBe(2);
+    expect(suggestionContext.strategy.definition).toEqual(updated);
+    expect(suggestionContext.backtest).toEqual(before);
+    await strategies.delete('u1', original.id);
+    await service.explainBacktest('u1', 'b1');
+    expect(explanationContext()).toEqual(before);
+    const invocations = ai.invoke.mock.calls.length;
+    await expect(
+      service.explainBacktest('other-user', 'b1'),
+    ).rejects.toMatchObject({ code: ErrorCode.BACKTEST_NOT_FOUND });
+    expect(ai.invoke).toHaveBeenCalledTimes(invocations);
+  });
+
   it('rejects non-completed runs and mismatched strategy ids', async () => {
     const backtests = {
       getRun: jest
@@ -273,6 +383,11 @@ describe('BacktestIntelligenceService', () => {
     const service = new BacktestIntelligenceService(
       backtests as unknown as BacktestsService,
       {
+        resolvePinnedVersionForRun: jest.fn().mockResolvedValue({
+          strategyVersionId: 1,
+          versionNumber: 1,
+          definition,
+        }),
         getById: jest.fn().mockResolvedValue({
           id: 's1',
           name: 'Alpha',

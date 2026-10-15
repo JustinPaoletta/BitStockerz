@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { startRegistration } from '@simplewebauthn/browser';
+import { registerPasskey } from '../../core/auth/passkeys';
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 
 @Component({
@@ -137,7 +137,7 @@ export class SecurityPage {
           {},
         ),
       );
-      const response = await startRegistration({ optionsJSON: result.options });
+      const response = await registerPasskey(result.options);
       return firstValueFrom(
         this.http.post('/api/me/security/passkeys/verify', {
           challenge_id: result.challenge_id,

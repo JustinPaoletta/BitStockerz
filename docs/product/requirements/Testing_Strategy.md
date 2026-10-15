@@ -1,7 +1,7 @@
 # BitStockerz – Testing Strategy
 
 This document describes the automated checks for the merged MVP and prelaunch
-features. CI passing does not verify external hosting or real provider credentials.
+features and the open readiness/iOS drafts. CI passing does not verify external hosting or real provider credentials.
 
 ## 1. Unit and component tests
 
@@ -54,11 +54,13 @@ The verification script also omits the new workspace and native CLI gates; run t
 
 ## 4. Browser workflows
 
-`npm --prefix apps/web run e2e` runs five Playwright tests at PR #13 against actual
-API/web servers in seed mode. They cover dashboard → strategy → backtest → Trade,
-profile save/reload, mocked Google/Apple callbacks, recovery/link ownership and
-failed-link session retention. Desktop/mobile manual checks complement automation.
+`npm --prefix apps/web run e2e` runs Playwright against actual API/web servers in seed mode.
+The original five tests at PR #13 cover dashboard → strategy → backtest → Trade.
+They also cover profile save/reload, mocked Google/Apple callbacks, recovery/link ownership, and failed-link session retention. Desktop/mobile manual checks complement automation.
 See [manual_testing.md](../../manual-testing/manual_testing.md).
+Product-extension tests add enrollment, research exports, charts, and paper-runner workflows.
+
+The iOS research test adds a complete browser flow at phone width; see [iOS evidence](#ios-prototype-evidence).
 
 External Google/Apple token exchange is mocked in automated browser tests. Real
 signup, returning login, provider linking, Apple relay/second-login behavior,
@@ -85,22 +87,44 @@ market-data freshness and deployed latency checks remain launch requirements.
 
 ## Verification evidence
 
+Hosted evidence inspected October 8, 2026:
+
+- [PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133) and
+  [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260) passed.
+- Both runs applied all 19 migrations to fresh MySQL and passed all five persistence/security gates.
+- API/web build, lint, tests, audits, secret scanning, browser tests, and the production-image build passed.
+- [Deploy](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465419) failed because the migration step received an empty `DATABASE_URL`.
+- Production monitoring skipped its checks because `PRODUCTION_API_BASE_URL` was absent.
+  A successful skipped workflow is not production-health evidence.
+
+Local checks on October 8, 2026 for Kernel and deployment readiness:
+
+- API build and lint passed.
+- API coverage passed: 106 suites, 975 tests; 98.01% statements and 90.03% branches.
+- HTTP integration passed 67 tests; signed OAuth security passed 16 tests.
+- Historical Kernel context remains pinned after edits, renames, and soft deletion.
+  Improvement previews still use the current definition; foreign owners cannot invoke analysis.
+- Native importer/operational checks passed 14 tests, including configuration and readiness failures.
+- Angular production build passed with an injected HTTPS API origin; `dist/web/browser/index.html` was produced.
+- Deployment YAML parsing and shell syntax passed. Documentation links, JSON/shell examples, formatting, and selected clarity checks passed.
+- Local Docker remains unavailable. Fresh MySQL and container checks run in hosted CI.
+
 Local checks on October 4, 2026:
 
-| Check                                                         | Result                                                                                                     |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| API build and lint                                            | Passed                                                                                                     |
-| API unit/integration coverage                                 | 106 suites, 974 tests passed; 98.01% statements and 90% branches under the existing coverage configuration |
-| API end-to-end                                                | 67 tests passed                                                                                            |
-| Signed OAuth token security                                   | 16 tests passed                                                                                            |
-| Import and operational CLI                                    | 8 tests passed                                                                                             |
-| Web build and lint                                            | Passed                                                                                                     |
-| Web unit                                                      | 22 files, 99 tests passed                                                                                  |
-| Browser integration                                           | 7 tests passed, including independent virtual-passkey devices and both signing into the original account   |
-| Prisma schema validation                                      | Passed                                                                                                     |
-| Root/API/web dependency audits                                | Zero vulnerabilities reported                                                                              |
-| New MySQL migrations/restart harness                          | Prepared and included in CI; local execution blocked by unresponsive Docker daemon                         |
-| Final-revision CI, image build, live providers and deployment | Pending                                                                                                    |
+| Check                                                 | Result                                                                                                     |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| API build and lint                                    | Passed                                                                                                     |
+| API unit/integration coverage                         | 106 suites, 974 tests passed; 98.01% statements and 90% branches under the existing coverage configuration |
+| API end-to-end                                        | 67 tests passed                                                                                            |
+| Signed OAuth token security                           | 16 tests passed                                                                                            |
+| Import and operational CLI                            | 8 tests passed                                                                                             |
+| Web build and lint                                    | Passed                                                                                                     |
+| Web unit                                              | 22 files, 99 tests passed                                                                                  |
+| Browser integration                                   | 7 tests passed, including independent virtual-passkey devices and both signing into the original account   |
+| Prisma schema validation                              | Passed                                                                                                     |
+| Root/API/web dependency audits                        | Zero vulnerabilities reported                                                                              |
+| New MySQL migrations/restart harness                  | Prepared and included in CI; local execution blocked by unresponsive Docker daemon                         |
+| Hosted CI, image build, live providers and deployment | Pending at this local snapshot; later hosted evidence is recorded above                                    |
 
 Local browser fixtures use seed prices and disposable accounts. The browser test uses `localhost` as the relying-party domain, mapped to the IPv4 test server.
 This avoids unrelated apps on an IPv6 loopback listener. Angular's native LMDB cache
@@ -108,12 +132,56 @@ crashed on this machine; local builds/tests used `NG_BUILD_CACHE_STORE=sqlite`
 and `NG_BUILD_MAX_WORKERS=1`. Coverage thresholds and existing exclusions were
 not reduced. No production data, provider credentials or real trading were used.
 
+### Combined PR evidence
+
+On October 12, PR #17 was retargeted to `main` with all PR #16 commits included. PR #16 was closed.
+
+[CI at `cc64343`](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests.
+The API reported seven failed tests, including missing current seed prices; branch coverage was 89.55% against the 90% requirement.
+Secret scanning, the root dependency audit, and encrypted recovery passed.
+The October 14 correction excludes UTC weekends from synthetic daily equity age in price reads and health.
+Crypto and database-backed prices retain strict elapsed-time rejection; the coverage threshold remains 90%.
+Fixed-date tests cover Friday/Monday boundaries, eventual expiry, a custom threshold, and database rejection.
+
+Local verification on October 14:
+
+- The full API suite passed with the clock set to October 12 at 04:17 UTC: 108 suites, 993 tests.
+- Branch coverage was 90.15%; statement coverage was 98.05%.
+- Two additional configuration/database guards passed afterward; the final focused run passed all 65 market-data tests.
+- All eight browser tests passed against an API fixed at the same Monday time, including trading, runners, and iOS research.
+- API build and lint passed. An initial coverage attempt exhausted local cache space; the successful run disabled Jest disk caching.
+
+Use the current PR checks for hosted validation of the pushed revision.
+The earlier iOS evidence below remains historical.
+
+### iOS prototype evidence
+
+PR #17 at `33123e3d5e9fdb50e047afdfe973e3ef5620c4b9`:
+
+- [Hosted CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed; status was inspected again on October 11, 2026.
+- The hosted gates include API/web tests, MySQL persistence, the production-image build, encrypted database recovery, audits, and secret scanning.
+- GitGuardian also reported success on this revision. Neither result closes separate credential-rotation incidents.
+
+Local evidence recorded October 10, 2026:
+
+- API tests passed: 107 suites and 984 tests. Web tests passed: 25 files and 106 tests.
+- API/web lint, API build, web production build, iOS web build, and two configuration tests passed.
+- Three selected browser tests passed: `ios-research.spec.ts` and both tests in `product-extensions.spec.ts`.
+- Browser coverage included real WebAuthn verification through virtual authenticators, charts, backtests, saved history, exports, and passkey recovery.
+- iOS Simulator Debug and unsigned hardware Debug builds passed. The app launched on an iOS 26.5 simulator.
+- Simulator email registration and authenticated research screens were inspected against the isolated API.
+
+Chromium tests do not exercise AuthenticationServices, Apple's association lookup, or the native share sheet.
+CI runs the configuration-generator tests behind `ios:test:config`. Native Xcode compilation remains a local check.
+Signed installation, native passkeys, exports, and physical-device accessibility remain in the [iPhone checklist](../../../IOS_PROTOTYPE.md#iphone-acceptance-checklist).
+These results do not establish production deployment or real-provider acceptance.
+
 ## Native CLI regressions
 
 From the repository root, run:
 
 ```sh
-node --test apps/api/tools/import-market-data.test.mjs scripts/ops/check-health.test.mjs
+node --test apps/api/tools/import-market-data.test.mjs scripts/ops/*.test.mjs
 ```
 
 These tests use fixtures and mocks; they do not establish live import or monitoring success.

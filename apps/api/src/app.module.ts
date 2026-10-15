@@ -4,7 +4,8 @@ import {
   MiddlewareConsumer,
   RequestMethod,
 } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { PrivateBetaGuard } from './common/http/private-beta.guard';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -57,6 +58,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ErrorTestEnabledGuard,
     GlobalHttpExceptionFilter,
     AppLogger,
+    { provide: APP_GUARD, useClass: PrivateBetaGuard },
     {
       provide: APP_INTERCEPTOR,
       useClass: MetricsInterceptor,

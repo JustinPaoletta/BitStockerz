@@ -10,9 +10,18 @@ Milestones 0–7 merged through [PR #12](https://github.com/JustinPaoletta/BitSt
 Browser OAuth, profile recovery, paper P&L, and chart markers merged in
 [PR #13](https://github.com/JustinPaoletta/BitStockerz/pull/13) on October 2, 2026.
 
-The October 4 [product extensions](docs/product/PRODUCT_EXTENSIONS.md) are local working-tree changes.
-Their local tests do not establish MySQL persistence, live-provider operation, or production deployment.
-Hosting and credentials were absent at the October 2 inspection; no later deployment is recorded here.
+The [product extensions](docs/product/PRODUCT_EXTENSIONS.md) merged in
+[PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15) on October 5, 2026 (EDT).
+[Main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260)
+passed all migrations, five MySQL persistence gates, and the production-image build.
+The subsequent deployment failed because `DATABASE_URL` was empty.
+Hosting, real providers, and production acceptance remain outstanding.
+
+As of October 12, 2026, combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets `main`.
+It includes protected beta setup, historical Kernel context fixes, and the Capacitor iOS research prototype.
+PR #16 is closed; all its commits remain included in #17.
+These changes are not merged into `main`.
+See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for iPhone setup and native acceptance checks.
 
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
 Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.
@@ -52,6 +61,7 @@ Seed-mode users, results, and paper trades disappear when the API stops.
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | API commands, configuration, and generated OpenAPI | [API README](apps/api/README.md)                                                            |
 | Angular development and browser tests              | [Web README](apps/web/README.md)                                                            |
+| iOS simulator, signing, and device acceptance      | [iOS prototype](IOS_PROTOTYPE.md)                                                           |
 | Contributor rules and implementation contracts     | [Documentation index](docs/plans/README.md)                                                 |
 | Product scope and delivery history                 | [MVP](docs/product/MVP.md), [roadmap](docs/product/ROADMAP.md)                              |
 | Current research and account behavior              | [Product extensions](docs/product/PRODUCT_EXTENSIONS.md)                                    |
@@ -72,7 +82,7 @@ They are not deployment inputs.
 ## Repository layout
 
 - `apps/api`: NestJS 11 API, Prisma persistence, jobs, and operator import tools.
-- `apps/web`: Angular 22.2.1 SPA, TypeScript 6.0.3, Vitest, and Playwright.
+- `apps/web`: Angular 22.2.1 SPA, TypeScript 6.0.3, Vitest, Playwright, and the Capacitor iOS project.
 - `docs/product`: scope, contracts, requirements, and original story acceptance criteria.
 - `docs/database`: API inventory, migration guide, lifecycle policy, and conceptual schemas.
 - `docs/ops`: deployment procedures and dated security evidence.

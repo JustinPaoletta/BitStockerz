@@ -9,7 +9,9 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "ios:sync": "ng build --configuration ios && cap sync ios",
+    "ios:open": "cap open ios"
   },
   "private": true,
   "engines": {
@@ -23,6 +25,8 @@
     "@angular/forms": "22.2.1",
     "@angular/platform-browser": "22.2.1",
     "@angular/router": "22.2.1",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
     "@simplewebauthn/browser": "^13.3.0",
     "lightweight-charts": "^5.2.0",
     "rxjs": "~7.8.0",
@@ -32,6 +36,7 @@
     "@angular/build": "22.2.1",
     "@angular/cli": "22.2.1",
     "@angular/compiler-cli": "22.2.1",
+    "@capacitor/cli": "8.5.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
     "angular-eslint": "22.5.0",
@@ -44,6 +49,9 @@
   },
   "overrides": {
     "@hono/node-server": "2.0.12",
-    "piscina": "5.3.2"
+    "piscina": "5.3.2",
+    "xcode": {
+      "uuid": "11.1.1"
+    }
   }
 }

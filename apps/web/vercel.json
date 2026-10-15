@@ -1,5 +1,20 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build -- --configuration production",
+  "installCommand": "npm ci",
+  "outputDirectory": "dist/web/browser",
+  "regions": ["sfo1"],
+  "functions": {
+    "api/proxy.mjs": { "maxDuration": 30 }
+  },
+  "git": {
+    "deploymentEnabled": false
+  },
   "rewrites": [
+    {
+      "source": "/api/:__beta_path*",
+      "destination": "/api/proxy?__beta_path=:__beta_path*"
+    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

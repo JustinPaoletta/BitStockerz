@@ -11,40 +11,60 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
   imports: [ReactiveFormsModule, PageGuideComponent],
   template: `
     <div class="auth-layout">
-      <aside class="brand-story" aria-label="About BitStockerz">
-        <div class="story-label"><span class="signal-dot"></span> THE STRATEGY WORKSPACE</div>
+      @if (environment.nativeMode === 'web') {
+        <aside class="brand-story" aria-label="About BitStockerz">
+          <div class="story-label"><span class="signal-dot"></span> THE STRATEGY WORKSPACE</div>
 
-        <h2>Find your edge.<br /><em>Then test it.</em></h2>
-        <p class="story-copy">
-          Turn a market idea into a strategy you can test. Research, backtest, and paper trade in
-          one focused workspace.
-        </p>
-        <div class="research-motif" aria-hidden="true">
-          <img src="/brand/mark.svg" alt="" width="240" height="240" />
-          <span class="motif-caption">IDEA → EVIDENCE</span>
-        </div>
-        <div class="story-principles">
-          <span>01 / Research</span><span>02 / Test</span><span>03 / Paper trade</span>
-        </div>
-        <p class="story-footnote">Build your process. Understand your risk.</p>
-      </aside>
+          <h2>Find your edge.<br /><em>Then test it.</em></h2>
+          <p class="story-copy">
+            Turn a market idea into a strategy you can test. Research, backtest, and paper trade in
+            one focused workspace.
+          </p>
+          <div class="research-motif" aria-hidden="true">
+            <img src="/brand/mark.svg" alt="" width="240" height="240" />
+            <span class="motif-caption">IDEA → EVIDENCE</span>
+          </div>
+          <div class="story-principles">
+            <span>01 / Research</span><span>02 / Test</span><span>03 / Paper trade</span>
+          </div>
+          <p class="story-footnote">Build your process. Understand your risk.</p>
+        </aside>
+      }
       <section class="auth-panel panel">
         <p class="eyebrow">YOUR NEXT IDEA STARTS HERE</p>
         <h1>Sign in with a passkey</h1>
+        @if (environment.nativeMode !== 'web') {
+          <p class="hint">
+            Native sessions end when the app closes. Passkeys stay in your credential provider.
+          </p>
+          @if (!environment.apiBaseUrl) {
+            <p role="alert">
+              Configure the iOS API connection using ios:prepare, then sync and rebuild. See
+              IOS_PROTOTYPE.md.
+            </p>
+          }
+        }
         @if (reauthenticating) {
           <p class="hint">
             Verify your account using a sign-in method already attached to it. You will return to
             Account settings to add your recovery method.
           </p>
         }
-        <app-page-guide
-          description="BitStockerz uses passkeys instead of passwords. Your device handles Face ID, Touch ID, or a security key."
-          [steps]="[
-            'Enter your email and display name (first time only).',
-            'Choose Create with passkey and approve the browser prompt.',
-            'Next visits: same email, then Sign in with passkey.',
-          ]"
-        />
+        @if (environment.nativeMode === 'web') {
+          <app-page-guide
+            description="BitStockerz uses passkeys instead of passwords. Your device handles Face ID, Touch ID, or a security key."
+            [steps]="[
+              'Enter your email and display name (first time only).',
+              'Choose Create with passkey and approve the browser prompt.',
+              'Next visits: same email, then Sign in with passkey.',
+            ]"
+          />
+        } @else {
+          <p class="hint">
+            Enter your email. On your first visit choose Register, then approve the system passkey
+            prompt.
+          </p>
+        }
 
         <form [formGroup]="form" (submit)="onPasskey($event)">
           <label for="email">Email</label>

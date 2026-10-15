@@ -14,6 +14,7 @@ const createMockApp = (port = 4000) => ({
       return {
         server: {
           port,
+          host: '127.0.0.1',
           corsAllowedOrigins: ['http://localhost:4200'],
           trustedProxyCidrs: [],
           openApiEnabled: true,
@@ -71,7 +72,7 @@ describe('bootstrap', () => {
           typeof token === 'function' && token.name === AppConfigService.name,
       ),
     ).toBe(true);
-    expect(mockApp.listen).toHaveBeenCalledWith(4567);
+    expect(mockApp.listen).toHaveBeenCalledWith(4567, '127.0.0.1');
     expect(mockConfigureOpenApi).toHaveBeenCalledWith(mockApp);
     expect(mockApp.enableCors).toHaveBeenCalledWith({
       origin: ['http://localhost:4200'],
@@ -92,6 +93,6 @@ describe('bootstrap', () => {
     });
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(mockApp.listen).toHaveBeenCalledWith(4000);
+    expect(mockApp.listen).toHaveBeenCalledWith(4000, '127.0.0.1');
   });
 });
