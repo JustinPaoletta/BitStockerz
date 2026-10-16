@@ -21,7 +21,10 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
             one focused workspace.
           </p>
           <div class="research-motif" aria-hidden="true">
-            <img src="/brand/mark.svg" alt="" width="240" height="240" />
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="/brand/mark-dark.png" />
+              <img src="/brand/mark-light.png" alt="" width="378" height="365" />
+            </picture>
             <span class="motif-caption">IDEA → EVIDENCE</span>
           </div>
           <div class="story-principles">
@@ -217,7 +220,7 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
     }
     .brand-story em {
       font-style: normal;
-      color: var(--accent);
+      color: var(--accent-text);
     }
     .story-copy {
       color: var(--muted);

@@ -1,5 +1,10 @@
 # BitStockerz
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/brand/logo-dark.png">
+  <img alt="BitStockerz" src="apps/web/public/brand/logo-light.png" width="420">
+</picture>
+
 BitStockerz is a private strategy-research product with a NestJS API and an Angular application.
 Users build strategies, run historical backtests, compare results, and simulate trades in a paper account.
 
@@ -61,6 +66,7 @@ Seed-mode users, results, and paper trades disappear when the API stops.
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | API commands, configuration, and generated OpenAPI | [API README](apps/api/README.md)                                                            |
 | Angular development and browser tests              | [Web README](apps/web/README.md)                                                            |
+| Logo, app icon, and theme colors                   | [Brand guide](docs/brand/README.md)                                                         |
 | iOS simulator, signing, and device acceptance      | [iOS prototype](IOS_PROTOTYPE.md)                                                           |
 | Contributor rules and implementation contracts     | [Documentation index](docs/plans/README.md)                                                 |
 | Product scope and delivery history                 | [MVP](docs/product/MVP.md), [roadmap](docs/product/ROADMAP.md)                              |

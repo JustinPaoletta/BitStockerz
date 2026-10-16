@@ -55,10 +55,23 @@ export class PriceChartComponent implements OnDestroy {
   private readonly host = viewChild<ElementRef<HTMLDivElement>>('host');
   private chart?: IChartApi;
   private observer?: ResizeObserver;
+  private themeMedia?: MediaQueryList;
+  private readonly onThemeChange = (): void => this.render();
+
   constructor() {
     afterRenderEffect(() => this.render());
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this.themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+      this.themeMedia.addEventListener('change', this.onThemeChange);
+    }
   }
+
   ngOnDestroy(): void {
+    this.themeMedia?.removeEventListener('change', this.onThemeChange);
+    this.disposeChart();
+  }
+
+  private disposeChart(): void {
     this.observer?.disconnect();
     this.chart?.remove();
     this.chart = undefined;
@@ -67,11 +80,22 @@ export class PriceChartComponent implements OnDestroy {
     const data = this.data();
     const host = this.host()?.nativeElement;
     if (!host) return;
-    this.ngOnDestroy();
+    this.disposeChart();
+    const style = getComputedStyle(host);
+    const color = (token: string): string => style.getPropertyValue(token).trim();
     this.chart = createChart(host, {
       width: host.clientWidth,
       height: 400,
-      layout: { background: { type: ColorType.Solid, color: '#151c17' }, textColor: '#acb7ad' },
+      layout: {
+        background: { type: ColorType.Solid, color: color('--surface') },
+        textColor: color('--muted'),
+        fontFamily: style.fontFamily,
+      },
+      grid: {
+        vertLines: { color: color('--grid') },
+        horzLines: { color: color('--grid') },
+      },
+      rightPriceScale: { borderColor: color('--border') },
       timeScale: { timeVisible: data.timeframe === '1h' },
       leftPriceScale: { visible: data.indicators.some((item) => item.type === 'RSI') },
     });
@@ -81,11 +105,13 @@ export class PriceChartComponent implements OnDestroy {
         : (Math.floor(Date.parse(value) / 1000) as Time);
     this.chart
       .addSeries(CandlestickSeries, {
-        upColor: '#d7f86b',
-        downColor: '#ffad75',
-        wickUpColor: '#d7f86b',
-        wickDownColor: '#ffad75',
-        borderVisible: false,
+        upColor: color('--chart-up'),
+        downColor: color('--chart-down'),
+        wickUpColor: color('--chart-marker-entry'),
+        wickDownColor: color('--chart-down'),
+        borderVisible: true,
+        borderUpColor: color('--chart-marker-entry'),
+        borderDownColor: color('--chart-down'),
       })
       .setData(
         data.bars.map((bar) => ({
@@ -96,7 +122,7 @@ export class PriceChartComponent implements OnDestroy {
           close: Number(bar.close),
         })),
       );
-    const colors = ['#82cfff', '#ff7eb6', '#be95ff', '#42be65'];
+    const colors = [1, 2, 3, 4].map((index) => color(`--chart-indicator-${index}`));
     data.indicators.forEach((item, index) =>
       this.chart!.addSeries(LineSeries, {
         color: colors[index % colors.length],

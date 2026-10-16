@@ -1,39 +1,84 @@
 :root {
-  color-scheme: dark;
-  --accent: #d7f86b;
-  --accent-strong: #e5ff97;
-  --accent-deep: #3a4624;
-  --background: #10120f;
-  --surface: #181b16;
-  --surface-2: #22261e;
-  --border: #363c30;
-  --text: #f3f4ed;
-  --muted: #acb3a3;
-  --positive: #80e8c0;
-  --negative: #ff7b87;
-  --danger-bg: #321b25;
-  --on-accent: #10120f;
-  --surface-inset: #121510;
-  --grid: #292e24;
-  --skeleton-highlight: #30382a;
-  --error-text: #ff9aa4;
-  --positive-border: #80e8c059;
-  --negative-border: #ff7b8759;
-  --focus-ring: #d7f86b40;
-  --header-background: #10120ff0;
-  --motif-grid: #363c3040;
+  color-scheme: light;
+  --brand-black: #000000;
+  --brand-white: #ffffff;
+  --brand-lime: #c4dd2e;
+  --brand-turquoise: #00d1c4;
+  --accent: var(--brand-lime);
+  --accent-strong: #b2ca25;
+  --accent-text: #536300;
+  --secondary-accent-text: #006f68;
+  --background: var(--brand-white);
+  --surface: #f7f9f5;
+  --surface-2: #ecf2eb;
+  --border: #d6dfd5;
+  --text: var(--brand-black);
+  --muted: #4b5a4e;
+  --positive: #007e75;
+  --negative: #b42d43;
+  --danger-bg: #fff0f2;
+  --on-accent: var(--brand-black);
+  --surface-inset: var(--brand-white);
+  --grid: #e1e9df;
+  --skeleton-highlight: #dce8d7;
+  --error-text: #a3273a;
+  --positive-border: #00d1c480;
+  --negative-border: #b42d4370;
+  --focus-color: #006f68;
+  --focus-ring: #00d1c466;
+  --header-background: #fffffff0;
+  --motif-grid: #00d1c426;
+  --chart-up: var(--brand-lime);
+  --chart-down: #d74559;
+  --chart-indicator-1: var(--brand-turquoise);
+  --chart-indicator-2: #526700;
+  --chart-indicator-3: #168d84;
+  --chart-indicator-4: #829819;
+  --chart-marker-entry: #617600;
+  --chart-marker-exit: #007e75;
   --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-wordmark: Helvetica, Arial, sans-serif;
   font-family: var(--font-body);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --accent-strong: #d4ec4f;
+    --accent-text: var(--brand-lime);
+    --secondary-accent-text: var(--brand-turquoise);
+    --background: #0b0d0b;
+    --surface: #151b17;
+    --surface-2: #202a22;
+    --border: #3b493d;
+    --text: var(--brand-white);
+    --muted: #b4c2b6;
+    --positive: var(--brand-turquoise);
+    --negative: #ff8998;
+    --danger-bg: #301921;
+    --surface-inset: #101511;
+    --grid: #29352b;
+    --skeleton-highlight: #314034;
+    --error-text: #ff9aa8;
+    --positive-border: #00d1c459;
+    --negative-border: #ff899859;
+    --focus-color: var(--brand-lime);
+    --focus-ring: #c4dd2e66;
+    --header-background: #0b0d0bf0;
+    --motif-grid: #00d1c430;
+    --chart-down: #ff8998;
+    --chart-indicator-2: #d4ec4f;
+    --chart-indicator-3: #74e5dc;
+    --chart-indicator-4: #e1f68b;
+    --chart-marker-entry: var(--brand-lime);
+    --chart-marker-exit: var(--brand-turquoise);
+  }
 }
 
 * {
   box-sizing: border-box;
 }
 body {
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(215, 248, 107, 0.035), transparent 45rem),
-    var(--background);
+  background: radial-gradient(ellipse at 0% 0%, #c4dd2e12, transparent 45rem), var(--background);
   color: var(--text);
   margin: 0;
   min-height: 100vh;
@@ -74,7 +119,7 @@ h2 {
   margin-bottom: 1.75rem;
 }
 .eyebrow {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -156,7 +201,7 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--accent);
+  border-color: var(--focus-color);
   outline: 2px solid var(--focus-ring);
 }
 .error {
@@ -249,7 +294,7 @@ textarea:focus {
   text-align: left;
 }
 .text-link {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 @media (max-width: 850px) {
   .metric-grid {
@@ -268,7 +313,7 @@ textarea:focus {
 }
 
 :where(a, button, summary, input, select, textarea):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-color);
   outline-offset: 4px;
 }
 
