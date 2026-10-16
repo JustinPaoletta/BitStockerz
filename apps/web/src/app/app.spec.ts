@@ -20,6 +20,12 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.brand')?.textContent).toContain('bitstockerz');
+    expect(compiled.querySelector('.brand')?.getAttribute('aria-label')).toBe('BitStockerz home');
+    expect(compiled.querySelector('.brand-logo')?.getAttribute('src')).toBe(
+      '/brand/logo-light.png',
+    );
+    expect(compiled.querySelector('.brand source')?.getAttribute('srcset')).toBe(
+      '/brand/logo-dark.png',
+    );
   });
 });

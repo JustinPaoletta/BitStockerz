@@ -112,6 +112,7 @@ export function toTradeMarkers(
   trades: BacktestTrade[],
   points: EquityPoint[],
   timeframe: '1d' | '1h',
+  colors: Readonly<{ entry: string; exit: string }> = { entry: '#C4DD2E', exit: '#00D1C4' },
 ): SeriesMarker<Time>[] {
   const times = new Set(toChartPoints(points, timeframe).map((point) => point.time));
   const markers: SeriesMarker<Time>[] = [];
@@ -130,7 +131,7 @@ export function toTradeMarkers(
         id: `entry-${trade.id}`,
         time: entryTime as Time,
         position: 'belowBar',
-        color: '#d7f86b',
+        color: colors.entry,
         shape: 'arrowUp',
         text: 'Entry',
       });
@@ -140,7 +141,7 @@ export function toTradeMarkers(
         id: `exit-${trade.id}`,
         time: exitTime as Time,
         position: 'aboveBar',
-        color: '#ffad75',
+        color: colors.exit,
         shape: 'arrowDown',
         text: 'Exit',
       });

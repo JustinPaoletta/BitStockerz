@@ -53,12 +53,26 @@ export class EquityCurveChartComponent implements OnDestroy {
   private markers?: ISeriesMarkersPluginApi<Time>;
   private renderedPoints?: EquityPoint[];
   private renderedTimeframe?: '1d' | '1h';
+  private themeMedia?: MediaQueryList;
+  private readonly onThemeChange = (): void => {
+    this.disposeChart();
+    this.render();
+  };
 
   constructor() {
     afterRenderEffect(() => this.render());
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this.themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+      this.themeMedia.addEventListener('change', this.onThemeChange);
+    }
   }
 
   ngOnDestroy(): void {
+    this.themeMedia?.removeEventListener('change', this.onThemeChange);
+    this.disposeChart();
+  }
+
+  private disposeChart(): void {
     this.observer?.disconnect();
     this.markers?.detach();
     this.chart?.remove();
@@ -74,7 +88,7 @@ export class EquityCurveChartComponent implements OnDestroy {
     const trades = this.trades();
     const element = this.host()?.nativeElement;
     if (!element) {
-      this.ngOnDestroy();
+      this.disposeChart();
       return;
     }
     const style = getComputedStyle(element);
@@ -96,7 +110,7 @@ export class EquityCurveChartComponent implements OnDestroy {
         timeScale: { borderColor: color('--border'), timeVisible: timeframe === '1h' },
       });
       this.series = this.chart.addSeries(LineSeries, {
-        color: color('--accent'),
+        color: color('--accent-text'),
         lineWidth: 2,
         priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
       });
@@ -119,6 +133,11 @@ export class EquityCurveChartComponent implements OnDestroy {
       this.renderedPoints = points;
       this.renderedTimeframe = timeframe;
     }
-    this.markers?.setMarkers(toTradeMarkers(trades, points, timeframe));
+    this.markers?.setMarkers(
+      toTradeMarkers(trades, points, timeframe, {
+        entry: color('--chart-marker-entry'),
+        exit: color('--chart-marker-exit'),
+      }),
+    );
   }
 }

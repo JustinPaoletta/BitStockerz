@@ -1,65 +1,66 @@
-# BitStockerz / Offset identity
+# BitStockerz identity
 
-The Offset symbol uses two opposing, stepped forms to suggest bid and ask,
-iteration, and the exchange between an idea and evidence. Its open center and
-45-degree cuts give it a recognizable silhouette without a surrounding badge.
+The approved logo combines three dotted-outline candlesticks with an open,
+three-color ring. The full lockup spells **BitStockerz**: `Bit` and `erz` use
+black in light mode and white in dark mode; `Stock` and the lower ring use
+lime. The upper-right ring and third candle use turquoise. The app icon uses
+the mark without the wordmark.
 
-## Assets
+## Source and exports
 
-- `apps/web/public/brand/mark.svg`: citron master mark on transparent ground.
-- `apps/web/public/brand/mark-mono.svg`: ivory version for dark backgrounds.
-- `apps/web/public/brand/mark-light.svg`: ink version for light backgrounds.
-- `apps/web/public/favicon.svg`: inset symbol on an ink tile for browser tabs.
-- `docs/brand/identity.svg`: overview of the lockup, variants, and palette.
+- [`approved-logo.png`](approved-logo.png) is the selected visual reference.
+- `apps/web/public/brand/logo-light.png` and `logo-dark.png` are transparent
+  2× header-sized lockups for light and dark surfaces. `logo.png` is a
+  light-mode alias. Keep the full-resolution approved artwork in this guide.
+- `apps/web/public/brand/mark-light.png` and `mark-dark.png` are transparent
+  standalone marks for secondary use.
+- `apps/web/public/favicon-light.png`, `favicon-dark.png`, `favicon.ico`, and
+  `apple-touch-icon.png` are browser and Home Screen exports.
+- `apps/web/ios/App/App/Assets.xcassets/AppIcon.appiconset` contains 1024 px
+  light and dark iOS app icons. `Splash.imageset` contains matching launch art.
 
-Use the standalone symbol at 24 px or larger; use the dedicated favicon at
-16 px. Keep clear space of at least one quarter of the symbol width. Do not
-stretch, rotate, outline, add effects, or place the master mark in a badge.
-The PNG at `public/brand/logo.png` and the ICO favicon are matching raster exports
-for compatibility. Use the SVG master for new work.
+The Angular header uses the full lockup. The login illustration and native
+app icon use the standalone mark. Browser icons, the launch screen, and the
+page theme follow the device's light/dark preference. Keep the clear space
+around the mark at least one eighth of its width; do not stretch, rotate, or
+recolor individual candles.
 
-The visual wordmark is lowercase **bitstockerz**, set in Helvetica/Arial with
-close spacing and medium weight. Prose retains **BitStockerz**. The header
-uses a simple mark-and-name lockup without a miniature tagline.
+## Brand colors
 
-## Palette
+| Role                        | Value     |
+| --------------------------- | --------- |
+| Black, light-mode lettering | `#000000` |
+| White, dark-mode lettering  | `#FFFFFF` |
+| Lime                        | `#C4DD2E` |
+| Turquoise                   | `#00D1C4` |
 
-| Role                                 | Color     |
-| ------------------------------------ | --------- |
-| Citron / identity and primary action | `#D7F86B` |
-| Hover                                | `#E5FF97` |
-| Ink / background                     | `#10120F` |
-| Surface                              | `#181B16` |
-| Raised surface                       | `#22261E` |
-| Border                               | `#363C30` |
-| Chalk / primary text                 | `#F3F4ED` |
-| Muted text                           | `#ACB3A3` |
-| Positive data                        | `#80E8C0` |
-| Negative data                        | `#FF7B87` |
+These are solid values sampled from the approved artwork. In-app surfaces,
+borders, and semantic status colors are derived from them or selected for
+contrast. Small lime or turquoise text on a white surface uses darker
+`--accent-text` or `--secondary-accent-text` tokens so it remains legible.
+Losses and errors retain a separate red semantic color and a text label.
+All shared theme values live in `apps/web/src/styles.css`; canvas charts read
+the computed values from the same tokens.
 
-Citron identifies the product and actions; positive/negative values retain
-separate semantic colors and text labels. Use dark text on citron buttons.
+## Usage
 
-## Voice and typography
+Keep the full lockup readable and use the mark when the wordmark cannot fit,
+such as an app icon. Prose uses **BitStockerz**. Describe research,
+backtesting, and paper trading without suggesting actual trades or promising
+investment results.
 
-**Find your edge. Then test it.** Be concise and process-oriented. Describe
-research, backtesting, and paper trading without promising financial results.
+## Page previews
 
-Use Helvetica Neue, Helvetica, Arial, and sans-serif fallbacks. Keep display
-headings medium weight, with tabular numerals for data. Use the symbol's angular
-geometry as the decorative motif instead of fictional performance charts.
+These screenshots were captured from the local seed API with a disposable
+`example.invalid` account and simulated prices. They show the app as rendered
+at desktop width, plus a 390 px mobile market view; they are not live market data.
 
-## References
+| Page | Light | Dark |
+| ---- | ----- | ---- |
+| Sign in | [Preview](screenshots/login-light.png) | [Preview](screenshots/login-dark.png) |
+| Dashboard | [Preview](screenshots/dashboard-light.png) | [Preview](screenshots/dashboard-dark.png) |
+| Market chart | [Preview](screenshots/market-light.png) | [Preview](screenshots/market-dark.png) |
+| Backtest result | [Preview](screenshots/backtest-result-light.png) | [Preview](screenshots/backtest-result-dark.png) |
 
-Reviewed [Linear](https://linear.app/brand) and
-[Vercel](https://vercel.com/geist/brands) for clear-space discipline, compact
-silhouettes, monochrome resilience, and wordmark/symbol hierarchy. The Offset
-artwork is constructed for BitStockerz; no reference logo assets are included.
-
-## Application coverage
-
-Dashboard, Trade, Strategy Lab, Backtests, authentication, AI panels, and symbol search use shared CSS tokens.
-Loading, empty, and error states use the same tokens. Canvas charts read those same
-tokens through computed styles. Keep new component colors in `src/styles.css`;
-do not introduce independent palette hex values in component styles. Citron is
-for actions and brand emphasis; mint and rose retain gain/loss meaning.
+Also see the [backtest setup](screenshots/backtest-setup-light.png) and
+[mobile market](screenshots/market-mobile-light.png) previews.

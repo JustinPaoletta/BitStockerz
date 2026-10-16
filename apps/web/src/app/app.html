@@ -1,7 +1,9 @@
 <header class="site-header">
   <a class="brand" [routerLink]="native ? '/research' : '/dashboard'" aria-label="BitStockerz home">
-    <img class="brand-logo" src="/brand/mark.svg" alt="" width="36" height="36" />
-    <span class="brand-wordmark">bitstockerz</span>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="/brand/logo-dark.png" />
+      <img class="brand-logo" src="/brand/logo-light.png" alt="" width="392" height="74" />
+    </picture>
   </a>
   @if (auth.isAuthenticated()) {
     <nav aria-label="Primary navigation">

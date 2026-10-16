@@ -1,4 +1,11 @@
-import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -337,7 +344,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
       overflow-wrap: anywhere;
     }
     .item-link:hover {
-      color: var(--accent);
+      color: var(--accent-text);
     }
     .table-wrap table {
       min-width: 0;

@@ -147,7 +147,7 @@ import type { BacktestListItem } from '../models/backtest.models';
       transform: translateY(-2px);
     }
     .run-card:focus-visible {
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--focus-color);
       outline-offset: 4px;
     }
     .run-title {
@@ -161,7 +161,7 @@ import type { BacktestListItem } from '../models/backtest.models';
       margin: 0.2rem 0 0;
     }
     .symbol {
-      color: var(--accent);
+      color: var(--accent-text);
       font-size: 1.5rem;
       font-weight: 600;
     }

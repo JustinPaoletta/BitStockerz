@@ -249,10 +249,10 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
       font-size: 0.85rem;
     }
     .entry {
-      color: #d7f86b;
+      color: var(--accent-text);
     }
     .exit {
-      color: #ffad75;
+      color: var(--secondary-accent-text);
     }
   `,
 })
