@@ -6,7 +6,9 @@ import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
     <section class="card panel">
       <header>
         <div>
-          <p class="eyebrow">{{ eyebrow }}</p>
+          @if (eyebrow) {
+            <p class="eyebrow">{{ eyebrow }}</p>
+          }
           <h2>{{ title }}</h2>
           @if (description) {
             <p class="hint card-desc">{{ description }}</p>
@@ -46,7 +48,7 @@ import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
   `,
 })
 export class BsCardComponent {
-  @Input() eyebrow = 'Widget';
+  @Input() eyebrow = '';
   @Input({ required: true }) title!: string;
   @Input() description = '';
 }

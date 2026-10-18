@@ -49,14 +49,13 @@ import { nextClientOrderId } from '../data/client-order-id';
   template: `
     <section class="page-heading">
       <div>
-        <p class="eyebrow">Paper trading</p>
-        <h1>Trade desk</h1>
+        <h1>Paper trading</h1>
         <app-page-guide
-          description="Practice with simulated money. Orders fill at the latest available price for the symbol."
+          description="Practice with simulated funds. Paper orders use the latest eligible bar close, not a live quote."
           [steps]="[
             'Search for a symbol in the order ticket.',
             'Choose BUY or SELL and enter a quantity (decimals allowed).',
-            'Submit market order and watch positions and executions update.',
+            'Submit a paper market order and review positions and order fills.',
           ]"
         />
       </div>
@@ -199,14 +198,17 @@ import { nextClientOrderId } from '../data/client-order-id';
       </section>
 
       <section class="panel block wide">
-        <h2>Executions</h2>
+        <h2>Paper order fills</h2>
         <button class="button ghost small" (click)="exportHistory()">Export history CSV</button>
         @if (executionsLoading()) {
           <app-skeleton />
         } @else if (executionsError()) {
           <app-inline-error [message]="executionsError()" (retry)="refreshExecutions()" />
         } @else if (!executions().length) {
-          <app-empty-state title="No trades yet" message="Filled executions will list here." />
+          <app-empty-state
+            title="No paper order fills yet"
+            message="Executed paper orders will appear here."
+          />
         } @else {
           <div class="table-wrap">
             <table>

@@ -10,10 +10,11 @@ function dateOffset(days: number): string {
 
 async function register(page: Page, email: string): Promise<void> {
   await page.goto('/login');
+  await page.getByRole('button', { name: 'Create an account', exact: true }).click();
   await page.locator('#email').fill(email);
   await page.locator('#display').fill('Checklist Trader');
-  await page.getByText('Email fallback').click();
-  await page.getByRole('button', { name: 'Email register' }).click();
+  await page.getByText('Development email sign-in').click();
+  await page.getByRole('button', { name: 'Create a local test account' }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -32,49 +33,56 @@ test.describe('Milestone 5 workflows', () => {
     let strategyId = '';
 
     await register(page, email);
-    await expect(page.getByRole('heading', { name: 'Trading Workspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     await expect(page.getByText('Checklist Trader')).toBeVisible();
 
-    await goNav(page, 'Trade');
+    await goNav(page, 'Paper trading');
     await expect(page).toHaveURL(/\/trade/);
     await goNav(page, 'Strategies');
     await expect(page).toHaveURL(/\/strategies/);
     await goNav(page, 'Backtests');
     await expect(page).toHaveURL(/\/backtests/);
+    await goNav(page, 'Forward testing');
+    await expect(page).toHaveURL(/\/automations/);
+    await expect(page.getByRole('heading', { name: 'Paper strategy runners' })).toBeVisible();
     await goNav(page, 'Dashboard');
     await expect(page).toHaveURL(/\/dashboard/);
     await page.getByRole('link', { name: 'BitStockerz home' }).click();
     await expect(page).toHaveURL(/\/dashboard/);
 
-    await page.getByRole('button', { name: 'Log out' }).click();
+    await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/\/login/);
     await page.goto('/trade');
     await expect(page).toHaveURL(/\/login/);
     await expect(page.url()).toMatch(/returnUrl=/);
     await page.locator('#email').fill(email);
-    await page.getByText('Email fallback').click();
-    await page.getByRole('button', { name: 'Email log in' }).click();
+    await page.getByText('Development email sign-in').click();
+    await page.getByRole('button', { name: 'Sign in for local testing' }).click();
     await expect(page).toHaveURL(/\/trade/);
-    await expect(page.getByRole('heading', { name: 'Trade desk' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Paper trading' })).toBeVisible();
 
     await page.goto('/dashboard');
     await page.reload();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Trading Workspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Portfolio summary', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('$100,000.00').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: 'Positions', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Open positions', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Strategies', exact: true })).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Recent backtests', exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Recent trades', exact: true })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Find a symbol to trade' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Recent paper fills', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('combobox', { name: 'Find a symbol to paper trade' }),
+    ).toBeVisible();
 
     await goNav(page, 'Strategies');
     await page
@@ -128,7 +136,7 @@ test.describe('Milestone 5 workflows', () => {
     await expect(page.getByText('Final equity', { exact: true })).toBeVisible();
 
     await goNav(page, 'Dashboard');
-    const input = page.getByRole('combobox', { name: 'Find a symbol to trade' });
+    const input = page.getByRole('combobox', { name: 'Find a symbol to paper trade' });
     await input.click();
     await input.fill('AA');
     await expect(page.getByRole('option').filter({ hasText: 'AAPL' }).first()).toBeVisible({
@@ -139,7 +147,7 @@ test.describe('Milestone 5 workflows', () => {
     await expect(page).toHaveURL(/\/trade\?symbol=AAPL/);
     await expect(page.getByRole('combobox', { name: 'Symbol', exact: true })).toHaveValue('AAPL');
 
-    await goNav(page, 'Trade');
+    await goNav(page, 'Paper trading');
     await page.locator('#qty').fill('1');
     await page.getByRole('button', { name: 'Submit market order' }).click();
     await expect(page.getByRole('status')).toContainText(/Filled BUY/i, { timeout: 30_000 });
@@ -169,14 +177,18 @@ test.describe('Milestone 5 workflows', () => {
       page.getByText('SELL quantity cannot exceed the currently displayed position.'),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Log out' }).click();
-    await expect(page.getByRole('button', { name: 'Sign in with passkey' })).toBeVisible();
-    await page.getByRole('button', { name: 'Need an account? Register' }).click();
-    await expect(page.getByRole('button', { name: 'Create with passkey' })).toBeVisible();
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page.getByRole('button', { name: 'Sign in with a passkey' })).toBeVisible();
+    await expect(page.getByLabel('Display name', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Create an account' }).click();
+    await expect(page.getByRole('button', { name: 'Create account with a passkey' })).toBeVisible();
+    await expect(page.getByLabel('Display name', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Already have an account? Sign in' }).click();
+    await expect(page.getByLabel('Display name', { exact: true })).toHaveCount(0);
 
     await page.locator('#email').fill(email);
-    await page.getByText('Email fallback').click();
-    await page.getByRole('button', { name: 'Email log in' }).click();
+    await page.getByText('Development email sign-in').click();
+    await page.getByRole('button', { name: 'Sign in for local testing' }).click();
     await expect(page).toHaveURL(/\/dashboard/);
     await context.addInitScript(() => {
       sessionStorage.removeItem('bs.access_token');

@@ -102,6 +102,9 @@ describe('product workspace ownership and account lifecycle', () => {
       .expect(200)
       .expect((r) => {
         expect(r.body.data_mode).toBe('seed');
+        expect(r.body.price_source).toBe('seed');
+        expect(r.body.contains_simulated_prices).toBe(true);
+        expect(r.body.currency).toBe('USD');
         expect(r.body.bars.length).toBeGreaterThan(0);
         expect(r.body.indicators[0].points.length).toBeGreaterThan(0);
       });

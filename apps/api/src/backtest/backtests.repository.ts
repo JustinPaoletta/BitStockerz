@@ -309,6 +309,9 @@ export class BacktestsRepository {
       run: {
         ...clone(aggregate.run),
         status: 'completed',
+        ...(completion.priceSource
+          ? { priceSource: completion.priceSource }
+          : {}),
         updatedAt: clone(completion.finishedAt),
         finishedAt: clone(completion.finishedAt),
       },
@@ -380,6 +383,9 @@ export class BacktestsRepository {
         where: { id: runId, userId, status: 'running' },
         data: {
           status: 'completed',
+          ...(completion.priceSource
+            ? { priceSource: completion.priceSource }
+            : {}),
           errorMessage: null,
           updatedAt: completion.finishedAt,
           finishedAt: completion.finishedAt,
@@ -502,6 +508,7 @@ function fromPrismaRun(record: BacktestRun): BacktestRunRecord {
     startDate: record.startDate,
     endDate: record.endDate,
     initialEquity: record.initialEquity.toFixed(2),
+    ...(record.priceSource ? { priceSource: record.priceSource } : {}),
     ...(record.simulationJson
       ? {
           simulation: normalizeSimulation(

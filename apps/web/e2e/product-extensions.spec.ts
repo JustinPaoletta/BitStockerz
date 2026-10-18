@@ -57,10 +57,10 @@ test('rich definitions survive editing, costed research exports, charts and runn
   });
   expect(research.results.benchmark).toBeTruthy();
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export results CSV' }).click();
+  await page.getByRole('button', { name: 'Export results (CSV)', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('backtest-results.csv');
   await page.goto('/market');
-  await page.getByRole('button', { name: 'Save symbol' }).click();
+  await page.getByRole('button', { name: 'Add to watchlist', exact: true }).click();
   await expect(page.getByRole('button', { name: 'AAPL', exact: true })).toBeVisible();
   await page.goto('/automations');
   await page.getByLabel('Saved strategy', { exact: true }).selectOption(strategy.id);
@@ -94,9 +94,9 @@ test('additional passkeys use real browser verification and sign into the same a
       automaticPresenceSimulation: true,
     },
   });
-  await page.getByRole('button', { name: 'Need an account? Register', exact: true }).click();
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByRole('button', { name: 'Create with passkey', exact: true }).click();
+  await page.getByRole('button', { name: 'Create an account', exact: true }).click();
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByRole('button', { name: 'Create account with a passkey', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   const initialToken = await page.evaluate(() => sessionStorage.getItem('bs.access_token'));
   const original = await (
@@ -126,9 +126,9 @@ test('additional passkeys use real browser verification and sign into the same a
   for (const credential of credentials) {
     await cdp.send('WebAuthn.clearCredentials', { authenticatorId });
     await cdp.send('WebAuthn.addCredential', { authenticatorId, credential });
-    await page.getByRole('button', { name: 'Log out', exact: true }).click();
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByRole('button', { name: 'Sign in with passkey', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByLabel('Email address', { exact: true }).fill(email);
+    await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto('http://localhost:4200/account/security');
     await expect(page.getByRole('button', { name: 'Remove passkey', exact: true })).toHaveCount(2);

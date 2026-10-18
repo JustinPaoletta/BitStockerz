@@ -530,6 +530,7 @@ describe('MarketDataService', () => {
       expect(bars).toHaveLength(3);
       expect(bars[0]).toEqual({
         ts: expect.any(Date),
+        provider: 'seed',
         open: expect.any(Number),
         high: expect.any(Number),
         low: expect.any(Number),

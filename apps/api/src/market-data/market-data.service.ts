@@ -88,6 +88,7 @@ type NumericValue = number | bigint | { toString(): string };
 
 interface DailyBarLike {
   date: Date;
+  provider?: string;
   open: NumericValue;
   high: NumericValue;
   low: NumericValue;
@@ -97,6 +98,7 @@ interface DailyBarLike {
 
 interface HourlyBarLike {
   timestamp: Date;
+  provider?: string;
   open: NumericValue;
   high: NumericValue;
   low: NumericValue;
@@ -1075,6 +1077,7 @@ function toEngineBar(
 ): EngineBar {
   return {
     ts,
+    ...(record.provider ? { provider: record.provider } : {}),
     open: toNumber(record.open),
     high: toNumber(record.high),
     low: toNumber(record.low),

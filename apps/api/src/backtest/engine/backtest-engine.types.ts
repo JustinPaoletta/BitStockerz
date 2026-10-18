@@ -2,6 +2,8 @@ import type { StrategyDefinition } from '../../strategies/definition/strategy-de
 
 export interface EngineBar {
   ts: Date;
+  /** The stored provider is used for run provenance, not strategy calculations. */
+  provider?: string;
   open: number;
   high: number;
   low: number;

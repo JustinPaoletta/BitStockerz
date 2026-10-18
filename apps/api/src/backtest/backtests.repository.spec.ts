@@ -33,6 +33,7 @@ describe('BacktestsRepository', () => {
       new Date('2026-07-28T20:01:00.000Z'),
     );
     const completion = completionRecord();
+    completion.priceSource = 'seed';
     await repository.completeRun(RUN_ID, USER_ID, completion);
 
     const detail = await repository.findDetailForUser(RUN_ID, USER_ID);
@@ -41,6 +42,7 @@ describe('BacktestsRepository', () => {
         status: 'completed',
         strategyVersionId: 2,
         initialEquity: '1000.00',
+        priceSource: 'seed',
       },
       result: {
         finalEquity: '1100.00',
@@ -74,6 +76,7 @@ describe('BacktestsRepository', () => {
     };
     const row = {
       ...detail,
+      priceSource: 'seed',
       simulationJson: settings,
       result: { ...detail.result, benchmarkJson: benchmark },
       trades: detail.trades.map((trade) => ({
@@ -98,6 +101,7 @@ describe('BacktestsRepository', () => {
     );
     const read = await repository.findDetailForUser(RUN_ID, USER_ID);
     expect(read?.run.simulation).toEqual(settings);
+    expect(read?.run.priceSource).toBe('seed');
     expect(read?.result?.benchmark).toEqual(benchmark);
     expect(read?.trades[0].feesAbs).toBe('2.10000000');
     row.trades[0].feesAbs = new Prisma.Decimal(0);
@@ -401,6 +405,7 @@ describe('BacktestsRepository', () => {
       $transaction,
     } as unknown as PrismaService);
     const completion = completionRecord();
+    completion.priceSource = 'alpaca';
     completion.trades = Array.from({ length: 1_001 }, () => ({
       ...completion.trades[0],
     }));
@@ -412,6 +417,10 @@ describe('BacktestsRepository', () => {
     await repository.completeRun(RUN_ID, USER_ID, completion);
 
     expect($transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.backtestRun.updateMany).toHaveBeenCalledWith({
+      where: { id: RUN_ID, userId: USER_ID, status: 'running' },
+      data: expect.objectContaining({ priceSource: 'alpaca' }),
+    });
     expect(transaction.backtestResult.create).toHaveBeenCalledTimes(1);
     expect(transaction.backtestTrade.createMany).toHaveBeenCalledTimes(3);
     expect(transaction.backtestEquityPoint.createMany).toHaveBeenCalledTimes(3);

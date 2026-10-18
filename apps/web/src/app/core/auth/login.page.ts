@@ -2,37 +2,38 @@ import { Component, HostListener, inject, signal, ChangeDetectionStrategy } from
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
-import { PageGuideComponent } from '../../shared/ui/page-guide.component';
 import { AuthService, safeReturnUrl } from './auth.service';
 import type { AuthProviders, OAuthProvider } from './auth.models';
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule, PageGuideComponent],
+  imports: [ReactiveFormsModule],
   template: `
     <div class="auth-layout">
       @if (environment.nativeMode === 'web') {
         <aside class="brand-story" aria-label="About BitStockerz">
-          <div class="story-label"><span class="signal-dot"></span> THE STRATEGY WORKSPACE</div>
+          <div class="story-label"><span class="signal-dot"></span> Trading strategy workspace</div>
 
-          <h2>Find your edge.<br /><em>Then test it.</em></h2>
+          <h2>Test your ideas.<br /><em>Build on evidence.</em></h2>
           <p class="story-copy">
-            Turn a market idea into a strategy you can test. Research, backtest, and paper trade in
-            one focused workspace.
+            Turn a market idea into a strategy you can test. Research markets, backtest your rules,
+            and practice with simulated funds in one workspace.
           </p>
           <div class="research-motif" aria-hidden="true">
-            <img src="/brand/mark.svg" alt="" width="240" height="240" />
-            <span class="motif-caption">IDEA → EVIDENCE</span>
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="/brand/mark-dark.png" />
+              <img src="/brand/mark-light.png" alt="" width="378" height="365" />
+            </picture>
+            <span class="motif-caption">Idea → Evidence</span>
           </div>
           <div class="story-principles">
-            <span>01 / Research</span><span>02 / Test</span><span>03 / Paper trade</span>
+            <span>01 / Research</span><span>02 / Backtest</span><span>03 / Paper trade</span>
           </div>
-          <p class="story-footnote">Build your process. Understand your risk.</p>
+          <p class="story-footnote">Build your process. Learn from each test.</p>
         </aside>
       }
       <section class="auth-panel panel">
-        <p class="eyebrow">YOUR NEXT IDEA STARTS HERE</p>
-        <h1>Sign in with a passkey</h1>
+        <h1>{{ mode() === 'register' ? 'Create your account' : 'Sign in with a passkey' }}</h1>
         @if (environment.nativeMode !== 'web') {
           <p class="hint">
             Native sessions end when the app closes. Passkeys stay in your credential provider.
@@ -50,28 +51,31 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
             Account settings to add your recovery method.
           </p>
         }
-        @if (environment.nativeMode === 'web') {
-          <app-page-guide
-            description="BitStockerz uses passkeys instead of passwords. Your device handles Face ID, Touch ID, or a security key."
-            [steps]="[
-              'Enter your email and display name (first time only).',
-              'Choose Create with passkey and approve the browser prompt.',
-              'Next visits: same email, then Sign in with passkey.',
-            ]"
-          />
-        } @else {
-          <p class="hint">
-            Enter your email. On your first visit choose Register, then approve the system passkey
-            prompt.
-          </p>
-        }
+        <p class="hint">
+          @if (mode() === 'register') {
+            Enter your email and display name, then create a passkey. Your browser or device will
+            guide you.
+          } @else {
+            Enter your email, then use your passkey to sign in.
+          }
+        </p>
+        <p class="hint">
+          A passkey lets you sign in using your device's screen lock or a security key.
+        </p>
 
         <form [formGroup]="form" (submit)="onPasskey($event)">
-          <label for="email">Email</label>
+          <label for="email">Email address</label>
           <input id="email" type="email" autocomplete="username webauthn" formControlName="email" />
 
-          <label for="display">Display name (register only)</label>
-          <input id="display" type="text" autocomplete="nickname" formControlName="display_name" />
+          @if (mode() === 'register') {
+            <label for="display">Display name</label>
+            <input
+              id="display"
+              type="text"
+              autocomplete="nickname"
+              formControlName="display_name"
+            />
+          }
 
           @if (error()) {
             <p class="error" role="alert">{{ error() }}</p>
@@ -83,8 +87,8 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
                 busy()
                   ? 'Working…'
                   : mode() === 'register'
-                    ? 'Create with passkey'
-                    : 'Sign in with passkey'
+                    ? 'Create account with a passkey'
+                    : 'Sign in with a passkey'
               }}
             </button>
             @if (!reauthenticating) {
@@ -95,7 +99,7 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
                 (click)="toggleMode()"
               >
                 {{
-                  mode() === 'register' ? 'Have an account? Sign in' : 'Need an account? Register'
+                  mode() === 'register' ? 'Already have an account? Sign in' : 'Create an account'
                 }}
               </button>
             }
@@ -142,7 +146,7 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
         }
 
         <details class="recovery-help">
-          <summary>Lost access to your passkey?</summary>
+          <summary>Can't use your passkey?</summary>
           <p>
             Sign in with the Google or Apple account you previously linked to BitStockerz to restore
             access to your existing account.
@@ -156,24 +160,25 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
 
         @if (!environment.production) {
           <details class="fallback">
-            <summary>Email fallback</summary>
+            <summary>Development email sign-in</summary>
             <div class="actions">
-              <button
-                class="button ghost"
-                type="button"
-                [disabled]="busy()"
-                (click)="onEmail('login')"
-              >
-                Email log in
-              </button>
-              @if (!reauthenticating) {
+              @if (mode() === 'login') {
+                <button
+                  class="button ghost"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="onEmail('login')"
+                >
+                  Sign in for local testing
+                </button>
+              } @else if (!reauthenticating) {
                 <button
                   class="button ghost"
                   type="button"
                   [disabled]="busy()"
                   (click)="onEmail('register')"
                 >
-                  Email register
+                  Create a local test account
                 </button>
               }
             </div>
@@ -217,7 +222,7 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
     }
     .brand-story em {
       font-style: normal;
-      color: var(--accent);
+      color: var(--accent-text);
     }
     .story-copy {
       color: var(--muted);
@@ -448,7 +453,7 @@ export class LoginPage {
         this.auth.problemMessage(
           error,
           action === 'login'
-            ? 'That email is not registered yet. Use Email register once, then log in.'
+            ? 'That email is not registered yet. Create a local test account first.'
             : 'Registration failed. The email may already be registered.',
         ),
       );

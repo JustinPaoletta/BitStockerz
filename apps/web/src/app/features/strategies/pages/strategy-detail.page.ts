@@ -50,7 +50,7 @@ import { StrategiesApiService, StrategyDetail } from '../data/strategies-api.ser
                 </p>
               } @else {
                 <app-page-guide
-                  description="This is the rule set the backtester uses. Edit to change rules; Run backtest to see how it performs on history."
+                  description="This is the rule set the backtester uses. Edit to change rules; Run backtest to see simulated results on available price data."
                 />
               }
             </div>

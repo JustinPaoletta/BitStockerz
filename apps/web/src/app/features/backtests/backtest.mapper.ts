@@ -112,6 +112,7 @@ export function toTradeMarkers(
   trades: BacktestTrade[],
   points: EquityPoint[],
   timeframe: '1d' | '1h',
+  colors: Readonly<{ entry: string; exit: string }> = { entry: '#C4DD2E', exit: '#00D1C4' },
 ): SeriesMarker<Time>[] {
   const times = new Set(toChartPoints(points, timeframe).map((point) => point.time));
   const markers: SeriesMarker<Time>[] = [];
@@ -130,7 +131,7 @@ export function toTradeMarkers(
         id: `entry-${trade.id}`,
         time: entryTime as Time,
         position: 'belowBar',
-        color: '#d7f86b',
+        color: colors.entry,
         shape: 'arrowUp',
         text: 'Entry',
       });
@@ -140,7 +141,7 @@ export function toTradeMarkers(
         id: `exit-${trade.id}`,
         time: exitTime as Time,
         position: 'aboveBar',
-        color: '#ffad75',
+        color: colors.exit,
         shape: 'arrowDown',
         text: 'Exit',
       });
@@ -173,7 +174,11 @@ function validateRun(value: unknown): asserts value is BacktestRun {
     !isIsoDate(value['end_date']) ||
     !isIsoDate(value['created_at']) ||
     !isIsoDate(value['updated_at']) ||
-    !isFiniteDecimalString(value['initial_equity'])
+    !isFiniteDecimalString(value['initial_equity']) ||
+    !isOptionalNonEmptyString(value['price_source']) ||
+    !isOptionalNonEmptyString(value['strategy_name']) ||
+    !isOptionalPositiveInteger(value['strategy_version_number']) ||
+    !isOptionalNonEmptyString(value['currency'])
   ) {
     throw new Error('Backtest run metadata is invalid.');
   }
@@ -187,10 +192,13 @@ function validateResults(value: unknown): asserts value is BacktestResults | nul
       'final_equity',
       'total_return_pct',
       'max_drawdown_pct',
-      'win_rate_pct',
       'avg_win_pct',
       'avg_loss_pct',
     ]) ||
+    !(
+      isFiniteDecimalString(value['win_rate_pct']) ||
+      (value['num_trades'] === 0 && value['win_rate_pct'] === null)
+    ) ||
     !isNonNegativeInteger(value['num_trades']) ||
     !(value['sharpe_ratio'] === null || isFiniteDecimalString(value['sharpe_ratio']))
   ) {
@@ -220,6 +228,14 @@ function isNonNegativeInteger(value: unknown): boolean {
 
 function isOptionalNonNegativeInteger(value: unknown): boolean {
   return value === undefined || isNonNegativeInteger(value);
+}
+
+function isOptionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || isPositiveInteger(value);
+}
+
+function isOptionalNonEmptyString(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && value.trim().length > 0);
 }
 
 function isIsoDate(value: unknown): boolean {

@@ -300,6 +300,7 @@ model BacktestRun {
   startDate         DateTime  @map("start_date")
   endDate           DateTime  @map("end_date")
   simulationJson    Json?     @map("simulation_json")
+  priceSource       String?   @map("price_source") @db.VarChar(64)
   initialEquity     Decimal   @map("initial_equity") @db.Decimal(18, 2)
   status            String    @db.VarChar(16)
   jobId             String?   @map("job_id") @db.Char(36)

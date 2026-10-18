@@ -75,6 +75,21 @@ describe('backtest mapper contract', () => {
     ]);
   });
 
+  it('accepts an undefined win rate only when no trades closed', () => {
+    const noTrades = {
+      ...fixture,
+      results: { ...fixture.results, num_trades: 0, win_rate_pct: null },
+      trades: [],
+    };
+    expect(mapBacktestDetail(noTrades).results?.win_rate_pct).toBeNull();
+    expect(() =>
+      mapBacktestDetail({
+        ...noTrades,
+        results: { ...noTrades.results, num_trades: 1 },
+      }),
+    ).toThrow('Backtest results are invalid.');
+  });
+
   it('maps intraday timestamps and rejects drifted fixture shapes', () => {
     expect(
       toChartPoints(

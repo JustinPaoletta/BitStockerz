@@ -1,4 +1,11 @@
-import { Component, DestroyRef, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state.component';
@@ -26,7 +33,7 @@ import { StrategiesApiService, StrategySummary } from '../data/strategies-api.se
           [steps]="[
             'Create strategy and fill in indicator, entry, exit, and risk fields.',
             'Validate, then save.',
-            'Open the strategy and choose Run backtest to test it on history.',
+            'Open the strategy and choose Run backtest to test it against available price data.',
           ]"
         />
       </div>
@@ -108,14 +115,14 @@ import { StrategiesApiService, StrategySummary } from '../data/strategies-api.se
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .strategy-link {
-      color: var(--accent);
+      color: var(--accent-text);
       display: inline-block;
       font-weight: 600;
       padding-block: 0.4rem;
       text-underline-offset: 0.2em;
     }
     .strategy-link:focus-visible {
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--focus-color);
       outline-offset: 4px;
     }
     .panel {

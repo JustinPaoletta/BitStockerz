@@ -16,7 +16,7 @@ describe('Kernel parameter preview', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
     const button = [...host.querySelectorAll('button')].find((item) =>
-      item.textContent?.includes('Suggest improvements'),
+      item.textContent?.includes('Suggest changes to test'),
     )!;
     button.click();
     const http = TestBed.inject(HttpTestingController);

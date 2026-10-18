@@ -8,7 +8,7 @@ import type { BacktestTrade } from '../models/backtest.models';
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (trades().length === 0) {
-      <p class="empty">No trades were generated for this run.</p>
+      <p class="empty">No trades were recorded in this backtest.</p>
     } @else {
       <div class="table-wrap">
         <table>

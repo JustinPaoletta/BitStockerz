@@ -1,6 +1,6 @@
 # BitStockerz iOS research prototype
 
-Updated October 11, 2026. This prototype is in draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17).
+Updated October 17, 2026. This prototype is included in the repository; native passkeys on an iPhone still require an associated HTTPS domain.
 
 The app bundles the Angular interface in Capacitor 8.5.3.
 AuthenticationServices provides native passkey registration and login.
@@ -47,9 +47,9 @@ Simulator mode uses `http://localhost:4310`.
 
 ### Simulator login and research
 
-1. Enter a disposable test email on the sign-in screen.
-2. Expand **Email fallback**.
-3. Select **Email register**.
+1. Select **Create an account**, then enter a disposable test email and display name.
+2. Expand **Development email sign-in**.
+3. Select **Create a local test account**.
 4. Select **Open chart**.
 5. Return to **Research**.
 6. Select **Set up a backtest**.
@@ -169,16 +169,16 @@ The generated configuration supplies its domain value.
 
 1. Enable iCloud Passwords & Keychain on the iPhone.
 2. Set a device passcode if one is not already configured.
-3. In the app, select **Register**.
+3. In the app, select **Create an account**.
 4. Enter a disposable test email.
-5. Select **Create with passkey**.
+5. Select **Create account with a passkey**.
 6. Approve the system Face ID or Touch ID prompt.
-7. Log out.
+7. Select **Sign out**.
 8. Sign in with the same email and passkey.
 
 ## iPhone acceptance checklist
 
-- [ ] Create a passkey. Log out and sign in with the same account using Face ID.
+- [ ] Create a passkey. Sign out and sign in with the same account using Face ID or the device passcode.
 - [ ] Cancel the system prompt. Make sure the app shows an error and permits another attempt.
 - [ ] Make sure a failed or mismatched challenge does not create an authenticated session.
 - [ ] Force-quit and reopen. Make sure the app requires sign-in; native bearer tokens stay in memory only.

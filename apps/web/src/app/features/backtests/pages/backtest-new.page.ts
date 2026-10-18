@@ -17,13 +17,15 @@ import { BacktestsApiService } from '../backtests-api.service';
         <p class="eyebrow">New research run</p>
         <h1>Run a backtest</h1>
         @if (strategyName()) {
-          <p class="lede">{{ strategyName() }} · {{ form.controls.timeframe.value }}</p>
+          <p class="lede">
+            {{ strategyName() }} · {{ form.controls.timeframe.value === '1d' ? 'Daily' : 'Hourly' }}
+          </p>
         } @else {
           <app-page-guide
             description="Simulate how your strategy would have traded over a date range."
             [steps]="[
               'Choose a saved strategy from Strategy Lab.',
-              'Choose sizing, costs, and fill timing. Use a new date range for out-of-sample validation.',
+              'Choose sizing, costs, and fill timing. Reserve unused data for an out-of-sample check.',
               'Pick a symbol and UTC date range that has price data.',
               'Run backtest and wait for the results page.',
             ]"
