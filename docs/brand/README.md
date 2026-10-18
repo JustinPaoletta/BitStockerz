@@ -9,6 +9,9 @@ the mark without the wordmark.
 ## Source and exports
 
 - [`approved-logo.png`](approved-logo.png) is the selected visual reference.
+- [`source/logo-light.png`](source/logo-light.png) and
+  [`source/logo-dark.png`](source/logo-dark.png) preserve the full-resolution
+  transparent raster lockups used to make the smaller app exports.
 - `apps/web/public/brand/logo-light.png` and `logo-dark.png` are transparent
   2× header-sized lockups for light and dark surfaces. `logo.png` is a
   light-mode alias. Keep the full-resolution approved artwork in this guide.

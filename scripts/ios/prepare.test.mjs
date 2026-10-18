@@ -37,3 +37,26 @@ test("device config requires HTTPS, a real RP, and safe build setting values", (
     settings([...valid, "--bundle-id", "com.example\nFOO=bar"]),
   );
 });
+
+test("Personal Team demo cannot target production and uses a distinct app without a passkey RP", () => {
+  const args = [
+    "--mode",
+    "device-demo",
+    "--api-origin",
+    "https://test-only.trycloudflare.com",
+  ];
+  const config = settings(args);
+  assert.equal(config.rpId, "passkeys.invalid");
+  assert.equal(config.bundleId, "com.bitstockerz.research.demo");
+  assert.throws(() =>
+    settings([...args, "--bundle-id", "com.bitstockerz.research"]),
+  );
+  for (const origin of [
+    "https://production.example.com",
+    "https://trycloudflare.com",
+    "https://evil.trycloudflare.com.example.com",
+    "http://test-only.trycloudflare.com",
+  ]) {
+    assert.throws(() => settings([...args, "--api-origin", origin]));
+  }
+});

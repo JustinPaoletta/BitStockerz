@@ -13,7 +13,12 @@ try {
   throw new Error("Run npm run ios:prepare first.");
 }
 const simulator = config.mode === "simulator";
-if (!["device", "simulator"].includes(config.mode))
+const demo = config.mode === "device-demo";
+if (demo && !/^[a-f0-9]{64}$/.test(config.demoAccessKey ?? ""))
+  throw new Error(
+    "Device demo requires a generated access key; rerun ios:prepare.",
+  );
+if (!["device", "simulator", "device-demo"].includes(config.mode))
   throw new Error("Invalid prototype mode");
 console.log(
   "Synthetic development data; accounts and research are lost when this server restarts.",
@@ -21,7 +26,9 @@ console.log(
 console.log(
   simulator
     ? "Simulator-only email fallback enabled. Listening on localhost:4310."
-    : "Passkey-only mode. Forward your dedicated HTTPS prototype origin to localhost:4310.",
+    : demo
+      ? "Personal Team demo: disposable test login behind a demo-only access key."
+      : "Passkey-only mode. Forward your dedicated HTTPS prototype origin to localhost:4310.",
 );
 const child = spawn("npm", ["--prefix", "apps/api", "run", "start:dev"], {
   cwd: fileURLToPath(root),
@@ -35,10 +42,10 @@ const child = spawn("npm", ["--prefix", "apps/api", "run", "start:dev"], {
     PORT: "4310",
     HOST: "127.0.0.1",
     DATABASE_URL: "",
-    PRIVATE_BETA_ENABLED: "false",
-    PRIVATE_BETA_PROXY_KEY: "",
+    PRIVATE_BETA_ENABLED: String(demo),
+    PRIVATE_BETA_PROXY_KEY: demo ? config.demoAccessKey : "",
     PRIVATE_BETA_MONITOR_KEY: "",
-    AUTH_DEV_EMAIL_ENABLED: String(simulator),
+    AUTH_DEV_EMAIL_ENABLED: String(simulator || demo),
     AUTH_LEGACY_WEBAUTHN_ENABLED: "false",
     WEBAUTHN_RP_ID: simulator ? "localhost" : config.rpId,
     WEBAUTHN_ALLOWED_ORIGINS: simulator
