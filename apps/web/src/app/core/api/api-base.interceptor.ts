@@ -10,7 +10,14 @@ export const apiBaseInterceptor: HttpInterceptorFn = (req, next) => {
   if (!base || !isLocalApiRequest(req.url)) {
     return next(req);
   }
-  return next(req.clone({ url: `${base}${req.url}` }));
+  const demoKey =
+    environment.nativeMode === 'device-demo' ? environment.prototypeAccessKey : undefined;
+  return next(
+    req.clone({
+      url: `${base}${req.url}`,
+      ...(demoKey ? { setHeaders: { 'x-bitstockerz-beta-key': demoKey } } : {}),
+    }),
+  );
 };
 
 export function isApiPath(pathname: string): boolean {
