@@ -27,7 +27,7 @@ export function identifyFailureModes(input: FailureModeInput): AiIssue[] {
     issues.push({
       code: 'TOO_FEW_TRADES',
       severity: 'HIGH',
-      message: 'Fewer than 5 trades were executed.',
+      message: 'Fewer than 5 closed trades were recorded.',
       evidence: [`num_trades=${result.numTrades}`],
     });
   }

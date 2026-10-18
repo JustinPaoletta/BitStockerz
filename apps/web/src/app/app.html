@@ -24,14 +24,16 @@
           >Dashboard</a
         >
         <a routerLink="/market" routerLinkActive="active" ariaCurrentWhenActive="page">Markets</a>
-        <a routerLink="/automations" routerLinkActive="active">Runners</a>
-        <a routerLink="/trade" routerLinkActive="active" ariaCurrentWhenActive="page">Trade</a>
         <a routerLink="/strategies" routerLinkActive="active" ariaCurrentWhenActive="page"
           >Strategies</a
         >
         <a routerLink="/backtests" routerLinkActive="active" ariaCurrentWhenActive="page"
           >Backtests</a
         >
+        <a routerLink="/trade" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Paper trading</a
+        >
+        <a routerLink="/automations" routerLinkActive="active">Forward testing</a>
       }
     </nav>
     <div class="user-menu">
@@ -45,7 +47,7 @@
         ariaCurrentWhenActive="page"
         >Account</a
       >
-      <button class="button ghost small" type="button" (click)="logout()">Log out</button>
+      <button class="button ghost small" type="button" (click)="logout()">Sign out</button>
     </div>
   }
 </header>

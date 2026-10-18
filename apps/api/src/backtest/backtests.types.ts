@@ -42,6 +42,8 @@ export interface BacktestRunRecord {
   startDate: Date;
   endDate: Date;
   initialEquity: string;
+  /** Provider captured when this run was executed; absent on earlier runs. */
+  priceSource?: string;
   simulation?: SimulationSettings;
   status: BacktestStatus;
   jobId?: string;
@@ -139,6 +141,7 @@ export interface PinnedStrategyVersion {
 
 export interface BacktestCompletionRecord {
   result: BacktestResultRecord;
+  priceSource?: string;
   trades: BacktestTradeRecord[];
   equityCurve: BacktestEquityPointRecord[];
   finishedAt: Date;

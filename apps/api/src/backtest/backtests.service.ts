@@ -131,6 +131,7 @@ export class BacktestsService {
     runId: string,
     userId: string,
     output: BacktestEngineOutput,
+    priceSource?: string,
   ): Promise<void> {
     assertIdentity('runId', runId);
     assertIdentity('userId', userId);
@@ -142,7 +143,10 @@ export class BacktestsService {
     if (run.status !== 'running') {
       throw backtestInvalidStateError(runId, run.status, 'completed');
     }
-    const completion = mapCompletion(run, output);
+    const completion = {
+      ...mapCompletion(run, output),
+      ...(priceSource ? { priceSource } : {}),
+    };
     await this.repository.completeRun(runId, userId, completion);
   }
 

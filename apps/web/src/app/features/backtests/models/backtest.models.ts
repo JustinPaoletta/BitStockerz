@@ -9,6 +9,10 @@ export interface BacktestRun {
   start_date: string;
   end_date: string;
   initial_equity: string;
+  price_source?: string;
+  strategy_name?: string;
+  strategy_version_number?: number;
+  currency?: string;
   simulation?: SimulationSettings;
   status: BacktestStatus;
   job_id?: string;
@@ -37,7 +41,7 @@ export interface BacktestResults {
   final_equity: string;
   total_return_pct: string;
   max_drawdown_pct: string;
-  win_rate_pct: string;
+  win_rate_pct: string | null;
   num_trades: number;
   avg_win_pct: string;
   avg_loss_pct: string;

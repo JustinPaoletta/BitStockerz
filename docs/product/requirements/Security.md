@@ -11,7 +11,7 @@
   stay stable across API restarts.
 - Development email register/login shortcuts are gated by
   `AUTH_DEV_EMAIL_ENABLED` (default `true` outside production; must be `false`
-  in production). The Angular **Email fallback** panel is shown only in
+  in production). The Angular **Development email sign-in** panel is shown only in
   non-production builds. Passkey register/sign-in is the primary auth UI.
   Google/Apple browser login, explicit recovery-provider linking and Profile
   settings merged in PR #13 (Sprints 8.1–8.2). Real provider credentials, HTTPS

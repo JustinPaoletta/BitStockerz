@@ -174,7 +174,11 @@ function validateRun(value: unknown): asserts value is BacktestRun {
     !isIsoDate(value['end_date']) ||
     !isIsoDate(value['created_at']) ||
     !isIsoDate(value['updated_at']) ||
-    !isFiniteDecimalString(value['initial_equity'])
+    !isFiniteDecimalString(value['initial_equity']) ||
+    !isOptionalNonEmptyString(value['price_source']) ||
+    !isOptionalNonEmptyString(value['strategy_name']) ||
+    !isOptionalPositiveInteger(value['strategy_version_number']) ||
+    !isOptionalNonEmptyString(value['currency'])
   ) {
     throw new Error('Backtest run metadata is invalid.');
   }
@@ -188,10 +192,13 @@ function validateResults(value: unknown): asserts value is BacktestResults | nul
       'final_equity',
       'total_return_pct',
       'max_drawdown_pct',
-      'win_rate_pct',
       'avg_win_pct',
       'avg_loss_pct',
     ]) ||
+    !(
+      isFiniteDecimalString(value['win_rate_pct']) ||
+      (value['num_trades'] === 0 && value['win_rate_pct'] === null)
+    ) ||
     !isNonNegativeInteger(value['num_trades']) ||
     !(value['sharpe_ratio'] === null || isFiniteDecimalString(value['sharpe_ratio']))
   ) {
@@ -221,6 +228,14 @@ function isNonNegativeInteger(value: unknown): boolean {
 
 function isOptionalNonNegativeInteger(value: unknown): boolean {
   return value === undefined || isNonNegativeInteger(value);
+}
+
+function isOptionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || isPositiveInteger(value);
+}
+
+function isOptionalNonEmptyString(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && value.trim().length > 0);
 }
 
 function isIsoDate(value: unknown): boolean {

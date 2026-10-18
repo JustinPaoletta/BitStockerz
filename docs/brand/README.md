@@ -49,18 +49,44 @@ such as an app icon. Prose uses **BitStockerz**. Describe research,
 backtesting, and paper trading without suggesting actual trades or promising
 investment results.
 
+## Product language
+
+The landing headline is **“Test your ideas. Build on evidence.”** Describe a
+backtest as a simulation over a past dataset: it may support, weaken, or leave
+an idea unresolved. Do not imply that a test has established an advantage.
+
+Keep these terms distinct across the interface, exports, and help text:
+
+| Term          | Meaning                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| Strategy      | A saved set of trading rules.                                           |
+| Backtest      | A simulation of a strategy over a past dataset.                         |
+| Order         | An instruction to buy or sell; it may remain unfilled.                  |
+| Fill          | An execution of all or part of an order.                                |
+| Closed trade  | One completed entry-and-exit cycle under the backtest's counting rules. |
+| Position      | An open holding or exposure.                                            |
+| Paper account | An account funded with simulated money.                                 |
+
+Label generated prices as **simulated prices**, including when seed bars have
+been stored in a database. A backtest can use recorded prices while its trades
+remain simulated. Show unavailable metrics as unavailable when their
+calculation has no valid denominator, and distinguish the requested test period
+from the bars actually evaluated.
+
 ## Page previews
 
 These screenshots were captured from the local seed API with a disposable
 `example.invalid` account and simulated prices. They show the app as rendered
-at desktop width, plus a 390 px mobile market view; they are not live market data.
+at desktop width, plus 390 px mobile market and backtest views; they are not live market data. “Brand Preview” in the header is the disposable test account’s display name.
 
-| Page | Light | Dark |
-| ---- | ----- | ---- |
-| Sign in | [Preview](screenshots/login-light.png) | [Preview](screenshots/login-dark.png) |
-| Dashboard | [Preview](screenshots/dashboard-light.png) | [Preview](screenshots/dashboard-dark.png) |
-| Market chart | [Preview](screenshots/market-light.png) | [Preview](screenshots/market-dark.png) |
+| Page            | Light                                            | Dark                                            |
+| --------------- | ------------------------------------------------ | ----------------------------------------------- |
+| Sign in         | [Preview](screenshots/login-light.png)           | [Preview](screenshots/login-dark.png)           |
+| Create account  | [Preview](screenshots/register-light.png)        | —                                               |
+| Dashboard       | [Preview](screenshots/dashboard-light.png)       | [Preview](screenshots/dashboard-dark.png)       |
+| Market chart    | [Preview](screenshots/market-light.png)          | [Preview](screenshots/market-dark.png)          |
 | Backtest result | [Preview](screenshots/backtest-result-light.png) | [Preview](screenshots/backtest-result-dark.png) |
 
-Also see the [backtest setup](screenshots/backtest-setup-light.png) and
-[mobile market](screenshots/market-mobile-light.png) previews.
+Also see the [backtest setup](screenshots/backtest-setup-light.png),
+[mobile market](screenshots/market-mobile-light.png), and
+[mobile backtest result](screenshots/backtest-result-mobile-light.png) previews.

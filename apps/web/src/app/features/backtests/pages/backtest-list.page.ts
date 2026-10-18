@@ -21,10 +21,10 @@ import type { BacktestListItem } from '../models/backtest.models';
     <section class="page-heading">
       <div>
         <p class="eyebrow">Research history</p>
-        <a class="text-link" routerLink="/backtests/compare">Compare runs</a>
+        <a class="text-link" routerLink="/backtests/compare">Compare backtests</a>
         <h1>Backtests</h1>
         <app-page-guide
-          description="Backtests replay one of your strategies on historical prices and show equity, metrics, and every simulated trade."
+          description="Backtests replay one of your strategies on available price data and show simulated equity, metrics, and closed trades. Check each result’s price source before drawing conclusions."
           [steps]="[
             'Pick a strategy (from Strategy Lab or the Run backtest button).',
             'Choose symbol, dates, and starting equity, then run.',
@@ -88,11 +88,14 @@ import type { BacktestListItem } from '../models/backtest.models';
                   </dd>
                 </div>
                 <div>
-                  <dt>Trades</dt>
+                  <dt>Closed trades</dt>
                   <dd>{{ item.num_trades ?? '—' }}</dd>
                 </div>
               </dl>
-              <p class="meta">{{ item.timeframe }} · {{ item.created_at | date: 'medium' }}</p>
+              <p class="meta">
+                {{ item.timeframe === '1d' ? 'Daily' : 'Hourly' }} ·
+                {{ item.created_at | date: 'medium' }}
+              </p>
             </a>
           }
         </div>

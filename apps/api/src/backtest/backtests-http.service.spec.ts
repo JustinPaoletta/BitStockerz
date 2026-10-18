@@ -117,12 +117,18 @@ function setup() {
       symbol: 'AAPL',
       asset_type: 'EQUITY',
     })),
-    getSymbolsByIds: jest.fn(async () => [{ id: 1, symbol: 'AAPL' }]),
+    getSymbolsByIds: jest.fn(async () => [
+      { id: 1, symbol: 'AAPL', currency: 'USD' },
+    ]),
   };
   const strategies = {
     getOwnedStrategyNames: jest.fn(
       async () => new Map([[STRATEGY_ID, 'Alpha']]),
     ),
+    resolvePinnedVersionForRun: jest.fn(async () => ({
+      versionNumber: 2,
+      definition: { indicators: [] },
+    })),
   };
   const config = { backtest: { maxBars: 10_000 } };
   const audit = { record: jest.fn() };
@@ -298,7 +304,13 @@ describe('BacktestsHttpService', () => {
     });
     const detail = await service.detail(USER_ID, RUN_ID, {});
     expect(detail).toMatchObject({
-      run: { id: RUN_ID, symbol: 'AAPL' },
+      run: {
+        id: RUN_ID,
+        symbol: 'AAPL',
+        currency: 'USD',
+        strategy_name: 'Alpha',
+        strategy_version_number: 2,
+      },
       trades: [{ id: 9, pnl_abs: '1.00000000' }],
       trades_page: { limit: 500, offset: 0, has_more: false },
       equity_curve: [{ equity: '10000.00' }],
@@ -326,5 +338,56 @@ describe('BacktestsHttpService', () => {
       items: [{ symbol: 'UNKNOWN', strategy_name: 'Alpha', status: 'pending' }],
     });
     expect(list.items[0]).not.toHaveProperty('total_return_pct');
+  });
+
+  it('exposes undefined win rate as null in detail and results export when no trades closed', async () => {
+    const { service, backtests } = setup();
+    const zeroResult = { ...result, numTrades: 0, winRatePct: '0.0000' };
+    backtests.getRunPage.mockResolvedValueOnce({
+      run: run(),
+      result: zeroResult,
+      trades: [],
+      equityCurve: [],
+      tradesPage: { limit: 500, offset: 0, hasMore: false },
+    });
+    backtests.getRun.mockResolvedValueOnce({
+      run: { ...run(), priceSource: 'seed' },
+      result: zeroResult,
+      trades: [],
+      equityCurve: [],
+    });
+
+    const detail = await service.detail(USER_ID, RUN_ID, {});
+    expect(detail.results?.win_rate_pct).toBeNull();
+    const exportText = await service.exportResults(USER_ID, RUN_ID);
+    expect(exportText).toContain(
+      '"initial_equity","price_source","simulation"',
+    );
+    expect(exportText).toContain('"10000.00","seed",');
+    expect(exportText).toContain('win_rate_pct');
+    expect(exportText).toContain('null');
+  });
+
+  it('includes price provenance with exported closed trades', async () => {
+    const { service, backtests } = setup();
+    const aggregate = await backtests.getRun();
+    aggregate.run.priceSource = 'seed';
+    (aggregate.trades as unknown[]).push({
+      entryTime: new Date('2026-01-01T01:00:00Z'),
+      exitTime: new Date('2026-01-01T02:00:00Z'),
+      side: 'long',
+      entryPrice: '1.00000000',
+      exitPrice: '2.00000000',
+      quantity: '1.00000000',
+      pnlAbs: '1.00000000',
+      pnlPct: '100.0000',
+    });
+    backtests.getRun.mockResolvedValueOnce(aggregate);
+
+    const exportText = await service.exportTrades(USER_ID, RUN_ID);
+    expect(exportText).toContain('"run_id","price_source","entry_time"');
+    expect(exportText).toContain(
+      `"${RUN_ID}","seed","2026-01-01T01:00:00.000Z"`,
+    );
   });
 });

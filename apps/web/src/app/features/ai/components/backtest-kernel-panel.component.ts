@@ -9,14 +9,14 @@ import {
 @Component({
   selector: 'app-backtest-kernel-panel',
   template: `
-    <section class="panel kernel-panel" aria-label="Kernel AI">
+    <section class="panel kernel-panel" aria-label="AI review">
       <div class="section-title">
         <div>
-          <p class="eyebrow">Kernel</p>
-          <h2>Result insights</h2>
+          <p class="eyebrow">Kernel · AI assistant</p>
+          <h2>AI review</h2>
           <p class="hint">
-            Optional AI summary of this run and ideas to refine the strategy. Review results
-            yourself before changing rules.
+            Get an AI explanation of this backtest or ideas for your next test. Check suggestions
+            against your strategy rules and data.
           </p>
         </div>
         <div class="actions">
@@ -24,7 +24,7 @@ import {
             {{ busy() === 'explain' ? 'Explaining…' : 'Explain results' }}
           </button>
           <button class="button secondary" type="button" [disabled]="busy()" (click)="suggest()">
-            {{ busy() === 'suggest' ? 'Suggesting…' : 'Suggest improvements' }}
+            {{ busy() === 'suggest' ? 'Suggesting…' : 'Suggest changes to test' }}
           </button>
         </div>
       </div>

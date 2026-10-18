@@ -9,6 +9,7 @@ import type {
   JobRecord,
 } from '../jobs/jobs.types';
 import { MarketDataService } from '../market-data/market-data.service';
+import { classifyRunPriceSource } from '../market-data/price-source';
 import { StrategiesService } from '../strategies/strategies.service';
 import { BacktestsService } from './backtests.service';
 import { BacktestEngineService } from './engine/backtest-engine.service';
@@ -100,7 +101,12 @@ export class BacktestJobHandler {
         },
       });
       throwIfAborted(context.signal);
-      await this.backtests.completeRun(run.id, job.userId, output);
+      await this.backtests.completeRun(
+        run.id,
+        job.userId,
+        output,
+        classifyRunPriceSource(bars),
+      );
       const durationMs = Math.max(0, performance.now() - startedAt);
       this.logger.log({
         event: 'backtest.finished',

@@ -20,13 +20,14 @@ test('phone viewport: real WebAuthn registration/login, chart, backtest, history
   });
   const email = `ios-research-${Date.now()}@example.com`;
   await page.goto('http://localhost:4200/login');
-  await page.getByRole('button', { name: 'Need an account? Register', exact: true }).click();
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByRole('button', { name: 'Create with passkey', exact: true }).click();
+  await expect(page.getByLabel('Display name', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Create an account', exact: true }).click();
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByRole('button', { name: 'Create account with a passkey', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await page.getByRole('button', { name: 'Log out', exact: true }).click();
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByRole('button', { name: 'Sign in with passkey', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
   await page.goto('http://localhost:4200/research');
@@ -34,12 +35,12 @@ test('phone viewport: real WebAuthn registration/login, chart, backtest, history
   await expect(
     page.getByRole('img', { name: 'Candlestick chart with selected strategy indicators' }),
   ).toBeVisible();
-  await expect(page.getByText('Development seed data — simulated prices.')).toBeVisible();
+  await expect(page.getByText('Demo data · Simulated prices')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.getByText('Accessible OHLCV data (latest 50 bars)').click();
-  await expect(page.getByRole('columnheader', { name: 'Close', exact: true })).toBeVisible();
+  await page.getByText(/View price and volume data \(\d+ bars\)/).click();
+  await expect(page.getByRole('columnheader', { name: /^Close \([A-Z]{3}\)$/ })).toBeVisible();
 
   await page.goto('http://localhost:4200/research');
   await page.getByRole('button', { name: 'Set up a backtest' }).click();
@@ -62,6 +63,6 @@ test('phone viewport: real WebAuthn registration/login, chart, backtest, history
   await expect(page.getByText('Research crossover').first()).toBeVisible();
   await page.goto(resultUrl);
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export results CSV', exact: true }).click();
+  await page.getByRole('button', { name: 'Export results (CSV)', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('backtest-results.csv');
 });

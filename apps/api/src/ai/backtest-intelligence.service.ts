@@ -233,12 +233,14 @@ export class BacktestIntelligenceService {
         strategy_version_number: strategy.versionNumber,
         symbol: symbol?.symbol ?? 'UNKNOWN',
         timeframe: detail.run.timeframe,
+        price_source: detail.run.priceSource ?? 'unknown',
         start_date: detail.run.startDate.toISOString(),
         end_date: detail.run.endDate.toISOString(),
         metrics: {
           total_return_pct: detail.result.totalReturnPct,
           max_drawdown_pct: detail.result.maxDrawdownPct,
-          win_rate_pct: detail.result.winRatePct,
+          win_rate_pct:
+            detail.result.numTrades === 0 ? null : detail.result.winRatePct,
           num_trades: detail.result.numTrades,
           avg_win_pct: detail.result.avgWinPct,
           avg_loss_pct: detail.result.avgLossPct,

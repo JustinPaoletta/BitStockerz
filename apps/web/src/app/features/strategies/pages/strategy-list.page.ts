@@ -33,7 +33,7 @@ import { StrategiesApiService, StrategySummary } from '../data/strategies-api.se
           [steps]="[
             'Create strategy and fill in indicator, entry, exit, and risk fields.',
             'Validate, then save.',
-            'Open the strategy and choose Run backtest to test it on history.',
+            'Open the strategy and choose Run backtest to test it against available price data.',
           ]"
         />
       </div>

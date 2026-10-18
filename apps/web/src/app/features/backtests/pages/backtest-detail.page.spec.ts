@@ -53,7 +53,7 @@ describe('BacktestDetailPage', () => {
 
     let element = fixture.nativeElement as HTMLElement;
     expect(element.querySelectorAll('tbody tr')).toHaveLength(500);
-    expect(element.textContent).toContain('500 loaded');
+    expect(element.textContent).toContain('500 closed trades');
 
     const loadMore = element.querySelector<HTMLButtonElement>('button.load-more');
     expect(loadMore?.textContent).toContain('Load more trades');
@@ -72,7 +72,7 @@ describe('BacktestDetailPage', () => {
 
     element = fixture.nativeElement as HTMLElement;
     expect(element.querySelectorAll('tbody tr')).toHaveLength(501);
-    expect(element.textContent).toContain('501 loaded');
+    expect(element.textContent).toContain('501 closed trades');
     expect(element.querySelector('button.load-more')).toBeNull();
   });
 
@@ -100,9 +100,9 @@ describe('BacktestDetailPage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(element.querySelector('h1')?.textContent).toContain('AAPL');
+    expect(element.querySelector('.page-heading')?.textContent).toContain('AAPL');
     expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
-    expect(element.textContent).toContain('1 loaded');
+    expect(element.textContent).toContain('1 closed trades');
     expect(element.querySelector('app-inline-error')?.textContent).toContain(
       'Temporary connection failure.',
     );
@@ -124,7 +124,7 @@ describe('BacktestDetailPage', () => {
     fixture.detectChanges();
 
     expect(element.querySelectorAll('tbody tr')).toHaveLength(2);
-    expect(element.textContent).toContain('2 loaded');
+    expect(element.textContent).toContain('2 closed trades');
     expect(element.querySelector('app-inline-error')).toBeNull();
     expect(element.querySelector('button.load-more')).toBeNull();
   });
@@ -153,7 +153,7 @@ describe('BacktestDetailPage', () => {
     expect(chart.trades()).toHaveLength(1);
     expect(element.querySelector('th')?.textContent).toContain('Entry (UTC)');
     expect(element.querySelector('tbody td')?.textContent).toContain('Aug 1, 2026');
-    expect(element.querySelector('.marker-note')?.textContent).toContain('1 of 2 trades');
+    expect(element.querySelector('.marker-note')?.textContent).toContain('1 of 2 closed trades');
     element.querySelector<HTMLButtonElement>('button.load-more')!.click();
     http
       .expectOne(
@@ -165,6 +165,47 @@ describe('BacktestDetailPage', () => {
     fixture.detectChanges();
     expect(chart.trades()).toHaveLength(2);
     expect(element.querySelector('.marker-note')).toBeNull();
+  });
+
+  it('explains a completed demo backtest with no closed trades without reporting a 0% win rate', async () => {
+    const fixture = TestBed.createComponent(BacktestDetailPage);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    const detail = detailWithTrades([], false);
+    detail.run.strategy_name = 'Moving-average test';
+    detail.run.strategy_version_number = 2;
+    detail.run.price_source = 'seed';
+    detail.run.currency = 'USD';
+    detail.results = {
+      final_equity: '10000.00',
+      total_return_pct: '0.0000',
+      max_drawdown_pct: '0.0000',
+      win_rate_pct: null,
+      num_trades: 0,
+      avg_win_pct: '0.0000',
+      avg_loss_pct: '0.0000',
+      sharpe_ratio: null,
+    };
+    http.expectOne((request) => request.url === `/api/backtests/${runId}`).flush(detail);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('h1')?.textContent).toContain('Moving-average test');
+    expect(element.querySelector('h1')?.textContent).toContain('Version 2');
+    expect(element.querySelector('.no-trades')?.textContent).toContain('Equity remained unchanged');
+    expect(element.querySelector('.source-note')?.textContent).toContain(
+      'Demo backtest · Simulated prices',
+    );
+    expect(element.querySelector('.metric-grid article:nth-child(4)')?.textContent).toContain(
+      'No closed trades.',
+    );
+    expect(element.querySelector('.metric-grid article:nth-child(4)')?.textContent).not.toContain(
+      '0.00%',
+    );
+    expect(element.querySelector('.metric-grid article:nth-child(6)')?.textContent).toContain(
+      'Too few equity points to calculate.',
+    );
   });
 });
 

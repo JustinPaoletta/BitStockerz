@@ -95,11 +95,17 @@ type Research = Awaited<
               <dl>
                 <dt>Total return</dt>
                 <dd>{{ number(metrics.total_return_pct) | number: '1.2-2' }}%</dd>
-                <dt>Max drawdown</dt>
+                <dt>Maximum drawdown</dt>
                 <dd>{{ number(metrics.max_drawdown_pct) | number: '1.2-2' }}%</dd>
                 <dt>Win rate</dt>
-                <dd>{{ number(metrics.win_rate_pct) | number: '1.2-2' }}%</dd>
-                <dt>Trades</dt>
+                <dd>
+                  {{
+                    metrics.num_trades === 0 || metrics.win_rate_pct === null
+                      ? '— (no closed trades)'
+                      : (number(metrics.win_rate_pct) | number: '1.2-2') + '%'
+                  }}
+                </dd>
+                <dt>Closed trades</dt>
                 <dd>{{ metrics.num_trades }}</dd>
               </dl>
               @if (metrics.benchmark) {
@@ -231,7 +237,7 @@ export class BacktestComparePage {
       JSON.stringify(normalized(a)) === JSON.stringify(normalized(b))
     );
   }
-  number(value: string): number {
-    return Number(value);
+  number(value: string | null): number {
+    return value === null ? Number.NaN : Number(value);
   }
 }

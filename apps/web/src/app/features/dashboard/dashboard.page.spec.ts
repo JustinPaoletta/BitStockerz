@@ -60,7 +60,14 @@ describe('DashboardPage', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('portfolio down');
     expect(text).toContain('AAPL');
-    expect(text).toContain('No trades yet');
+    expect(text).toContain('No paper order fills yet');
+  });
+
+  it('uses accurate actions when there are no saved strategies or backtests', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Create a strategy, then run a backtest.');
+    expect(text).not.toContain('Open a strategy and choose Run backtest');
+    expect(text).toContain('Recent paper fills');
   });
 
   it('opens the trade ticket with the selected dashboard symbol', () => {

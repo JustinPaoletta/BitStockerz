@@ -34,6 +34,7 @@ import {
 } from '../auth/auth.guard';
 import { AuthService } from '../auth/auth.service';
 import { MarketDataService } from '../market-data/market-data.service';
+import { classifyPriceSource } from '../market-data/price-source';
 import { ProductService } from './product.service';
 
 class ChartQueryDto {
@@ -171,8 +172,13 @@ export class ProductController {
       : {};
     return {
       symbol: symbol.symbol,
+      currency: symbol.currency,
       timeframe: query.timeframe,
       data_mode: this.product.dataMode,
+      price_source: classifyPriceSource(bars),
+      contains_simulated_prices:
+        this.product.dataMode === 'seed' ||
+        bars.some((bar) => bar.provider?.trim().toLowerCase() === 'seed'),
       bars: bars.map((bar) => ({
         timestamp: bar.ts.toISOString(),
         open: String(bar.open),

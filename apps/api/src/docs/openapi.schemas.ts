@@ -643,6 +643,24 @@ export const API_SCHEMAS: OpenApiSchemas = {
       start_date: timestamp,
       end_date: timestamp,
       initial_equity: decimal,
+      price_source: {
+        type: 'string',
+        description:
+          'Stored provider captured when this run completed; omitted for older runs.',
+      },
+      strategy_name: {
+        type: 'string',
+        description: 'Included on the detail response.',
+      },
+      strategy_version_number: {
+        type: 'integer',
+        minimum: 1,
+        description: 'Included on the detail response.',
+      },
+      currency: {
+        type: 'string',
+        description: 'Quote currency included on the detail response.',
+      },
       simulation: { $ref: '#/components/schemas/SimulationSettings' },
       status: {
         type: 'string',
@@ -690,7 +708,11 @@ export const API_SCHEMAS: OpenApiSchemas = {
       final_equity: decimal,
       total_return_pct: decimal,
       max_drawdown_pct: decimal,
-      win_rate_pct: decimal,
+      win_rate_pct: {
+        ...decimal,
+        nullable: true,
+        description: 'Null when there are no closed trades.',
+      },
       num_trades: { type: 'integer', minimum: 0 },
       avg_win_pct: decimal,
       avg_loss_pct: decimal,

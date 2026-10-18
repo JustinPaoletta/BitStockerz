@@ -262,6 +262,56 @@ describe('BacktestIntelligenceService', () => {
     });
   });
 
+  it('tells the AI when a demo backtest has no measured win rate', async () => {
+    const ai = {
+      invoke: jest.fn().mockResolvedValue({
+        disclaimer: 'Advisory only',
+        ai_request_id: 'r',
+        explanation: 'No closed trades.',
+        issues: [],
+      }),
+    };
+    const service = new BacktestIntelligenceService(
+      {
+        getRun: jest.fn().mockResolvedValue({
+          run: { ...run, priceSource: 'seed' },
+          result: { ...result, numTrades: 0, winRatePct: '0.0000' },
+          trades: [],
+        }),
+      } as unknown as BacktestsService,
+      {
+        resolvePinnedVersionForRun: jest.fn().mockResolvedValue({
+          strategyVersionId: 1,
+          versionNumber: 1,
+          definition,
+        }),
+      } as unknown as StrategiesService,
+      {
+        getJobForUser: jest.fn().mockRejectedValue(new Error('missing')),
+      } as unknown as JobsService,
+      {
+        getSymbolsByIds: jest.fn().mockResolvedValue([{ symbol: 'AAPL' }]),
+      } as unknown as MarketDataService,
+      ai as unknown as AiService,
+      { ai: { maxContextChars: 12000 } } as unknown as AppConfigService,
+    );
+
+    await service.explainBacktest('u1', 'b1');
+    const context = JSON.parse(
+      String(ai.invoke.mock.calls[0][0].prompt).split(
+        'Backtest context JSON:\n',
+      )[1],
+    ) as {
+      price_source: string;
+      metrics: { win_rate_pct: string | null; num_trades: number };
+    };
+    expect(context.price_source).toBe('seed');
+    expect(context.metrics).toMatchObject({
+      win_rate_pct: null,
+      num_trades: 0,
+    });
+  });
+
   it('retains the run definition after edits and deletion, with owner isolation', async () => {
     const strategies = new StrategiesService(
       { isEnabled: false } as PrismaService,

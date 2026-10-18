@@ -33,7 +33,7 @@ interface Runner {
         <h1>Paper strategy runners</h1>
         <p class="lede">Run a pinned strategy version against completed bars, using paper money.</p>
       </div>
-      <a routerLink="/trade" class="text-link">Trade desk</a>
+      <a routerLink="/trade" class="text-link">Open paper trading</a>
     </section>
     <section class="panel block">
       <p>

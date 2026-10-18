@@ -182,10 +182,22 @@ export class BacktestsHttpService {
     if (!detail) {
       throw backtestNotFoundError(runId);
     }
-    const symbol = (
-      await this.marketData.getSymbolsByIds([detail.run.symbolId])
-    )[0];
-    return serializeDetail(detail, symbol?.symbol ?? 'UNKNOWN');
+    const [symbols, names, pinned] = await Promise.all([
+      this.marketData.getSymbolsByIds([detail.run.symbolId]),
+      this.strategies.getOwnedStrategyNames(userId, [detail.run.strategyId]),
+      this.strategies.resolvePinnedVersionForRun(
+        userId,
+        detail.run.strategyId,
+        detail.run.strategyVersionId,
+      ),
+    ]);
+    return serializeDetail(
+      detail,
+      symbols[0]?.symbol ?? 'UNKNOWN',
+      symbols[0]?.currency,
+      names.get(detail.run.strategyId) ?? 'Deleted strategy',
+      pinned.versionNumber,
+    );
   }
 
   async research(userId: string, runId: string) {
@@ -212,6 +224,8 @@ export class BacktestsHttpService {
     if (!detail) throw backtestNotFoundError(runId);
     const rows = [
       [
+        'run_id',
+        'price_source',
         'entry_time',
         'exit_time',
         'side',
@@ -223,6 +237,8 @@ export class BacktestsHttpService {
         'pnl_pct',
       ],
       ...detail.trades.map((trade) => [
+        detail.run.id,
+        detail.run.priceSource ?? 'unknown',
         trade.entryTime.toISOString(),
         trade.exitTime.toISOString(),
         trade.side,
@@ -250,6 +266,7 @@ export class BacktestsHttpService {
         'start_date',
         'end_date',
         'initial_equity',
+        'price_source',
         'simulation',
         'definition',
         'results',
@@ -263,6 +280,7 @@ export class BacktestsHttpService {
         research.run.start_date,
         research.run.end_date,
         research.run.initial_equity,
+        research.run.price_source ?? 'unknown',
         JSON.stringify(
           research.run.simulation ?? {
             allocation_pct: 100,
@@ -377,6 +395,7 @@ function serializeRun(
     start_date: run.startDate.toISOString(),
     end_date: run.endDate.toISOString(),
     initial_equity: run.initialEquity,
+    ...(run.priceSource ? { price_source: run.priceSource } : {}),
     ...(run.simulation ? { simulation: run.simulation } : {}),
     status: run.status,
     ...(run.jobId ? { job_id: run.jobId } : {}),
@@ -396,7 +415,7 @@ function serializeResult(result: BacktestResultRecord | null) {
         final_equity: result.finalEquity,
         total_return_pct: result.totalReturnPct,
         max_drawdown_pct: result.maxDrawdownPct,
-        win_rate_pct: result.winRatePct,
+        win_rate_pct: result.numTrades === 0 ? null : result.winRatePct,
         num_trades: result.numTrades,
         avg_win_pct: result.avgWinPct,
         avg_loss_pct: result.avgLossPct,
@@ -439,9 +458,20 @@ function serializeTrade(trade: BacktestTradeRecord) {
   };
 }
 
-function serializeDetail(detail: BacktestRunDetailPage, symbol: string) {
+function serializeDetail(
+  detail: BacktestRunDetailPage,
+  symbol: string,
+  currency: string | undefined,
+  strategyName: string,
+  versionNumber: number,
+) {
   return {
-    run: serializeRun(detail.run, symbol),
+    run: {
+      ...serializeRun(detail.run, symbol),
+      strategy_name: strategyName,
+      strategy_version_number: versionNumber,
+      ...(currency ? { currency } : {}),
+    },
     results: serializeResult(detail.result),
     trades: detail.trades.map(serializeTrade),
     trades_page: {

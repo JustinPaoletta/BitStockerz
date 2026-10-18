@@ -43,13 +43,13 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
   template: `
     <section class="page-heading">
       <div>
-        <p class="eyebrow">Dashboard</p>
-        <h1>Trading Workspace</h1>
-        <p class="lede">Your portfolio, strategies, and latest paper trading activity.</p>
+        <h1>Dashboard</h1>
+        <p class="lede">Review your strategies, backtests, and paper portfolio.</p>
       </div>
       <div class="dashboard-search">
         <app-symbol-search
-          label="Find a symbol to trade"
+          label="Find a symbol to paper trade"
+          placeholder="For example, AAPL or BTC-USD"
           inputId="dashboard-symbol"
           (selected)="openSymbol($event)"
         />
@@ -61,7 +61,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         class="portfolio-card"
         eyebrow="Paper account"
         title="Portfolio summary"
-        description="Simulated funds. Your equity includes cash and open positions."
+        description="This account uses simulated funds. Equity includes your cash balance and the current value of your open positions."
       >
         @switch (accountState()) {
           @case ('loading') {
@@ -74,13 +74,14 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
             @if (account(); as summary) {
               <div class="metric-grid compact">
                 <article>
-                  <span>Cash</span><strong>{{ summary.cash_balance | bsCurrency }}</strong>
+                  <span>Cash balance</span><strong>{{ summary.cash_balance | bsCurrency }}</strong>
                 </article>
                 <article>
                   <span>Equity</span><strong>{{ summary.total_equity | bsCurrency }}</strong>
                 </article>
                 <article>
                   <span>Unrealized P&amp;L</span>
+                  <small class="metric-help">Profit or loss on open positions.</small>
                   <strong
                     [class.positive]="signedNumber(summary.unrealized_pnl_total) > 0"
                     [class.negative]="signedNumber(summary.unrealized_pnl_total) < 0"
@@ -99,6 +100,9 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                 </article>
                 <article>
                   <span>Realized P&amp;L</span>
+                  <small class="metric-help"
+                    >Profit or loss recorded when positions are reduced or closed.</small
+                  >
                   <strong
                     [class.positive]="signedNumber(summary.realized_pnl_total) > 0"
                     [class.negative]="signedNumber(summary.realized_pnl_total) < 0"
@@ -115,6 +119,10 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
                 </article>
                 <article>
                   <span>Total P&amp;L</span>
+                  <small class="metric-help"
+                    >Realized and unrealized profit or loss since this paper account started or was
+                    reset.</small
+                  >
                   <strong
                     [class.positive]="signedNumber(summary.total_pnl) > 0"
                     [class.negative]="signedNumber(summary.total_pnl) < 0"
@@ -127,11 +135,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card
-        eyebrow="Book"
-        title="Positions"
-        description="Symbols you hold now. Open Trade to buy more or sell."
-      >
+      <app-bs-card title="Open positions" description="Your open positions in the paper account.">
         @switch (positionsState()) {
           @case ('loading') {
             <app-skeleton />
@@ -142,7 +146,8 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
           @case ('empty') {
             <div class="empty-widget">
               <h3>No open positions</h3>
-              <p>Use Trade to place your first paper order.</p>
+              <p>Go to Paper trading to place an order.</p>
+              <a class="text-link" routerLink="/trade">Open paper trading</a>
             </div>
           }
           @case ('ready') {
@@ -170,11 +175,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
         }
       </app-bs-card>
 
-      <app-bs-card
-        eyebrow="Lab"
-        title="Strategies"
-        description="Trading rules you define. Edit a strategy or start a backtest from here."
-      >
+      <app-bs-card title="Strategies" description="Create and manage your trading rules.">
         @switch (strategiesState()) {
           @case ('loading') {
             <app-skeleton />
@@ -185,7 +186,7 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
           @case ('empty') {
             <div class="empty-widget">
               <h3>No strategies yet</h3>
-              <p>Define your trading rules, then test them on historical prices.</p>
+              <p>Define your trading rules, then backtest them against available data.</p>
               <a class="text-link" routerLink="/strategies/new">Create a strategy</a>
             </div>
           }
@@ -211,9 +212,8 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
       </app-bs-card>
 
       <app-bs-card
-        eyebrow="Research"
         title="Recent backtests"
-        description="Past simulation runs. Open one to see equity curve and trades."
+        description="Open a backtest to view its equity curve and simulated trades."
       >
         @switch (backtestsState()) {
           @case ('loading') {
@@ -225,7 +225,18 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
           @case ('empty') {
             <div class="empty-widget">
               <h3>No backtests yet</h3>
-              <p>Open a strategy and choose Run backtest to see how it performs.</p>
+              @if (strategiesState() === 'empty') {
+                <p>Create a strategy, then run a backtest.</p>
+                <a class="text-link" routerLink="/strategies/new">Create a strategy</a>
+              } @else if (strategiesState() === 'ready') {
+                <p>
+                  Choose a strategy and select Run backtest to simulate its results over a past
+                  period.
+                </p>
+                <a class="text-link" routerLink="/strategies">View strategies</a>
+              } @else {
+                <p>Create or choose a strategy to run a backtest.</p>
+              }
             </div>
           }
           @case ('ready') {
@@ -244,9 +255,8 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
       </app-bs-card>
 
       <app-bs-card
-        eyebrow="Activity"
-        title="Recent trades"
-        description="Latest filled paper orders from the trade desk."
+        title="Recent paper fills"
+        description="Your latest executed paper orders. A fill is an executed part of an order."
       >
         @switch (tradesState()) {
           @case ('loading') {
@@ -257,8 +267,8 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
           }
           @case ('empty') {
             <div class="empty-widget">
-              <h3>No trades yet</h3>
-              <p>Your filled paper orders will appear here.</p>
+              <h3>No paper order fills yet</h3>
+              <p>Filled paper orders will appear here.</p>
             </div>
           }
           @case ('ready') {
@@ -314,6 +324,18 @@ type LoadState = 'loading' | 'ready' | 'empty' | 'error';
     }
     app-bs-card {
       min-width: 0;
+    }
+    .metric-grid.compact article {
+      display: flex;
+      flex-direction: column;
+    }
+    .metric-help {
+      color: var(--muted);
+      display: block;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      margin-top: 0.3rem;
+      order: 1;
     }
     .metric-grid strong {
       font-size: clamp(1.25rem, 2vw, 1.7rem);

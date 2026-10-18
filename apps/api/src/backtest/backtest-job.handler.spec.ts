@@ -68,6 +68,7 @@ function setup() {
     getBacktestBars: jest.fn(async () => [
       {
         ts: new Date('2026-01-01T00:00:00Z'),
+        provider: 'seed',
         open: 1,
         high: 1,
         low: 1,
@@ -117,7 +118,7 @@ function setup() {
 
 describe('BacktestJobHandler', () => {
   it('registers, executes, persists, and returns bounded diagnostics', async () => {
-    const { handler, backtests, engine } = setup();
+    const { handler, backtests, engine, output } = setup();
     const payload = await handler(job, context());
     expect(backtests.markRunning).toHaveBeenCalledWith(RUN_ID, USER_ID, job.id);
     expect(engine.run).toHaveBeenCalledWith(
@@ -127,7 +128,12 @@ describe('BacktestJobHandler', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-    expect(backtests.completeRun).toHaveBeenCalled();
+    expect(backtests.completeRun).toHaveBeenCalledWith(
+      RUN_ID,
+      USER_ID,
+      output,
+      'seed',
+    );
     expect(payload).toMatchObject({
       backtest_run_id: RUN_ID,
       diagnostics: { bars_processed: 1 },

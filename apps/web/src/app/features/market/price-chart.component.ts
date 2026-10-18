@@ -17,8 +17,11 @@ import {
 
 export interface MarketChart {
   symbol: string;
+  currency: string;
   timeframe: '1d' | '1h';
   data_mode: 'database' | 'seed';
+  price_source: string;
+  contains_simulated_prices: boolean;
   bars: {
     timestamp: string;
     open: string;

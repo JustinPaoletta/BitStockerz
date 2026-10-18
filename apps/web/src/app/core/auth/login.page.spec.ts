@@ -52,7 +52,7 @@ describe('LoginPage', () => {
 
     const fallbackButton = Array.from(
       fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
-    ).find((button) => button.textContent?.includes('Email log in'));
+    ).find((button) => button.textContent?.includes('Sign in for local testing'));
     expect(fallbackButton).toBeTruthy();
     fallbackButton!.click();
 
@@ -93,6 +93,34 @@ describe('LoginPage', () => {
     );
   });
 
+  it('shows sign-in and registration instructions only in their matching modes', async () => {
+    const fixture = TestBed.createComponent(LoginPage);
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/auth/providers')
+      .flush({ google: false, apple: false });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#display')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Enter your email, then use your passkey');
+    expect(fixture.nativeElement.textContent).not.toContain('create a passkey');
+    expect(fixture.nativeElement.textContent).toContain('Test your ideas.');
+    expect(fixture.nativeElement.textContent).not.toContain('Create a local test account');
+
+    const create = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((button) => button.textContent?.includes('Create an account'));
+    create?.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#display')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Create your account');
+    expect(fixture.nativeElement.textContent).toContain('then create a passkey');
+    expect(fixture.nativeElement.textContent).toContain('Create account with a passkey');
+    expect(fixture.nativeElement.textContent).toContain('Create a local test account');
+    expect(fixture.nativeElement.textContent).not.toContain('Sign in for local testing');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Enter your email, then use your passkey',
+    );
+  });
+
   it('keeps verification sign-in usable while an existing session is present', async () => {
     TestBed.overrideProvider(ActivatedRoute, {
       useValue: {
@@ -107,7 +135,7 @@ describe('LoginPage', () => {
     fixture.detectChanges();
     http.expectNone('/api/auth/me');
     expect(fixture.nativeElement.textContent).toContain('Verify your account');
-    expect(fixture.nativeElement.textContent).not.toContain('Need an account? Register');
-    expect(fixture.nativeElement.textContent).not.toContain('Email register');
+    expect(fixture.nativeElement.textContent).not.toContain('Create an account');
+    expect(fixture.nativeElement.textContent).not.toContain('Create a local test account');
   });
 });
