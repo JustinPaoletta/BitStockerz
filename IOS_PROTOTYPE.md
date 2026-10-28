@@ -102,7 +102,7 @@ Use `device-demo` only for synthetic research; it does not verify identity.
    require an association domain.
 4. Open the project with `npm run ios:open`. Select **App**, your **Personal
    Team**, and your connected iPhone. Select **Run**.
-5. Open **BitStockerz Demo**, then **Start test session**. Use **Open chart**
+5. Open **BitStockerz**, then **Start test session**. Use **Open chart**
    and **Set up a backtest** from Research.
 
 The demo has a separate bundle identifier ending in `.demo` and no Associated

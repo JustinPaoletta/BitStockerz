@@ -84,7 +84,7 @@ export function prepare(args) {
   );
   write(
     "apps/web/ios/App/App/Prototype.xcconfig",
-    `BITSTOCKERZ_RP_ID = ${config.rpId}\nBITSTOCKERZ_BUNDLE_ID = ${config.bundleId}\nBITSTOCKERZ_ENTITLEMENTS = App/${demo ? "Demo" : "App"}.entitlements\nBITSTOCKERZ_DISPLAY_NAME = ${demo ? "BitStockerz Demo" : "BitStockerz"}\n${config.teamId ? `DEVELOPMENT_TEAM = ${config.teamId}\n` : ""}`,
+    `BITSTOCKERZ_RP_ID = ${config.rpId}\nBITSTOCKERZ_BUNDLE_ID = ${config.bundleId}\nBITSTOCKERZ_ENTITLEMENTS = App/${demo ? "Demo" : "App"}.entitlements\nBITSTOCKERZ_DISPLAY_NAME = BitStockerz\n${config.teamId ? `DEVELOPMENT_TEAM = ${config.teamId}\n` : ""}`,
   );
   write(
     "apps/web/.ios-prototype.local.json",
