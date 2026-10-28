@@ -10,7 +10,7 @@
     "lint": "ng lint",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "ios:sync": "ng build --configuration ios && cap sync ios",
+    "ios:sync": "NG_BUILD_CACHE_STORE=sqlite ng build --configuration ios && cap sync ios",
     "ios:open": "cap open ios"
   },
   "private": true,
@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@angular/build": "22.2.1",
-    "@angular/cli": "22.2.1",
+    "@angular/cli": "22.2.4",
     "@angular/compiler-cli": "22.2.1",
     "@capacitor/cli": "8.5.3",
     "@eslint/js": "^10.0.1",
@@ -45,13 +45,14 @@
     "prettier": "^3.8.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.59.2",
-    "vitest": "^4.0.8"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "@hono/node-server": "2.0.12",
     "piscina": "5.3.2",
     "xcode": {
       "uuid": "11.1.1"
-    }
+    },
+    "vite": "8.3.5"
   }
 }

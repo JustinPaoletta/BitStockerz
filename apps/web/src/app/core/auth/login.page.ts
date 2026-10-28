@@ -1,4 +1,5 @@
 import { Component, HostListener, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
@@ -33,156 +34,175 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
         </aside>
       }
       <section class="auth-panel panel">
-        <h1>{{ mode() === 'register' ? 'Create your account' : 'Sign in with a passkey' }}</h1>
-        @if (environment.nativeMode !== 'web') {
-          <p class="hint">
-            Native sessions end when the app closes. Passkeys stay in your credential provider.
+        @if (demo) {
+          <h1>Personal Team demo</h1>
+          <p>
+            Test login only — no passkey or identity verification. Use synthetic data only. Research
+            resets when the test server restarts.
           </p>
-          @if (!environment.apiBaseUrl) {
-            <p role="alert">
-              Configure the iOS API connection using ios:prepare, then sync and rebuild. See
-              IOS_PROTOTYPE.md.
-            </p>
-          }
-        }
-        @if (reauthenticating) {
-          <p class="hint">
-            Verify your account using a sign-in method already attached to it. You will return to
-            Account settings to add your recovery method.
-          </p>
-        }
-        <p class="hint">
-          @if (mode() === 'register') {
-            Enter your email and display name, then create a passkey. Your browser or device will
-            guide you.
-          } @else {
-            Enter your email, then use your passkey to sign in.
-          }
-        </p>
-        <p class="hint">
-          A passkey lets you sign in using your device's screen lock or a security key.
-        </p>
-
-        <form [formGroup]="form" (submit)="onPasskey($event)">
-          <label for="email">Email address</label>
-          <input id="email" type="email" autocomplete="username webauthn" formControlName="email" />
-
-          @if (mode() === 'register') {
-            <label for="display">Display name</label>
-            <input
-              id="display"
-              type="text"
-              autocomplete="nickname"
-              formControlName="display_name"
-            />
-          }
-
+          <button class="button primary" type="button" [disabled]="busy()" (click)="onDemoLogin()">
+            {{ busy() ? 'Opening…' : 'Start test session' }}
+          </button>
           @if (error()) {
             <p class="error" role="alert">{{ error() }}</p>
           }
+        } @else {
+          <h1>{{ mode() === 'register' ? 'Create your account' : 'Sign in with a passkey' }}</h1>
+          @if (environment.nativeMode !== 'web') {
+            <p class="hint">
+              Native sessions end when the app closes. Passkeys stay in your credential provider.
+            </p>
+            @if (!environment.apiBaseUrl) {
+              <p role="alert">
+                Configure the iOS API connection using ios:prepare, then sync and rebuild. See
+                IOS_PROTOTYPE.md.
+              </p>
+            }
+          }
+          @if (reauthenticating) {
+            <p class="hint">
+              Verify your account using a sign-in method already attached to it. You will return to
+              Account settings to add your recovery method.
+            </p>
+          }
+          <p class="hint">
+            @if (mode() === 'register') {
+              Enter your email and display name, then create a passkey. Your browser or device will
+              guide you.
+            } @else {
+              Enter your email, then use your passkey to sign in.
+            }
+          </p>
+          <p class="hint">
+            A passkey lets you sign in using your device's screen lock or a security key.
+          </p>
 
-          <div class="actions">
-            <button class="button primary" type="submit" [disabled]="busy()">
-              {{
-                busy()
-                  ? 'Working…'
-                  : mode() === 'register'
-                    ? 'Create account with a passkey'
-                    : 'Sign in with a passkey'
-              }}
-            </button>
-            @if (!reauthenticating) {
-              <button
-                class="button secondary"
-                type="button"
-                [disabled]="busy()"
-                (click)="toggleMode()"
-              >
+          <form [formGroup]="form" (submit)="onPasskey($event)">
+            <label for="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              autocomplete="username webauthn"
+              formControlName="email"
+            />
+
+            @if (mode() === 'register') {
+              <label for="display">Display name</label>
+              <input
+                id="display"
+                type="text"
+                autocomplete="nickname"
+                formControlName="display_name"
+              />
+            }
+
+            @if (error()) {
+              <p class="error" role="alert">{{ error() }}</p>
+            }
+
+            <div class="actions">
+              <button class="button primary" type="submit" [disabled]="busy()">
                 {{
-                  mode() === 'register' ? 'Already have an account? Sign in' : 'Create an account'
+                  busy()
+                    ? 'Working…'
+                    : mode() === 'register'
+                      ? 'Create account with a passkey'
+                      : 'Sign in with a passkey'
                 }}
               </button>
-            }
-          </div>
-        </form>
-
-        @if (providers().google || providers().apple) {
-          <div class="provider-actions" aria-label="Other sign-in methods">
-            <p class="muted">Other sign-in methods</p>
-            @if (providers().google) {
-              <button
-                class="button secondary"
-                type="button"
-                [disabled]="busy()"
-                (click)="onOAuth('google')"
-              >
-                Continue with Google
-              </button>
-            }
-            @if (providers().apple) {
-              <button
-                class="button secondary"
-                type="button"
-                [disabled]="busy()"
-                (click)="onOAuth('apple')"
-              >
-                Continue with Apple
-              </button>
-            }
-          </div>
-        }
-        @if (providersError()) {
-          <p class="muted" role="status">
-            Other sign-in methods could not be loaded.
-            <button
-              class="button ghost small"
-              type="button"
-              [disabled]="busy()"
-              (click)="loadProviders()"
-            >
-              Retry
-            </button>
-          </p>
-        }
-
-        <details class="recovery-help">
-          <summary>Can't use your passkey?</summary>
-          <p>
-            Sign in with the Google or Apple account you previously linked to BitStockerz to restore
-            access to your existing account.
-          </p>
-          <p>
-            If you have no linked provider and no working passkey, automatic recovery is
-            unavailable. An email address alone cannot prove account ownership.
-          </p>
-          <p>When you can sign in, add a recovery method in Account settings.</p>
-        </details>
-
-        @if (!environment.production) {
-          <details class="fallback">
-            <summary>Development email sign-in</summary>
-            <div class="actions">
-              @if (mode() === 'login') {
+              @if (!reauthenticating) {
                 <button
-                  class="button ghost"
+                  class="button secondary"
                   type="button"
                   [disabled]="busy()"
-                  (click)="onEmail('login')"
+                  (click)="toggleMode()"
                 >
-                  Sign in for local testing
-                </button>
-              } @else if (!reauthenticating) {
-                <button
-                  class="button ghost"
-                  type="button"
-                  [disabled]="busy()"
-                  (click)="onEmail('register')"
-                >
-                  Create a local test account
+                  {{
+                    mode() === 'register' ? 'Already have an account? Sign in' : 'Create an account'
+                  }}
                 </button>
               }
             </div>
+          </form>
+
+          @if (providers().google || providers().apple) {
+            <div class="provider-actions" aria-label="Other sign-in methods">
+              <p class="muted">Other sign-in methods</p>
+              @if (providers().google) {
+                <button
+                  class="button secondary"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="onOAuth('google')"
+                >
+                  Continue with Google
+                </button>
+              }
+              @if (providers().apple) {
+                <button
+                  class="button secondary"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="onOAuth('apple')"
+                >
+                  Continue with Apple
+                </button>
+              }
+            </div>
+          }
+          @if (providersError()) {
+            <p class="muted" role="status">
+              Other sign-in methods could not be loaded.
+              <button
+                class="button ghost small"
+                type="button"
+                [disabled]="busy()"
+                (click)="loadProviders()"
+              >
+                Retry
+              </button>
+            </p>
+          }
+
+          <details class="recovery-help">
+            <summary>Can't use your passkey?</summary>
+            <p>
+              Sign in with the Google or Apple account you previously linked to BitStockerz to
+              restore access to your existing account.
+            </p>
+            <p>
+              If you have no linked provider and no working passkey, automatic recovery is
+              unavailable. An email address alone cannot prove account ownership.
+            </p>
+            <p>When you can sign in, add a recovery method in Account settings.</p>
           </details>
+
+          @if (!environment.production) {
+            <details class="fallback">
+              <summary>Development email sign-in</summary>
+              <div class="actions">
+                @if (mode() === 'login') {
+                  <button
+                    class="button ghost"
+                    type="button"
+                    [disabled]="busy()"
+                    (click)="onEmail('login')"
+                  >
+                    Sign in for local testing
+                  </button>
+                } @else if (!reauthenticating) {
+                  <button
+                    class="button ghost"
+                    type="button"
+                    [disabled]="busy()"
+                    (click)="onEmail('register')"
+                  >
+                    Create a local test account
+                  </button>
+                }
+              </div>
+            </details>
+          }
         }
       </section>
     </div>
@@ -332,6 +352,7 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
 })
 export class LoginPage {
   protected readonly environment = environment;
+  protected readonly demo = environment.nativeMode === 'device-demo';
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -351,7 +372,7 @@ export class LoginPage {
 
   constructor() {
     void this.redirectIfAuthenticated();
-    void this.loadProviders();
+    if (!this.demo) void this.loadProviders();
   }
 
   @HostListener('window:pageshow')
@@ -366,6 +387,33 @@ export class LoginPage {
       this.providers.set(await this.auth.getProviders());
     } catch {
       this.providersError.set(true);
+    }
+  }
+
+  protected async onDemoLogin(): Promise<void> {
+    if (!this.demo || this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const email = 'iphone-demo@example.invalid';
+      try {
+        await this.auth.loginWithEmail(email);
+      } catch (error) {
+        // The development login reports an unknown account as 401. Preserve
+        // network and profile-loading failures instead of trying to register.
+        if (!(error instanceof HttpErrorResponse) || error.status !== 401) throw error;
+        await this.auth.registerWithEmail(email, 'iPhone Demo');
+      }
+      await this.router.navigateByUrl('/research');
+    } catch (error) {
+      this.error.set(
+        this.auth.problemMessage(
+          error,
+          'Test server unavailable. Keep the Mac and demo connection running.',
+        ),
+      );
+    } finally {
+      this.busy.set(false);
     }
   }
 

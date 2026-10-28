@@ -1,6 +1,6 @@
 # BitStockerz iOS research prototype
 
-Updated October 17, 2026. This prototype is included in the repository; native passkeys on an iPhone still require an associated HTTPS domain.
+Updated October 18, 2026. This prototype is included in the repository; native passkeys on an iPhone still require an associated HTTPS domain.
 
 The app bundles the Angular interface in Capacitor 8.5.3.
 AuthenticationServices provides native passkey registration and login.
@@ -72,9 +72,59 @@ It does not connect to Aiven, Fly, licensed data, or the production database.
 
 Do not expose simulator mode through a tunnel. Its email fallback is for local use only.
 
+## Personal Team demo on an iPhone
+
+A free Personal Team can run the chart and backtest prototype with a test login.
+It cannot provision the Associated Domains capability that native passkeys need.
+Use `device-demo` only for synthetic research; it does not verify identity.
+
+1. Start a dedicated temporary HTTPS tunnel to `http://127.0.0.1:4310`.
+   With the installed `cloudflared` CLI, pass a separate empty configuration
+   so existing tunnels and routes are not inherited:
+
+   ```sh
+   printf '{}\n' > /tmp/bitstockerz-demo-tunnel.yml
+   cloudflared tunnel --config /tmp/bitstockerz-demo-tunnel.yml --no-autoupdate --url http://127.0.0.1:4310
+   ```
+
+   Keep this terminal open. Copy the temporary `https://…trycloudflare.com`
+   URL printed by `cloudflared` into the next command.
+
+2. Prepare the app with your temporary origin and signing team:
+
+   ```sh
+   npm run ios:prepare -- --mode device-demo --api-origin https://YOUR-TUNNEL.trycloudflare.com --team-id YOURTEAMID
+   npm run ios:sync
+   ```
+
+3. Run `npm run ios:api` in a separate terminal, then `npm run ios:check-domain`.
+   The check verifies CORS, readiness, and the demo access gate; it does not
+   require an association domain.
+4. Open the project with `npm run ios:open`. Select **App**, your **Personal
+   Team**, and your connected iPhone. Select **Run**.
+5. Open **BitStockerz**, then **Start test session**. Use **Open chart**
+   and **Set up a backtest** from Research.
+
+The demo has a separate bundle identifier ending in `.demo` and no Associated
+Domains entitlement. It uses one fictional account. Accounts and runs disappear
+when the API restarts. The temporary origin must stay running and reachable;
+if it changes, prepare, sync, rebuild, and install again. Personal Team
+provisioning also requires rebuilding when its profile expires.
+
+`ios:prepare` generates a disposable demo access key in ignored local files.
+The app sends it only on relative API requests to the configured prototype
+server. The API rejects requests without it. The key is extractable from a
+demo app and is not production authentication. Do not distribute the build or
+use real personal data. Production keys and database credentials are never
+imported. Preparing again rotates the demo key: restart the API and rebuild
+the app together. Do not publish the generated web bundle. Native passkeys
+remain deferred in this mode.
+
 ## What you need for your iPhone
 
-An Apple Developer membership is required for the associated-domain setup.
+An active paid Apple Developer Program membership is required for the
+associated-domain setup. A free Apple developer account or Personal Team is
+sufficient only for the test-login demo above.
 The October 10 inspection found an Apple Development signing identity on this Mac.
 Device installation and signing remain untested.
 

@@ -1,3 +1,5 @@
 BITSTOCKERZ_RP_ID = passkeys.invalid
 BITSTOCKERZ_BUNDLE_ID = com.bitstockerz.research
+BITSTOCKERZ_ENTITLEMENTS = App/App.entitlements
+BITSTOCKERZ_DISPLAY_NAME = BitStockerz
 #include? "App/App/Prototype.xcconfig"

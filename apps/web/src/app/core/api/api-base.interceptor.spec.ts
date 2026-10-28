@@ -7,6 +7,7 @@ import { apiBaseInterceptor } from './api-base.interceptor';
 
 describe('apiBaseInterceptor', () => {
   const originalApiBaseUrl = environment.apiBaseUrl;
+  const originalMode = environment.nativeMode;
   beforeEach(() => {
     environment.apiBaseUrl = 'https://api.example.test/';
     TestBed.configureTestingModule({
@@ -19,6 +20,8 @@ describe('apiBaseInterceptor', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
     environment.apiBaseUrl = originalApiBaseUrl;
+    environment.nativeMode = originalMode;
+    environment.prototypeAccessKey = undefined;
   });
 
   it.each(['/api', '/api?version=1', '/api/me', '/api/trading/orders'])(
@@ -53,6 +56,30 @@ describe('apiBaseInterceptor', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('adds the demo key only to relative API requests in explicit demo mode', async () => {
+    environment.nativeMode = 'device-demo';
+    environment.prototypeAccessKey = 'disposable-test-key';
+    for (const url of ['/api/me', 'https://collector.example.test/api/me', '/assets/theme.json']) {
+      const pending = firstValueFrom(TestBed.inject(HttpClient).get(url));
+      const request = TestBed.inject(HttpTestingController).expectOne(
+        url === '/api/me' ? 'https://api.example.test/api/me' : url,
+      );
+      expect(request.request.headers.get('x-bitstockerz-beta-key')).toBe(
+        url === '/api/me' ? 'disposable-test-key' : null,
+      );
+      request.flush({});
+      await pending;
+    }
+    environment.nativeMode = 'device';
+    const pending = firstValueFrom(TestBed.inject(HttpClient).get('/api/me'));
+    const request = TestBed.inject(HttpTestingController).expectOne(
+      'https://api.example.test/api/me',
+    );
+    expect(request.request.headers.has('x-bitstockerz-beta-key')).toBe(false);
+    request.flush({});
+    await pending;
   });
 
   it('keeps same-origin API calls when no API base is configured', async () => {

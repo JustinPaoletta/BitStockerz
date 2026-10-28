@@ -55,6 +55,9 @@
   @if (native) {
     <p class="prototype-notice">
       Research prototype · Local API uses simulated prices.
+      @if (demo) {
+        Personal Team demo · Test login only; native passkeys deferred.
+      }
       @if (simulator) {
         Simulator email login is for local testing only.
       }

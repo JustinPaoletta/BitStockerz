@@ -1,9 +1,10 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { LoginPage } from './login.page';
-import { safeReturnUrl } from './auth.service';
+import { environment } from '../../../environments/environment';
+import { AuthService, safeReturnUrl } from './auth.service';
 import { TokenStorageService } from './token-storage.service';
 
 describe('safeReturnUrl', () => {
@@ -137,5 +138,69 @@ describe('LoginPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Verify your account');
     expect(fixture.nativeElement.textContent).not.toContain('Create an account');
     expect(fixture.nativeElement.textContent).not.toContain('Create a local test account');
+  });
+});
+
+describe('Personal Team test login', () => {
+  const originalMode = environment.nativeMode;
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => {
+    environment.nativeMode = originalMode;
+    sessionStorage.clear();
+  });
+
+  it('uses a fictional account and keeps passkey controls out of the demo', async () => {
+    environment.nativeMode = 'device-demo';
+    const auth = {
+      isAuthenticated: () => false,
+      loginWithEmail: vi.fn().mockRejectedValue(new HttpErrorResponse({ status: 401 })),
+      registerWithEmail: vi.fn().mockResolvedValue(undefined),
+    };
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [provideRouter([]), { provide: AuthService, useValue: auth }],
+    }).compileComponents();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(LoginPage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Test login only');
+    expect(fixture.nativeElement.textContent).not.toContain('Sign in with a passkey');
+    expect(fixture.nativeElement.querySelector('input')).toBeNull();
+    fixture.nativeElement.querySelector('button').click();
+    await fixture.whenStable();
+    expect(auth.registerWithEmail).toHaveBeenCalledWith(
+      'iphone-demo@example.invalid',
+      'iPhone Demo',
+    );
+    expect(navigate).toHaveBeenCalledWith('/research');
+  });
+
+  it('does not register again when an existing session fails to load its profile', async () => {
+    environment.nativeMode = 'device-demo';
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LoginPage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('button').click();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/auth/login').flush({
+      access_token: 'demo-token',
+      user: { id: '1', email: 'iphone-demo@example.invalid', display_name: 'iPhone Demo' },
+    });
+    await Promise.resolve();
+    http.expectOne('/api/auth/me').flush({}, { status: 503, statusText: 'Service Unavailable' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    http.expectNone('/api/auth/register');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Your session could not be loaded. Please sign in again.',
+    );
+    http.verify();
   });
 });
