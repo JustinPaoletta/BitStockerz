@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
@@ -143,15 +143,17 @@ describe('LoginPage', () => {
 
 describe('Personal Team test login', () => {
   const originalMode = environment.nativeMode;
+  beforeEach(() => sessionStorage.clear());
   afterEach(() => {
     environment.nativeMode = originalMode;
+    sessionStorage.clear();
   });
 
   it('uses a fictional account and keeps passkey controls out of the demo', async () => {
     environment.nativeMode = 'device-demo';
     const auth = {
       isAuthenticated: () => false,
-      loginWithEmail: vi.fn().mockRejectedValue(new Error('not registered')),
+      loginWithEmail: vi.fn().mockRejectedValue(new HttpErrorResponse({ status: 401 })),
       registerWithEmail: vi.fn().mockResolvedValue(undefined),
     };
     await TestBed.configureTestingModule({
@@ -172,5 +174,33 @@ describe('Personal Team test login', () => {
       'iPhone Demo',
     );
     expect(navigate).toHaveBeenCalledWith('/research');
+  });
+
+  it('does not register again when an existing session fails to load its profile', async () => {
+    environment.nativeMode = 'device-demo';
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LoginPage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('button').click();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/auth/login').flush({
+      access_token: 'demo-token',
+      user: { id: '1', email: 'iphone-demo@example.invalid', display_name: 'iPhone Demo' },
+    });
+    await Promise.resolve();
+    http.expectOne('/api/auth/me').flush({}, { status: 503, statusText: 'Service Unavailable' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    http.expectNone('/api/auth/register');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Your session could not be loaded. Please sign in again.',
+    );
+    http.verify();
   });
 });

@@ -1,4 +1,5 @@
 import { Component, HostListener, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
@@ -397,7 +398,10 @@ export class LoginPage {
       const email = 'iphone-demo@example.invalid';
       try {
         await this.auth.loginWithEmail(email);
-      } catch {
+      } catch (error) {
+        // The development login reports an unknown account as 401. Preserve
+        // network and profile-loading failures instead of trying to register.
+        if (!(error instanceof HttpErrorResponse) || error.status !== 401) throw error;
         await this.auth.registerWithEmail(email, 'iPhone Demo');
       }
       await this.router.navigateByUrl('/research');
