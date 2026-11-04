@@ -25,7 +25,7 @@ These exclusions are planning defaults. Adding them requires an explicit scope d
 | Surface | Implemented baseline | Remaining gap |
 | --- | --- | --- |
 | App packaging | `apps/web/capacitor.config.ts` bundles local Angular assets; iOS project exists | Stage A configuration/inspection implemented; production signing and distribution remain |
-| Native authentication | `PasskeysPlugin.swift` uses AuthenticationServices and checks the compiled relying party | Stable domain, associated-domain entitlement, real native registration/login evidence |
+| Native authentication | `PasskeysPlugin.swift` uses AuthenticationServices and checks the compiled relying party | Stable domain, signed associated-domain entitlement, real native registration/login evidence |
 | Native exports | Bridge creates temporary CSV/JSON files and opens the share sheet | Files, cancellation, interruption, and cleanup acceptance on a physical device |
 | Sessions | Native bearer tokens stay in memory | Confirm cold-launch sign-in is acceptable for the first beta; persistent sessions are deferred |
 | Production perimeter | Legacy proxy protection remains; optional persistent mobile admission is implemented behind a disabled flag | Hosted staging acceptance before activation or proxy retirement |
@@ -35,6 +35,7 @@ These exclusions are planning defaults. Adding them requires an explicit scope d
 
 PR #17 delivered the original native prototype. PR #18 delivered branding and product copy.
 PR #19 delivered the Personal Team demo and login fallback fix.
+
 Recorded PR #19 evidence includes signed installation and a synthetic chart/backtest journey on iPhone 15 Pro.
 That journey produced no closed trades. A populated trade table, native passkeys, exports, and accessibility still need device acceptance.
 The final PR head `51e3c6a` passed six checks before squash merge into `59c4963`.
@@ -110,22 +111,29 @@ Repository implementation — November 4, 2026: `PRIVATE_BETA_MOBILE_ENABLED` de
 The optional mobile path retains the legacy proxy and requires persistent MySQL, private-beta protection, and strict passkey verification.
 Registration accepts `invitation_token` only when creating options. The server binds its hash to the persisted challenge.
 Successful verification creates the user, credential, session, admission, and invitation redemption in one transaction.
+
 Direct mobile requests use an explicit route allowlist and check database session/admission state on every protected request.
 The native registration form retains an invitation after cancellation and clears it after successful enrollment.
+
 Local verification passed 1,022 API unit tests with coverage, 68 API HTTP tests, 125 web tests, and disposable MySQL admission regressions.
 The unsigned staging simulator build passed artifact inspection with an iPhone-only device family.
 See [mobile beta operations](docs/ops/mobile-beta.md) for the activation contract and remaining acceptance gates.
 Repository implementation does not authorize activation or remove the hosted staging, origin, and device checks below.
 
-Implement a dedicated mobile access policy before removing the existing global proxy requirement.
-Keep the old perimeter active until staging proves the replacement. Define the new configuration contract in the implementation PR.
+The dedicated mobile policy must pass hosted staging before the existing proxy requirement can be retired.
+Keep the old perimeter active until that acceptance passes. The implemented contract is described in the operations guide.
 
 For the initial beta, provision invitations through an operator tool. Store only token hashes, expiry, intended identity, and consumption state.
 For the single-owner beta, use that tool to provision one approved enrollment. No invitation email service or administration UI is required.
 An invitation authorizes account enrollment; it does not authenticate an existing account.
+
 Bind enrollment to the passkey challenge and consume the invitation atomically after successful registration verification.
 Failed or cancelled registration must not consume the invitation. Concurrent verification must not admit multiple accounts.
 Do not grant access based on an email string alone.
+
+The implemented enrollment path creates new users only. Existing accounts are not automatically admitted.
+An approved existing-account admission or reactivation procedure remains unimplemented.
+Do not delete valuable accounts to bypass that limitation.
 
 Persist admission against the authenticated user ID. Check admission and session validity on every protected mobile request.
 Define revocation so an existing bearer cannot bypass suspended admission. Preserve tenant ownership checks on all object operations.
@@ -146,7 +154,8 @@ Prerequisites: Stage B gates, approved operating cost, stable host, paid signing
 
 1. Reinspect Fly/Aiven configuration and token expiry; prior setup records are dated evidence only.
 2. Verify Linux migrations, database TLS, least-privilege application credentials, and all existing persistence gates.
-3. Serve the public Apple association file with the exact Team ID and bundle ID; verify HTTPS, content type, and no redirects.
+3. Serve the public Apple association file with the exact Team ID and bundle ID.
+   Check HTTPS, content type, and absence of redirects.
 4. Configure RP, API origin, native transport, and production safeguards. Keep development email and legacy WebAuthn bypasses disabled.
 5. Import licensed data and record vendor, feed entitlement, permitted use, symbol coverage, time ranges, and provenance.
 6. Verify unavailable or stale data produces explicit errors or degraded status. Production must never substitute synthetic prices.
@@ -170,6 +179,7 @@ Cold launches require sign-in under the initial memory-only session policy.
 Do not blindly retry writes after a timeout. Paper-order retries must reuse the existing idempotency contract.
 Trace strategy creation and backtest submission for ambiguous outcomes. Add a durable request identity or explicit history reconciliation where needed.
 Do not claim cancelling an HTTP request cancels server work. Define whether a backtest continues and how users recover its result.
+
 If the current synchronous execution path cannot recover reliably, scope a durable submission/status contract before enabling automatic retries.
 Keep runners on the server. Terminating the app must not stop a runner or duplicate an order when the app returns.
 
@@ -190,8 +200,9 @@ Update `.github/workflows/deploy.yml`, `scripts/ops/check-deploy-config.mjs`, an
 Remove Vercel requirements from API deployment validation only after the new access contract is verified.
 Retain protected approvals, migrations, readiness checks, secret scans, dependency audits, and the production-image build.
 Separate backend deploy approval from signed app upload/release approval.
+
 Add a macOS Xcode build gate for native changes. Keep inexpensive browser tests for bundled UI regressions.
-Start signed archive creation locally if hosted macOS usage threatens the budget; automate distribution only after the local path is repeatable.
+Start signed archives locally if hosted macOS usage threatens the budget. Automate distribution after that path is repeatable.
 
 Use separate iOS marketing versions and monotonically increasing build numbers. Record them alongside the repository version and API contract version.
 Support the current and previous released app builds through additive API changes and database migrations.
@@ -212,7 +223,10 @@ Distribution requires Stages C–E. Owner approval is required before valuable d
 
 Configure independent encrypted backups, key custody, retention, deletion records, and a restoration drill.
 Prove recovered users, auth methods, strategies, backtests, orders, balances, and admission state are correct.
-Invalidate restored sessions and outstanding invitations/challenges as part of recovery; replay deletion records before reopening access.
+Invalidate restored sessions and outstanding invitations/challenges as part of recovery.
+Replay deletion records and post-backup admission revocations before reopening access.
+The external admission-revocation record and reconciliation procedure require implementation and operator acceptance.
+
 Test alert delivery for API/database failure and stale ingestion. Establish support recipients and sanitized incident reproduction.
 Track actual hosting and optional provider usage against the owner's budget. Record a response when forecast spend exceeds the cap.
 
@@ -230,6 +244,7 @@ Audit SDK privacy manifests and required-reason API declarations against the act
 Verify in-app account deletion and the published retention policy against server and backup behavior.
 Provide reviewers an approved account or complete demo mode without weakening the production admission policy.
 Keep required backend services available throughout review.
+
 If adding social login, validate Apple's current equivalent-login requirements and implement native provider linking and recovery before enabling it.
 If monetization is requested, plan payment and store requirements separately before implementing purchases.
 
@@ -237,12 +252,13 @@ Done when: public-release metadata matches the app, device acceptance is recorde
 
 ## 6. Change packages and integration points
 
-Each package should be a reviewable PR with its own evidence. Do not combine credential retirement with the first admission implementation.
+Keep each package separately reviewable through logical commits and its own evidence.
+Stages A and B share the combined preparation PR. Credential retirement remains separate from the first admission implementation.
 
 | Package | Source and contract owners | Migration or verification boundary |
 | --- | --- | --- |
-| A: release configuration | `scripts/ios/prepare.mjs`, configuration tests, Angular environments, Xcode settings, Capacitor config | Add explicit production generation; inspect final bundled assets and entitlements |
-| B1: enrollment and admission | `apps/api/prisma/schema.prisma`, new migrations, auth registration/challenges, configuration service | Proposed invitation/admission records need schema design, uniqueness constraints, expiry, atomic consumption, and restart tests |
+| A: release configuration | `scripts/ios/prepare.mjs`, configuration tests, Angular environments, Xcode settings, Capacitor config | Implemented generation and artifact gates; signing and hosted/device acceptance remain |
+| B1: enrollment and admission | `apps/api/prisma/schema.prisma`, migrations, auth registration/challenges, configuration service | Implemented invitation binding and atomic new-user enrollment; existing-account admission/reactivation requires an approved procedure |
 | B2: mobile perimeter | `PrivateBetaGuard`, auth/session guards, auth rate limits, app HTTP interceptors, native passkey bridge | Preserve legacy protection until staging verifies the new policy; reject cross-user and revoked-session requests |
 | C: real service acceptance | API configuration, migration tooling, market-data importer/providers, public association routing | Reinspect providers and rights; verify data and native cryptography separately |
 | D: app recovery and usability | Research/market/strategy/backtest/trading/account pages, API mutation contracts, native share bridge | Trace actual execution ownership before adding retries or new job infrastructure |
@@ -250,8 +266,10 @@ Each package should be a reviewable PR with its own evidence. Do not combine cre
 | E2: app delivery | Xcode project, release scripts, CI native job, version metadata | Signing inputs stay outside Git; signed distribution requires owner approval |
 | F–G: operations/distribution | Backup tools, deletion records, health alerts, store metadata and policy resources | External restore, recipient delivery, tester installation, and review evidence cannot be replaced by unit tests |
 
-Admission migrations must define how existing approved users are enrolled without granting every existing account access.
-Provide an audited operator bootstrap for the owner; fail closed for unknown users and ambiguous migration state.
+Before reusing existing accounts, define approved admission and reactivation without granting every existing account access.
+The current operator tool provisions new-user invitations. It does not admit or reactivate existing users.
+Fail closed for unknown users and ambiguous migration state.
+
 Use additive migrations first. Preserve compatibility while old app builds and the old perimeter can still make requests.
 Rollback must not silently re-enable revoked admission or resurrect consumed invitations.
 
@@ -280,12 +298,15 @@ Previously provisioned services must be reinspected before use. This plan does n
 Recommended delivery order: **A → B → C → D → E → F distribution**.
 Prepare Stage F operations alongside C; its backup/recovery gates precede valuable-data acceptance.
 Repository preparation for C–E can overlap after contracts settle.
-Start Stage A and the Stage B API contract together. Keep production deployment disabled until their release gates pass.
+
+Stages A and B are implemented locally. Next, complete hosted admission and Stage C prerequisites while preparing Stage F operations.
+Keep production deployment disabled until the required release gates pass.
 Stage G and optional extensions do not block the private device beta.
 
 ## 9. Sources and maintenance
 
-Source inspection: `59c4963`, October 29, 2026. The source paths above are integration points, not completed future work.
+Architecture baseline: `59c4963`, October 29, 2026. Runtime inspection and local/CI evidence: `b1ce7c7`, November 4, 2026.
+Use the status notes and root checklist to distinguish implemented code from remaining acceptance.
 Official references checked October 29, 2026:
 
 - [Capacitor iOS runtime](https://capacitorjs.com/docs/ios): existing web UI can be packaged with native capabilities.

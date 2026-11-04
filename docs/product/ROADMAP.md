@@ -80,10 +80,10 @@ The licensed importer and Alpaca adapter are implemented; data rights, credentia
 Read the [extension limits](PRODUCT_EXTENSIONS.md) before advertising these capabilities.
 Local test evidence is separate from hosted and real-provider evidence.
 
-## Remaining delivery order
+## App delivery status and remaining order
 
-1. Stage A: define app configuration, identity, versioning, and release artifact rejection checks.
-2. Stage B: replace the website proxy perimeter with persistent server-side mobile admission and real authentication.
+1. Stage A: configuration, identity, versioning, and artifact rejection checks are implemented and locally verified.
+2. Stage B: persistent invitation/admission is implemented and locally verified behind a disabled flag. Hosted staging and native access acceptance remain.
 3. Stage C: activate verified hosting, database persistence, stable native passkeys, and licensed market data.
 4. Stage D: accept the complete phone journey, interrupted work, exports, accessibility, and network recovery.
 5. Stage E: split backend deployment from signed app distribution; verify installed-app compatibility and rollback.

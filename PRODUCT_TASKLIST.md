@@ -52,6 +52,8 @@ Production signing and real endpoint/device acceptance remain in later stages.
 - [ ] Configure native transport, exact CORS, RP verification, ingress trust, and authentication rate limits.
 - [ ] Keep operator jobs private and test cross-user access, wrong RP, cancelled enrollment, expiry, and secret-free artifacts.
 - [ ] Repeat admission, revocation, restart, origin, and ownership checks against hosted staging before enabling mobile access.
+- [ ] Before reusing existing accounts, implement an approved admission/reactivation procedure that preserves their identity and data.
+      Current invitations create new users only. Do not delete valuable accounts to work around this limit.
 
 November 4 local evidence: 1,022 API unit tests passed with the coverage gate; 68 API HTTP tests and 125 web tests passed.
 The disposable MySQL regression passed invitation binding, concurrent redemption, rollback, restart hydration, expiry, and live session/admission revocation.
@@ -147,7 +149,9 @@ these tasks establish usable production operations and user support.
       Aiven Free has a single disaster-recovery backup and no database forks.
       Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
 - [ ] Perform a backup restoration drill covering users, auth methods, admission, strategies, backtests, and paper balances.
-      Invalidate restored sessions/invitations/challenges and replay deletion records before reopening access.
+      Invalidate restored sessions/invitations/challenges and replay deletions and post-backup admission revocations before reopening access.
+- [ ] Establish an external admission-revocation record and test reconciliation against older backups before valuable-data acceptance.
+      Keep recovery isolated and deny uncertain admission until reconciliation passes.
 - [ ] Exercise API rollback with the current schema and installed app versions; document app rollout pause and a forward-fix release.
 - [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
       Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.

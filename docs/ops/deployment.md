@@ -1,6 +1,6 @@
 # BitStockerz — Application backend deployment
 
-Updated October 29, 2026. The product launches as an iPhone app for a private personal research beta.
+Updated November 4, 2026. The product launches as an iPhone app for a private personal research beta.
 The [app delivery plan](../../APP_ONLY_PLAN.md) defines the target architecture and release gates.
 The [task list](../../PRODUCT_TASKLIST.md) tracks unfinished work.
 
@@ -15,14 +15,15 @@ Vercel's hosted trading workspace and server proxy are removed from the target l
 See [mobile beta operations](mobile-beta.md) for invitations, revocation, and the activation contract.
 The app-only deployment workflow remains unfinished.
 The existing `deploy.yml` still deploys Vercel, and `check-deploy-config.mjs` still requires Vercel credentials.
+
 Do not enable `PRODUCTION_DEPLOY_ENABLED` using the historical website procedure below.
 Do not disable `PrivateBetaGuard` without the replacement server-side admission policy and its tests.
 Never compile the production proxy key into the app. The synthetic demo key is unsuitable for production.
 
 ### Required order for the app release
 
-1. Implement app release configuration and artifact checks from Stage A of the plan.
-2. Implement persistent mobile admission, authenticated access, and abuse controls from Stage B.
+1. Repeat the implemented Stage A configuration and artifact checks for the release revision.
+2. Complete hosted staging acceptance for Stage B admission; its code and local regressions are implemented.
 3. Verify the stable passkey domain, paid team, native origins, and Apple association file.
 4. Reinspect host configuration and costs. Complete Linux database verification, TLS, migrations, and restart hydration.
 5. Import licensed data and verify provenance, coverage, production error behavior, and real device workflows.
@@ -109,8 +110,10 @@ The browser uses same-origin `/api` requests through `apps/web/api/proxy.mjs`.
 Vercel Authentication must protect **All Deployments**, with no public exceptions or shared bypass links.
 The function forwards to `API_UPSTREAM_ORIGIN` and adds `PRIVATE_BETA_PROXY_KEY` on the server.
 The key is stored only in Vercel production and Fly; it is absent from Angular assets.
-Fly rejects direct API requests without that key when `PRIVATE_BETA_ENABLED=true`.
-Application sessions are still required on account routes.
+
+With mobile admission disabled, Fly rejects direct API requests without that key when `PRIVATE_BETA_ENABLED=true`.
+Application sessions remain required on account routes.
+The optional [mobile admission path](mobile-beta.md) also checks current admission and sessions on allowlisted user routes through the proxy.
 
 Public GET/HEAD health probes remain available.
 A different `PRIVATE_BETA_MONITOR_KEY` permits only GET `/api/market-data/health`.
@@ -247,7 +250,8 @@ On the Fly app, set at least:
 | `DATABASE_URL`                                | Separate runtime MySQL account; application database CRUD permissions only                                                           |
 | `DATABASE_CA_CERT_BASE64`                     | Same provider CA as GitHub; Fly writes `/app/database-ca.pem` before Node starts                                                     |
 | `NODE_EXTRA_CA_CERTS`                         | `/app/database-ca.pem`, configured in `fly.toml` for verified runtime TLS                                                            |
-| `PRIVATE_BETA_ENABLED`                        | `true` for this launch; direct API requests need the server proxy key                                                                |
+| `PRIVATE_BETA_ENABLED`                        | `true` for this launch; retain the server proxy requirement unless the optional mobile path authorizes the request                    |
+| `PRIVATE_BETA_MOBILE_ENABLED`                 | Default `false`; enable only after the [mobile admission gates](mobile-beta.md#acceptance-gates) pass                                 |
 | `PRIVATE_BETA_PROXY_KEY`                      | Same 32-byte hexadecimal key as the server-only Vercel production secret                                                             |
 | `PRIVATE_BETA_MONITOR_KEY`                    | Separate 32-byte hexadecimal key, shared only with the GitHub health workflow                                                        |
 | `TRUSTED_PROXY_CIDRS`                         | Actual ingress proxy IPs/CIDRs, determined from the deployed network; empty ignores forwarded IP headers. Never trust all addresses. |
@@ -500,9 +504,15 @@ network; defaulting to socket IPs is safe against spoofing but can group proxy c
 
 ## Database verification before release
 
-All 19 migrations and five MySQL harnesses passed PR #15 and post-merge main CI.
-Local Docker was unavailable. Hosted CI provides disposable-database evidence.
+All 19 migrations and five MySQL harnesses passed PR #15 and post-merge main CI in October.
+Local Docker was unavailable during those checks. Hosted CI supplied the disposable-database evidence.
+The runtime inventory now contains 21 migrations, including price provenance and mobile admission.
+On November 4, local disposable MySQL passed the mobile admission migration and regression.
+CI at revision `b1ce7c7` passed all six MySQL harnesses and the production-image build.
+
 For a local repeat, start Docker Desktop or supply a disposable MySQL 8 database. Never point test harnesses at production or a valued database.
+The mobile harness requires a localhost address and a `bitstockerz_*ci` database name; CI uses `bitstockerz_ci`.
+It rejects remote hosts and other database names before changing data.
 Use Node 24.21.0, apply `npm --prefix apps/api run db:deploy`, then run:
 
 ```sh
@@ -510,6 +520,7 @@ npm --prefix apps/api run test:mysql:backtest
 npm --prefix apps/api run test:mysql:trading
 npm --prefix apps/api run test:mysql:security
 npm --prefix apps/api run test:mysql:auth
+npm --prefix apps/api run test:mysql:mobile-admission
 npm --prefix apps/api run test:mysql:workspace
 ```
 
@@ -517,10 +528,13 @@ Supply `DATABASE_URL` through your environment/secret manager, without placing
 it in documentation or shell history. CI now includes the workspace harness,
 which checks cost/benchmark persistence, watchlists, runner restart/idempotency,
 enrollment-challenge ownership, reset archives, exports, deletion and isolation.
-Passing CI on each release revision remains required. Three new migrations add
+
+Passing CI on each release revision remains required. Three October 4 migrations add
 simulation/benchmark/fee storage, enrollment binding, watchlists, reset archives,
-retired order keys and runners. On an existing database, follow the OAuth identity
+retired order keys and runners. Later migrations add price provenance and mobile admission.
+On an existing database, follow the OAuth identity
 preflight in [Google/Apple setup](#googleapple-login-and-recovery-setup) before applying migrations.
+Mobile admission does not grandfather existing accounts. Follow the [existing-account limitation](mobile-beta.md#existing-account-limitation) before enabling it.
 
 ## Licensed market data
 
@@ -637,8 +651,9 @@ This fixture check does not establish Aiven recovery, application login recovery
 1. Configure encrypted automated backups and an operator with restricted restore access.
    Record provider, region, backup schedule, retention, encryption, and failure-alert recipient.
    Record the measured RPO/RTO targets; do not publish the example retention periods as promises.
-2. Create staging fixture users with passkeys/providers, strategy versions, backtests, and paper positions.
+2. Create staging fixture users with passkeys/providers, strategy versions, backtests, paper positions, and mobile admission.
    Save a restricted expected snapshot of identifiers, counts, decimal balances, and order IDs.
+   Include admission status and invitation metadata. Do not save raw invitation tokens in the expected snapshot.
    Record the backup ID, UTC capture time, application SHA, and image digest.
 3. Restore that backup into a new isolated database through the provider's restore procedure.
    Never overwrite production during a drill. Record restore start/end times and migration status.
@@ -646,8 +661,13 @@ This fixture check does not establish Aiven recovery, application login recovery
 4. Reapply deletion requests made after the backup capture before starting the restored application.
    Use the restricted deletion record below. Account deletion also removes child records and invalidates caches.
    Clear restored auth sessions and one-use OAuth/passkey challenges with the recovery operator's approved database procedure.
+   Revoke every outstanding restored invitation before reopening enrollment.
    Old session tokens and callback codes must not become valid again after restoration.
+   Reconcile admission revocations made after the backup against a restricted operator record.
+   Do not assume restored active admission remains authorized. Clearing sessions alone still permits a new passkey login.
+   Keep the restored service isolated if the correct admission state cannot be established.
 5. Compare users, auth identities, and strategy versions with the expected snapshot.
+   Compare admission status and invitation redemption/revocation state.
    Compare backtest results, trades, equity, order IDs, quantities, and cash.
    Confirm deleted users and their child records are absent.
    Do not run fixture-creating MySQL test harnesses against a restored customer database.
@@ -690,6 +710,10 @@ Retain the record while any retained backup could restore that account.
 Record confirmed deletions before declaring recovery controls complete.
 If that record is unavailable, keep the restored database offline.
 The application does not yet write to an external deletion journal.
+
+It also does not write an external admission-revocation journal.
+Before valuable beta data enters service, establish restricted records for post-backup admission changes and their recovery procedure.
+Do not reactivate users through unreviewed database edits during recovery.
 Storage configuration and operational capture remain owner prerequisites.
 Purge expired backups and logs according to the published policy.
 

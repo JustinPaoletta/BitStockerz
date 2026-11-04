@@ -23,10 +23,12 @@ Baseline request log fields:
 Redaction:
 
 - req.headers.authorization
+- Server-only beta and monitoring key headers
 - req.headers.cookie
 - Request bodies, referrer headers, response cookies and redirect locations
-- OAuth request URL query/params and code/state/verifier/token fields; unexpected
-  OAuth errors use a bounded generic message rather than raw provider error text
+- OAuth and WebAuthn request URL query/params, including invitation tokens
+- Invitation-token fields and OAuth code/state/verifier/token fields
+- Unexpected OAuth errors use a bounded generic message rather than raw provider error text
 
 Structured logs for (as domains ship):
 

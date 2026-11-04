@@ -28,7 +28,7 @@ npm run web:start
 
 Open `http://localhost:4200/`. `proxy.conf.json` forwards relative `/api`
 requests to `http://localhost:4000`. Passkeys are the primary login path.
-The **Email fallback** panel is shown only in non-production builds; it is
+The **Development email sign-in** panel is shown only in non-production builds; it is
 for unsupported browsers and local automation when `AUTH_DEV_EMAIL_ENABLED=true`
 on the API.
 
@@ -63,6 +63,7 @@ This workaround does not establish a general platform requirement.
 The web toolchain pins `minimatch@10` callers to 11.0.1 and `glob@13` callers to 14.0.2.
 These scoped overrides address [minimatch pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249)
 and [glob cancellation bypass](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4).
+
 The fixes cross upstream major versions; they are compatibility overrides, not routine patch upgrades.
 Node 24.21.0 satisfies their engine requirements. Lint, UI tests, builds, and Capacitor sync verify the exercised callers.
 Keep the existing audit threshold. Remove overrides when parent packages adopt patched compatible dependencies and the same checks pass.

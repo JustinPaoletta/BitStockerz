@@ -1,15 +1,21 @@
 # BitStockerz — User flows
 
-These flows describe the current Angular application.
+These flows describe the Angular interface bundled in the iPhone app and its browser development harness.
 The October 4 additions merged in PR #15; hosted and live-provider acceptance remains outstanding.
-The iOS prototype in draft PR #17 starts at Research and uses native passkeys.
+
+The original iOS prototype merged in PR #17. Native authenticated navigation starts at Research.
+The Personal Team demo uses fictional test login and synthetic data. Persistent native passkeys need separate domain, signing, and device acceptance.
+
+The native menu exposes Research, Chart, Backtests, and Account.
+The shared feature flows below also cover browser navigation. Complete native discoverability and phone journeys remain acceptance tasks.
+
 See the [iOS guide](../../IOS_PROTOTYPE.md) for its setup and device checks.
 Google/Apple login and provider linking below apply to the browser application.
 See [product contracts](PRODUCT_EXTENSIONS.md) for execution and recovery limits.
 
 ## 1. Strategy research
 
-1. Sign in at `/login` with a passkey or configured Google/Apple provider.
+1. Sign in at `/login` with a passkey. Configured Google/Apple providers apply only to the browser harness.
 2. Open Strategies and create a definition or start from a template.
 3. Add indicators, entry/exit conditions, and required stop/target percentages.
 4. Validate the definition.
@@ -25,12 +31,29 @@ The out-of-sample label records a selected historical period; it does not automa
 Rerunning uses the latest saved strategy version.
 Historical run exports retain their original version pins.
 
+### Native beta enrollment
+
+Mobile admission is implemented but disabled by default. See [mobile beta operations](../ops/mobile-beta.md) before activation.
+
+1. Select **Create an account** on the native sign-in screen.
+2. Enter the intended email, display name, and operator-issued invitation code.
+3. Select **Create account with a passkey** and complete the device prompt.
+4. After enrollment, use the same email and a working passkey for returning sign-in.
+
+Staging and production forms require an invitation code during enrollment.
+The server requires an invitation whenever mobile admission is enabled; an email address alone does not authorize enrollment.
+The code is sent only when requesting registration options. The server binds its hash to the passkey challenge.
+Cancelling passkey creation leaves the invitation available. The form retains the code for retry and clears it after success or returning to sign-in.
+
+Native bearer tokens remain in memory. Restarting the app requires sign-in again.
+The Personal Team demo instead provides **Start test session**; it does not create or authenticate a real account.
+
 ## 2. Manual paper trading
 
 Signup provisions one USD paper account.
 The default starting balance is $100,000.00; operators can configure it.
 
-1. Open Trade.
+1. Open Paper trading.
 2. Select an active symbol.
 3. Submit a positive decimal-string market BUY or SELL.
 4. Inspect the filled order or persisted rejection.
@@ -99,7 +122,8 @@ Expired sessions redirect protected routes to `/login`.
 Business order rejections retain their reason and cannot alter the ledger.
 Error screens provide a request ID when the API supplies one.
 
-The browser stores bearer sessions in `sessionStorage` and validates them through `/auth/me`.
-The native prototype keeps bearer tokens in memory; restarting the app requires sign-in.
+The browser stores bearer sessions in `sessionStorage` and validates them through `/api/auth/me`.
+The native app keeps bearer tokens in memory; restarting the app requires sign-in.
+Enabled mobile admission also checks current database admission and session state on each allowlisted user request.
 Development uses a relative `/api` proxy.
 Email shortcuts appear only in non-production builds with development API access enabled.

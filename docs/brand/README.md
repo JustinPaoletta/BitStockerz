@@ -24,9 +24,9 @@ the mark without the wordmark.
 
 The Angular header uses the full lockup. The login illustration and native
 app icon use the standalone mark. Browser icons, the launch screen, and the
-page theme follow the device's light/dark preference. Keep the clear space
-around the mark at least one eighth of its width; do not stretch, rotate, or
-recolor individual candles.
+page theme follow the device's light/dark preference.
+Keep the clear space around the mark at least one eighth of its width.
+Do not stretch, rotate, or recolor individual candles.
 
 ## Brand colors
 
@@ -72,9 +72,8 @@ Keep these terms distinct across the interface, exports, and help text:
 
 Label generated prices as **simulated prices**, including when seed bars have
 been stored in a database. A backtest can use recorded prices while its trades
-remain simulated. Show unavailable metrics as unavailable when their
-calculation has no valid denominator, and distinguish the requested test period
-from the bars actually evaluated.
+remain simulated. Show unavailable metrics as unavailable when their calculation has no valid denominator.
+Distinguish the requested test period from the bars actually evaluated.
 
 ## Page previews
 

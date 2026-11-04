@@ -7,20 +7,36 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### iPhone-only beta preparation
+
+- Make iPhone the initial launch platform. Keep Angular bundled in Capacitor and retain browser development tests.
+- Add staging/production identities, version settings, public build fingerprints, guarded synchronization, and Release artifact checks.
+- Target iPhone in both Xcode configurations and omit prototype notices from release channels.
+- Add default-off persistent mobile admission with hashed invitations bound to passkey challenges and atomic enrollment.
+- Check current admission and session state on user routes, including proxied, mixed-case, and `HEAD` requests.
+- Add native invitation entry and private operator tooling. Preserve the existing proxy until hosted acceptance passes.
+- Record local, CI, and simulator evidence separately from signing, native passkeys, live data, and physical-device acceptance.
+
+### Documentation reconciliation — November 4, 2026
+
+- Correct mobile access, migration, test, release, and account-lifecycle references against source.
+- Document fresh-enrollment limits and recovery of invitation/admission state after a backup restore.
+- Preserve dated provider and device evidence; retain unverified activation and distribution gates.
+
 ### CI calendar regression
 
 - Keep completed synthetic equity prices usable across UTC weekends in seed mode.
 - Share the freshness calculation between price reads and health; retain strict elapsed-time checks for crypto and database-backed data.
 - Add fixed Friday/Monday, expiry, and configured-limit regressions without lowering coverage requirements.
 
-### Capacitor iOS prototype (draft PR #17)
+### Capacitor iOS prototype (merged in PR #17)
 
 - Bundle the Angular research interface in Capacitor with a native AuthenticationServices passkey bridge.
 - Add the guided chart, strategy, backtest, results, and history flow with native CSV/JSON sharing.
 - Keep native bearer sessions in memory and isolate the sample-data API from production credentials.
 - Add device configuration and association-file checks; document remaining signing, native passkey, and physical-device acceptance.
 
-### Kernel correctness and release readiness (combined draft PR #17)
+### Kernel correctness and release readiness (merged in PR #17)
 
 - Use immutable owned strategy versions for historical Kernel explanations.
   Preserve that context after edits, renames, or soft deletion; keep previews on the current definition.
@@ -42,8 +58,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Implement Alpaca historical adapters and a bounded licensed-data importer;
   prepare production-health monitoring and MySQL workspace restart regressions.
 - Document setup, retention/restore/rollback drills and remaining live checks.
-  No production deployment, real vendor success or new MySQL migration success
-  is claimed by local tests.
+  Those local checks did not establish production deployment, real-vendor success, or database-provider acceptance.
 
 ### Documentation accuracy
 

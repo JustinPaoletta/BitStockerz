@@ -1,15 +1,21 @@
 # BitStockerz iOS research prototype
 
-Updated October 29, 2026. iOS is now the launch platform.
-This guide documents implemented prototype and demo commands. The [app delivery plan](APP_ONLY_PLAN.md) defines missing production work.
-The generated staging/production configurations enforce build safety; they do not establish a production mobile access policy or distribution workflow.
+Updated November 4, 2026. iPhone is the initial launch platform.
+This guide covers prototype/demo commands and implemented staging/production build configuration.
+Release configuration and default-off mobile admission are implemented. Hosted acceptance and app distribution remain open.
+The [app delivery plan](APP_ONLY_PLAN.md) defines those remaining gates.
+
 Native passkeys still require an associated HTTPS domain. Demo mode cannot authenticate production users.
 
 ## Staging and production build configuration — November 3, 2026
 
-Stage A configuration and artifact gates are implemented. Production mobile admission and hosting remain separate launch requirements.
+Stage A configuration and artifact gates are implemented. Stage B admission is implemented behind a disabled flag.
+Hosting, native authentication, and signed distribution require separate acceptance.
+
 The supported modes are `simulator`, `device`, `device-demo`, `staging`, and `production`.
 Staging uses `com.bitstockerz.research.staging`; production uses `com.bitstockerz.research`.
+Both Xcode configurations target iPhone only. iPad layouts are outside the initial release scope.
+
 Both release channels require a stable HTTPS API, stable RP domain, Team ID, three-part version, and numeric build number.
 The build number accepts integers from 1 to 9999. Increase it for each distributed build; store-history enforcement is not implemented.
 The existing simulator/device/demo modes remain local research tools and must use Xcode Debug builds.
@@ -38,8 +44,12 @@ npm run ios:check:release -- --app /absolute/path/to/App.app
 ```
 
 The inspection checks the compiled JavaScript fingerprint, public manifest, Capacitor routing, plist identity, version, build, RP, and source revision.
-The Xcode Release phase independently rejects demo channels, stale native settings, missing passkey entitlements, and dirty production source.
+The Xcode Release phase rejects demo channels, stale native settings, and dirty production source.
+It requires the `App/App.entitlements` build setting. It does not inspect a code signature or the signed entitlement payload.
+Inspect signing, provisioning, and associated-domain entitlements during signed-device acceptance.
+
 Debug builds retain the disposable demo workflow. Staging/production startup rejects settings that would activate test login or mismatch the prepared API.
+
 Public configuration and asset hashes are recorded under ignored `artifacts/ios-build/` directories.
 The fingerprint identifies public configuration and source revision. Dirty staging source is disclosed and is not a reproducible clean release.
 Generated files remain ignored, including `apps/web/public/ios-build.local.json`.
@@ -47,7 +57,21 @@ Generated files remain ignored, including `apps/web/public/ios-build.local.json`
 Validation on November 3 used fixture HTTPS names without contacting those hosts.
 The staging Release simulator build passed, its built artifact passed inspection, and the app installed and launched in the simulator.
 These results do not establish a working backend, domain ownership, native passkeys, signing, or physical-device installation.
+
 The physical iPhone remained unavailable during this work.
+
+### Persistent mobile enrollment and host checks
+
+The persistent API supports invitation-based passkey enrollment when `PRIVATE_BETA_MOBILE_ENABLED=true`.
+The flag defaults to `false`. Do not enable it before the hosted staging gates pass.
+Use the [mobile beta operations guide](docs/ops/mobile-beta.md) for invitations, revocation, and activation prerequisites.
+The native registration form collects the invitation code. Returning passkey login does not need that code.
+
+Existing accounts are not automatically admitted; migration or reactivation needs a separate approved procedure.
+
+`npm run ios:check-domain` checks only prototype `device` and `device-demo` configurations.
+It rejects staging/production modes and does not validate the persistent mobile admission path.
+Use the hosted acceptance checklist in the operations guide for that path.
 
 ## Recorded device evidence and remaining acceptance
 
@@ -56,6 +80,7 @@ The final app-name build had `CFBundleDisplayName = BitStockerz`; the home-scree
 The recorded chart, watchlist, strategy/backtest, no-trades results, and saved-history journey passed using the temporary demo API.
 The tunnel and demo API were stopped afterward. This record does not establish current endpoint availability.
 Native passkeys, a populated trade table, native export acceptance, and accessibility remain unverified on the device.
+
 Use the checklist below for outstanding acceptance; rerun release-relevant journeys on the persistent app build.
 
 The app bundles the Angular interface in Capacitor 8.5.3.
@@ -172,7 +197,9 @@ The app sends it only on relative API requests to the configured prototype
 server. The API rejects requests without it. The key is extractable from a
 demo app and is not production authentication. Do not distribute the build or
 use real personal data. Production keys and database credentials are never
-imported. Preparing again rotates the demo key: restart the API and rebuild
+imported.
+
+Preparing again rotates the demo key: restart the API and rebuild
 the app together. Do not publish the generated web bundle. Native passkeys
 remain deferred in this mode.
 
@@ -238,8 +265,9 @@ CORS separately permits the native origin `capacitor://localhost`.
 This temporary API runs independently of the protected production deployment.
 
 Never put `PRIVATE_BETA_PROXY_KEY`, database credentials, or hosting tokens in the app.
-The protected Fly/Vercel route requires a server proxy key and cannot directly serve as the native endpoint.
-Production mobile access must implement Stage B of [APP_ONLY_PLAN.md](APP_ONLY_PLAN.md); this prototype does not remove the production access guard.
+The legacy Fly/Vercel proxy path requires a server-only key. Never copy that key into the native client.
+The persistent app instead uses the default-off [mobile admission path](docs/ops/mobile-beta.md).
+This isolated prototype does not activate that path or remove the production guard.
 
 ### 4. Test the hosts
 
@@ -249,7 +277,7 @@ Run:
 npm run ios:check-domain
 ```
 
-The command tests the public association file, API readiness, authentication-route access, and native CORS preflight.
+This prototype-only command tests the public association file, API readiness, authentication-route access, and native CORS preflight.
 Passing results do not establish Apple's association lookup or successful native authentication.
 
 ### 5. Sign and install

@@ -13,14 +13,29 @@ Apply all pending migrations before starting an API with mobile admission enable
 Keep the existing server-only proxy key configured. Never put that key in the app.
 The legacy proxy lane remains available. Mobile admission does not replace its protection for operator and unsupported routes yet.
 With mobile admission enabled, allowlisted user routes check current admission and session state even through the legacy proxy.
+
 With mobile admission enabled, passkey enrollment requires an invitation and returning passkey sign-ins require an admitted user.
 Legacy browser OAuth remains separate; a session from that lane still needs admission to access allowlisted user routes.
 Use the native registration form for invitation enrollment; the legacy browser form does not collect invitation codes.
+
+## Existing-account limitation
+
+The current path enrolls new invited accounts. It does not admit existing accounts automatically.
+Registration rejects an email already attached to an account.
+The operator tool has no command to grant admission to an existing user or reactivate revoked admission.
+Applying the migration alone does not create admission records.
+
+Before enabling mobile access for valued existing accounts, establish an approved migration and recovery procedure.
+Keep this work pending until that procedure is implemented and tested.
+Do not delete or recreate accounts to work around missing admission.
+
+## Direct mobile routes
 
 Direct clients can access only the four rate-limited passkey enrollment/login bootstrap routes before authentication.
 All other mobile routes require an unexpired database session and an active admission record.
 Route classification follows Express: paths ignore case, and `HEAD` requests use the corresponding `GET` access policy.
 The explicit allowlist preserves existing account ownership checks and excludes operator jobs, ingestion, metrics, and unsupported authentication routes.
+
 Health probes and separately keyed market-data monitoring keep their existing access rules.
 AI routes retain their existing server feature controls. This change does not activate live AI.
 
@@ -38,6 +53,7 @@ The server retains its existing RP, origin, challenge, and user-verification che
 Successful verification atomically redeems the invitation and creates the user, credential, admission, and session.
 Concurrent verification can commit only one enrollment. A failed transaction leaves no partially enrolled account.
 Cancelling passkey creation does not redeem the invitation. Failed verification requires a new challenge before retrying.
+
 The app keeps the code in form memory for retry and clears it after success or switching to sign-in.
 Invitation codes do not belong in URLs, browser storage, logs, or committed configuration.
 
@@ -60,6 +76,7 @@ node apps/api/tools/mobile-admission.mjs create \
 Replace `OWNER_EMAIL` with the intended account email. Choose an existing private directory for the output file.
 The command creates a new file with mode `0600` and refuses to overwrite an existing file or symlink.
 It prints only the invitation hash, expiry, and save status. Read the token privately when entering it in the app.
+
 Deliver the code securely if inviting another tester. Remove the raw file when it is no longer needed.
 
 Check or revoke an admitted user:
@@ -80,6 +97,8 @@ node apps/api/tools/mobile-admission.mjs revoke-invitation --hash INVITATION_SHA
 
 Account deletion removes admission and related invitation identity records through the existing deletion transaction.
 Backup retention and external deletion records still require the operational acceptance described in the main plan.
+Recovery must also invalidate outstanding restored invitations and reconcile admission revocations made after the backup.
+The external admission-revocation record and recovery workflow are not implemented.
 
 ## Acceptance gates
 

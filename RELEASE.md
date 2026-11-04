@@ -6,13 +6,16 @@ This repository uses a manual changelog + release branch workflow.
 
 The October 29 target is an iPhone application with a separately deployed backend.
 Use [APP_ONLY_PLAN.md](APP_ONLY_PLAN.md), Stages A–G, for the release contract.
+
 The existing `deploy.yml` still requires Vercel. Keep production deployment disabled until the mobile access and workflow changes pass.
+Release configuration and default-off mobile admission are implemented. Hosted staging and physical-device acceptance remain open.
 The repository tag procedure below creates source releases; it does not distribute an iOS build.
 
 Before a persistent device beta, require native passkey/admission, database restart, real-data, and full phone acceptance evidence.
 Record the repository SHA/version, API image, migrations, iOS marketing version/build number, bundle identity, signing team, and device results.
 Use monotonically increasing iOS build numbers. Keep repository and app version mappings explicit in the changelog.
 Run `npm run ios:sync:release` before Xcode Release builds.
+
 Use `npm run ios:check:release -- --app /absolute/path/to/App.app` after building.
 Build a signed Release archive and inspect it for demo configuration, test login, secrets, RP, API origin, and entitlements.
 Run a native Xcode compilation gate in addition to browser and API checks.
@@ -66,9 +69,12 @@ npm --prefix apps/web run e2e
 Run `npm audit`, `npm --prefix apps/api audit`, and
 `npm --prefix apps/web audit` before releasing dependency changes.
 
-For persisted behavior, verify fresh MySQL migrations and the existing
-`test:mysql:backtest`, `test:mysql:trading`, `test:mysql:security` and
-`test:mysql:auth`, and `test:mysql:workspace` gates. CI provisions its own MySQL service for these checks.
+For persisted behavior, verify fresh MySQL migrations and all six persistence/security gates:
+`test:mysql:backtest`, `test:mysql:trading`, `test:mysql:security`, `test:mysql:auth`,
+`test:mysql:mobile-admission`, and `test:mysql:workspace`.
+CI provisions its own MySQL service for these checks.
+The mobile-admission harness requires a disposable loopback database named `bitstockerz_ci` or `bitstockerz_*_ci`.
+Never run these fixture-creating harnesses against customer data.
 Run the native CLI gates in the [testing strategy](docs/product/requirements/Testing_Strategy.md#native-cli-regressions).
 
 Merging into `main` starts `.github/workflows/deploy.yml` and reruns CI.
