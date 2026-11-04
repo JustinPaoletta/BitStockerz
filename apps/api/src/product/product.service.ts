@@ -372,6 +372,9 @@ export class ProductService {
               where: { initiatingUserId: user.id },
             });
             await tx.oAuthHandoff.deleteMany({ where: { userId: user.id } });
+            await tx.mobileInvitation.deleteMany({
+              where: { email: user.email },
+            });
             await tx.user.delete({ where: { id: user.id } });
           },
           {

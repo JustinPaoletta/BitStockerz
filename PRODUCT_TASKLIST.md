@@ -37,19 +37,27 @@ Android, subscriptions, offline mutation queues, notifications, and a native UI 
 - [x] Keep demo and production bundle identities separate; generate RP, API origin, team, version, and build number.
 - [x] Reject release artifacts containing test login, demo keys, localhost, temporary tunnels, or placeholder RP domains.
 - [x] Preserve bundled assets and restrict native bridge navigation; record source/configuration evidence with each build.
+- [x] Target iPhone in both Xcode configurations and remove local-prototype copy from staging/production builds.
 
 Stage A evidence: generator/artifact rejection tests, web tests, staging sync, unsigned simulator Release build, artifact inspection, and simulator launch.
 Production signing and real endpoint/device acceptance remain in later stages.
 
 ## B. Production mobile access — Required before removing the proxy perimeter
 
-- [ ] Implement persistent server-side beta admission and hashed, expiring enrollment invitations.
+- [x] Implement persistent server-side beta admission and hashed, expiring enrollment invitations.
       Bootstrap the single owner through an operator tool; no email service or administration UI is required for the first beta.
-- [ ] Bind invitations to passkey verification and consume them atomically; reject replay, concurrent use, expiry, and revocation.
-- [ ] Enforce admission, session validity, and tenant ownership; email alone must not authorize enrollment or recovery.
-- [ ] Verify admission revocation affects existing sessions and survives MySQL-backed restart.
+- [x] Bind invitations to passkey verification and consume them atomically; reject replay, concurrent use, expiry, and revocation.
+- [x] Enforce admission and session validity on explicit user routes; preserve tenant ownership checks and reject email-only enrollment.
+- [x] Verify admission revocation and restart hydration against disposable MySQL, including requests through the existing proxy.
 - [ ] Configure native transport, exact CORS, RP verification, ingress trust, and authentication rate limits.
 - [ ] Keep operator jobs private and test cross-user access, wrong RP, cancelled enrollment, expiry, and secret-free artifacts.
+- [ ] Repeat admission, revocation, restart, origin, and ownership checks against hosted staging before enabling mobile access.
+
+November 4 local evidence: 1,021 API unit tests passed with the coverage gate; 68 API HTTP tests and 125 web tests passed.
+The disposable MySQL regression passed invitation binding, concurrent redemption, rollback, restart hydration, expiry, and live session/admission revocation.
+Operator-tool tests verify private output, TLS configuration, and revocation. The mobile flag remains disabled by default.
+See [mobile beta operations](docs/ops/mobile-beta.md) for the activation contract.
+Hosted ingress, real native passkeys, and physical-device acceptance remain open.
 
 ## C. Backend, native passkeys, and real data — Required for meaningful beta
 
@@ -58,7 +66,7 @@ Use disposable staging accounts until Stage F backup, retention, and recovery ga
 ### Production hosting and configuration — Sprint 7.2
 
 - [ ] Approve the actual Fly operating cost and activate one API machine after the remaining release checks.
-- [ ] Pass the protected Linux migration-engine check against Aiven, then apply the 19 migrations during deployment.
+- [ ] Pass the protected Linux migration-engine check against Aiven, then apply pending migrations during deployment.
       The API client connects with verified TLS. The macOS migration engine rejects the CA; Linux verification remains pending.
 - [ ] Prove uninvited and revoked users cannot access the mobile API; retain the legacy perimeter until replacement acceptance passes.
 - [ ] Establish stable HTTPS API and passkey hosts plus public association, privacy, and support resources.
@@ -106,6 +114,7 @@ and live data remain disabled by default.
 
 ## D. Phone behavior — Required alongside backend acceptance
 
+- [x] Collect invitations during native enrollment; retain them after cancellation and clear them after successful enrollment.
 - [ ] Complete the physical-device research, strategy, backtest, paper trading, and account-control journeys.
 - [ ] Verify cold-launch sign-in, expiry, revocation, and safe retry states under the initial memory-only session policy.
 - [ ] Preserve order idempotency after lost responses; reconcile ambiguous strategy/backtest writes before retrying.

@@ -135,7 +135,18 @@ describe('AuthController', () => {
       sign_count: 1,
     });
 
-    expect(createOptionsMock).toHaveBeenCalledWith('user@example.com');
+    expect(createOptionsMock).toHaveBeenCalledWith(
+      'user@example.com',
+      undefined,
+    );
+    await controller.webauthnRegisterOptions({
+      email: 'user@example.com',
+      invitation_token: 'a'.repeat(43),
+    });
+    expect(createOptionsMock).toHaveBeenLastCalledWith(
+      'user@example.com',
+      'a'.repeat(43),
+    );
     expect(verifyMock).toHaveBeenCalledWith({
       email: 'user@example.com',
       challengeId: 'challenge-1',

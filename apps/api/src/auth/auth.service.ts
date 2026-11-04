@@ -17,6 +17,7 @@ import { ErrorCode } from '../common/errors/error-codes.enum';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaperAccountProvisioner } from '../trading/paper-account-provisioner.service';
+import { MobileAdmissionService } from './mobile-admission.service';
 import { AuthPersistenceService } from './auth-persistence.service';
 import {
   hashOAuthSecret,
@@ -248,6 +249,7 @@ export class AuthService implements OnModuleInit {
     private readonly persistence: AuthPersistenceService,
     @Optional()
     private readonly paperAccounts?: PaperAccountProvisioner,
+    @Optional() private readonly mobile?: MobileAdmissionService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -339,12 +341,20 @@ export class AuthService implements OnModuleInit {
 
   async createWebAuthnRegisterOptions(
     email: string,
+    invitationToken?: string,
   ): Promise<WebAuthnRegisterOptionsResponse> {
     const normalizedEmail = normalizeEmail(email);
 
     if (this.usersByEmail.has(normalizedEmail)) {
       throw new DomainError(ErrorCode.CONFLICT, 'Email is already registered.');
     }
+
+    const invitationHash = this.config.server.privateBetaMobileEnabled
+      ? await this.requireMobile().authorizeInvitation(
+          normalizedEmail,
+          invitationToken,
+        )
+      : undefined;
 
     const options = await generateRegistrationOptions({
       rpName: this.config.auth.webauthnRpName,
@@ -365,6 +375,8 @@ export class AuthService implements OnModuleInit {
       'register',
       normalizedEmail,
       options.challenge,
+      undefined,
+      invitationHash,
     );
 
     return {
@@ -427,6 +439,50 @@ export class AuthService implements OnModuleInit {
         );
       }
 
+      if (this.config.server.privateBetaMobileEnabled) {
+        const user: UserRecord = {
+          id: randomUUID(),
+          email: normalizedEmail,
+          display_name: normalizeDisplayName(input.displayName),
+          base_currency: 'USD',
+          passkeyCredentialIds: new Set(),
+        };
+        const verified = verification.registrationInfo;
+        const credential: PasskeyCredentialRecord = {
+          userId: user.id,
+          credentialId: verified.credential.id,
+          credential: verified.credential,
+          aaguid: verified.aaguid,
+          createdAt: new Date().toISOString(),
+        };
+        const session = {
+          token: randomUUID(),
+          signedInAt: Date.now(),
+          expiresAt: Date.now() + this.config.auth.sessionTtlSeconds * 1000,
+        };
+        await this.requireMobile().enroll({
+          invitationHash: challenge.invitationHash,
+          user,
+          credential,
+          session,
+        });
+        // Publish the committed state only after the full transaction succeeds.
+        user.passkeyCredentialIds.add(credential.credentialId);
+        this.usersById.set(user.id, user);
+        this.usersByEmail.set(user.email, user);
+        this.credentialsById.set(credential.credentialId, credential);
+        this.sessions.set(session.token, {
+          userId: user.id,
+          expiresAt: session.expiresAt,
+          signedInAt: session.signedInAt,
+        });
+        return {
+          access_token: session.token,
+          token_type: 'Bearer',
+          user: this.toUserProfile(user),
+        };
+      }
+
       const user = await this.createUser(normalizedEmail, input.displayName);
       try {
         await this.addPasskeyCredential(user, {
@@ -470,6 +526,9 @@ export class AuthService implements OnModuleInit {
         'No passkey account found for this email.',
       );
     }
+
+    if (this.config.server.privateBetaMobileEnabled)
+      await this.requireMobile().requireAdmission(user.id);
 
     const options = await generateAuthenticationOptions({
       rpID: this.config.auth.webauthnRpId,
@@ -1846,6 +1905,7 @@ export class AuthService implements OnModuleInit {
     email: string,
     challenge: string,
     owner?: { userId: string; sessionHash: string },
+    invitationHash?: string,
   ): Promise<WebAuthnChallengeRecord> {
     this.pruneExpiredChallenges();
 
@@ -1859,6 +1919,7 @@ export class AuthService implements OnModuleInit {
       challenge,
       expiresAt,
       ...owner,
+      ...(invitationHash ? { invitationHash } : {}),
     };
 
     if (this.persistence.enabled) {
@@ -1953,7 +2014,14 @@ export class AuthService implements OnModuleInit {
     return stateRecord;
   }
 
+  private requireMobile(): MobileAdmissionService {
+    if (!this.mobile?.enabled) throw new DomainError(ErrorCode.UNAUTHORIZED);
+    return this.mobile;
+  }
+
   private async createAuthResponse(user: UserRecord): Promise<AuthResponse> {
+    if (this.config.server.privateBetaMobileEnabled)
+      await this.requireMobile().requireAdmission(user.id);
     return {
       access_token: await this.createSession(user.id),
       token_type: 'Bearer',

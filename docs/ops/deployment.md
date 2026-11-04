@@ -11,7 +11,9 @@ The API uses managed MySQL and server-side market-data ingestion. Fly and Aiven 
 Small public resources provide Apple domain association, privacy information, and support.
 Vercel's hosted trading workspace and server proxy are removed from the target launch architecture.
 
-**Implementation status:** the app-only production access policy and deployment workflow are not implemented yet.
+**Implementation status:** mobile admission is implemented behind `PRIVATE_BETA_MOBILE_ENABLED=false`; hosted acceptance remains pending.
+See [mobile beta operations](mobile-beta.md) for invitations, revocation, and the activation contract.
+The app-only deployment workflow remains unfinished.
 The existing `deploy.yml` still deploys Vercel, and `check-deploy-config.mjs` still requires Vercel credentials.
 Do not enable `PRODUCTION_DEPLOY_ENABLED` using the historical website procedure below.
 Do not disable `PrivateBetaGuard` without the replacement server-side admission policy and its tests.

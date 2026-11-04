@@ -190,6 +190,23 @@ describe('OAuth HTTP logging', () => {
     expect(output()).not.toContain('private-beta-monitor-value');
   });
 
+  it('keeps mobile enrollment tokens out of actual request logs', async () => {
+    const { app, output } = createLoggedApp();
+    app.post('/api/auth/webauthn/register/options', (_req, res) =>
+      res.json({ challenge: 'public-challenge' }),
+    );
+    await request(app)
+      .post('/api/auth/webauthn/register/options')
+      .query({ invitation_token: 'query-invitation-secret' })
+      .send({
+        email: 'owner@example.com',
+        invitation_token: 'body-invitation-secret',
+      })
+      .expect(200);
+    expect(output()).not.toContain('query-invitation-secret');
+    expect(output()).not.toContain('body-invitation-secret');
+  });
+
   it('logs Google callback routes without codes, state, query identity, headers, or redirect secrets', async () => {
     const { app, output, records } = createLoggedApp();
     app.get('/api/auth/oauth/google/callback', (_req, res) => {

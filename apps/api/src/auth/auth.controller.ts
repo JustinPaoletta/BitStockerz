@@ -102,7 +102,10 @@ export class AuthController {
     errors: [400, 429, 500],
   })
   webauthnRegisterOptions(@Body() dto: WebAuthnRegisterOptionsDto) {
-    return this.authService.createWebAuthnRegisterOptions(dto.email);
+    return this.authService.createWebAuthnRegisterOptions(
+      dto.email,
+      dto.invitation_token,
+    );
   }
 
   @Post('webauthn/register/verify')

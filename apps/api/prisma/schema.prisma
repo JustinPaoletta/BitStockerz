@@ -19,6 +19,7 @@ model User {
   updatedAt    DateTime  @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
+  mobileAdmission     MobileAdmission?
   webauthnCredentials WebAuthnCredential[]
   authSessions        AuthSession[]
   oauthIdentities     OAuthIdentity[]
@@ -66,6 +67,7 @@ model OAuthIdentity {
 model WebAuthnChallenge {
   userId      String?  @map("user_id") @db.Char(36)
   sessionHash String?  @map("session_hash") @db.Char(64)
+  invitationHash String? @map("invitation_hash") @db.Char(64)
   id          String   @id @db.Char(36)
   purpose     String   @db.VarChar(16)
   email       String   @db.VarChar(191)
@@ -503,4 +505,29 @@ model PaperAutomation {
   @@index([status], map: "automation_status")
   @@index([userId, symbolId], map: "automation_user_symbol")
   @@map("paper_automations")
+}
+
+// Enrollment tokens are stored only as SHA-256 hashes. Admission is attached to
+// the immutable authenticated user ID, never inferred from an email allowlist.
+model MobileInvitation {
+  tokenHash String @id @map("token_hash") @db.Char(64)
+  email String @db.VarChar(191)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @map("created_at")
+  consumedAt DateTime? @map("consumed_at")
+  consumedBy String? @map("consumed_by") @db.Char(36)
+  revokedAt DateTime? @map("revoked_at")
+
+  @@index([expiresAt])
+  @@map("mobile_invitations")
+}
+
+model MobileAdmission {
+  userId String @id @map("user_id") @db.Char(36)
+  admittedAt DateTime @map("admitted_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mobile_admissions")
 }

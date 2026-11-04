@@ -4,6 +4,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService, OAUTH_NAVIGATE } from './auth.service';
 import { TokenStorageService } from './token-storage.service';
+import { startRegistration } from '@simplewebauthn/browser';
+
+vi.mock('@simplewebauthn/browser', () => ({
+  startRegistration: vi.fn(),
+  startAuthentication: vi.fn(),
+}));
 
 describe('AuthService', () => {
   let auth: AuthService;
@@ -34,6 +40,7 @@ describe('AuthService', () => {
     auth = TestBed.inject(AuthService);
     http = TestBed.inject(HttpTestingController);
     tokens = TestBed.inject(TokenStorageService);
+    vi.mocked(startRegistration).mockReset();
   });
 
   afterEach(() => {
@@ -64,6 +71,53 @@ describe('AuthService', () => {
     expect(tokens.get()).toBeNull();
     expect(auth.user()).toBeNull();
     expect(auth.isAuthenticated()).toBe(false);
+  });
+
+  it('sends an invitation only when beginning enrollment, then verifies the bound challenge', async () => {
+    const attestation = {
+      id: 'credential',
+      rawId: 'credential',
+      type: 'public-key' as const,
+      response: { clientDataJSON: 'client-data', attestationObject: 'attestation' },
+      clientExtensionResults: {},
+    };
+    vi.mocked(startRegistration).mockResolvedValue(attestation);
+    const pending = auth.registerWithPasskey(user.email, 'Trader', 'private-invitation');
+    const options = http.expectOne('/api/auth/webauthn/register/options');
+    expect(options.request.body).toEqual({
+      email: user.email,
+      invitation_token: 'private-invitation',
+    });
+    options.flush({ challenge_id: 'bound-challenge', options: {} });
+    await vi.waitFor(() => expect(startRegistration).toHaveBeenCalledOnce());
+    const verify = http.expectOne('/api/auth/webauthn/register/verify');
+    expect(verify.request.body).toEqual({
+      email: user.email,
+      display_name: 'Trader',
+      challenge_id: 'bound-challenge',
+      response: attestation,
+    });
+    verify.flush({ access_token: 'new-token', user });
+    await Promise.resolve();
+    http.expectOne('/api/auth/me').flush(user);
+    await pending;
+    expect(tokens.get()).toBe('new-token');
+    expect(JSON.stringify({ ...sessionStorage, ...localStorage })).not.toContain(
+      'private-invitation',
+    );
+  });
+
+  it('does not submit registration verification when the passkey ceremony is cancelled', async () => {
+    vi.mocked(startRegistration).mockRejectedValue(new Error('Cancelled'));
+    const pending = auth.registerWithPasskey(user.email, undefined, 'private-invitation');
+    const rejected = expect(pending).rejects.toThrow('Cancelled');
+    http.expectOne('/api/auth/webauthn/register/options').flush({
+      challenge_id: 'unused-challenge',
+      options: {},
+    });
+    await rejected;
+    http.expectNone('/api/auth/webauthn/register/verify');
+    expect(tokens.get()).toBeNull();
   });
 
   it('maps RFC 7807 problem details into user-facing messages', () => {

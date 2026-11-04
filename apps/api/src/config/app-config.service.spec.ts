@@ -135,6 +135,7 @@ describe('loadAppConfig', () => {
     expect(config.server).toEqual({
       host: '0.0.0.0',
       privateBetaEnabled: false,
+      privateBetaMobileEnabled: false,
       privateBetaProxyKey: undefined,
       privateBetaMonitorKey: undefined,
       port: 4100,
@@ -507,6 +508,7 @@ describe('AppConfigService', () => {
     expect(service.server).toEqual({
       host: '0.0.0.0',
       privateBetaEnabled: false,
+      privateBetaMobileEnabled: false,
       privateBetaProxyKey: undefined,
       privateBetaMonitorKey: undefined,
       port: 4300,

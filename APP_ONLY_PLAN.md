@@ -28,7 +28,7 @@ These exclusions are planning defaults. Adding them requires an explicit scope d
 | Native authentication | `PasskeysPlugin.swift` uses AuthenticationServices and checks the compiled relying party | Stable domain, associated-domain entitlement, real native registration/login evidence |
 | Native exports | Bridge creates temporary CSV/JSON files and opens the share sheet | Files, cancellation, interruption, and cleanup acceptance on a physical device |
 | Sessions | Native bearer tokens stay in memory | Confirm cold-launch sign-in is acceptable for the first beta; persistent sessions are deferred |
-| Production perimeter | `PrivateBetaGuard` requires a shared server proxy key; Vercel supplies that key | Production mobile admission without embedding a shared secret |
+| Production perimeter | Legacy proxy protection remains; optional persistent mobile admission is implemented behind a disabled flag | Hosted staging acceptance before activation or proxy retirement |
 | Demo | Separate `.demo` identity, fictional login, temporary tunnel, synthetic in-memory data | Cannot establish production authentication, durability, or real-data correctness |
 | Deployment | `deploy.yml` and `check-deploy-config.mjs` require Vercel settings before API deployment | Decouple API deployment from website deployment and protection checks |
 | Data and operations | MySQL migrations, imports, backup tooling, health checks, runner controls exist | Live provider rights, host activation, restoration, alerts, and production acceptance |
@@ -105,6 +105,17 @@ Validation: generator tests, artifact inspection, and simulator launch. Signing 
 ### Stage B — Replace the website access perimeter
 
 Prerequisite: Stage A contracts. Owner: API implementer.
+
+Repository implementation — November 4, 2026: `PRIVATE_BETA_MOBILE_ENABLED` defaults to `false`.
+The optional mobile path retains the legacy proxy and requires persistent MySQL, private-beta protection, and strict passkey verification.
+Registration accepts `invitation_token` only when creating options. The server binds its hash to the persisted challenge.
+Successful verification creates the user, credential, session, admission, and invitation redemption in one transaction.
+Direct mobile requests use an explicit route allowlist and check database session/admission state on every protected request.
+The native registration form retains an invitation after cancellation and clears it after successful enrollment.
+Local verification passed 1,021 API unit tests with coverage, 68 API HTTP tests, 125 web tests, and disposable MySQL admission regressions.
+The unsigned staging simulator build passed artifact inspection with an iPhone-only device family.
+See [mobile beta operations](docs/ops/mobile-beta.md) for the activation contract and remaining acceptance gates.
+Repository implementation does not authorize activation or remove the hosted staging, origin, and device checks below.
 
 Implement a dedicated mobile access policy before removing the existing global proxy requirement.
 Keep the old perimeter active until staging proves the replacement. Define the new configuration contract in the implementation PR.
