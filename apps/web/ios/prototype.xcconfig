@@ -2,4 +2,8 @@ BITSTOCKERZ_RP_ID = passkeys.invalid
 BITSTOCKERZ_BUNDLE_ID = com.bitstockerz.research
 BITSTOCKERZ_ENTITLEMENTS = App/App.entitlements
 BITSTOCKERZ_DISPLAY_NAME = BitStockerz
+BITSTOCKERZ_CHANNEL = unconfigured
+BITSTOCKERZ_FINGERPRINT = unconfigured
+BITSTOCKERZ_VERSION = 1.0.0
+BITSTOCKERZ_BUILD_NUMBER = 1
 #include? "App/App/Prototype.xcconfig"

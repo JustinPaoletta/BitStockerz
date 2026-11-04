@@ -15,8 +15,10 @@
     "ios:sync": "npm --prefix apps/web run ios:sync",
     "ios:open": "npm --prefix apps/web run ios:open",
     "ios:api": "node scripts/ios/api.mjs",
-    "ios:test:config": "node --test scripts/ios/prepare.test.mjs",
-    "ios:check-domain": "node scripts/ios/check-domain.mjs"
+    "ios:test:config": "node --test scripts/ios/*.test.mjs",
+    "ios:check-domain": "node scripts/ios/check-domain.mjs",
+    "ios:sync:release": "node scripts/ios/sync.mjs --release",
+    "ios:check:release": "node scripts/ios/check-release.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",

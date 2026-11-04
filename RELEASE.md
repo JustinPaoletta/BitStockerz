@@ -12,6 +12,8 @@ The repository tag procedure below creates source releases; it does not distribu
 Before a persistent device beta, require native passkey/admission, database restart, real-data, and full phone acceptance evidence.
 Record the repository SHA/version, API image, migrations, iOS marketing version/build number, bundle identity, signing team, and device results.
 Use monotonically increasing iOS build numbers. Keep repository and app version mappings explicit in the changelog.
+Run `npm run ios:sync:release` before Xcode Release builds.
+Use `npm run ios:check:release -- --app /absolute/path/to/App.app` after building.
 Build a signed Release archive and inspect it for demo configuration, test login, secrets, RP, API origin, and entitlements.
 Run a native Xcode compilation gate in addition to browser and API checks.
 Test the currently distributed and previous app builds against API/schema changes before backend rollout.

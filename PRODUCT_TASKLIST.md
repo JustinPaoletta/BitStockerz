@@ -33,10 +33,13 @@ Android, subscriptions, offline mutation queues, notifications, and a native UI 
 
 ## A. App configuration — Required
 
-- [ ] Define explicit simulator, demo, staging, and production configuration contracts and implement missing modes.
-- [ ] Keep demo and production bundle identities separate; generate RP, API origin, team, version, and build number.
-- [ ] Reject release artifacts containing test login, demo keys, localhost, temporary tunnels, or placeholder RP domains.
-- [ ] Preserve bundled assets and restrict native bridge navigation; record source/configuration evidence with each build.
+- [x] Define explicit simulator, demo, staging, and production configuration contracts and implement missing modes.
+- [x] Keep demo and production bundle identities separate; generate RP, API origin, team, version, and build number.
+- [x] Reject release artifacts containing test login, demo keys, localhost, temporary tunnels, or placeholder RP domains.
+- [x] Preserve bundled assets and restrict native bridge navigation; record source/configuration evidence with each build.
+
+Stage A evidence: generator/artifact rejection tests, web tests, staging sync, unsigned simulator Release build, artifact inspection, and simulator launch.
+Production signing and real endpoint/device acceptance remain in later stages.
 
 ## B. Production mobile access — Required before removing the proxy perimeter
 

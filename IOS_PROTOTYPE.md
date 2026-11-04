@@ -2,8 +2,52 @@
 
 Updated October 29, 2026. iOS is now the launch platform.
 This guide documents implemented prototype and demo commands. The [app delivery plan](APP_ONLY_PLAN.md) defines missing production work.
-The current `ios:prepare` modes do not establish a production mobile access policy or distribution workflow.
+The generated staging/production configurations enforce build safety; they do not establish a production mobile access policy or distribution workflow.
 Native passkeys still require an associated HTTPS domain. Demo mode cannot authenticate production users.
+
+## Staging and production build configuration — November 3, 2026
+
+Stage A configuration and artifact gates are implemented. Production mobile admission and hosting remain separate launch requirements.
+The supported modes are `simulator`, `device`, `device-demo`, `staging`, and `production`.
+Staging uses `com.bitstockerz.research.staging`; production uses `com.bitstockerz.research`.
+Both release channels require a stable HTTPS API, stable RP domain, Team ID, three-part version, and numeric build number.
+The build number accepts integers from 1 to 9999. Increase it for each distributed build; store-history enforcement is not implemented.
+The existing simulator/device/demo modes remain local research tools and must use Xcode Debug builds.
+
+Set `BITSTOCKERZ_API_ORIGIN`, `BITSTOCKERZ_RP_DOMAIN`, and `BITSTOCKERZ_APPLE_TEAM` to your approved public values before running:
+
+```sh
+npm run ios:prepare -- --mode staging \
+  --api-origin "$BITSTOCKERZ_API_ORIGIN" \
+  --rp-id "$BITSTOCKERZ_RP_DOMAIN" \
+  --team-id "$BITSTOCKERZ_APPLE_TEAM" \
+  --version 0.1.0 --build-number 1
+npm run ios:sync:release
+npm run ios:check:release
+```
+
+Use `--mode production` only from committed source. Commit or stash intended changes before preparing production; never discard unrelated work.
+Run preparation again after changing the source revision or public build configuration.
+The sync command rejects edited generated environments, builds Angular, verifies its identity, synchronizes Capacitor, and verifies the native assets.
+It uses SQLite for Angular's cache. It does not start the synthetic API, deploy services, sign, or upload an app.
+
+After Xcode builds the app, inspect the actual artifact:
+
+```sh
+npm run ios:check:release -- --app /absolute/path/to/App.app
+```
+
+The inspection checks the compiled JavaScript fingerprint, public manifest, Capacitor routing, plist identity, version, build, RP, and source revision.
+The Xcode Release phase independently rejects demo channels, stale native settings, missing passkey entitlements, and dirty production source.
+Debug builds retain the disposable demo workflow. Staging/production startup rejects settings that would activate test login or mismatch the prepared API.
+Public configuration and asset hashes are recorded under ignored `artifacts/ios-build/` directories.
+The fingerprint identifies public configuration and source revision. Dirty staging source is disclosed and is not a reproducible clean release.
+Generated files remain ignored, including `apps/web/public/ios-build.local.json`.
+
+Validation on November 3 used fixture HTTPS names without contacting those hosts.
+The staging Release simulator build passed, its built artifact passed inspection, and the app installed and launched in the simulator.
+These results do not establish a working backend, domain ownership, native passkeys, signing, or physical-device installation.
+The physical iPhone remained unavailable during this work.
 
 ## Recorded device evidence and remaining acceptance
 

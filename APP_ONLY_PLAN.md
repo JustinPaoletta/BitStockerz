@@ -24,7 +24,7 @@ These exclusions are planning defaults. Adding them requires an explicit scope d
 
 | Surface | Implemented baseline | Remaining gap |
 | --- | --- | --- |
-| App packaging | `apps/web/capacitor.config.ts` bundles local Angular assets; iOS project exists | Reproducible production configuration, signed Release build, distribution |
+| App packaging | `apps/web/capacitor.config.ts` bundles local Angular assets; iOS project exists | Stage A configuration/inspection implemented; production signing and distribution remain |
 | Native authentication | `PasskeysPlugin.swift` uses AuthenticationServices and checks the compiled relying party | Stable domain, associated-domain entitlement, real native registration/login evidence |
 | Native exports | Bridge creates temporary CSV/JSON files and opens the share sheet | Files, cancellation, interruption, and cleanup acceptance on a physical device |
 | Sessions | Native bearer tokens stay in memory | Confirm cold-launch sign-in is acceptable for the first beta; persistent sessions are deferred |
@@ -39,6 +39,14 @@ Recorded PR #19 evidence includes signed installation and a synthetic chart/back
 That journey produced no closed trades. A populated trade table, native passkeys, exports, and accessibility still need device acceptance.
 The final PR head `51e3c6a` passed six checks before squash merge into `59c4963`.
 These are historical results, not fresh production or device verification.
+
+## Stage A implementation evidence — November 3, 2026
+
+Release configuration generation, channel identities, source/configuration fingerprints, version settings, artifact inspection, and the Xcode Release guard are implemented.
+The supported release sync checks generated environments before compilation and both web/native output after synchronization.
+The staging Release simulator build, built-artifact inspection, installation, and launch passed using fixture endpoints.
+No fixture host was contacted. Native signing, physical installation, real API access, and passkeys remain separate acceptance work.
+See [the build guide](IOS_PROTOTYPE.md#staging-and-production-build-configuration--november-3-2026) for commands and limits.
 
 ## 3. Architecture and trust boundaries
 
