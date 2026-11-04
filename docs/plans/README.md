@@ -43,6 +43,12 @@ Accounts, credentials, and live-provider tests can remain external prerequisites
 | Observability      | Logs must not contain bearer tokens, secrets, full strategy definitions, full prompts, full responses, trades arrays, or equity curves. Use ids, lengths/hashes, bounded diagnostics, and request ids.    |
 | Testing            | Run build, lint, unit, coverage, and relevant e2e gates named by the plan. Add contract tests for response shape and deterministic ordering, not only happy-path status codes.                            |
 
+## App delivery direction
+
+[APP_ONLY_PLAN.md](../../APP_ONLY_PLAN.md) defines the October 29 app-only decision, security contracts, stage order, and release gates.
+It supersedes website launch assumptions. Existing proxy/deployment code remains unchanged until its replacement is implemented and verified.
+Keep [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md) as the single unfinished-work checklist.
+
 ## Domain errors
 
 Generic `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, and `INTERNAL_ERROR` remain available. Domain codes already shipped:
@@ -68,7 +74,7 @@ Do not add near-duplicates such as `STRATEGY_INVALID`, `BACKTEST_LIMIT_EXCEEDED`
 | Paper-trading valuation                 | Latest eligible close; missing prices fail closed; cash/aggregate currency values use 2dp                                                                                                              |
 | AI output                               | Non-streaming MVP responses use AI SDK structured output with runtime schemas; malformed provider output fails closed                                                                                  |
 | Provider fallback                       | Production never falls back to synthetic seed data; serve last-known DB data and report degraded health                                                                                                |
-| Hosting default                         | Option A: always-on API host (Fly.io) + Vercel Angular + managed MySQL                                                                                                                                 |
+| Hosting default                         | iOS app with bundled Angular/Capacitor + HTTPS NestJS API (Fly candidate) + managed MySQL; app-only target in [delivery plan](../../APP_ONLY_PLAN.md)                                                                                                                                 |
 
 ## Cache and provider contracts
 

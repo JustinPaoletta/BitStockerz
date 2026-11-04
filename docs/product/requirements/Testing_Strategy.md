@@ -1,7 +1,8 @@
 # BitStockerz – Testing Strategy
 
 This document describes the automated checks for the merged MVP and prelaunch
-features and the open readiness/iOS drafts. CI passing does not verify external hosting or real provider credentials.
+features, including the merged iOS demo. The app-only production gates below remain planned work.
+CI passing does not verify external hosting or real provider credentials.
 
 ## 1. Unit and component tests
 
@@ -175,6 +176,28 @@ Chromium tests do not exercise AuthenticationServices, Apple's association looku
 CI runs the configuration-generator tests behind `ios:test:config`. Native Xcode compilation remains a local check.
 Signed installation, native passkeys, exports, and physical-device accessibility remain in the [iPhone checklist](../../../IOS_PROTOTYPE.md#iphone-acceptance-checklist).
 These results do not establish production deployment or real-provider acceptance.
+
+## App-only release acceptance
+
+The [app delivery plan](../../../APP_ONLY_PLAN.md) defines the target gates; they are not completed by existing browser CI.
+PR #19's final head `51e3c6a` passed six checks before merge into `59c4963`.
+Its regression suite included 116 web tests and the profile-loading failure case in demo login.
+Recorded physical-device evidence covered signed installation and the synthetic no-trades research journey.
+That evidence does not cover production native passkeys, populated trades, Files exports, or physical-device accessibility.
+
+Required future evidence:
+
+- Release artifact rejection for demo keys, test login, temporary origins, and placeholder RP domains.
+- Persistent invitation/admission, replay/concurrency, revocation, wrong-RP, tenant-isolation, and MySQL restart tests.
+- Native Xcode compilation and signed Release archive verification.
+- Real-device passkeys, chart/backtest/order/account journeys, including closed trades and no-trades outcomes.
+- Interrupted writes, order idempotency, history reconciliation, backgrounding, force-quit, and network restoration.
+- Export success/cancellation, temporary-file cleanup, larger text, VoiceOver, safe areas, and keyboard behavior.
+- Current/previous installed app compatibility with backend updates and schema-compatible rollback.
+- Actual licensed data, provider rights, host readiness, alert delivery, and restoration evidence.
+
+Record device/OS, source SHA, app build, API image, data provenance, and observations with each device acceptance run.
+Keep synthetic, browser, simulator, signed-build, physical-device, and production-provider evidence distinct.
 
 ## Native CLI regressions
 

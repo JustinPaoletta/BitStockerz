@@ -1,6 +1,18 @@
 # BitStockerz iOS research prototype
 
-Updated October 18, 2026. This prototype is included in the repository; native passkeys on an iPhone still require an associated HTTPS domain.
+Updated October 29, 2026. iOS is now the launch platform.
+This guide documents implemented prototype and demo commands. The [app delivery plan](APP_ONLY_PLAN.md) defines missing production work.
+The current `ios:prepare` modes do not establish a production mobile access policy or distribution workflow.
+Native passkeys still require an associated HTTPS domain. Demo mode cannot authenticate production users.
+
+## Recorded device evidence and remaining acceptance
+
+PR #19 (`59c4963`) recorded signed installation and a synthetic research journey on iPhone 15 Pro.
+The final app-name build had `CFBundleDisplayName = BitStockerz`; the home-screen label was not visually checked afterward.
+The recorded chart, watchlist, strategy/backtest, no-trades results, and saved-history journey passed using the temporary demo API.
+The tunnel and demo API were stopped afterward. This record does not establish current endpoint availability.
+Native passkeys, a populated trade table, native export acceptance, and accessibility remain unverified on the device.
+Use the checklist below for outstanding acceptance; rerun release-relevant journeys on the persistent app build.
 
 The app bundles the Angular interface in Capacitor 8.5.3.
 AuthenticationServices provides native passkey registration and login.
@@ -126,7 +138,7 @@ An active paid Apple Developer Program membership is required for the
 associated-domain setup. A free Apple developer account or Personal Team is
 sufficient only for the test-login demo above.
 The October 10 inspection found an Apple Development signing identity on this Mac.
-Device installation and signing remain untested.
+Demo installation and signing were recorded in PR #19. Persistent passkey-app signing and authentication still require acceptance.
 
 You must select a stable HTTPS passkey domain and a reachable HTTPS origin for the dedicated prototype API.
 The relying party (RP) is the domain associated with the app's passkeys.
@@ -183,7 +195,7 @@ This temporary API runs independently of the protected production deployment.
 
 Never put `PRIVATE_BETA_PROXY_KEY`, database credentials, or hosting tokens in the app.
 The protected Fly/Vercel route requires a server proxy key and cannot directly serve as the native endpoint.
-Production mobile access needs a separate design; this prototype does not remove the production access guard.
+Production mobile access must implement Stage B of [APP_ONLY_PLAN.md](APP_ONLY_PLAN.md); this prototype does not remove the production access guard.
 
 ### 4. Test the hosts
 
@@ -246,7 +258,7 @@ The generated configuration supplies its domain value.
 
 The [testing strategy](docs/product/requirements/Testing_Strategy.md#ios-prototype-evidence) records the October 10 builds and tests.
 Simulator and unsigned iPhone Debug builds passed. Simulator email registration and research screens were inspected.
-Physical-device signing, Apple's association lookup, native passkeys, sharing, and accessibility remain unverified.
+Demo signing and installation were recorded in PR #19. Apple association lookup, native passkeys, sharing, and accessibility remain unverified.
 
 The prototype requires network access and does not enable native OAuth.
 It is not a TestFlight or App Store submission.

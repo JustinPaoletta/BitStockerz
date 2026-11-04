@@ -5,7 +5,7 @@
   <img alt="BitStockerz" src="apps/web/public/brand/logo-light.png" width="420">
 </picture>
 
-BitStockerz is a private strategy-research product with a NestJS API and an Angular application.
+BitStockerz is an iPhone strategy-research application with a NestJS API and an Angular interface bundled through Capacitor.
 Users build strategies, run historical backtests, compare results, and simulate trades in a paper account.
 
 ## Delivery status
@@ -22,16 +22,24 @@ passed all migrations, five MySQL persistence gates, and the production-image bu
 The subsequent deployment failed because `DATABASE_URL` was empty.
 Hosting, real providers, and production acceptance remain outstanding.
 
-As of October 12, 2026, combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets `main`.
-It includes protected beta setup, historical Kernel context fixes, and the Capacitor iOS research prototype.
-PR #16 is closed; all its commits remain included in #17.
-These changes are not merged into `main`.
-See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for iPhone setup and native acceptance checks.
+The original prototype merged in PR #17. Branding and product copy merged in PR #18.
+PR #19 merged the Personal Team demo and login fallback fix as `59c4963`.
+Recorded evidence includes signed iPhone installation and a synthetic research journey.
+Real native passkeys and persistent production acceptance remain outstanding.
+
+The October 29 product decision makes iOS the launch platform.
+The [app delivery plan](APP_ONLY_PLAN.md) defines production mobile access, phone acceptance, and release stages.
+The hosted trading website is outside initial launch scope. Browser tooling remains useful for local development and tests.
+The current deployment workflow still requires Vercel and must change before app production deployment.
+See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for the implemented demo and native setup limits.
 
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) for unfinished work.
 Use the [deployment runbook](docs/ops/deployment.md) for account setup and launch procedures.
 
 ## Local setup
+
+The browser workflow below is a development harness for the bundled app interface.
+For the current iPhone demo, use [the iOS guide](IOS_PROTOTYPE.md).
 
 Use Node.js `24.21.0`, pinned in `.nvmrc` and CI.
 With nvm, run `nvm install` and then `nvm use`.

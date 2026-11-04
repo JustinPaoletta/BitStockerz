@@ -1,6 +1,7 @@
 # BitStockerz — Product roadmap
 
-Updated October 12, 2026.
+Updated October 29, 2026. The launch product is an iPhone app for a private personal research beta.
+The [app delivery plan](../../APP_ONLY_PLAN.md) defines the approved direction and implementation stages.
 This record maps delivered milestones to the original stories.
 [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md) is the single checklist for unfinished work.
 The [deployment runbook](../ops/deployment.md) contains external setup and live acceptance procedures.
@@ -21,11 +22,13 @@ P&L and trade markers required no migration.
 October 4 work adds research, enrollment, and workspace migrations.
 No production deployment is recorded by this document.
 
-## Work awaiting merge
+## Subsequent merged delivery
 
-As of October 12, combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) targets `main`.
-It includes protected beta setup, historical Kernel context fixes, and the Capacitor iOS prototype.
-PR #16 is closed with all commits preserved in #17.
+[PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) merged protected beta setup, historical Kernel fixes, and the original Capacitor prototype.
+[PR #18](https://github.com/JustinPaoletta/BitStockerz/pull/18) merged branding and evidence-led copy.
+[PR #19](https://github.com/JustinPaoletta/BitStockerz/pull/19) merged the Personal Team demo and login fallback fix as `59c4963`.
+Recorded device evidence covers signed installation and a synthetic chart/backtest journey, including a no-trades result.
+Native passkeys, a populated trade table, exports, accessibility, and persistent production acceptance remain separate gates.
 
 The [iOS guide](../../IOS_PROTOTYPE.md) records implemented behavior, dated tests, and remaining physical-device acceptance.
 Passing draft CI does not establish a production release or native device acceptance.
@@ -79,11 +82,26 @@ Local test evidence is separate from hosted and real-provider evidence.
 
 ## Remaining delivery order
 
-1. Require passing CI on each release revision; PR #15 passed all five MySQL gates.
-2. Finish hosting activation and exact HTTPS origins using the dated setup record in the deployment runbook.
-3. Load licensed data and complete deployed auth and product smoke tests.
-4. Complete backup, restoration, rollback, alert, support, and retention setup.
-5. Enable optional current-market scheduling and Kernel only after their live prerequisites pass.
+1. Stage A: define app configuration, identity, versioning, and release artifact rejection checks.
+2. Stage B: replace the website proxy perimeter with persistent server-side mobile admission and real authentication.
+3. Stage C: activate verified hosting, database persistence, stable native passkeys, and licensed market data.
+4. Stage D: accept the complete phone journey, interrupted work, exports, accessibility, and network recovery.
+5. Stage E: split backend deployment from signed app distribution; verify installed-app compatibility and rollback.
+6. Stage F: complete recovery, backups, alerts, retention, and approved private beta distribution.
+7. Stage G: prepare public App Store submission only when requested.
 
+Prepare Stage F backup, retention, and recovery work alongside Stage C.
+Complete those gates before storing valuable user research; use disposable staging accounts during earlier acceptance.
+
+Stage details, dependencies, risk review, and acceptance criteria are in [APP_ONLY_PLAN.md](../../APP_ONLY_PLAN.md).
+The single unfinished-work checklist remains [PRODUCT_TASKLIST.md](../../PRODUCT_TASKLIST.md).
 Keep one API instance while auth caches, rate limits, scheduling, and runner locks remain process-local.
-The product remains a research and simulated-trading tool; real-money execution is outside the current scope.
+Live ingestion, Kernel, native social login, persistent device sessions, and Android require their own acceptance scope.
+Real-money execution remains outside product scope.
+
+## App-only architecture decision
+
+Keep Angular bundled inside Capacitor and retain the NestJS/MySQL backend.
+Remove the hosted trading workspace and Vercel proxy from the target architecture after mobile access passes staging gates.
+Keep browser tooling and tests for app UI development. Public HTTPS association, privacy, and support resources remain necessary.
+The existing deployment workflow still requires Vercel; documentation records the target, not completed infrastructure changes.

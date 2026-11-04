@@ -2,6 +2,29 @@
 
 This repository uses a manual changelog + release branch workflow.
 
+## App-only release gates
+
+The October 29 target is an iPhone application with a separately deployed backend.
+Use [APP_ONLY_PLAN.md](APP_ONLY_PLAN.md), Stages A–G, for the release contract.
+The existing `deploy.yml` still requires Vercel. Keep production deployment disabled until the mobile access and workflow changes pass.
+The repository tag procedure below creates source releases; it does not distribute an iOS build.
+
+Before a persistent device beta, require native passkey/admission, database restart, real-data, and full phone acceptance evidence.
+Record the repository SHA/version, API image, migrations, iOS marketing version/build number, bundle identity, signing team, and device results.
+Use monotonically increasing iOS build numbers. Keep repository and app version mappings explicit in the changelog.
+Build a signed Release archive and inspect it for demo configuration, test login, secrets, RP, API origin, and entitlements.
+Run a native Xcode compilation gate in addition to browser and API checks.
+Test the currently distributed and previous app builds against API/schema changes before backend rollout.
+
+Backend deployment and app distribution have separate approvals.
+TestFlight requires an App Store Connect record and approved upload; public App Store submission is a later owner-approved stage.
+Provide beta information and feedback contact. Account for external beta review and the 90-day build lifetime.
+Public release additionally requires privacy/support URLs, accurate disclosures, deletion acceptance, metadata, and reviewer access.
+
+For recovery, use a schema-compatible API image and pause affected server features or app rollout.
+Prepare a forward-fix app build; rolling back website files cannot replace an installed app.
+Retain previous artifacts, configuration fingerprints, compatibility evidence, and release notes.
+
 ## Standards
 
 - Use Semantic Versioning.
@@ -51,7 +74,7 @@ Migrations and deployment require `PRODUCTION_DEPLOY_ENABLED=true` and approval 
 The [deployment runbook](docs/ops/deployment.md) records cloud setup and remaining launch requirements.
 A merge, tag, or GitHub Release alone does not publish the application.
 
-For iOS changes, follow the [prototype build and device checks](IOS_PROTOTYPE.md).
+For iOS changes, follow the [implemented build and device checks](IOS_PROTOTYPE.md) and [production delivery plan](APP_ONLY_PLAN.md).
 Browser CI does not compile the Xcode project or test native passkeys.
 The prototype is not a TestFlight or App Store release.
 

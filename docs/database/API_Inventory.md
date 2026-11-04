@@ -1,6 +1,6 @@
 # BitStockerz – Master API Inventory
 
-Updated October 11, 2026.
+Updated October 29, 2026.
 
 This inventory describes current HTTP contracts, internal domain boundaries, and explicitly labeled design targets.
 All route paths use the `/api` prefix.
@@ -8,7 +8,9 @@ Generated OpenAPI and route source define the runnable HTTP contract.
 
 The October 4 workspace additions merged in PR #15. All five MySQL persistence gates passed hosted CI.
 See [verification evidence](../product/requirements/Testing_Strategy.md#verification-evidence) for dates and limits.
-The [deployment access guard](../ops/deployment.md#private-beta-access) in combined draft PR #17 also protects otherwise public API routes.
+The [deployment access guard](../ops/deployment.md#private-beta-access), merged in PR #17, also protects otherwise public API routes.
+It still requires the server proxy key when private beta protection is enabled.
+The [app delivery plan](../../APP_ONLY_PLAN.md) defines the replacement mobile admission policy; that policy is not implemented yet.
 
 ### Backend implementation status
 

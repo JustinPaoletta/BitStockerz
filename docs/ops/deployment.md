@@ -1,4 +1,53 @@
-# BitStockerz — Production deployment
+# BitStockerz — Application backend deployment
+
+Updated October 29, 2026. The product launches as an iPhone app for a private personal research beta.
+The [app delivery plan](../../APP_ONLY_PLAN.md) defines the target architecture and release gates.
+The [task list](../../PRODUCT_TASKLIST.md) tracks unfinished work.
+
+## App-only deployment target
+
+The iOS app bundles Angular assets through Capacitor and calls a reachable HTTPS NestJS API.
+The API uses managed MySQL and server-side market-data ingestion. Fly and Aiven remain candidate hosts.
+Small public resources provide Apple domain association, privacy information, and support.
+Vercel's hosted trading workspace and server proxy are removed from the target launch architecture.
+
+**Implementation status:** the app-only production access policy and deployment workflow are not implemented yet.
+The existing `deploy.yml` still deploys Vercel, and `check-deploy-config.mjs` still requires Vercel credentials.
+Do not enable `PRODUCTION_DEPLOY_ENABLED` using the historical website procedure below.
+Do not disable `PrivateBetaGuard` without the replacement server-side admission policy and its tests.
+Never compile the production proxy key into the app. The synthetic demo key is unsuitable for production.
+
+### Required order for the app release
+
+1. Implement app release configuration and artifact checks from Stage A of the plan.
+2. Implement persistent mobile admission, authenticated access, and abuse controls from Stage B.
+3. Verify the stable passkey domain, paid team, native origins, and Apple association file.
+4. Reinspect host configuration and costs. Complete Linux database verification, TLS, migrations, and restart hydration.
+5. Import licensed data and verify provenance, coverage, production error behavior, and real device workflows.
+6. Split API deployment from app distribution. Remove Vercel requirements only after replacement access passes staging checks.
+7. Complete backup, recovery, alerts, retention, and owner approval before storing valuable beta data.
+8. Produce and test a signed Release build. Distribute through approved device installation or TestFlight.
+
+Backend release and app distribution require separate evidence and approvals.
+Record source SHA, API image digest, migration state, app version/build, signing identity, device results, and backup evidence.
+Support installed app versions during API changes. A website rollback cannot recover an installed app.
+Use compatible API rollback, rollout pause, and a forward-fix build as described in the plan.
+
+### Hosting and credentials
+
+Retain database, Fly, monitoring, and selected vendor credentials in server or protected CI storage.
+Reinspect actual provider state; the October 9 setup below is historical evidence.
+Keep the $10/month maximum hosting preference and obtain approval for concrete billable resources.
+The public association and policy resources can share the API host when routing permits.
+Verify all dependencies before retiring Vercel or revoking its unused tokens.
+
+## Historical website procedures and reusable operations
+
+The sections below preserve implemented tooling, dated setup evidence, database procedures, and recovery details.
+Website deployment, Vercel protection, browser OAuth, proxy settings, and website rollback are legacy references.
+They do not define the new app launch path. Database, ingestion, backup, and alert procedures remain relevant.
+Revalidate those procedures against the release revision and actual providers before execution.
+Native social login needs its own implementation; browser callback instructions do not establish native support.
 
 MVP features merged through PR #13. Research, runners, watchlists, and account controls
 merged in [PR #15](https://github.com/JustinPaoletta/BitStockerz/pull/15).
@@ -8,6 +57,8 @@ For native prototype domains, signing, and the isolated API, use the [iOS guide]
 The protected production proxy requires a server-only key and cannot directly serve as the native prototype endpoint.
 
 ## Current setup and next approvals
+
+This is the October 9 legacy website setup record. Use the app-only target above for the current release direction.
 
 **Inspection — October 9, 2026 (US Eastern):** These resources existed; no website or API deployment was running.
 The October 11 documentation cleanup did not inspect cloud state again.
@@ -33,8 +84,8 @@ Certificate verification was not disabled, and no schema migration was applied.
 
 ### What the owner must approve or supply
 
-1. Inspect combined draft [PR #17](https://github.com/JustinPaoletta/BitStockerz/pull/17) after its checks pass.
-   PR #16 is closed with all commits included in #17. Complete review before merging.
+1. PR #17 is now merged, followed by PR #18 and PR #19.
+   Inspect the new app release revision and complete its admission, native, and backend gates before deployment.
 2. After merge, approve **Verify production database** in the protected production environment.
    The agent can start this workflow and diagnose its result. It runs `SELECT 1` through Prisma on Linux without deploying.
 3. Approve a concrete Fly cost proposal and complete billing entry before paid compute starts.
@@ -88,7 +139,7 @@ The October 8 observations above are historical. Use the current setup table for
 
 ## Big picture
 
-BitStockerz has three production pieces:
+The previous website architecture had three production pieces:
 
 1. **Website** (Angular and private API proxy) → hosted on **Vercel**
 2. **API** (NestJS + scheduled jobs) → hosted on **Fly.io**
@@ -269,7 +320,7 @@ These are **not** blocking go-live:
 
 # Technical deployment runbook (MVP Option A)
 
-The adopted topology uses an always-on NestJS API on Fly.io, an Angular SPA with a Vercel proxy, and nearby managed MySQL.
+The legacy website topology used an always-on NestJS API on Fly.io, an Angular SPA with a Vercel proxy, and nearby managed MySQL.
 Stateful services use one region; Vercel distributes static files globally.
 
 An all-Vercel API was considered during planning.

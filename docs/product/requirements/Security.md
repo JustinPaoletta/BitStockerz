@@ -29,6 +29,16 @@ Device mode requires an associated HTTPS domain; its isolated API disables email
 CORS accepts `capacitor://localhost`, while WebAuthn validates the HTTPS relying-party origin.
 Never include the production proxy key or hosting credentials in the app.
 
+### Planned production mobile access
+
+The [app delivery plan](../../../APP_ONLY_PLAN.md), Stage B, defines the replacement for the website proxy perimeter.
+It is planned work. `PrivateBetaGuard` still requires the shared proxy key when private beta protection is enabled.
+Do not disable that guard or compile its key into a production app as a shortcut.
+Implement hashed enrollment invitations, atomic challenge-bound consumption, persistent user admission, and revocation before direct mobile access.
+Keep existing bearer validation, tenant ownership, operator restrictions, and authentication rate limits.
+Distribution through TestFlight, an app identifier, and CORS do not authorize a caller.
+The first beta retains memory-only native bearer storage; persistent Keychain sessions require a separate lifecycle design.
+
 ## 2. Authorization
 
 - Strict user-level tenancy enforced via user_id

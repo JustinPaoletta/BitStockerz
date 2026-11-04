@@ -1,6 +1,6 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 14, 2026.
+Created October 3, 2026. Updated October 29, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
@@ -13,35 +13,52 @@ The October 9 inspection recorded Fly's empty app, Aiven Free MySQL, and the Ver
 Production credentials were stored, and deployment was disabled. Cloud state was not inspected again during the October 11 documentation cleanup.
 See [current setup and approvals](docs/ops/deployment.md#current-setup-and-next-approvals) for evidence and the remaining decisions.
 
-## Release evidence still required
+## Delivered baseline and release evidence
 
-All 19 migrations, five MySQL persistence/restart gates, and the production-image build passed
-[PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
-and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
-Historical strategy explanations now use pinned versions, with an edit/deletion regression.
-Deployment configuration checks and recovery procedures are prepared in the runbook.
+- [x] Merge the original Capacitor prototype in PR #17.
+- [x] Merge branding and evidence-led copy in PR #18.
+- [x] Merge the Personal Team demo and login fallback fix in PR #19 (`59c4963`).
 
-As of October 12, combined draft PR #17 targets `main` and includes all commits from the closed PR #16.
-[PR #17 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38072514866) passed at `33123e3`.
-Release approval and CI on the eventual release revision remain required below.
+PR #19 recorded a signed installation and synthetic research journey on iPhone 15 Pro.
+Its final head `51e3c6a` passed six checks before squash merge.
+The recorded backtest had no closed trades. Native passkeys, exports, accessibility, and a populated trade table require device acceptance.
+These historical results do not prove production deployment or real-provider success.
 
-The [October 12 CI run](https://github.com/JustinPaoletta/BitStockerz/actions/runs/38202881006) failed API and browser tests at `cc64343`.
-The October 14 fix excludes UTC weekends only from synthetic equity freshness.
-Monday-clock API coverage and all eight browser tests passed locally; coverage requirements are unchanged.
-See the [combined PR evidence](docs/product/requirements/Testing_Strategy.md#combined-pr-evidence) and the current PR checks before merging.
+## App-only launch decision and stage gates
 
-- [ ] Obtain passing checks on the combined PR, complete review, and merge it into `main`.
+Updated October 29, 2026. The launch product is an iPhone app for private personal research.
+[APP_ONLY_PLAN.md](APP_ONLY_PLAN.md) defines the complete implementation plan, dependencies, risks, and completion criteria.
+The existing Angular interface stays bundled in Capacitor. Browser builds remain development and test tools.
+Android, subscriptions, offline mutation queues, notifications, and a native UI rewrite are outside the initial release.
 
-## 1. Remaining roadmap work — Required for launch
+## A. App configuration — Required
+
+- [ ] Define explicit simulator, demo, staging, and production configuration contracts and implement missing modes.
+- [ ] Keep demo and production bundle identities separate; generate RP, API origin, team, version, and build number.
+- [ ] Reject release artifacts containing test login, demo keys, localhost, temporary tunnels, or placeholder RP domains.
+- [ ] Preserve bundled assets and restrict native bridge navigation; record source/configuration evidence with each build.
+
+## B. Production mobile access — Required before removing the proxy perimeter
+
+- [ ] Implement persistent server-side beta admission and hashed, expiring enrollment invitations.
+      Bootstrap the single owner through an operator tool; no email service or administration UI is required for the first beta.
+- [ ] Bind invitations to passkey verification and consume them atomically; reject replay, concurrent use, expiry, and revocation.
+- [ ] Enforce admission, session validity, and tenant ownership; email alone must not authorize enrollment or recovery.
+- [ ] Verify admission revocation affects existing sessions and survives MySQL-backed restart.
+- [ ] Configure native transport, exact CORS, RP verification, ingress trust, and authentication rate limits.
+- [ ] Keep operator jobs private and test cross-user access, wrong RP, cancelled enrollment, expiry, and secret-free artifacts.
+
+## C. Backend, native passkeys, and real data — Required for meaningful beta
+
+Use disposable staging accounts until Stage F backup, retention, and recovery gates pass.
 
 ### Production hosting and configuration — Sprint 7.2
 
 - [ ] Approve the actual Fly operating cost and activate one API machine after the remaining release checks.
 - [ ] Pass the protected Linux migration-engine check against Aiven, then apply the 19 migrations during deployment.
       The API client connects with verified TLS. The macOS migration engine rejects the CA; Linux verification remains pending.
-- [ ] Confirm an anonymous visitor cannot access the Vercel website or API through any deployment alias.
-      All-deployment Vercel protection, the server proxy, and the Fly access guard are configured; live checks remain pending.
-- [ ] Establish the production HTTPS URLs used by the website, API, passkeys, and OAuth callbacks.
+- [ ] Prove uninvited and revoked users cannot access the mobile API; retain the legacy perimeter until replacement acceptance passes.
+- [ ] Establish stable HTTPS API and passkey hosts plus public association, privacy, and support resources.
 - [ ] Set `PRODUCTION_API_BASE_URL` after licensed data is ready; enable `PRODUCTION_DEPLOY_ENABLED` only after setup and approval.
 - [ ] Configure API host settings for the database, exact CORS origins, WebAuthn relying-party ID/allowed origins, and scheduled-job system user.
 - [ ] Determine the actual trusted ingress proxy CIDRs and configure `TRUSTED_PROXY_CIDRS` accordingly.
@@ -66,40 +83,98 @@ and live data remain disabled by default.
 
 - [ ] Obtain passing CI on the release revision, including secret scanning, MySQL gates, and the production-image build.
 - [ ] Apply and verify production migrations, deploy the API, and restart it once to verify database-backed auth hydration.
-- [ ] Build/deploy the Angular site with the verified production API URL and complete the deployment workflow successfully.
+- [ ] Bundle the verified production API configuration into a signed iOS Release build; complete separate API and app release gates.
 - [ ] Verify `/api/health/live` and `/api/health/ready` report healthy/ready with the database connected.
-- [ ] Verify passkey registration/login on the deployed HTTPS domain and a complete strategy → backtest → results workflow.
+- [ ] Verify native passkey registration/login against the associated domain and complete strategy → backtest → results on the iPhone.
 - [ ] Verify symbol search, real-data charts, paper orders, positions, portfolio P&L, and history in production.
-- [ ] Verify SPA deep-link refresh and browser API calls/CORS preflight against the production origin.
+- [ ] Verify native API calls, transport/CORS behavior, supported app navigation, and restart recovery against production.
 - [ ] Verify auth rate limits distinguish real client IPs and spoofed forwarded hops cannot choose an arbitrary rate-limit identity.
 - [ ] Verify production manual jobs/ingestion endpoints return 403 and public outage responses omit credentials, hostnames, and driver errors.
-- [ ] Verify website framing, MIME-sniffing, and referrer security headers.
+- [ ] Verify HTTPS and appropriate security headers on public policy/association resources; restrict native bridge navigation.
 - [ ] Complete the version, changelog, tag, and release-note steps in `RELEASE.md` for the first production release.
 - [ ] Update roadmap/readiness documentation with the actual deployment and provider verification results.
 
-## 2. Remaining roadmap extensions — Optional for the initial launch
+### Native passkey prerequisites — Required for the persistent app
 
-### Optional Google/Apple login — Sprints 8.1–8.2
+- [ ] Select the stable HTTPS relying-party domain and reachable persistent API.
+- [ ] Make the paid developer team available and publish/check the association file for the persistent app identity.
+- [ ] Complete real passkey registration, cancellation, login, and app/API restart checks on a physical iPhone.
+- [ ] Complete populated-trade, no-trade, saved history, export, and accessibility acceptance separately from demo evidence.
 
-Browser login, profile editing, and linked-provider recovery are implemented.
-The first personal beta can use passkeys alone. Complete these tasks for each provider selected for launch.
+## D. Phone behavior — Required alongside backend acceptance
 
-- [ ] If offering Google login, configure its web OAuth client, consent/branding settings, API callback URL, and host credentials.
-- [ ] If offering Apple login, configure Sign in with Apple, Services ID/domain, API form-POST callback URL, and signing credentials.
-- [ ] Configure `AUTH_OAUTH_BROWSER_CALLBACK_URL` to the exact production SPA callback and verify direct navigation/refresh works.
-- [ ] If migrating an existing database, run the duplicate-provider identity preflight and resolve conflicts before applying the uniqueness migration.
-- [ ] Verify `/api/auth/providers` exposes only fully configured providers.
-- [ ] Test new signup and returning login with each enabled real provider; confirm exactly one user and paper account are provisioned.
-- [ ] Verify email collisions require existing-account sign-in and explicit linking rather than silently attaching identities.
-- [ ] After a fresh passkey sign-in, link each enabled provider.
-      Confirm lost-device recovery returns the original account, cash, strategies, and backtests.
-- [ ] Repeat login/recovery after an API restart to prove persistence and hydration.
-- [ ] Test Apple relay email and returning login without Apple's first-login form payload.
-- [ ] Do denial/cancellation, expired-callback, refresh/replay, failed-link, and five-minute sign-in tests.
-      Failed links must preserve the existing session.
-- [ ] Confirm profile display-name persistence and desktop/mobile keyboard flows.
-      Make sure callback URLs and logs contain no bearer tokens or identity payloads.
-- [ ] Record live smoke results separately for Google and Apple.
+- [ ] Complete the physical-device research, strategy, backtest, paper trading, and account-control journeys.
+- [ ] Verify cold-launch sign-in, expiry, revocation, and safe retry states under the initial memory-only session policy.
+- [ ] Preserve order idempotency after lost responses; reconcile ambiguous strategy/backtest writes before retrying.
+- [ ] Define recovery of submitted backtests after termination; add durable request/status contracts if needed.
+- [ ] Verify server runners continue safely while the app is backgrounded or terminated.
+- [ ] Test keyboard, safe areas, chart interaction, supported orientation, light/dark mode, larger text, and VoiceOver.
+- [ ] Test export/save/cancel in Files and temporary-file cleanup, including after restart.
+- [ ] Test airplane mode, Wi-Fi/cellular changes, backgrounding, force-quit, network restoration, and input preservation.
+- [ ] Verify account reset, archives, deletion, export, and session revocation through the app.
+- [ ] Measure startup, chart responsiveness, memory, and representative backtest latency; set evidence-based thresholds.
+
+## E. Release automation and compatibility — Required
+
+- [ ] Split API deployment from Vercel in `deploy.yml` and `check-deploy-config.mjs`, including tests, after Stage B passes.
+- [ ] Retain protected approvals, migrations, health smoke, audits, and secret scanning; add native Xcode compilation gates.
+- [ ] Produce a reproducible signed Release archive and separate backend deployment from app distribution approval.
+- [ ] Verify current/previous app compatibility with additive API/schema changes and compatible rollback.
+- [ ] Document rollout pause and forward-fix recovery because installed apps cannot be recalled like website assets.
+- [ ] Verify Vercel has no runtime, domain, policy, support, OAuth, or monitoring dependency before retirement.
+- [ ] Remove unused Vercel/proxy secrets and revoke obsolete tokens after the replacement path is accepted.
+
+## F. Operational readiness — Before storing valuable beta data
+
+Prepare this work alongside Stage C. Complete it before valuable-data acceptance or tester distribution.
+
+Existing logs, health checks, and rollback documentation provide a foundation;
+these tasks establish usable production operations and user support.
+
+- [ ] Select independent backup storage, private-key custody, an export schedule and retention before storing valuable beta data.
+      Aiven Free has a single disaster-recovery backup and no database forks.
+      Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
+- [ ] Perform a backup restoration drill covering users, auth methods, admission, strategies, backtests, and paper balances.
+      Invalidate restored sessions/invitations/challenges and replay deletion records before reopening access.
+- [ ] Exercise API rollback with the current schema and installed app versions; document app rollout pause and a forward-fix release.
+- [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
+      Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
+- [ ] Configure a public support channel accessible to customers and publish contact details.
+- [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.
+
+### F. TestFlight distribution — After persistent device acceptance and owner approval
+
+- [ ] Create the App Store Connect app record, confirm paid signing access, and complete required agreements.
+- [ ] Upload an approved build, supply beta information and feedback contact, and select testers.
+- [ ] Complete external beta review if required; schedule replacement builds before their 90-day expiry.
+- [ ] Verify tester installation, upgrade, and the persistent journey on the distributed build.
+
+## G. Public App Store release — Separate from the private beta
+
+- [ ] Prepare metadata, screenshots, age rating, export-compliance answers, and review access.
+- [ ] Publish privacy-policy and support URLs and complete accurate app privacy disclosures.
+- [ ] Audit dependency privacy manifests and required-reason API declarations.
+- [ ] Verify in-app account deletion and published retention against live storage and backup behavior.
+- [ ] Provide approved reviewer access and maintain backend availability during review.
+- [ ] Obtain owner approval for public submission and release.
+
+## Optional extensions — Separate acceptance after the private beta
+
+### Native providers, recovery, and persistent sessions
+
+Browser OAuth is implemented. Native provider login/linking is not enabled.
+The first private beta uses passkeys. Before adding provider login:
+
+- [ ] Define native sign-in/linking and callback contracts; review Apple's current equivalent-login requirements.
+- [ ] Configure each provider's native app identity, required server credentials, consent, and branding.
+- [ ] Run duplicate-provider identity preflight before migrating an existing database.
+- [ ] Expose only configured providers; verify first signup and returning login create one user and paper account.
+- [ ] Require fresh existing-account authentication before explicit provider linking; email collisions must not silently attach identities.
+- [ ] Verify lost-device recovery returns the original account, cash, strategies, and results, including after API restart.
+- [ ] Test Apple relay email and returning login without first-login profile data.
+- [ ] Test denial, cancellation, expiry, replay, failed linking, and expired recent-authentication windows; preserve the original session on failure.
+- [ ] Verify profile persistence, mobile keyboard behavior, safe callbacks, and credential-free logs; record each provider's live results.
+- [ ] Design Keychain-backed persistent sessions only if needed, including expiry, rotation, revocation, logout, and backup behavior.
 
 ### Automated vendor ingestion
 
@@ -118,38 +193,14 @@ The first personal beta can use passkeys alone. Complete these tasks for each pr
 
 - [ ] Verify additional passkeys on deployed HTTPS devices and after a MySQL-backed API restart. Local cryptographic browser verification is tracked separately.
 
-## 3. Forward paper execution
+### Forward paper execution
 
 Paper-runner code and MySQL restart/idempotency gates passed CI. Production acceptance remains pending.
 
-### Run saved strategies in paper trading — High priority if automation is central
+#### Run saved strategies in paper trading — High priority if automation is central
 
 Paper runners now pin saved versions and use completed bars, account risk limits,
 durable order intent and close-based risk exits. Scheduling requires database
 persistence and functioning ingestion. See the limitations in the extension contract.
 
 - [ ] Verify repeated jobs, restarts, and unavailable/stale market data cannot create duplicate or misleading executions in production.
-
-## 4. Public-release readiness
-
-Existing logs, health checks, and rollback documentation provide a foundation;
-these tasks establish usable production operations and user support.
-
-- [ ] Select independent backup storage, private-key custody, an export schedule and retention before storing valuable beta data.
-      Aiven Free has a single disaster-recovery backup and no database forks.
-      Encrypted export tooling and a disposable MySQL recovery drill are prepared; actual Aiven recovery remains pending.
-- [ ] Perform a backup restoration drill and verify recovered users, auth methods, strategies, backtests, and paper-account balances.
-- [ ] Exercise the API/web rollback procedure against a real deployment and verify database compatibility.
-- [ ] Test alert delivery for service failures, database outages and stale ingestion after deployment.
-      Aiven project admins receive provider alerts. The GitHub monitor has a separate key limited to market-data health.
-- [ ] Configure a public support channel accessible to customers and publish contact details.
-- [ ] Publish actual host log/backup retention periods and implement the operator deletion record used when restoring backups.
-
-## iOS research prototype — October 10, 2026
-
-This is a prototype track, separate from the production launch gates above.
-See [IOS_PROTOTYPE.md](IOS_PROTOTYPE.md) for commands, limitations, and device acceptance.
-
-- [ ] Select a stable HTTPS passkey domain and a dedicated reachable prototype API.
-- [ ] Publish and check the Apple association file, then sign and install on the iPhone.
-- [ ] Complete physical-device Face ID, cancellation, session, chart, backtest, and export checks.
