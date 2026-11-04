@@ -12,6 +12,8 @@ import { AuthService } from './core/auth/auth.service';
 })
 export class App {
   protected readonly native = environment.nativeMode !== 'web';
+  protected readonly prototype =
+    this.native && !['staging', 'production'].includes(environment.nativeBuild?.mode ?? '');
   protected readonly demo = environment.nativeMode === 'device-demo';
   protected readonly simulator = environment.nativeMode === 'simulator';
   protected readonly auth = inject(AuthService);
