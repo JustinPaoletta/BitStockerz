@@ -226,6 +226,26 @@ async function main() {
     await assert.rejects(
       Promise.resolve().then(() => guard.canActivate(proxiedCtx)),
     );
+    for (const [method, path] of [
+      ['GET', '/api/ME'],
+      ['HEAD', '/API/Me'],
+    ]) {
+      const routedContext = {
+        switchToHttp: () => ({
+          getRequest: () => ({
+            method,
+            path,
+            headers: {
+              authorization: `Bearer ${winner.session.token}`,
+              'x-bitstockerz-beta-key': 'a'.repeat(64),
+            },
+          }),
+        }),
+      } as ExecutionContext;
+      await assert.rejects(
+        Promise.resolve().then(() => guard.canActivate(routedContext)),
+      );
+    }
     await assert.rejects(restartedMobile.requireAdmission(winner.user.id));
 
     const rollback = await invite('rollback');

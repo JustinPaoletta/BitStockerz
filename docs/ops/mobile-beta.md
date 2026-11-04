@@ -19,6 +19,7 @@ Use the native registration form for invitation enrollment; the legacy browser f
 
 Direct clients can access only the four rate-limited passkey enrollment/login bootstrap routes before authentication.
 All other mobile routes require an unexpired database session and an active admission record.
+Route classification follows Express: paths ignore case, and `HEAD` requests use the corresponding `GET` access policy.
 The explicit allowlist preserves existing account ownership checks and excludes operator jobs, ingestion, metrics, and unsupported authentication routes.
 Health probes and separately keyed market-data monitoring keep their existing access rules.
 AI routes retain their existing server feature controls. This change does not activate live AI.

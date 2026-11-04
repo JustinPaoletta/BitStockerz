@@ -1,6 +1,6 @@
 # BitStockerz — Remaining product tasks
 
-Created October 3, 2026. Updated October 29, 2026.
+Created October 3, 2026. Updated November 4, 2026.
 This checklist contains unfinished work from the roadmap and product assessment.
 Delivered features are described in [product extensions](docs/product/PRODUCT_EXTENSIONS.md).
 
@@ -53,7 +53,7 @@ Production signing and real endpoint/device acceptance remain in later stages.
 - [ ] Keep operator jobs private and test cross-user access, wrong RP, cancelled enrollment, expiry, and secret-free artifacts.
 - [ ] Repeat admission, revocation, restart, origin, and ownership checks against hosted staging before enabling mobile access.
 
-November 4 local evidence: 1,021 API unit tests passed with the coverage gate; 68 API HTTP tests and 125 web tests passed.
+November 4 local evidence: 1,022 API unit tests passed with the coverage gate; 68 API HTTP tests and 125 web tests passed.
 The disposable MySQL regression passed invitation binding, concurrent redemption, rollback, restart hydration, expiry, and live session/admission revocation.
 Operator-tool tests verify private output, TLS configuration, and revocation. The mobile flag remains disabled by default.
 See [mobile beta operations](docs/ops/mobile-beta.md) for the activation contract.

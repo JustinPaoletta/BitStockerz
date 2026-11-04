@@ -1,7 +1,7 @@
 # BitStockerz — iOS application delivery plan
 
 Decision date: October 29, 2026. Baseline: merged `main` at `59c4963` (PR #19).
-Status: **ready for repository implementation, with external launch dependencies stated below**.
+Status: **release configuration implemented; mobile admission verified locally; hosted and device acceptance remain**.
 Use [PRODUCT_TASKLIST.md](PRODUCT_TASKLIST.md) as the unfinished-work checklist.
 
 ## 1. Outcome and boundaries
@@ -112,7 +112,7 @@ Registration accepts `invitation_token` only when creating options. The server b
 Successful verification creates the user, credential, session, admission, and invitation redemption in one transaction.
 Direct mobile requests use an explicit route allowlist and check database session/admission state on every protected request.
 The native registration form retains an invitation after cancellation and clears it after successful enrollment.
-Local verification passed 1,021 API unit tests with coverage, 68 API HTTP tests, 125 web tests, and disposable MySQL admission regressions.
+Local verification passed 1,022 API unit tests with coverage, 68 API HTTP tests, 125 web tests, and disposable MySQL admission regressions.
 The unsigned staging simulator build passed artifact inspection with an iPhone-only device family.
 See [mobile beta operations](docs/ops/mobile-beta.md) for the activation contract and remaining acceptance gates.
 Repository implementation does not authorize activation or remove the hosted staging, origin, and device checks below.

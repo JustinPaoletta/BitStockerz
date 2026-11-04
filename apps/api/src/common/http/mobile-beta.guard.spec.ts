@@ -86,6 +86,27 @@ describe('direct mobile API perimeter', () => {
     ).rejects.toThrow('revoked');
   });
 
+  it('matches Express case-insensitive routes and HEAD fallback before honoring a proxy key', async () => {
+    for (const [method, path] of [
+      ['GET', '/api/ME'],
+      ['HEAD', '/API/Me'],
+      ['HEAD', '/api/WORKSPACE/account-export'],
+    ]) {
+      mobile.requireSession.mockRejectedValueOnce(new Error('revoked'));
+      await expect(
+        guard.canActivate(
+          context(method, path, {
+            authorization: 'Bearer cached-session',
+            'x-bitstockerz-beta-key': 'c'.repeat(64),
+          }),
+        ),
+      ).rejects.toThrow('revoked');
+    }
+    expect(
+      guard.canActivate(context('POST', '/API/AUTH/WebAuthn/Register/Options')),
+    ).toBe(true);
+  });
+
   it('preserves owned account deletion and security controls after admission', async () => {
     for (const [method, path] of [
       ['DELETE', '/api/workspace/account'],

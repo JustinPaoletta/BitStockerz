@@ -41,11 +41,13 @@ const signedIn: ReadonlyArray<readonly [string, RegExp]> = [
 ];
 
 export function mobileBootstrap(method: string, path: string): boolean {
-  return method === 'POST' && bootstrap.test(path);
+  return method.toUpperCase() === 'POST' && bootstrap.test(path.toLowerCase());
 }
 
 export function mobileUserRoute(method: string, path: string): boolean {
+  const verb = method.toUpperCase() === 'HEAD' ? 'GET' : method.toUpperCase();
+  const route = path.toLowerCase();
   return signedIn.some(
-    ([verb, pattern]) => method === verb && pattern.test(path),
+    ([allowedVerb, pattern]) => verb === allowedVerb && pattern.test(route),
   );
 }
