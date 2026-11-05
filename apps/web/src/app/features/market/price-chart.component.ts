@@ -14,6 +14,7 @@ import {
   type IChartApi,
   type Time,
 } from 'lightweight-charts';
+import { chartInteractionOptions } from '../../shared/charts/chart-interactions';
 
 export interface MarketChart {
   symbol: string;
@@ -87,6 +88,7 @@ export class PriceChartComponent implements OnDestroy {
     const style = getComputedStyle(host);
     const color = (token: string): string => style.getPropertyValue(token).trim();
     this.chart = createChart(host, {
+      ...chartInteractionOptions(),
       width: host.clientWidth,
       height: 400,
       layout: {

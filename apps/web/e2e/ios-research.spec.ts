@@ -32,10 +32,27 @@ test('phone viewport: real WebAuthn registration/login, chart, backtest, history
 
   await page.goto('http://localhost:4200/research');
   await page.getByRole('link', { name: 'Open chart', exact: true }).click();
-  await expect(
-    page.getByRole('img', { name: 'Candlestick chart with selected strategy indicators' }),
-  ).toBeVisible();
+  const priceChart = page.getByRole('img', {
+    name: 'Candlestick chart with selected strategy indicators',
+  });
+  await expect(priceChart).toBeVisible();
   await expect(page.getByText('Demo data · Simulated prices')).toBeVisible();
+  // A wheel over the real canvas must scroll the phone page, not trap it in chart zoom.
+  // Leave room below the viewport even if the browser initially aligns near the page end.
+  await priceChart.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, -160));
+  const chartBounds = await priceChart.boundingBox();
+  expect(chartBounds).not.toBeNull();
+  expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+  const beforeChartScroll = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(
+    chartBounds!.x + chartBounds!.width / 2,
+    chartBounds!.y + chartBounds!.height / 2,
+  );
+  await page.mouse.wheel(0, 200);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(beforeChartScroll + 80);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

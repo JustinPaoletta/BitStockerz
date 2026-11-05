@@ -483,10 +483,11 @@ export class BacktestDetailPage implements OnInit {
   protected async exportResults(): Promise<void> {
     const id = this.detail()?.run.id;
     if (!id) return;
+    this.exportError.set('');
     try {
       await downloadText('backtest-results.csv', await firstValueFrom(this.api.exportResults(id)));
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Export failed.');
+      this.exportError.set(error instanceof Error ? error.message : 'Export failed.');
     }
   }
   protected async exportTrades(): Promise<void> {
