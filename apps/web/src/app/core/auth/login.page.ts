@@ -50,7 +50,8 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
           <h1>{{ mode() === 'register' ? 'Create your account' : 'Sign in with a passkey' }}</h1>
           @if (environment.nativeMode !== 'web') {
             <p class="hint">
-              Native sessions end when the app closes. Passkeys stay in your credential provider.
+              Sign in again after restarting the app. Your passkey stays in your credential
+              provider.
             </p>
             @if (!environment.apiBaseUrl) {
               <p role="alert">
@@ -94,6 +95,22 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
                 autocomplete="nickname"
                 formControlName="display_name"
               />
+              @if (environment.nativeMode !== 'web') {
+                <label for="invitation">Invitation code</label>
+                <input
+                  id="invitation"
+                  type="password"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  [spellcheck]="false"
+                  [required]="invitationRequired"
+                  aria-describedby="invitation-help"
+                  formControlName="invitation_token"
+                />
+                <p id="invitation-help" class="hint">
+                  Use the code provided with your beta invitation.
+                </p>
+              }
             }
 
             @if (error()) {
@@ -353,12 +370,16 @@ import type { AuthProviders, OAuthProvider } from './auth.models';
 export class LoginPage {
   protected readonly environment = environment;
   protected readonly demo = environment.nativeMode === 'device-demo';
+  protected readonly invitationRequired = ['staging', 'production'].includes(
+    environment.nativeBuild?.mode ?? '',
+  );
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
       validators: [Validators.required, Validators.email],
     }),
     display_name: new FormControl('', { nonNullable: true }),
+    invitation_token: new FormControl('', { nonNullable: true }),
   });
   protected readonly busy = signal(false);
   protected readonly error = signal('');
@@ -436,6 +457,7 @@ export class LoginPage {
 
   protected toggleMode(): void {
     this.mode.update((value) => (value === 'login' ? 'register' : 'login'));
+    this.form.controls.invitation_token.reset();
     this.error.set('');
   }
 
@@ -459,7 +481,13 @@ export class LoginPage {
       const email = this.form.controls.email.value.trim();
       const displayName = this.form.controls.display_name.value.trim() || undefined;
       if (this.mode() === 'register') {
-        await this.auth.registerWithPasskey(email, displayName);
+        const invitation = this.form.controls.invitation_token.value.trim();
+        if (this.invitationRequired && !invitation) {
+          this.error.set('Enter the invitation code provided for your beta account.');
+          return;
+        }
+        await this.auth.registerWithPasskey(email, displayName, invitation || undefined);
+        this.form.controls.invitation_token.reset();
       } else {
         await this.auth.loginWithPasskey(email);
       }

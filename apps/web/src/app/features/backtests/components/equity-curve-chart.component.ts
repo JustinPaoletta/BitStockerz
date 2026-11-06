@@ -19,6 +19,7 @@ import {
 } from 'lightweight-charts';
 import { toChartPoints, toTradeMarkers } from '../backtest.mapper';
 import type { BacktestTrade, EquityPoint } from '../models/backtest.models';
+import { chartInteractionOptions } from '../../../shared/charts/chart-interactions';
 
 @Component({
   selector: 'app-equity-curve-chart',
@@ -95,6 +96,7 @@ export class EquityCurveChartComponent implements OnDestroy {
     const color = (token: string): string => style.getPropertyValue(token).trim();
     if (!this.chart) {
       this.chart = createChart(element, {
+        ...chartInteractionOptions(),
         width: element.clientWidth,
         height: 320,
         layout: {

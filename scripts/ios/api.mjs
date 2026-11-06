@@ -19,7 +19,7 @@ if (demo && !/^[a-f0-9]{64}$/.test(config.demoAccessKey ?? ""))
     "Device demo requires a generated access key; rerun ios:prepare.",
   );
 if (!["device", "simulator", "device-demo"].includes(config.mode))
-  throw new Error("Invalid prototype mode");
+  throw new Error("The isolated API supports simulator, device, and device-demo only. Staging and production require their real backend.");
 console.log(
   "Synthetic development data; accounts and research are lost when this server restarts.",
 );

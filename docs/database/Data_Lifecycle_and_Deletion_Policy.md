@@ -1,6 +1,6 @@
 # BitStockerz — Data lifecycle and deletion
 
-This policy describes the October 4 implementation.
+Updated November 4, 2026. This policy describes the current repository implementation.
 The [runtime schema](../../apps/api/prisma/schema.prisma) and migrations define its database relationships.
 Conceptual schemas under `docs/database` retain older design targets and do not define current deletion behavior.
 
@@ -8,7 +8,11 @@ Conceptual schemas under `docs/database` retain older design targets and do not 
 
 | Data                                  | Current lifecycle                                                                                               |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Users and sign-in methods             | Retained until credential removal, session revocation, or account deletion.                                     |
+| User profiles                        | Retained until account deletion. Session revocation does not delete the profile. |
+| Sessions                             | Expiry prevents use. Logout and revocation remove session records; startup removes expired records. |
+| Passkeys and linked provider identities | Passkeys remain until removal or account deletion. Linked provider identities remain until account deletion. |
+| Mobile admission                     | Admission persists across API restarts. Revocation records suspension; account deletion removes admission. |
+| Mobile invitations                   | Store only token hashes and identity/status metadata. Expiry or revocation prevents redemption; no automatic purge is implemented. |
 | Strategies                            | Ordinary strategy deletion sets `is_active=false`. Version snapshots remain available to owned historical runs. |
 | Strategy versions                     | Immutable after creation; removed with account deletion.                                                        |
 | Backtest runs and results             | Completed results remain immutable. Account deletion removes owned runs and their dependent rows.               |
@@ -55,6 +59,7 @@ Deletion prevents new user writes and waits for writes already in progress.
 A serialized transaction removes the user's owned active-database records:
 
 - Profile, sessions, credentials, OAuth identities, and auth ceremonies.
+- Mobile admission and invitations associated with the user's email.
 - Strategies, versions, backtest runs, results, trades, and equity points.
 - Paper account, orders, executions, positions, and retired order identifiers.
 - Watchlists, reset archives, and paper runners.
@@ -73,5 +78,10 @@ No published retention period or automatic backup purge is implemented by the ap
 Operators must keep a restricted deletion-request record outside restored application backups.
 That record requires minimal identifiers, access controls, and its own purge policy.
 Before restored data serves traffic, operators must reapply recorded deletion requests.
-The record and restoration drill remain unimplemented operational work.
+
+Operators must also reconcile admission revocations made after the backup and invalidate outstanding restored invitations and authentication ceremonies.
+Clearing restored sessions alone does not prevent a revoked user from signing in through restored active admission.
+Keep the restored service isolated if the correct admission state cannot be established.
+
+The external records and real-provider restoration drill remain unimplemented operational work.
 See [deployment](../ops/deployment.md#backups-alerts-and-support) and the [remaining task list](../../PRODUCT_TASKLIST.md).

@@ -7,6 +7,8 @@ and assume port **4000** (override with `PORT`). The Angular app runs on port
 
 For native iOS setup and physical-device acceptance, use the [iOS guide](../../IOS_PROTOTYPE.md).
 The browser procedures below do not establish native passkey or share-sheet behavior.
+The app-only launch target is defined in [the delivery plan](../../APP_ONLY_PLAN.md).
+Use [mobile beta operations](../ops/mobile-beta.md) for the implemented, disabled-by-default admission policy and hosted activation gates.
 
 ## How to use this guide
 
@@ -27,6 +29,7 @@ Choose the smallest relevant test set:
 | Paper accounts, orders, executions, positions, pricing/risk, or portfolio views | Section 12 in both seed and MySQL modes                                  |
 | Angular shell, passkeys, dashboard widgets, Strategy Lab, or Paper trading      | Section 13 (`npm --prefix apps/web run e2e` for the automated seed path) |
 | Google/Apple browser login, Profile, or recovery linking                        | Section 16; real-provider smoke in `docs/ops/deployment.md`              |
+| Mobile invitations, admission, or session revocation | Section 18 and `docs/ops/mobile-beta.md` |
 | Full release/sprint verification                                                | Run both automated verifier commands in Section 0                        |
 
 Prerequisites: Node.js `24.21.0` (root `.nvmrc`), npm, `curl`, and `jq`. Docker Desktop is additionally required for MySQL-mode tests.
@@ -1010,7 +1013,7 @@ Work through these in order on a fresh browser session (or after Sign out).
 
 | #   | What to do                                                                                                                                                                                             | Pass when                                                                                                                      |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Register (development email sign-in)** — in a non-production build, select Create an account, enter email + display name, then open Development email sign-in and select Create a local test account | Lands on `/dashboard`, primary nav + user label + Sign out appear                                                              |
+| 1   | In a non-production build, select **Create an account**. Enter email and display name. Open **Development email sign-in**, then select **Create a local test account**. | Lands on `/dashboard`, primary nav + user label + Sign out appear                                                              |
 | 2   | **Shell** — click Dashboard / Markets / Strategies / Backtests / Paper trading; click logo                                                                                                             | Each route loads; logo returns to dashboard                                                                                    |
 | 3   | **Sign out / returnUrl** — Sign out, visit `/trade` (should bounce to login), sign in again                                                                                                            | After login you land back on `/trade`, not a blank shell                                                                       |
 | 4   | **Session restore** — while signed in, hard-refresh `/dashboard`                                                                                                                                       | Stay signed in; nav + widgets reload without re-login                                                                          |
@@ -1186,7 +1189,11 @@ curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provid
 # expect provider.circuit == "closed"
 ```
 
-### Deploy artifacts checklist (no live accounts required)
+### Legacy deployment artifacts checklist
+
+This checklist describes the retained website workflow, not the target app-only release path.
+Do not enable production deployment from these artifact checks alone.
+The API/app workflow split remains in Stage E of [the delivery plan](../../APP_ONLY_PLAN.md).
 
 | #   | Check                                  | Expect                         |
 | --- | -------------------------------------- | ------------------------------ |
@@ -1196,7 +1203,8 @@ curl -s http://localhost:4000/api/market-data/health | jq '{status,source,provid
 | 4   | `apps/web/vercel.json`                 | SPA fallback rewrite           |
 | 5   | `docs/ops/deployment.md`               | secrets + smoke + rollback     |
 
-Live Fly/Vercel/MySQL provisioning remains an operator step before first production URL.
+Reinspect existing hosting resources before activation. Their historical setup does not prove a live backend.
+Vercel deployment is not required by the target iPhone architecture; retain its protection until replacement access passes staging acceptance.
 
 ---
 
@@ -1273,3 +1281,34 @@ These checks require disposable accounts:
 
 Account reset, deletion, and credential changes require a sign-in within five minutes.
 A local virtual-authenticator test does not establish device or deployed HTTPS compatibility.
+
+## 18. Mobile beta admission acceptance
+
+Mobile admission is implemented behind `PRIVATE_BETA_MOBILE_ENABLED=false`.
+Complete [the activation contract](../ops/mobile-beta.md) before enabling it against hosted staging.
+Use disposable accounts and a disposable local MySQL database for regression tests.
+
+From the repository root:
+
+```sh
+node --test apps/api/tools/mobile-admission.test.mjs
+npm --prefix apps/api run test:mysql:mobile-admission
+```
+
+The MySQL command requires an already-migrated localhost database named `bitstockerz_ci` or `bitstockerz_*_ci`.
+It rejects remote and non-fixture databases before making changes.
+Supply its `DATABASE_URL` through the test environment. Do not use production credentials.
+
+Repeat these checks against approved hosted staging and the signed iPhone build:
+
+1. Create an invitation for the intended email using the operator tool.
+2. Enroll with the code and complete native passkey verification.
+3. Cancel a ceremony and confirm a new challenge can use the unconsumed invitation.
+4. Reject expired, revoked, identity-mismatched, replayed, and concurrently redeemed invitations.
+5. Restart the API and confirm the admitted account and session state persist.
+6. Revoke admission and confirm a cached bearer cannot access user data through either API path.
+7. Repeat revocation checks with mixed-case paths and `HEAD` requests.
+8. Reject cross-user access, incorrect relying parties, and private operator endpoints.
+9. Inspect logs and the built app for invitation codes, bearer tokens, and server-only keys.
+
+The prototype demo does not establish these results. Local tests and unsigned simulator builds do not establish native passkey or hosted acceptance.

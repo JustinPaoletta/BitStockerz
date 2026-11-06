@@ -66,6 +66,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>BitStockerzBuildChannel</key>
+	<string>$(BITSTOCKERZ_CHANNEL)</string>
+	<key>BitStockerzBuildFingerprint</key>
+	<string>$(BITSTOCKERZ_FINGERPRINT)</string>
 	<key>PasskeyRelyingParty</key>
 	<string>$(BITSTOCKERZ_RP_ID)</string>
 	<key>NSAppTransportSecurity</key>

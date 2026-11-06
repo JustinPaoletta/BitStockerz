@@ -88,3 +88,6 @@ apps/web/ios/App/App/config.xml
 **/xcuserdata/
 **/.build/
 apps/web/.ios-prototype.local.json
+
+# Generated public iOS build identity
+apps/web/public/ios-build.local.json

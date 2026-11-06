@@ -3,7 +3,7 @@
 ## 1. Authentication
 
 - Passkeys (WebAuthn) as primary authentication (no passwords stored)
-- OAuth (Google + Apple) as secondary/fallback auth
+- Browser OAuth (Google + Apple) as optional secondary/recovery authentication; native providers remain disabled
 - Session established after auth as a bearer token (`Authorization: Bearer …`)
 - Without `DATABASE_URL`, users, sessions, and passkey credentials remain
   in-memory only. With MySQL enabled, auth users, sessions, passkeys, OAuth
@@ -21,13 +21,41 @@
   requires the original authenticated session and a sign-in within five minutes.
   Email knowledge alone cannot recover an account.
 
-### Native prototype
+### Native authentication and test modes
 
-The [iOS prototype](../../../IOS_PROTOTYPE.md) uses AuthenticationServices for passkeys and keeps bearer tokens in memory.
+The [iOS app](../../../IOS_PROTOTYPE.md) uses AuthenticationServices for passkeys and keeps bearer tokens in memory.
 Relaunch requires sign-in. Native Google/Apple OAuth is not enabled.
-Device mode requires an associated HTTPS domain; its isolated API disables email login and legacy WebAuthn bypasses.
-CORS accepts `capacitor://localhost`, while WebAuthn validates the HTTPS relying-party origin.
+
+The Personal Team `device-demo` mode uses fictional test login and synthetic data; it does not verify identity or native passkeys.
+Passkey-only `device` mode requires an associated HTTPS domain. Its isolated API disables email login and legacy WebAuthn bypasses.
+That prototype API accepts `capacitor://localhost` for CORS and validates the HTTPS relying-party origin for WebAuthn.
+
+Staging and production require separate origin, domain-association, and physical-device acceptance.
 Never include the production proxy key or hosting credentials in the app.
+
+### Persistent mobile admission
+
+Stage B of the [app delivery plan](../../../APP_ONLY_PLAN.md) is implemented behind `PRIVATE_BETA_MOBILE_ENABLED=false`.
+Enabling mobile admission requires private-beta protection, persistent MySQL, and disabled development email and legacy WebAuthn bypasses.
+Passkey enrollment requires a valid, expiring invitation for the intended email.
+The database stores its hash, intended identity, expiry, and redemption state. The raw code is not persisted.
+The server binds the invitation hash to the registration challenge.
+
+Successful verification atomically redeems the invitation and creates the user, credential, admission, and session.
+Cancellation does not redeem an invitation. Failed verification requires a new challenge before retrying.
+Returning passkey login requires an admitted user.
+
+Direct clients can access only four rate-limited passkey bootstrap routes before authentication.
+An explicit route policy requires current database admission and session validity for protected user requests, including requests through the retained proxy.
+Route classification follows Express's case-insensitive paths and `HEAD` dispatch through the corresponding `GET` policy.
+Operator routes remain outside direct mobile access. Existing tenant ownership checks and authentication rate limits remain active.
+
+The legacy proxy key remains configured for other protected routes. Never disable the guard or compile that key into the app.
+See [mobile beta operations](../../ops/mobile-beta.md) for invitations, revocation, and the activation contract.
+
+Local tests verify invitation races, rollback, restart hydration, and revocation. Hosted staging and real native passkeys remain unverified.
+Distribution through TestFlight, an app identifier, and CORS do not authorize a caller.
+The first beta retains memory-only native bearer storage; persistent Keychain sessions require a separate lifecycle design.
 
 ## 2. Authorization
 

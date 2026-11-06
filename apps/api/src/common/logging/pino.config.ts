@@ -30,7 +30,10 @@ export function isOAuthRequest(url: string | undefined): boolean {
 function serializeRequest(request: StdSerializedResults['req']) {
   const { query, params, ...serialized } = request;
   const safeRequest = { ...serialized, headers: { ...request.headers } };
-  if (isOAuthRequest(request.url)) {
+  if (
+    isOAuthRequest(request.url) ||
+    /^\/(?:api\/)?auth\/webauthn(?:\/|$)/i.test(request.url)
+  ) {
     // OAuth codes and state can arrive in either a query or an Apple form post.
     // Keep the route useful for diagnosis without serializing identity payloads.
     safeRequest.url = request.url.split(/[?#]/, 1)[0];
@@ -127,6 +130,8 @@ export function buildPinoLoggerOptions(config: LoggingConfig): Params {
           'req.headers["x-bitstockerz-monitor-key"]',
           'req.headers.cookie',
           'req.headers.referer',
+          'req.query.invitation_token',
+          'invitation_token',
           'req.query.code',
           'req.query.state',
           'req.query.user',

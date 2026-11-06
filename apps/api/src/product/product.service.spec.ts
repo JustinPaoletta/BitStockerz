@@ -50,6 +50,7 @@ function fixture() {
     webAuthnChallenge: delegate(),
     oAuthState: delegate(),
     oAuthHandoff: delegate(),
+    mobileInvitation: delegate(),
     user: delegate(),
   };
   db.paperAccount.findUnique.mockResolvedValue(account);

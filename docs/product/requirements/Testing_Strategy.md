@@ -1,7 +1,8 @@
 # BitStockerz – Testing Strategy
 
-This document describes the automated checks for the merged MVP and prelaunch
-features and the open readiness/iOS drafts. CI passing does not verify external hosting or real provider credentials.
+This document describes the automated checks for the MVP, iOS app, and prelaunch features in this checkout.
+Release configuration and mobile admission have local automated coverage. Hosted, signing, and physical-device gates remain open.
+CI passing does not verify external hosting or real provider credentials.
 
 ## 1. Unit and component tests
 
@@ -43,6 +44,7 @@ then runs these required gates:
 | `test:mysql:trading`   | Account provisioning, concurrent idempotency, fills/rejections, P&L and restart snapshots                                         |
 | `test:mysql:security`  | Explicit auth linking/restart/logout and concurrent persisted AI quota limits                                                     |
 | `test:mysql:auth`      | Verifier/state/handoff ownership, original-session/age binding, recovery/replay, binary identifiers and expiry cleanup            |
+| `test:mysql:mobile-admission` | Invitation binding, expiry/replay, concurrent redemption, rollback, restart hydration, and live admission/session revocation |
 | `test:mysql:workspace` | Simulation/benchmark, watchlist, runner restart/idempotency, enrollment ownership, reset archive, export, deletion, and isolation |
 
 Fixtures are isolated and cleaned up; use a test database. Local seed-mode gates
@@ -50,7 +52,7 @@ need no Docker. `KEEP_DATABASE_URL=1 ./scripts/sprint-delivery-verify.sh verify`
 adds local MySQL migrations, backtest/trading/recovery gates and HTTP persistence
 smoke, loading `apps/api/.env`. The separate `test:mysql:security` gate runs in CI;
 invoke it explicitly for local auth/AI quota verification.
-The verification script also omits the new workspace and native CLI gates; run them separately.
+The verification script also omits workspace, mobile-admission, operator CLI, and iOS configuration gates. Run those separately.
 
 ## 4. Browser workflows
 
@@ -78,6 +80,7 @@ provider smoke checklist in [deployment.md](../../ops/deployment.md).
 - API build, lint, unit coverage, HTTP, native signed-token, fresh MySQL gates and
   production container build.
 - Web lint, isolated unit tests, production build and Playwright browser tests.
+- iOS configuration/artifact tests and private-beta proxy regressions. Native Xcode compilation remains a local check.
 
 [PR #13 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089380502)
 and [post-merge main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37089882994)
@@ -86,6 +89,34 @@ The deployment workflow then failed at migration because hosting/database creden
 market-data freshness and deployed latency checks remain launch requirements.
 
 ## Verification evidence
+
+### November 4, 2026 — App-only configuration and mobile admission
+
+Code and CI snapshot: `b1ce7c71e22373caefcfad54d66a08bd2512cf86`.
+[CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/41916048123) and the GitGuardian integration passed all six checks for that revision.
+These results are dated evidence; later changes require their own CI results.
+The following local checks were recorded during the November 4 implementation.
+
+| Check | Result |
+| --- | --- |
+| API build, Prisma validation, API/web lint | Passed locally |
+| API unit tests | 1,022 passed with the existing coverage thresholds |
+| API HTTP integration | 68 passed |
+| Web unit tests | 125 passed |
+| Browser integration | Eight passed against disposable local servers |
+| iOS configuration/artifact tests | 11 passed locally; the macOS-specific shell test is skipped on Linux CI |
+| Mobile operator CLI | Four passed, including private output, verified TLS configuration, and revocation |
+| Disposable MySQL mobile admission | Migration, invitation races/replay/expiry, rollback, restart hydration, and live revocation passed |
+| Staging native packaging | Guarded sync, unsigned simulator Release build, and built-app inspection passed at `b1ce7c7` |
+| Staging simulator startup | Installation, launch, and visual sign-in inspection passed earlier at `d7c5346` |
+
+Revocation tests cover direct and proxied requests, including mixed-case paths and `HEAD` dispatch.
+Staging packaging used fixture HTTPS domains. Those hosts were not contacted.
+The physical iPhone was unavailable during this run. No current signed-device, native-passkey, or real-provider acceptance was recorded.
+
+The mobile admission flag remains disabled by default. Production deployment and Vercel retirement remain separate gates.
+
+### Earlier verification records
 
 Hosted evidence inspected October 8, 2026:
 
@@ -176,12 +207,34 @@ CI runs the configuration-generator tests behind `ios:test:config`. Native Xcode
 Signed installation, native passkeys, exports, and physical-device accessibility remain in the [iPhone checklist](../../../IOS_PROTOTYPE.md#iphone-acceptance-checklist).
 These results do not establish production deployment or real-provider acceptance.
 
+## App-only release acceptance
+
+The [app delivery plan](../../../APP_ONLY_PLAN.md) defines the target gates; they are not completed by existing browser CI.
+PR #19's final head `51e3c6a` passed six checks before merge into `59c4963`.
+Its regression suite included 116 web tests and the profile-loading failure case in demo login.
+Recorded physical-device evidence covered signed installation and the synthetic no-trades research journey.
+That evidence does not cover production native passkeys, populated trades, Files exports, or physical-device accessibility.
+
+Remaining acceptance evidence:
+
+- Repeat invitation, revocation, wrong-RP, ownership, and restart checks against hosted staging with the intended native origins.
+- Signed Release archive verification and installation through the intended distribution path.
+- Real-device passkeys, chart/backtest/order/account journeys, including closed trades and no-trades outcomes.
+- Interrupted writes, order idempotency, history reconciliation, backgrounding, force-quit, and network restoration.
+- Export success/cancellation, temporary-file cleanup, larger text, VoiceOver, safe areas, and keyboard behavior.
+- Current/previous installed app compatibility with backend updates and schema-compatible rollback.
+- Actual licensed data, provider rights, host readiness, alert delivery, and restoration evidence.
+
+Record device/OS, source SHA, app build, API image, data provenance, and observations with each device acceptance run.
+Keep synthetic, browser, simulator, signed-build, physical-device, and production-provider evidence distinct.
+
 ## Native CLI regressions
 
 From the repository root, run:
 
 ```sh
-node --test apps/api/tools/import-market-data.test.mjs scripts/ops/*.test.mjs
+node --test apps/api/tools/*.test.mjs scripts/ops/*.test.mjs
+node --test scripts/ios/*.test.mjs
 ```
 
 These tests use fixtures and mocks; they do not establish live import or monitoring success.

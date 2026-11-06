@@ -273,6 +273,7 @@ export class AuthPersistenceService {
         id: record.challengeId,
         userId: record.userId ?? null,
         sessionHash: record.sessionHash ?? null,
+        invitationHash: record.invitationHash ?? null,
         purpose: record.purpose,
         email: record.email,
         challenge: record.challenge,
@@ -316,6 +317,7 @@ export class AuthPersistenceService {
 
     return {
       challengeId: row.id,
+      ...(row.invitationHash ? { invitationHash: row.invitationHash } : {}),
       ...(row.userId ? { userId: row.userId } : {}),
       ...(row.sessionHash ? { sessionHash: row.sessionHash } : {}),
       purpose: row.purpose,

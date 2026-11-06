@@ -1,6 +1,8 @@
 # BitStockerz – MVP Feature List
 
-This list preserves the original MVP scope.
+The launch surface is an iPhone app for private personal research.
+Use [the app delivery plan](../../APP_ONLY_PLAN.md) for the current architecture and release gates.
+The feature list below preserves original scope; browser-specific implementation does not establish native production acceptance.
 The [roadmap](ROADMAP.md) records delivery; [product extensions](PRODUCT_EXTENSIONS.md) describe additions merged in PR #15.
 MVP code is merged, but hosting, licensed data, and production/provider tests remain launch requirements.
 See the [remaining checklist](../../PRODUCT_TASKLIST.md).
@@ -73,7 +75,7 @@ See the [remaining checklist](../../PRODUCT_TASKLIST.md).
 
 ## 7. Dashboard / UI
 
-- Angular application frontend
+- Angular interface bundled inside the Capacitor iOS app
 - Portfolio summary
 - Active strategies list
 - Recent trades

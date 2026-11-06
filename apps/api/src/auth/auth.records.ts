@@ -29,6 +29,7 @@ export interface PasskeyCredentialRecord {
 }
 
 export interface WebAuthnChallengeRecord {
+  invitationHash?: string;
   userId?: string;
   sessionHash?: string;
   challengeId: string;

@@ -67,6 +67,7 @@ export interface ServerConfig {
   errorTestEnabled: boolean;
   openApiEnabled: boolean;
   privateBetaEnabled: boolean;
+  privateBetaMobileEnabled: boolean;
   privateBetaProxyKey?: string;
   privateBetaMonitorKey?: string;
 }
@@ -535,6 +536,12 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     false,
     errors,
   );
+  const privateBetaMobileEnabled = parseBoolean(
+    'PRIVATE_BETA_MOBILE_ENABLED',
+    env.PRIVATE_BETA_MOBILE_ENABLED,
+    false,
+    errors,
+  );
   const privateBetaProxyKey = normalizeOptional(env.PRIVATE_BETA_PROXY_KEY);
   const privateBetaMonitorKey = normalizeOptional(env.PRIVATE_BETA_MONITOR_KEY);
   if (privateBetaMonitorKey && !/^[a-f0-9]{64}$/.test(privateBetaMonitorKey)) {
@@ -892,6 +899,17 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     errors.push('AI_LOG_CONTENT must remain false in production');
   }
 
+  if (privateBetaMobileEnabled) {
+    if (!privateBetaEnabled)
+      errors.push('PRIVATE_BETA_MOBILE_ENABLED requires PRIVATE_BETA_ENABLED');
+    if (!databaseUrl || !/^(mysql|mariadb):/.test(databaseUrl))
+      errors.push('Mobile admission requires MySQL DATABASE_URL');
+    if (devEmailEnabled || legacyWebauthnEnabled)
+      errors.push(
+        'Mobile admission requires AUTH_DEV_EMAIL_ENABLED=false and AUTH_LEGACY_WEBAUTHN_ENABLED=false',
+      );
+  }
+
   if (nodeEnv === 'production') {
     if (devEmailEnabled) {
       errors.push('AUTH_DEV_EMAIL_ENABLED must be false in production');
@@ -957,6 +975,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
       errorTestEnabled,
       openApiEnabled,
       privateBetaEnabled,
+      privateBetaMobileEnabled,
       privateBetaProxyKey,
       privateBetaMonitorKey,
     },

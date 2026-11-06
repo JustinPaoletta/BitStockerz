@@ -10,7 +10,7 @@
     "lint": "ng lint",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "ios:sync": "NG_BUILD_CACHE_STORE=sqlite ng build --configuration ios && cap sync ios",
+    "ios:sync": "node ../../scripts/ios/sync.mjs",
     "ios:open": "cap open ios"
   },
   "private": true,
@@ -53,6 +53,8 @@
     "xcode": {
       "uuid": "11.1.1"
     },
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "minimatch@10": "11.0.1",
+    "glob@13": "14.0.2"
   }
 }

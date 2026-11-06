@@ -4,6 +4,7 @@ import { ObservabilityModule } from '../observability/observability.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PaperAccountProvisioningModule } from '../trading/paper-account-provisioning.module';
 import { AuthController } from './auth.controller';
+import { MobileAdmissionService } from './mobile-admission.service';
 import { AuthGuard } from './auth.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { AuthPersistenceService } from './auth-persistence.service';
@@ -20,11 +21,12 @@ import { MeController } from './me.controller';
   ],
   controllers: [AuthController, MeController, SecurityController],
   providers: [
+    MobileAdmissionService,
     AuthPersistenceService,
     AuthService,
     AuthGuard,
     AuthRateLimitGuard,
   ],
-  exports: [AuthService, AuthGuard, AuthRateLimitGuard],
+  exports: [AuthService, AuthGuard, AuthRateLimitGuard, MobileAdmissionService],
 })
 export class AuthModule {}

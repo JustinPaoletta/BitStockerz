@@ -1,6 +1,6 @@
 # BitStockerz – Master API Inventory
 
-Updated October 11, 2026.
+Updated November 4, 2026.
 
 This inventory describes current HTTP contracts, internal domain boundaries, and explicitly labeled design targets.
 All route paths use the `/api` prefix.
@@ -8,7 +8,16 @@ Generated OpenAPI and route source define the runnable HTTP contract.
 
 The October 4 workspace additions merged in PR #15. All five MySQL persistence gates passed hosted CI.
 See [verification evidence](../product/requirements/Testing_Strategy.md#verification-evidence) for dates and limits.
-The [deployment access guard](../ops/deployment.md#private-beta-access) in combined draft PR #17 also protects otherwise public API routes.
+
+The [deployment access guard](../ops/deployment.md#private-beta-access) also protects otherwise public API routes.
+`PRIVATE_BETA_ENABLED=true` retains the server proxy requirement unless the optional mobile path authorizes the request.
+`PRIVATE_BETA_MOBILE_ENABLED` defaults to `false`. Enabling it requires persistent MySQL and disabled development authentication bypasses.
+
+The mobile path permits four passkey bootstrap routes and explicit admitted-user routes.
+Those user routes check database sessions and admission on every request, including requests through the existing proxy.
+Classification follows Express's case-insensitive paths and `HEAD` dispatch through the corresponding `GET` policy.
+Operator routes remain outside direct mobile access. Hosted staging and native acceptance remain pending.
+See [mobile beta operations](../ops/mobile-beta.md) for the complete contract and activation gates.
 
 ### Backend implementation status
 
@@ -85,9 +94,10 @@ to the generated contract until they ship.
 
 - `type`, `title`, `status`, `detail`, `instance` follow RFC 7807.
 - Extensions: `code` (stable), `requestId`, and optional `fieldErrors`.
-- All endpoints require authentication unless explicitly stated (e.g. health
-  checks, symbol lookup/search, candle reads, and the strategy indicator
-  catalog). Strategy create and owner reads require a bearer session.
+- Route-level authentication applies unless a route is explicitly public, such as health checks, symbols, candles, or the indicator catalog.
+  The private-beta guard adds access requirements to those public routes.
+  With mobile admission enabled, allowlisted user routes require a live database session and active admission.
+  Strategy creation and owner reads also retain their existing ownership checks.
 
 ### 0.1 Error code catalog
 
@@ -218,14 +228,28 @@ Issue a bearer session for an existing user by email (dev/testing shortcut when
 **POST `/auth/webauthn/register/options`**  
 Start passkey registration; returns challenge metadata.
 
+- Body: `email` and optional `invitation_token`.
+- `invitation_token`, when supplied, must contain 43 base64url characters.
+- With mobile admission enabled, the token is required and must match an unexpired, unused invitation for that email.
+- The server binds the invitation hash to the persisted challenge. It does not redeem the invitation at this step.
+- Existing account emails cannot enroll again. Existing-account admission and reactivation tools are not implemented.
+
 **POST `/auth/webauthn/register/verify`**  
 Complete passkey registration and issue a session.
+
+With mobile admission enabled, successful passkey verification atomically creates the user, credential, admission, and session and redeems the invitation.
+The request uses the bound `challenge_id`; it does not resubmit `invitation_token`.
+Failed verification requires a new challenge. The invitation remains available unless it expires or is revoked.
 
 **POST `/auth/webauthn/login/options`**  
 Start passkey authentication; returns challenge metadata.
 
+With mobile admission enabled, the existing user must have active admission.
+
 **POST `/auth/webauthn/login/verify`**  
 Complete passkey authentication and issue a session.
+
+With mobile admission enabled, the server checks admission again before issuing the session.
 
 **GET `/auth/oauth/google/start`**  
 Start Google OAuth; returns state for the callback.

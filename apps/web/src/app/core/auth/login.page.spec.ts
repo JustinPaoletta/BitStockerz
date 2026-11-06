@@ -6,6 +6,7 @@ import { LoginPage } from './login.page';
 import { environment } from '../../../environments/environment';
 import { AuthService, safeReturnUrl } from './auth.service';
 import { TokenStorageService } from './token-storage.service';
+import type { NativeBuildInfo } from '../native/build-info';
 
 describe('safeReturnUrl', () => {
   it('accepts only internal absolute paths', () => {
@@ -202,5 +203,71 @@ describe('Personal Team test login', () => {
       'Your session could not be loaded. Please sign in again.',
     );
     http.verify();
+  });
+});
+
+describe('Native beta enrollment', () => {
+  const originalMode = environment.nativeMode;
+  const originalBuild = environment.nativeBuild;
+
+  afterEach(() => {
+    environment.nativeMode = originalMode;
+    environment.nativeBuild = originalBuild;
+  });
+
+  it('keeps the invitation through cancellation and clears it after successful enrollment', async () => {
+    environment.nativeMode = 'device';
+    environment.nativeBuild = { mode: 'staging' } as NativeBuildInfo;
+    const auth = {
+      isAuthenticated: () => false,
+      getProviders: vi.fn().mockResolvedValue({ google: false, apple: false }),
+      registerWithPasskey: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Cancelled'))
+        .mockResolvedValue(undefined),
+      problemMessage: (_error: unknown, fallback: string) => fallback,
+    };
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [provideRouter([]), { provide: AuthService, useValue: auth }],
+    }).compileComponents();
+    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(LoginPage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('#invitation')).toBeNull();
+    Array.from(element.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Create an account'))!
+      .click();
+    fixture.detectChanges();
+    const setInput = (selector: string, value: string) => {
+      const input = element.querySelector<HTMLInputElement>(selector)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+    };
+    const submit = async () => {
+      element.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    setInput('#email', 'owner@example.com');
+    setInput('#display', 'Owner');
+    await submit();
+    expect(auth.registerWithPasskey).not.toHaveBeenCalled();
+    expect(element.textContent).toContain('Enter the invitation code');
+
+    setInput('#invitation', 'private-code');
+    await submit();
+    expect(auth.registerWithPasskey).toHaveBeenLastCalledWith(
+      'owner@example.com',
+      'Owner',
+      'private-code',
+    );
+    expect(element.querySelector<HTMLInputElement>('#invitation')!.value).toBe('private-code');
+    await submit();
+    expect(auth.registerWithPasskey).toHaveBeenCalledTimes(2);
+    expect(element.querySelector<HTMLInputElement>('#invitation')!.value).toBe('');
   });
 });

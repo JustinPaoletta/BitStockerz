@@ -25,10 +25,13 @@ Their original `V0001`-style names are not runnable migrations.
 | Auth persistence (sessions, OAuth, challenges)           | `20260911000000_auth_persistence`                   |
 | Browser OAuth handoffs and explicit linking (8.1)        | `20261002000000_oauth_browser_handoff`              |
 | Case-sensitive opaque auth identifiers (security review) | `20261002010000_auth_identifiers_binary`            |
-
 | Research settings, benchmark, and trade fees | `202610040001_product_research` |
 | Bound additional-passkey enrollment challenges | `202610040002_account_management` |
 | Watchlists, reset archives, retired order keys, and paper runners | `202610040003_product_workspace` |
+| Backtest price-source persistence | `20261017000100_backtest_price_source` |
+| Mobile invitations, admission, and invitation-bound passkey challenges | `20261104000100_mobile_admission` |
+
+The runtime inventory contains 21 migrations as of November 4, 2026.
 
 ## Apply and inspect
 
@@ -66,8 +69,16 @@ Browser handoffs add verifier, actor, session, expiry, and one-use-code binding.
 The next auth migration gives opaque identifiers binary collation without changing email/profile collations.
 
 The October 4 migrations add research settings and account-workspace persistence.
+The October 17 migration adds nullable `backtest_runs.price_source` for persisted price provenance.
+The November 4 migration adds mobile invitations, admission records, and the optional invitation hash on passkey challenges.
+Admission records cascade when users are deleted. Account deletion explicitly removes invitations for the user's email.
+
 Older binaries must tolerate these additions before an operator rolls back the API.
 Do not remove customer data to reverse an application deployment.
+
+The mobile migration does not admit existing users.
+Keep mobile access disabled for valued accounts until an approved admission migration procedure exists.
+Do not delete and recreate accounts to work around missing admission.
 
 ## Evidence and outstanding checks
 
@@ -76,6 +87,11 @@ All 19 migrations, including the three October 4 additions, passed
 [PR #15 CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37409503133)
 and [main CI](https://github.com/JustinPaoletta/BitStockerz/actions/runs/37410465260).
 All five MySQL persistence/security harnesses and the production-image build passed those runs.
-Docker Desktop was unavailable during local checks; hosted CI supplies the disposable-database evidence.
+Docker Desktop was unavailable during those October checks; hosted CI supplied that disposable-database evidence.
+
+On November 4, local disposable MySQL applied all 21 migrations and passed the mobile admission regression.
+The regression covered invitation binding, concurrent redemption, transaction rollback, restart hydration, expiry, and revocation.
+Mixed-case and `HEAD` requests through the legacy proxy also rejected revoked sessions.
+CI for revision `b1ce7c7` passed six MySQL harnesses and the production-image build.
 Production migration and database-provider acceptance remain open.
 See the [testing strategy](../product/requirements/Testing_Strategy.md).

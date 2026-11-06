@@ -7,10 +7,17 @@ import type { BacktestDetailResponse, BacktestTrade } from '../models/backtest.m
 import { EquityCurveChartComponent } from '../components/equity-curve-chart.component';
 import { BacktestDetailPage } from './backtest-detail.page';
 
+const share = vi.hoisted(() => vi.fn());
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { getPlatform: () => 'ios' },
+  registerPlugin: () => ({ shareText: share }),
+}));
+
 describe('BacktestDetailPage', () => {
   const runId = '50100000-0000-4000-8000-000000000009';
 
   beforeEach(async () => {
+    share.mockReset().mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
       imports: [BacktestDetailPage],
       providers: [
@@ -30,6 +37,61 @@ describe('BacktestDetailPage', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
   });
+
+  it.each(['request', 'share'] as const)(
+    'keeps results visible after a results-export %s failure and allows retry',
+    async (failure) => {
+      const fixture = TestBed.createComponent(BacktestDetailPage);
+      const http = TestBed.inject(HttpTestingController);
+      fixture.detectChanges();
+      http
+        .expectOne((request) => request.url === `/api/backtests/${runId}`)
+        .flush(detailWithTrades([trade(1)], false));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      const exportButton = () =>
+        [...element.querySelectorAll<HTMLButtonElement>('button')].find(
+          (button) => button.textContent?.trim() === 'Export results (CSV)',
+        );
+      if (failure === 'share') {
+        share.mockRejectedValueOnce(new Error('Unable to export this file.'));
+      }
+      exportButton()!.click();
+      const firstExport = http.expectOne(`/api/backtests/${runId}/results.csv`);
+      if (failure === 'request') {
+        firstExport.flush('Unavailable', { status: 503, statusText: 'Unavailable' });
+      } else {
+        firstExport.flush('metric,value\nreturn,1');
+      }
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element.querySelector('.page-heading')?.textContent).toContain('AAPL');
+      expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+      expect(element.querySelector('a[href="/backtests"]')).not.toBeNull();
+      expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+        failure === 'share' ? 'Unable to export this file.' : 'The API request failed.',
+      );
+      expect(exportButton()).toBeDefined();
+
+      exportButton()!.click();
+      fixture.detectChanges();
+      expect(element.querySelector('[role="alert"]')).toBeNull();
+      http.expectOne(`/api/backtests/${runId}/results.csv`).flush('metric,value\nreturn,1');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(share).toHaveBeenLastCalledWith({
+        filename: 'backtest-results.csv',
+        contents: 'metric,value\nreturn,1',
+      });
+      expect(element.querySelector('.page-heading')?.textContent).toContain('AAPL');
+      expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+      expect(element.querySelector('[role="alert"]')).toBeNull();
+    },
+  );
 
   it('appends a second trade page without duplicates and stops when no pages remain', async () => {
     const fixture = TestBed.createComponent(BacktestDetailPage);

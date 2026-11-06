@@ -1,8 +1,15 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { AppConfigService } from '../../config/app-config.service';
 import { DomainError } from '../errors/domain-error';
+import { MobileAdmissionService } from '../../auth/mobile-admission.service';
+import { mobileBootstrap, mobileUserRoute } from '../../auth/mobile-routes';
 import { ErrorCode } from '../errors/error-codes.enum';
 
 export const PRIVATE_BETA_HEADER = 'x-bitstockerz-beta-key';
@@ -20,9 +27,12 @@ function matchesKey(received: unknown, expected: string | undefined): boolean {
 
 @Injectable()
 export class PrivateBetaGuard implements CanActivate {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    @Optional() private readonly mobile?: MobileAdmissionService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
     if (!this.config.server.privateBetaEnabled) return true;
     const request = context.switchToHttp().getRequest<Request>();
     // Fly and the deployment workflow need credential-free health probes.
@@ -44,8 +54,23 @@ export class PrivateBetaGuard implements CanActivate {
 
     const received = request.headers[PRIVATE_BETA_HEADER];
     const expected = this.config.server.privateBetaProxyKey;
-    if (!matchesKey(received, expected))
-      throw new DomainError(ErrorCode.UNAUTHORIZED);
-    return true;
+    if (
+      matchesKey(received, expected) &&
+      (!this.config.server.privateBetaMobileEnabled ||
+        !mobileUserRoute(request.method, request.path))
+    )
+      return true;
+    if (this.config.server.privateBetaMobileEnabled && this.mobile?.enabled) {
+      if (mobileBootstrap(request.method, request.path)) return true;
+      if (mobileUserRoute(request.method, request.path)) {
+        const header = request.headers.authorization;
+        const token =
+          typeof header === 'string' && header.startsWith('Bearer ')
+            ? header.slice(7).trim()
+            : undefined;
+        return this.mobile.requireSession(token).then(() => true);
+      }
+    }
+    throw new DomainError(ErrorCode.UNAUTHORIZED);
   }
 }

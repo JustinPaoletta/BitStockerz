@@ -1,7 +1,8 @@
 # BitStockerz – Non-Functional Requirements (NFRs)
 
 These are engineering targets, not measured production guarantees.
-The [deployment runbook](../../ops/deployment.md#current-setup-and-next-approvals) records provisioned resources and remaining launch work.
+The [deployment runbook](../../ops/deployment.md) records the app-only target and dated provider setup.
+The [app delivery plan](../../../APP_ONLY_PLAN.md) defines iPhone acceptance and release gates.
 The backtest fixture has automated timing coverage.
 End-to-end latency and data freshness still require deployment and vendor verification.
 
@@ -17,6 +18,9 @@ End-to-end latency and data freshness still require deployment and vendor verifi
 
 - MVP target: best-effort availability
 - No strict SLA, graceful recovery expected
+- Initial app mutations require network access. Do not queue orders or backtests offline without a separate reconciliation design.
+- Measure device startup, chart interaction, memory, and network recovery on the physical iPhone before setting additional device-specific thresholds.
+- Keep the existing API performance targets above; they are separate from device interaction measurements.
 
 ## 3. Data Freshness
 

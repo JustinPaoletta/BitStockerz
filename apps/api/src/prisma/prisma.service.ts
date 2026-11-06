@@ -112,6 +112,14 @@ export class PrismaService implements OnModuleDestroy {
     return this.requireClient().authSession;
   }
 
+  get mobileInvitation() {
+    return this.requireClient().mobileInvitation;
+  }
+
+  get mobileAdmission() {
+    return this.requireClient().mobileAdmission;
+  }
+
   get oAuthIdentity() {
     return this.requireClient().oAuthIdentity;
   }

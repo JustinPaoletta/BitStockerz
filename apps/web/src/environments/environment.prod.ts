@@ -1,4 +1,7 @@
+import type { NativeBuildInfo } from '../app/core/native/build-info';
+
 export const environment = {
+  nativeBuild: undefined as NativeBuildInfo | undefined,
   production: true,
   /**
    * Same-origin /api requests pass through Vercel Deployment Protection and

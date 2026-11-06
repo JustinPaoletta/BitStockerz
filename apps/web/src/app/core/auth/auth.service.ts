@@ -233,10 +233,15 @@ export class AuthService {
     await this.applySession(response);
   }
 
-  async registerWithPasskey(email: string, displayName?: string): Promise<void> {
+  async registerWithPasskey(
+    email: string,
+    displayName?: string,
+    invitationToken?: string,
+  ): Promise<void> {
     const options = await firstValueFrom(
       this.http.post<WebAuthnRegisterOptionsResponse>('/api/auth/webauthn/register/options', {
         email,
+        ...(invitationToken ? { invitation_token: invitationToken } : {}),
       }),
     );
     const attestation = await registerPasskey(
